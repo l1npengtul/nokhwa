@@ -3,7 +3,8 @@ name = "nokhwa"
 version = "0.1.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
-
+description = "A WIP Cross Platform Rust Library for powerful Webcam Capture and Virtual Webcams"
+license = "MPL-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
