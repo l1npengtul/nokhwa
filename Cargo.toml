@@ -9,4 +9,32 @@ repository = "https://github.com/l1npengtul/nokhwa"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+
 [dependencies]
+thiserror = "1.0.24"
+
+[dependencies.image]
+version = "0.23.14"
+optional = true
+
+[dependencies.opencv]
+version = "0.53.0"
+optional = true
+
+[dependencies.v4l]
+version = "0.12.0"
+optional = true
+
+[dependencies.uvc]
+version = "0.2.0"
+optional = true
+
+[dependencies.windows]
+version = "0.10.0"
+optional = true
+
+[dev-dependencies.windows]
+version = "0.10.0"
+optional = true
