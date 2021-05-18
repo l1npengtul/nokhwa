@@ -1,7 +1,6 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+#![deny(clippy::pedantic)]
+#![allow(clippy::upper_case_acronyms)]
+
+mod traits;
+pub mod backends;
+mod utils;
