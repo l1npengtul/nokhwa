@@ -24,6 +24,8 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/rayon-core-bfc51648641673b7/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-a14c600f8083dc5a/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/v4l2-sys-mit-1401199a612bbed5/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/mozjpeg-sys-c35f54bf209e057e/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/nokhwa-fca4e2084c34cbf5/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

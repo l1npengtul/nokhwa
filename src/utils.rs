@@ -1,10 +1,10 @@
 use std::fmt::Display;
 use std::cmp::Ordering;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum FrameFormat {
-    MJPEG = 0,
-    YUYV = 1,
+    MJPEG,
+    YUYV,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -40,7 +40,7 @@ impl Resolution {
 
 impl Display for Resolution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}x{}", self.x, self.y)
+        write!(f, "{}x{}", self.x(), self.y())
     }
 }
 
@@ -54,15 +54,15 @@ impl Ord for Resolution {
     // Flip around the order to make it seem the way the user would expect.
     // The user would expect a descending list of resolutions (aka highest -> lowest)
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.x.cmp(&other.x) {
+        match self.x().cmp(&other.x()) {
             Ordering::Less => Ordering::Less,
-            Ordering::Equal => self.y.cmp(&other.y),
+            Ordering::Equal => self.y().cmp(&other.y()),
             Ordering::Greater => Ordering::Greater,
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -93,11 +93,11 @@ impl CameraFormat {
         self.resolution
     }
 
-    pub fn width(&self) -> Resolution {
+    pub fn width(&self) -> u32 {
         self.resolution.width()
     }
 
-    pub fn height(&self) -> Resolution {
+    pub fn height(&self) -> u32 {
         self.resolution.height()
     }
 
@@ -108,4 +108,14 @@ impl CameraFormat {
     pub fn framerate(&self) -> u32 {
         self.framerate
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CaptureAPIBackend {
+    AUTO,
+    V4L2,
+    UVC,
+    MSMF,
+    OPENCV,
+    FFMPEG,
 }
