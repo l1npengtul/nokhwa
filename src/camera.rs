@@ -1,3 +1,3 @@
-pub struct CaptureCamera {
+pub struct Capture {
     
 }
