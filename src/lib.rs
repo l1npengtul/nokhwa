@@ -1,10 +1,15 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::must_use_candidate)]
 
-mod camera_traits;
 pub mod backends;
-mod utils;
 mod camera;
+mod camera_traits;
 mod error;
 mod query;
+mod utils;
+
+pub use camera_traits::*;
+pub use error::NokhwaError;
+pub use utils::*;

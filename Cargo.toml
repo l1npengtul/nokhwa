@@ -16,6 +16,8 @@ input_opencv = ["opencv", "opencv/clang-runtime"]
 input_msmf = ["windows"]
 input_v4l = ["v4l"]
 input_gstreamer = ["gstreamer"]
+input_ffmpeg = []
+docs-only = ["input_uvc", "input_opencv", "input_msmf", "input_v4l", "input_gstreamer", "input_ffmpeg"]
 
 [dependencies]
 thiserror = "1.0.24"
@@ -44,3 +46,7 @@ optional = true
 
 [dev-dependencies.windows]
 version = "0.10.0"
+
+[package.metadata.docs.rs]
+no-default-features = true
+features = ["docs-only"]

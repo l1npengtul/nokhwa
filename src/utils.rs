@@ -1,14 +1,19 @@
-use std::fmt::Display;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Display};
 
+/// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`
+
+/// YUYV is a mathmatical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
+
+/// MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
 }
 
-/// Describes a Resolution. 
+/// Describes a Resolution.
 /// This struct consists of a Width and a Height value (x,y).
+/// Note that the [`Ord`] implementation of this struct is flipped from highest to lowest.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Resolution {
     pub width_x: u32,
@@ -58,8 +63,6 @@ impl PartialOrd for Resolution {
 }
 
 impl Ord for Resolution {
-    // Flip around the order to make it seem the way the user would expect.
-    // The user would expect a descending list of resolutions (aka highest -> lowest)
     fn cmp(&self, other: &Self) -> Ordering {
         match self.x().cmp(&other.x()) {
             Ordering::Less => Ordering::Less,
@@ -69,6 +72,8 @@ impl Ord for Resolution {
     }
 }
 
+/// This is a conveinence struct that holds all information about the format of a webcam stream.
+/// It consists of a Resolution, `FrameFormat`, and a framerate.
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -77,6 +82,7 @@ pub struct CameraFormat {
 }
 
 impl CameraFormat {
+    /// Construct a new [`CameraFormat`]
     pub fn new(resolution: Resolution, format: FrameFormat, framerate: u32) -> Self {
         CameraFormat {
             resolution,
@@ -85,6 +91,7 @@ impl CameraFormat {
         }
     }
 
+    /// [`CameraFormat::new()`], but raw.
     pub fn new_from(res_x: u32, res_y: u32, format: FrameFormat, fps: u32) -> Self {
         CameraFormat {
             resolution: Resolution {
@@ -96,27 +103,60 @@ impl CameraFormat {
         }
     }
 
-    pub fn res(&self) -> Resolution {
+    /// Get the resolution of the current [`CameraFormat`]
+    pub fn resoltuion(&self) -> Resolution {
         self.resolution
     }
 
+    /// Get the width of the resolution of the current [`CameraFormat`]
     pub fn width(&self) -> u32 {
         self.resolution.width()
     }
 
+    /// Get the height of the resolution of the current [`CameraFormat`]
     pub fn height(&self) -> u32 {
         self.resolution.height()
     }
 
-    pub fn frame_format(&self) -> FrameFormat {
-        self.format
+    /// Set the [`CameraFormat`]'s resolution.
+    pub fn set_resolution(&mut self, resolution: Resolution) {
+        self.resolution = resolution;
     }
 
+    /// Get the framerate of the current [`CameraFormat`]
     pub fn framerate(&self) -> u32 {
         self.framerate
     }
+
+    /// Set the [`CameraFormat`]'s framerate.
+    pub fn set_framerate(&mut self, framerate: u32) {
+        self.framerate = framerate;
+    }
+
+    /// Get the [`CameraFormat`]'s format.
+    pub fn format(&self) -> FrameFormat {
+        self.format
+    }
+
+    /// Set the [`CameraFormat`]'s format.
+    pub fn set_format(&mut self, format: FrameFormat) {
+        self.format = format;
+    }
 }
 
+impl Default for CameraFormat {
+    fn default() -> Self {
+        CameraFormat {
+            resolution: Resolution::new(640, 480),
+            format: FrameFormat::MJPEG,
+            framerate: 15,
+        }
+    }
+}
+
+/// Information about a Camera e.g. its name.
+/// `description` amd `misc` may contain backend-specific information.
+/// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct CameraInfo {
     human_name: String,
@@ -126,13 +166,13 @@ pub struct CameraInfo {
 }
 
 impl CameraInfo {
+    /// Create a new [`CameraInfo`].
     pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
         CameraInfo {
             human_name,
             description,
             misc,
             index,
-
         }
     }
 
@@ -189,6 +229,19 @@ impl Ord for CameraInfo {
     }
 }
 
+/// The list of known capture backends to the library.
+///
+/// AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
+///
+/// V4L2 - `Video4Linux2`, a linux specific backend.
+///
+/// UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
+///
+/// MSMF - Microsoft Media Foundation, Winsows only (replacement for `DirectShow`)
+///
+/// `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
+///
+/// FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CaptureAPIBackend {
     AUTO,

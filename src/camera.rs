@@ -1,3 +1,1 @@
-pub struct Capture {
-    
-}
+pub struct Capture {}
