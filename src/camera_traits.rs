@@ -71,11 +71,15 @@ pub trait CaptureBackendTrait {
 /// This is for any backend that allows you to query a camera for its compatible resolutions/fourcc/framerates.
 pub trait QueryBackendTrait: CaptureBackendTrait {
     /// A hashmap of Framerates mapped to [`Resolution`]s.
-    fn get_compatible_by_framerate(&self, fourcc: FrameFormat) -> HashMap<u32, Vec<Resolution>>;
+    fn get_compatible_list_by_framerate(&self, fourcc: FrameFormat) -> HashMap<u32, Vec<Resolution>>;
     /// A hashmap of [`Resolution`]s mapped to framerates
-    fn get_compatible_by_resolution(&self, fourcc: FrameFormat) -> HashMap<Resolution, Vec<u32>>;
+    fn get_compatible_list_by_resolution(&self, fourcc: FrameFormat) -> HashMap<Resolution, Vec<u32>>;
+    ///
+    fn get_compatible_fps_by_resolution(&self, res: Resolution, fourcc: FrameFormat) -> Vec<u32>;
+    ///
+    fn get_compatible_res_by_framerate(&self, fps: u32, fourcc: FrameFormat) -> Vec<Resolution>;
     /// Gets the supported camera formats.
-    fn get_compatible_fourcc(&self, resolution: Resolution, framerate: u32) -> Option<FrameFormat>;
+    fn get_compatible_fourcc(&self, resolution: Resolution, framerate: u32) -> Vec<FrameFormat>;
 }
 
 pub trait VirtualBackendTrait {}

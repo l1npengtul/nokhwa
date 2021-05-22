@@ -1,8 +1,5 @@
-use crate::{
-    error::NokhwaError,
-    utils::{CameraFormat, CameraInfo},
-    CaptureBackendTrait, FrameFormat, Resolution,
-};
+use crate::{CaptureBackendTrait, FrameFormat, QueryBackendTrait, Resolution, error::NokhwaError, mjpeg_to_rgb888, utils::{CameraFormat, CameraInfo}, yuyv422_to_rgb888};
+use image::{ImageBuffer, Rgb};
 use v4l::prelude::*;
 use v4l::{
     buffer::Type,
@@ -222,8 +219,33 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.stream_handle.is_some()
     }
 
-    fn get_frame(&mut self) -> Result<image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, NokhwaError> {
-        todo!()
+    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        let raw_frame = self.get_frame_raw()?;
+        let cam_fmt = match self.camera_format {
+            Some(fmt) => fmt,
+            None => {
+                return Err(NokhwaError::CouldntCaptureFrame(
+                    "CameraFormat isn't initialized! This is probably a bug, please report it"
+                        .to_string(),
+                ));
+            }
+        };
+        let conv = match cam_fmt.format() {
+            FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
+            FrameFormat::YUYV => yuyv422_to_rgb888(&raw_frame)?,
+        };
+        let imagebuf =
+            match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {
+                Some(buf) => {
+                    let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
+                    rgbbuf
+                }
+                None => return Err(NokhwaError::CouldntCaptureFrame(
+                    "Imagebuffer is not large enough! This is probably a bug, please report it!"
+                        .to_string(),
+                )),
+            };
+        Ok(imagebuf)
     }
 
     fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
@@ -239,6 +261,31 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+        if self.stream_handle.is_some() {
+            self.stream_handle = None;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> QueryBackendTrait for V4LCaptureDevice<'a>{
+    fn get_compatible_list_by_framerate(&self, fourcc: FrameFormat) -> std::collections::HashMap<u32, Vec<Resolution>> {
+        todo!()
+    }
+
+    fn get_compatible_list_by_resolution(&self, fourcc: FrameFormat) -> std::collections::HashMap<Resolution, Vec<u32>> {
+        todo!()
+    }
+
+    fn get_compatible_fps_by_resolution(&self, res: Resolution, fourcc: FrameFormat) -> Vec<u32> {
+        todo!()
+    }
+
+    fn get_compatible_res_by_framerate(&self, fps: u32, fourcc: FrameFormat) -> Vec<Resolution> {
+        todo!()
+    }
+
+    fn get_compatible_fourcc(&self, resolution: Resolution, framerate: u32) -> Vec<FrameFormat> {
         todo!()
     }
 }

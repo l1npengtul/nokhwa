@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::FrameFormat;
+
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
@@ -18,4 +20,10 @@ pub enum NokhwaError {
     CouldntOpenStream(String),
     #[error("Could not capture frame: {0}")]
     CouldntCaptureFrame(String),
+    #[error("Could not decompress frame {src} to {destination}: {error}")]
+    CouldntDecompressFrame {
+        src: FrameFormat,
+        destination: String,
+        error: String,
+    },
 }
