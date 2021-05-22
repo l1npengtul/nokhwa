@@ -46,20 +46,26 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If you started the stream and the camera rejects the new frame foramt, this will return an error.
     fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
-    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`CaptureBackendTrait::get_frame()`] before you call [`CaptureBackendTrait::open_stream()`].
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`get_frame()`](CaptureBackendTrait::get_frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     fn open_stream(&mut self) -> Result<(), NokhwaError>;
     /// Checks if stream if open. If it is, it will return true.
     fn is_stream_open(&self) -> bool;
-    /// Will get a frame from the camera as a Raw RGB image buffer. This will call [`CaptureBackendTrait::open_stream()`] first if you haven't already.
+    /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
+    /// it will either return an error.
     /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore) or the decoding fails (e.g. MJPEG -> u8), this will error.
-    fn get_frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError>;
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
+    /// this will error.
+    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError>;
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), this will error.
-    fn get_frame_raw(&self) -> Vec<u8>;
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
+    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
+    /// Will drop the stream.
+    /// # Errors
+    /// Please check the `Quirks` section of each backend.
+    fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
 
 /// This is for any backend that allows you to query a camera for its compatible resolutions/fourcc/framerates.

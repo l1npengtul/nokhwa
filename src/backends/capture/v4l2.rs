@@ -130,32 +130,28 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         }
 
         if self.stream_handle.is_some() {
-            self.stream_handle = Some({
-                match MmapStream::new(&self.device, Type::VideoCapture) {
-                    Ok(stream) => stream,
-                    Err(why) => {
-                        // undo
-                        if let Err(why) = self.device.set_format(&prev_format) {
-                            return Err(NokhwaError::CouldntSetProperty {
-                                property: "Attempt undo due to stream acquisition failure. Resolution, FrameFormat".to_string(),
-                                value: prev_format.to_string(),
-                                error: why.to_string(),
-                            });
-                        }
-                        if let Err(why) = self.device.set_params(&prev_fps) {
-                            return Err(NokhwaError::CouldntSetProperty {
-                                property:
-                                    "Attempt undo due to stream acquisition failure. Framerate"
-                                        .to_string(),
-                                value: prev_fps.to_string(),
-                                error: why.to_string(),
-                            });
-                        }
-
-                        return Err(NokhwaError::CouldntOpenStream(why.to_string()));
+            match self.open_stream() {
+                Ok(_) => return Ok(()),
+                Err(why) => {
+                    // undo
+                    if let Err(why) = self.device.set_format(&prev_format) {
+                        return Err(NokhwaError::CouldntSetProperty {
+                            property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why.to_string()),
+                            value: prev_format.to_string(),
+                            error: why.to_string(),
+                        });
                     }
+                    if let Err(why) = self.device.set_params(&prev_fps) {
+                        return Err(NokhwaError::CouldntSetProperty {
+                            property:
+                                format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
+                            value: prev_fps.to_string(),
+                            error: why.to_string(),
+                        });
+                    }
+                    return Err(why);
                 }
-            })
+            }
         }
         self.camera_format = Some(new_fmt);
         Ok(())
@@ -214,18 +210,35 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        todo!()
+        let stream = match MmapStream::new(&self.device, Type::VideoCapture) {
+            Ok(s) => s,
+            Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+        };
+        self.stream_handle = Some(stream);
+        Ok(())
     }
 
     fn is_stream_open(&self) -> bool {
         self.stream_handle.is_some()
     }
 
-    fn get_frame(&self) -> Result<image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, NokhwaError> {
+    fn get_frame(&mut self) -> Result<image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, NokhwaError> {
         todo!()
     }
 
-    fn get_frame_raw(&self) -> Vec<u8> {
+    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+        match &mut self.stream_handle {
+            Some(streamh) => match streamh.next() {
+                Ok((data, _)) => Ok(data.to_vec()),
+                Err(why) => Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            },
+            None => Err(NokhwaError::CouldntCaptureFrame(
+                "Stream not initialized! Please call \"open_stream()\" first!".to_string(),
+            )),
+        }
+    }
+
+    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         todo!()
     }
 }

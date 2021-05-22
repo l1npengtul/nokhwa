@@ -16,4 +16,6 @@ pub enum NokhwaError {
     },
     #[error("Could not open device stream: {0}")]
     CouldntOpenStream(String),
+    #[error("Could not capture frame: {0}")]
+    CouldntCaptureFrame(String),
 }
