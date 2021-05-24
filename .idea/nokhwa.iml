@@ -26,6 +26,26 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/v4l2-sys-mit-1401199a612bbed5/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/mozjpeg-sys-c35f54bf209e057e/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/nokhwa-fca4e2084c34cbf5/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/bitflags-88b50a288ea9b589/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/crc32fast-f112d4af2349618a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/crossbeam-utils-f18a9a09c842a116/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/libc-34b92eaa97780640/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/memoffset-7dcca5ba1dbddb41/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/miniz_oxide-24ce73e20e4a3ff2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/mozjpeg-sys-1a963405fcd77efc/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/num-integer-add9cb380db572d4/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/num-iter-7488762592985ead/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/num-rational-cc8bf80ac17a0e16/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/num-traits-68267bf3e91cd7cc/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro2-ce1a087ba38e801a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/rayon-82b053c11a069b7f/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/rayon-core-14a7bb24d6f58d5f/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-ce42942113a88686/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/futures-core-398c829ef0b43005/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro-error-3767db49a8a5c3f2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro-error-attr-4fdf86427e6e8f90/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-649155a95cf88f66/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-e4c794e1e37211a0/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -247,7 +247,7 @@ impl Ord for CameraInfo {
 /// - AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - V4L2 - `Video4Linux2`, a linux specific backend.
 /// - UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
-/// - MSMF - Microsoft Media Foundation, Winsows only (replacement for `DirectShow`)
+/// - Windows - Directshow, Windows only
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
 /// - FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -255,7 +255,7 @@ pub enum CaptureAPIBackend {
     AUTO,
     V4L2,
     UVC,
-    MSMF,
+    WINDOWS,
     OPENCV,
     FFMPEG,
 }
@@ -310,7 +310,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 // The YUY2(YUYV) format is a 16 bit format. We read 4 bytes at a time to get 6 bytes of RGB888.
 // First, the YUY2 is converted to YCbCr 4:4:4 (4:2:2 -> 4:4:4)
 // then it is converted to 6 bytes (2 pixels) of RGB888
-/// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB) 
+/// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
@@ -410,7 +410,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 }
 
 // equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
-/// Convert `YCbCr` 4:4:4 to a RGB888. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB) 
+/// Convert `YCbCr` 4:4:4 to a RGB888. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 #[allow(clippy::many_single_char_names)]
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]

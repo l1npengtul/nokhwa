@@ -1,12 +1,19 @@
-use crate::{CaptureBackendTrait, FrameFormat, QueryBackendTrait, Resolution, error::NokhwaError, mjpeg_to_rgb888, utils::{CameraFormat, CameraInfo}, yuyv422_to_rgb888};
+use std::collections::HashMap;
+
+use crate::{
+    error::NokhwaError,
+    mjpeg_to_rgb888,
+    utils::{CameraFormat, CameraInfo},
+    yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, QueryBackendTrait, Resolution,
+};
 use image::{ImageBuffer, Rgb};
-use v4l::prelude::*;
 use v4l::{
     buffer::Type,
     io::traits::CaptureStream,
     video::{capture::Parameters, Capture},
     Format, FourCC,
 };
+use v4l::{frameinterval::FrameIntervalEnum, framesize::FrameSizeEnum, prelude::*};
 
 #[cfg(feature = "input_v4l")]
 impl From<CameraFormat> for Format {
@@ -71,10 +78,6 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.camera_info.clone()
     }
 
-    fn get_camera_format(&self) -> Option<CameraFormat> {
-        self.camera_format
-    }
-
     #[allow(clippy::option_if_let_else)]
     fn init_camera_format_default(&mut self, overwrite: bool) -> Result<(), NokhwaError> {
         match self.camera_format {
@@ -86,6 +89,10 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             }
             None => self.set_camera_format(CameraFormat::default()),
         }
+    }
+
+    fn get_camera_format(&self) -> Option<CameraFormat> {
+        self.camera_format
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
@@ -268,24 +275,75 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 }
 
-impl<'a> QueryBackendTrait for V4LCaptureDevice<'a>{
-    fn get_compatible_list_by_framerate(&self, fourcc: FrameFormat) -> std::collections::HashMap<u32, Vec<Resolution>> {
-        todo!()
+impl<'a> QueryBackendTrait for V4LCaptureDevice<'a> {
+    fn get_compatible_list_by_resolution(
+        &self,
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+        let resolutions = self.get_resolution_list(fourcc)?;
+        let format = match fourcc {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+        let mut resmap = HashMap::new();
+        for res in resolutions {
+            let mut compatible_fps = vec![];
+            match self
+                .device
+                .enum_frameintervals(format, res.width(), res.height())
+            {
+                Ok(intervals) => {
+                    for interval in intervals {
+                        match interval.interval {
+                            FrameIntervalEnum::Discrete(dis) => {
+                                compatible_fps.push(dis.denominator);
+                            }
+                            FrameIntervalEnum::Stepwise(step) => {
+                                compatible_fps.push(step.min.denominator);
+                                compatible_fps.push(step.max.denominator);
+                            }
+                        }
+                    }
+                }
+                Err(why) => {
+                    return Err(NokhwaError::CouldntQueryDevice {
+                        property: "Framerate".to_string(),
+                        error: why.to_string(),
+                    })
+                }
+            }
+            resmap.insert(res, compatible_fps);
+        }
+        Ok(resmap)
     }
 
-    fn get_compatible_list_by_resolution(&self, fourcc: FrameFormat) -> std::collections::HashMap<Resolution, Vec<u32>> {
-        todo!()
-    }
+    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
+        let format = match fourcc {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
 
-    fn get_compatible_fps_by_resolution(&self, res: Resolution, fourcc: FrameFormat) -> Vec<u32> {
-        todo!()
-    }
-
-    fn get_compatible_res_by_framerate(&self, fps: u32, fourcc: FrameFormat) -> Vec<Resolution> {
-        todo!()
-    }
-
-    fn get_compatible_fourcc(&self, resolution: Resolution, framerate: u32) -> Vec<FrameFormat> {
-        todo!()
+        match self.device.enum_framesizes(format) {
+            Ok(framesizes) => {
+                let mut resolutions = vec![];
+                for framesize in framesizes {
+                    match framesize.size {
+                        FrameSizeEnum::Discrete(dis) => {
+                            resolutions.push(Resolution::new(dis.width, dis.height))
+                        }
+                        FrameSizeEnum::Stepwise(step) => {
+                            resolutions.push(Resolution::new(step.min_width, step.min_height));
+                            resolutions.push(Resolution::new(step.max_width, step.max_height));
+                            // TODO: Respect step size
+                        }
+                    }
+                }
+                Ok(resolutions)
+            }
+            Err(why) => Err(NokhwaError::CouldntQueryDevice {
+                property: "Resolutions".to_string(),
+                error: why.to_string(),
+            }),
+        }
     }
 }

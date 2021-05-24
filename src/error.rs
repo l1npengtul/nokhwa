@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::FrameFormat;
+use crate::{CaptureAPIBackend, FrameFormat};
 
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::pub_enum_variant_names)]
@@ -26,4 +26,6 @@ pub enum NokhwaError {
         destination: String,
         error: String,
     },
+    #[error("This operation is not supported by backend {0}.")]
+    UnsupportedOperation(CaptureAPIBackend),
 }
