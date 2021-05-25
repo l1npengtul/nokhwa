@@ -8,11 +8,12 @@ use crate::{
 };
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
+/// Many of the backends are **blocking**, if the camera is occupied the program will halt while it waits for it to become availible.
 pub trait CaptureBackendTrait {
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     fn get_info(&self) -> CameraInfo;
-    /// Assigns a sensible default to the backend's `CameraFormat`. Usually 640x480 @ 15 FPS + MJPEG.
-    /// If there is already a value assigned to the `CameraFormat`, it will only be overwritten if `overwrite` is set to `true`.
+    /// Assigns a sensible default to the backend's [`CameraFormat`]. Usually 640x480 @ 15 FPS + MJPEG.
+    /// If there is already a value assigned to the [`CameraFormat`], it will only be overwritten if `overwrite` is set to `true`.
     /// If false, this function will do nothing (NO-OP).
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -20,6 +21,17 @@ pub trait CaptureBackendTrait {
     fn init_camera_format_default(&mut self, overwrite: bool) -> Result<(), NokhwaError>;
     /// Gets the current [`CameraFormat`]. Will return none if no format has been set yet.
     fn get_camera_format(&self) -> Option<CameraFormat>;
+    /// A hashmap of [`Resolution`]s mapped to framerates
+    /// # Errors
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation (see: [`NokhwaError::UnsupportedOperation`]).
+    fn get_compatible_list_by_resolution(
+        &self,
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
+    /// Gets the supported camera formats.
+    /// # Errors
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a NO-OP [`NokhwaError::UnsupportedOperation`]
+    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError>;
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -66,21 +78,6 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
-}
-
-/// This is for any backend that allows you to query a camera for its compatible resolutions/fourcc/framerates.
-pub trait QueryBackendTrait: CaptureBackendTrait {
-    /// A hashmap of [`Resolution`]s mapped to framerates
-    /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed.
-    fn get_compatible_list_by_resolution(
-        &self,
-        fourcc: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
-    /// Gets the supported camera formats.
-    /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed.
-    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError>;
 }
 
 pub trait VirtualBackendTrait {}

@@ -4,7 +4,7 @@ use crate::{
     error::NokhwaError,
     mjpeg_to_rgb888,
     utils::{CameraFormat, CameraInfo},
-    yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, QueryBackendTrait, Resolution,
+    yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use v4l::{
@@ -43,7 +43,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// Creates a new capture device using the V4L2 backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     /// # Errors
     /// This function will error if the camera is currently busy or if V4L2 can't read device information.
-    pub fn new(index: usize) -> Result<Self, NokhwaError> {
+    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let device = match Device::new(index) {
             Ok(dev) => dev,
             Err(why) => {
@@ -65,11 +65,23 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         Ok(V4LCaptureDevice {
-            camera_format: None,
+            camera_format,
             camera_info,
             device,
             stream_handle: None,
         })
+    }
+
+    /// Create a new V4L Camera with desired settings.
+    pub fn new_with(
+        index: usize,
+        width: u32,
+        height: u32,
+        fps: u32,
+        fourcc: FrameFormat,
+    ) -> Result<Self, NokhwaError> {
+        let camera_format = Some(CameraFormat::new_from(width, height, fourcc, fps));
+        V4LCaptureDevice::new(index, camera_format)
     }
 }
 
@@ -93,6 +105,77 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
 
     fn get_camera_format(&self) -> Option<CameraFormat> {
         self.camera_format
+    }
+
+    fn get_compatible_list_by_resolution(
+        &self,
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+        let resolutions = self.get_resolution_list(fourcc)?;
+        let format = match fourcc {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+        let mut resmap = HashMap::new();
+        for res in resolutions {
+            let mut compatible_fps = vec![];
+            match self
+                .device
+                .enum_frameintervals(format, res.width(), res.height())
+            {
+                Ok(intervals) => {
+                    for interval in intervals {
+                        match interval.interval {
+                            FrameIntervalEnum::Discrete(dis) => {
+                                compatible_fps.push(dis.denominator);
+                            }
+                            FrameIntervalEnum::Stepwise(step) => {
+                                compatible_fps.push(step.min.denominator);
+                                compatible_fps.push(step.max.denominator);
+                            }
+                        }
+                    }
+                }
+                Err(why) => {
+                    return Err(NokhwaError::CouldntQueryDevice {
+                        property: "Framerate".to_string(),
+                        error: why.to_string(),
+                    })
+                }
+            }
+            resmap.insert(res, compatible_fps);
+        }
+        Ok(resmap)
+    }
+
+    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
+        let format = match fourcc {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+
+        match self.device.enum_framesizes(format) {
+            Ok(framesizes) => {
+                let mut resolutions = vec![];
+                for framesize in framesizes {
+                    match framesize.size {
+                        FrameSizeEnum::Discrete(dis) => {
+                            resolutions.push(Resolution::new(dis.width, dis.height))
+                        }
+                        FrameSizeEnum::Stepwise(step) => {
+                            resolutions.push(Resolution::new(step.min_width, step.min_height));
+                            resolutions.push(Resolution::new(step.max_width, step.max_height));
+                            // TODO: Respect step size
+                        }
+                    }
+                }
+                Ok(resolutions)
+            }
+            Err(why) => Err(NokhwaError::CouldntQueryDevice {
+                property: "Resolutions".to_string(),
+                error: why.to_string(),
+            }),
+        }
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
@@ -134,8 +217,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         }
 
         if self.stream_handle.is_some() {
-            match self.open_stream() {
-                Ok(_) => return Ok(()),
+            return match self.open_stream() {
+                Ok(_) => Ok(()),
                 Err(why) => {
                     // undo
                     if let Err(why) = self.device.set_format(&prev_format) {
@@ -148,14 +231,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     if let Err(why) = self.device.set_params(&prev_fps) {
                         return Err(NokhwaError::CouldntSetProperty {
                             property:
-                                format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
+                            format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
                             value: prev_fps.to_string(),
                             error: why.to_string(),
                         });
                     }
-                    return Err(why);
+                    Err(why)
                 }
-            }
+            };
         }
         self.camera_format = Some(new_fmt);
         Ok(())
@@ -272,78 +355,5 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             self.stream_handle = None;
         }
         Ok(())
-    }
-}
-
-impl<'a> QueryBackendTrait for V4LCaptureDevice<'a> {
-    fn get_compatible_list_by_resolution(
-        &self,
-        fourcc: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        let resolutions = self.get_resolution_list(fourcc)?;
-        let format = match fourcc {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-        };
-        let mut resmap = HashMap::new();
-        for res in resolutions {
-            let mut compatible_fps = vec![];
-            match self
-                .device
-                .enum_frameintervals(format, res.width(), res.height())
-            {
-                Ok(intervals) => {
-                    for interval in intervals {
-                        match interval.interval {
-                            FrameIntervalEnum::Discrete(dis) => {
-                                compatible_fps.push(dis.denominator);
-                            }
-                            FrameIntervalEnum::Stepwise(step) => {
-                                compatible_fps.push(step.min.denominator);
-                                compatible_fps.push(step.max.denominator);
-                            }
-                        }
-                    }
-                }
-                Err(why) => {
-                    return Err(NokhwaError::CouldntQueryDevice {
-                        property: "Framerate".to_string(),
-                        error: why.to_string(),
-                    })
-                }
-            }
-            resmap.insert(res, compatible_fps);
-        }
-        Ok(resmap)
-    }
-
-    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
-        let format = match fourcc {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-        };
-
-        match self.device.enum_framesizes(format) {
-            Ok(framesizes) => {
-                let mut resolutions = vec![];
-                for framesize in framesizes {
-                    match framesize.size {
-                        FrameSizeEnum::Discrete(dis) => {
-                            resolutions.push(Resolution::new(dis.width, dis.height))
-                        }
-                        FrameSizeEnum::Stepwise(step) => {
-                            resolutions.push(Resolution::new(step.min_width, step.min_height));
-                            resolutions.push(Resolution::new(step.max_width, step.max_height));
-                            // TODO: Respect step size
-                        }
-                    }
-                }
-                Ok(resolutions)
-            }
-            Err(why) => Err(NokhwaError::CouldntQueryDevice {
-                property: "Resolutions".to_string(),
-                error: why.to_string(),
-            }),
-        }
     }
 }

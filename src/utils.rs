@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, convert::TryFrom, fmt::Display, slice::from_raw_parts};
+use std::{cmp::Ordering, convert::TryFrom, fmt::{Display, write}, slice::from_raw_parts};
 
 use mozjpeg::Decompress;
 
@@ -258,6 +258,13 @@ pub enum CaptureAPIBackend {
     WINDOWS,
     OPENCV,
     FFMPEG,
+}
+
+impl Display for CaptureAPIBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let self_str = format!("{:?}", self);
+        write!(f, "{}", self_str)
+    }
 }
 
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)

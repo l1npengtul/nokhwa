@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use crate::{CaptureAPIBackend, FrameFormat};
 
+/// All errors in Nokhwa.
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
