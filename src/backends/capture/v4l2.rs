@@ -73,6 +73,8 @@ impl<'a> V4LCaptureDevice<'a> {
     }
 
     /// Create a new V4L Camera with desired settings.
+    /// # Errors
+    /// This function will error if the camera is currently busy or if V4L2 can't read device information.
     pub fn new_with(
         index: usize,
         width: u32,

@@ -1,8 +1,6 @@
-use std::{cmp::Ordering, convert::TryFrom, fmt::{Display, write}, slice::from_raw_parts};
-
-use mozjpeg::Decompress;
-
 use crate::NokhwaError;
+use mozjpeg::Decompress;
+use std::{cmp::Ordering, convert::TryFrom, fmt::Display, slice::from_raw_parts};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
 /// YUYV is a mathmatical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>

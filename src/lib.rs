@@ -3,6 +3,7 @@
 #![allow(clippy::upper_case_acronyms)]
 #![allow(clippy::must_use_candidate)]
 
+/// Raw access to each of Nokhwa's backends.
 pub mod backends;
 mod camera;
 mod camera_traits;
