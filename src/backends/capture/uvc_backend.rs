@@ -3,8 +3,10 @@ use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
 use ouroboros::self_referencing;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
+    mem::MaybeUninit,
+    ops::DerefMut,
     sync::{atomic::AtomicUsize, Arc},
 };
 use uvc::{
@@ -53,6 +55,8 @@ pub struct UVCCaptureDevice<'a> {
     frame_receiver: Box<Receiver<Vec<u8>>>,
     frame_sender: Box<Sender<Vec<u8>>>,
     context: Box<Context<'a>>,
+    stream_handle_init: Cell<bool>,
+    active_stream_init: Cell<bool>,
     #[borrows(context)]
     #[not_covariant]
     device: Box<Device<'this>>,
@@ -61,10 +65,10 @@ pub struct UVCCaptureDevice<'a> {
     device_handle: Box<DeviceHandle<'this>>,
     #[borrows(device_handle)]
     #[not_covariant]
-    stream_handle: Box<RefCell<Option<StreamHandle<'this>>>>,
+    stream_handle: Box<RefCell<MaybeUninit<StreamHandle<'this>>>>,
     #[borrows(stream_handle)]
     #[not_covariant]
-    active_stream: Box<RefCell<Option<ActiveStream<'this, Arc<AtomicUsize>>>>>,
+    active_stream: Box<RefCell<MaybeUninit<ActiveStream<'this, Arc<AtomicUsize>>>>>,
 }
 
 impl<'a> UVCCaptureDevice<'a> {
@@ -149,6 +153,8 @@ impl<'a> UVCCaptureDevice<'a> {
             frame_receiver,
             frame_sender,
             context,
+            stream_handle_init: Cell::new(false),
+            active_stream_init: Cell::new(false),
             device_builder: |context_builder| {
                 Box::new(
                     context_builder
@@ -157,8 +163,12 @@ impl<'a> UVCCaptureDevice<'a> {
                 )
             },
             device_handle_builder: |device_builder| Box::new(device_builder.open().unwrap()),
-            stream_handle_builder: |_device_handle_builder| Box::new(RefCell::new(None)),
-            active_stream_builder: |_stream_handle_builder| Box::new(RefCell::new(None)),
+            stream_handle_builder: |_device_handle_builder| {
+                Box::new(RefCell::new(MaybeUninit::uninit()))
+            },
+            active_stream_builder: |_stream_handle_builder| {
+                Box::new(RefCell::new(MaybeUninit::uninit()))
+            },
         }
         .build())
     }
@@ -213,18 +223,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
         let ret: Result<(), NokhwaError> = self.with_mut(|fields| {
             *fields.camera_format = Some(new_fmt);
-            let is_streamh_some = {
-                match fields.stream_handle.try_borrow() {
-                    Ok(v) => v.is_some(),
-                    Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
-                }
-            };
+            let is_streamh_some = { fields.stream_handle_init.get() };
             if is_streamh_some {
-                // drop the stream handle first
-                {
-                    *fields.stream_handle.borrow_mut() = None;
-                }
-                // replace with new
+                // TODO
             }
 
             Ok(())
@@ -257,7 +258,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        let ret = self.with_mut(|fields| {
+        let ret: Result<(), NokhwaError> = self.with_mut(|fields| {
             let stream_format: StreamFormat = match fields.camera_format {
                 Some(fmt) => {
                     let cameraformat: CameraFormat = *fmt;
@@ -272,8 +273,27 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
             // first, drop the existing stream by setting it to None
             {
+                match fields.active_stream.try_borrow_mut() {
+                    Ok(raw_astream) => {
+                        if fields.active_stream_init.get() {
+                            std::mem::drop(raw_astream.assume_init());
+                            std::mem::drop(raw_astream);
+                            *raw_astream = MaybeUninit::uninit();
+                            fields.active_stream_init.set(false);
+                        }
+                    }
+                    Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+                }
+
                 match fields.stream_handle.try_borrow_mut() {
-                    Ok(mut streamh_raw) => *streamh_raw = None,
+                    Ok(mut raw_streamh) => {
+                        if fields.stream_handle_init.get() {
+                            std::mem::drop(raw_streamh.assume_init());
+                            std::mem::drop(raw_streamh);
+                            *raw_streamh = MaybeUninit::uninit();
+                            fields.stream_handle_init.set(false);
+                        }
+                    }
                     Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
                 }
             }
@@ -283,11 +303,28 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                 .get_stream_handle_with_format(stream_format)
             {
                 Ok(streamh) => match fields.stream_handle.try_borrow_mut() {
-                    Ok(mut streamh_raw) => *streamh_raw = Some(streamh),
+                    Ok(mut streamh_raw) => {
+                        *streamh_raw = MaybeUninit::new(streamh);
+                        fields.stream_handle_init.set(true);
+                    }
                     Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
                 },
                 Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
             }
+            Ok(())
+        });
+
+        if ret.is_err() {
+            return ret;
+        }
+
+        let ret_2: Result<(), NokhwaError> = self.with(|fields| {
+            // finally, get the active stream
+            let counter = Arc::new(AtomicUsize::new(0));
+            let frame_sender: Sender<Vec<u8>> = *(self.with_frame_sender(|send| send)).clone();
+            let mut streamh = unsafe {};
+            // let active_stream = streamh.start_stream(|frame, _cnt| {}, counter);
+
             Ok(())
         });
         Ok(())
