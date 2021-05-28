@@ -1,9 +1,10 @@
 use crate::NokhwaError;
 use mozjpeg::Decompress;
+use std::fmt::Formatter;
 use std::{cmp::Ordering, convert::TryFrom, fmt::Display, slice::from_raw_parts};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
-/// YUYV is a mathmatical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
+/// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
 /// MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum FrameFormat {
@@ -84,7 +85,7 @@ impl Ord for Resolution {
     }
 }
 
-/// This is a conveinence struct that holds all information about the format of a webcam stream.
+/// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a framerate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
@@ -116,7 +117,7 @@ impl CameraFormat {
     }
 
     /// Get the resolution of the current [`CameraFormat`]
-    pub fn resoltuion(&self) -> Resolution {
+    pub fn resolution(&self) -> Resolution {
         self.resolution
     }
 
@@ -163,6 +164,16 @@ impl Default for CameraFormat {
             format: FrameFormat::MJPEG,
             framerate: 15,
         }
+    }
+}
+
+impl Display for CameraFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}@{}FPS, {} Format",
+            self.resolution, self.framerate, self.format
+        )
     }
 }
 
@@ -241,6 +252,16 @@ impl Ord for CameraInfo {
     }
 }
 
+impl Display for CameraInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Name: {}, Description: {}, Extra: {}, Index: {}",
+            self.human_name, self.description, self.misc, self.index
+        )
+    }
+}
+
 /// The list of known capture backends to the library. <br>
 /// - AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - V4L2 - `Video4Linux2`, a linux specific backend.
@@ -267,7 +288,7 @@ impl Display for CaptureAPIBackend {
 
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
-/// If `mozjpeg` fails to read scanlines or setup the decompresser, this will error.
+/// If `mozjpeg` fails to read scanlines or setup the decompressor, this will error.
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.

@@ -30,10 +30,9 @@ impl From<CameraFormat> for Format {
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`]
 /// # Quirks
-/// Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_framerate()`](CaptureBackendTrait::set_framerate), or [`set_frameformat()`](CaptureBackendTrait::set_frameformat)
-/// each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
+/// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_framerate()`](CaptureBackendTrait::set_framerate), or [`set_frameformat()`](CaptureBackendTrait::set_frameformat) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
 pub struct V4LCaptureDevice<'a> {
-    camera_format: Option<CameraFormat>,
+    camera_format: CameraFormat,
     camera_info: CameraInfo,
     device: Device,
     stream_handle: Option<MmapStream<'a>>,
@@ -41,9 +40,11 @@ pub struct V4LCaptureDevice<'a> {
 
 impl<'a> V4LCaptureDevice<'a> {
     /// Creates a new capture device using the V4L2 backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
+    ///
+    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if V4L2 can't read device information.
-    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let device = match Device::new(index) {
             Ok(dev) => dev,
             Err(why) => {
@@ -62,6 +63,11 @@ impl<'a> V4LCaptureDevice<'a> {
                     error: why.to_string(),
                 })
             }
+        };
+
+        let camera_format = match cam_fmt {
+            Some(cfmt) => cfmt,
+            None => CameraFormat::default(),
         };
 
         Ok(V4LCaptureDevice {
@@ -92,20 +98,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.camera_info.clone()
     }
 
-    #[allow(clippy::option_if_let_else)]
-    fn init_camera_format_default(&mut self, overwrite: bool) -> Result<(), NokhwaError> {
-        match self.camera_format {
-            Some(_) => {
-                if overwrite {
-                    return self.set_camera_format(CameraFormat::default());
-                }
-                Ok(())
-            }
-            None => self.set_camera_format(CameraFormat::default()),
-        }
-    }
-
-    fn get_camera_format(&self) -> Option<CameraFormat> {
+    fn get_camera_format(&self) -> CameraFormat {
         self.camera_format
     }
 
@@ -242,60 +235,41 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 }
             };
         }
-        self.camera_format = Some(new_fmt);
+        self.camera_format = new_fmt;
         Ok(())
     }
 
-    fn get_resolution(&self) -> Option<Resolution> {
-        self.camera_format.map(|fmt| fmt.resoltuion())
+    fn get_resolution(&self) -> Resolution {
+        self.camera_format.resolution()
     }
 
     #[allow(clippy::option_if_let_else)]
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        if let Some(fmt) = self.camera_format {
-            let mut new_fmt = fmt;
-            new_fmt.set_resolution(new_res);
-            self.set_camera_format(new_fmt)
-        } else {
-            self.camera_format = Some(CameraFormat::new(new_res, FrameFormat::MJPEG, 0));
-            Ok(())
-        }
+        let mut new_fmt = self.camera_format;
+        new_fmt.set_resolution(new_res);
+        self.set_camera_format(new_fmt)
     }
 
-    fn get_framerate(&self) -> Option<u32> {
-        self.camera_format.map(|fmt| fmt.framerate())
+    fn get_framerate(&self) -> u32 {
+        self.camera_format.framerate()
     }
 
     #[allow(clippy::option_if_let_else)]
     fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        if let Some(fmt) = self.camera_format {
-            let mut new_fmt = fmt;
-            new_fmt.set_framerate(new_fps);
-            self.set_camera_format(new_fmt)
-        } else {
-            self.camera_format = Some(CameraFormat::new(
-                Resolution::new(0, 0),
-                FrameFormat::MJPEG,
-                new_fps,
-            ));
-            Ok(())
-        }
+        let mut new_fmt = self.camera_format;
+        new_fmt.set_framerate(new_fps);
+        self.set_camera_format(new_fmt)
     }
 
-    fn get_frameformat(&self) -> Option<FrameFormat> {
-        self.camera_format.map(|fmt| fmt.format())
+    fn get_frameformat(&self) -> FrameFormat {
+        self.camera_format.format()
     }
 
     #[allow(clippy::option_if_let_else)]
     fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        if let Some(fmt) = self.camera_format {
-            let mut new_fmt = fmt;
-            new_fmt.set_format(fourcc);
-            self.set_camera_format(new_fmt)
-        } else {
-            self.camera_format = Some(CameraFormat::new(Resolution::new(0, 0), fourcc, 0));
-            Ok(())
-        }
+        let mut new_fmt = self.camera_format;
+        new_fmt.set_format(fourcc);
+        self.set_camera_format(new_fmt)
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -313,15 +287,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
 
     fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         let raw_frame = self.get_frame_raw()?;
-        let cam_fmt = match self.camera_format {
-            Some(fmt) => fmt,
-            None => {
-                return Err(NokhwaError::CouldntCaptureFrame(
-                    "CameraFormat isn't initialized! This is probably a bug, please report it"
-                        .to_string(),
-                ));
-            }
-        };
+        let cam_fmt = self.camera_format;
         let conv = match cam_fmt.format() {
             FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
             FrameFormat::YUYV => yuyv422_to_rgb888(&raw_frame)?,
