@@ -211,7 +211,6 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         &self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        todo!()
     }
 
     fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
@@ -247,11 +246,13 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn get_resolution(&self) -> Resolution {
-        self.borrow_camera_format().resoltuion()
+        self.borrow_camera_format().resolution()
     }
 
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        todo!()
+        let mut current_format = *self.borrow_camera_format();
+        current_format.set_resolution(new_res);
+        self.set_camera_format(current_format)
     }
 
     fn get_framerate(&self) -> u32 {
@@ -259,7 +260,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        todo!()
+        let mut current_format = *self.borrow_camera_format();
+        current_format.set_framerate(new_fps);
+        self.set_camera_format(current_format)
     }
 
     fn get_frameformat(&self) -> FrameFormat {
@@ -267,7 +270,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        todo!()
+        let mut current_format = *self.borrow_camera_format();
+        current_format.set_format(fourcc);
+        self.set_camera_format(current_format)
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -364,7 +369,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
             Err(why) => return Err(why),
         };
 
-        let resolution: Resolution = self.borrow_camera_format().resoltuion();
+        let resolution: Resolution = self.borrow_camera_format().resolution();
 
         let imagebuf: ImageBuffer<Rgb<u8>, Vec<u8>> =
             match ImageBuffer::from_vec(resolution.width(), resolution.height(), data) {
