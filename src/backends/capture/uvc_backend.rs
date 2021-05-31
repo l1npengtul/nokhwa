@@ -9,8 +9,8 @@ use std::{
     sync::{atomic::AtomicUsize, Arc},
 };
 use uvc::{
-    ActiveStream, Context, Device, DeviceHandle, FrameFormat as UVCFrameFormat, StreamFormat,
-    StreamHandle,
+    ActiveStream, Context, DescriptionSubtype, Device, DeviceHandle, FrameFormat as UVCFrameFormat,
+    StreamFormat, StreamHandle,
 };
 
 #[cfg(feature = "input_uvc")]
@@ -47,7 +47,8 @@ impl From<CameraFormat> for StreamFormat {
 /// This backend, once stream is open, will constantly collect frames. When you call [`get_frame()`](CaptureBackendTrait::get_frame()) or one of its variants, it will only give you the latest frame.
 /// # Safety
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
-/// If [`open_stream()`](CaptureBackendTrait::open_stream()) and [`get_frame()`](CaptureBackendTrait::get_frame()) are called in the wrong order this may crash the entire program.
+/// - If [`open_stream()`](CaptureBackendTrait::open_stream()) and [`get_frame()`](CaptureBackendTrait::get_frame()) are called in the wrong order this may crash the entire program.
+/// - If internal varibles `stream_handle_init` and `active_stream_init` become desynchronized with the true reality (wether streamhandle/activestream is init or not) this will cause undefined behaviour.
 #[self_referencing(chain_hack)]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
@@ -207,16 +208,6 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         *self.borrow_camera_format()
     }
 
-    fn get_compatible_list_by_resolution(
-        &self,
-        fourcc: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-    }
-
-    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
-        todo!()
-    }
-
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
         let prev_fmt = *self.borrow_camera_format();
 
@@ -243,6 +234,62 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
             };
         }
         Ok(())
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn get_compatible_list_by_resolution(
+        &self,
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+        let mut resolution_fps_map: HashMap<Resolution, Vec<u32>> = HashMap::new();
+        for fmt in self.with_device_handle(|devh| devh).supported_formats() {
+            for frame_desc in fmt.supported_formats() {
+                // FIXME: Verify that this is correct way to interpret DescriptionSubtype!
+                let format = match frame_desc.subtype() {
+                    DescriptionSubtype::FormatMJPEG | DescriptionSubtype::FrameMJPEG => {
+                        FrameFormat::MJPEG
+                    }
+                    DescriptionSubtype::FormatUncompressed
+                    | DescriptionSubtype::FrameUncompressed => FrameFormat::YUYV,
+                    _ => continue,
+                };
+
+                if format != fourcc {
+                    continue;
+                }
+
+                let resolution =
+                    Resolution::new(frame_desc.width().into(), frame_desc.height().into());
+                let fps: Vec<u32> = frame_desc
+                    .intervals_duration()
+                    .into_iter()
+                    .map(|duration| (1000 / duration.as_millis()) as u32)
+                    .collect();
+                resolution_fps_map.insert(resolution, fps);
+            }
+        }
+        Ok(resolution_fps_map)
+    }
+
+    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+        let mut frameformats = vec![];
+        for fmt in self.with_device_handle(|devh| devh).supported_formats() {
+            for frame_desc in fmt.supported_formats() {
+                // FIXME: Verify that this is correct way to interpret DescriptionSubtype!
+                match frame_desc.subtype() {
+                    DescriptionSubtype::FormatMJPEG | DescriptionSubtype::FrameMJPEG => {
+                        frameformats.push(FrameFormat::MJPEG)
+                    }
+                    DescriptionSubtype::FormatUncompressed
+                    | DescriptionSubtype::FrameUncompressed => frameformats.push(FrameFormat::YUYV),
+                    _ => continue,
+                };
+            }
+        }
+
+        frameformats.sort();
+        frameformats.dedup();
+        Ok(frameformats)
     }
 
     fn get_resolution(&self) -> Resolution {

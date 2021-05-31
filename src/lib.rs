@@ -14,3 +14,4 @@ mod utils;
 pub use camera_traits::*;
 pub use error::NokhwaError;
 pub use utils::*;
+pub use camera::Camera;

@@ -29,4 +29,6 @@ pub enum NokhwaError {
     },
     #[error("This operation is not supported by backend {0}.")]
     UnsupportedOperation(CaptureAPIBackend),
+    #[error("This operation is not implemented yet: {0}")]
+    NotImplemented(String),
 }

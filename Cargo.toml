@@ -3,7 +3,7 @@ name = "nokhwa"
 version = "0.1.0-1"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
-description = "A WIP Cross Platform Rust Library for powerful Webcam Capture and Virtual Webcams"
+description = "A Simple to use, cross platform Rust Webcam Capture Library"
 license = "MPL-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 
@@ -12,11 +12,8 @@ repository = "https://github.com/l1npengtul/nokhwa"
 [features]
 default = []
 input_uvc = ["uvc", "uvc/vendor"]
-input_opencv = ["opencv", "opencv/clang-runtime"]
 input_v4l = ["v4l"]
-input_gstreamer = ["gstreamer"]
-input_ffmpeg = []
-docs-only = ["input_uvc", "input_opencv", "input_v4l", "input_gstreamer", "input_ffmpeg"]
+docs-only = ["input_uvc", "input_v4l"]
 
 [dependencies]
 thiserror = "1.0.24"
@@ -25,20 +22,12 @@ mozjpeg = "0.8.24"
 ouroboros = "0.9.3"
 flume = "0.10.5"
 
-[dependencies.opencv]
-version = "0.53.0"
-optional = true
-
 [dependencies.v4l]
 version = "0.12.1"
 optional = true
 
 [dependencies.uvc]
 version = "0.2.0"
-optional = true
-
-[dependencies.gstreamer]
-version = "0.16.7"
 optional = true
 
 [package.metadata.docs.rs]

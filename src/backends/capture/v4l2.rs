@@ -7,13 +7,16 @@ use crate::{
     yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
+use v4l::video::Output;
 use v4l::{
     buffer::Type,
+    frameinterval::FrameIntervalEnum,
+    framesize::FrameSizeEnum,
     io::traits::CaptureStream,
+    prelude::*,
     video::{capture::Parameters, Capture},
     Format, FourCC,
 };
-use v4l::{frameinterval::FrameIntervalEnum, framesize::FrameSizeEnum, prelude::*};
 
 #[cfg(feature = "input_v4l")]
 impl From<CameraFormat> for Format {
@@ -45,7 +48,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if V4L2 can't read device information.
     pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let device = match Device::new(index) {
+        let mut device = match Device::new(index) {
             Ok(dev) => dev,
             Err(why) => {
                 return Err(NokhwaError::CouldntOpenDevice(format!(
@@ -70,6 +73,55 @@ impl<'a> V4LCaptureDevice<'a> {
             None => CameraFormat::default(),
         };
 
+        let fourcc = match camera_format.format() {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+
+        let new_param = Parameters::with_fps(camera_format.framerate());
+        let new_v4l_fmt = Format::new(camera_format.width(), camera_format.height(), fourcc);
+
+        match Capture::set_params(&device, &new_param) {
+            Ok(param) => {
+                if new_param.interval.denominator != param.interval.denominator {
+                    return Err(NokhwaError::CouldntSetProperty {
+                        property: "Parameter(V4L FPS)".to_string(),
+                        value: camera_format.framerate().to_string(),
+                        error: "Rejected".to_string(),
+                    });
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::CouldntSetProperty {
+                    property: "Parameter(V4L FPS)".to_string(),
+                    value: camera_format.framerate().to_string(),
+                    error: why.to_string(),
+                })
+            }
+        }
+
+        match Capture::set_format(&device, &new_v4l_fmt) {
+            Ok(v4l_fmt) => {
+                if v4l_fmt.height != new_v4l_fmt.height
+                    && v4l_fmt.width != new_v4l_fmt.width
+                    && v4l_fmt.fourcc != new_v4l_fmt.fourcc
+                {
+                    return Err(NokhwaError::CouldntSetProperty {
+                        property: "Format(V4L Resolution, FourCC)".to_string(),
+                        value: camera_format.to_string(),
+                        error: "Rejected".to_string(),
+                    });
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::CouldntSetProperty {
+                    property: "Format(V4L Resolution, FourCC)".to_string(),
+                    value: camera_format.to_string(),
+                    error: why.to_string(),
+                })
+            }
+        }
+
         Ok(V4LCaptureDevice {
             camera_format,
             camera_info,
@@ -91,6 +143,46 @@ impl<'a> V4LCaptureDevice<'a> {
         let camera_format = Some(CameraFormat::new_from(width, height, fourcc, fps));
         V4LCaptureDevice::new(index, camera_format)
     }
+
+    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
+        let format = match fourcc {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+
+        match v4l::video::Capture::enum_framesizes(&self.device, format) {
+            Ok(framesizes) => {
+                let mut resolutions = vec![];
+                for framesize in framesizes {
+                    match framesize.size {
+                        FrameSizeEnum::Discrete(dis) => {
+                            resolutions.push(Resolution::new(dis.width, dis.height))
+                        }
+                        FrameSizeEnum::Stepwise(step) => {
+                            resolutions.push(Resolution::new(step.min_width, step.min_height));
+                            resolutions.push(Resolution::new(step.max_width, step.max_height));
+                            // TODO: Respect step size
+                        }
+                    }
+                }
+                Ok(resolutions)
+            }
+            Err(why) => Err(NokhwaError::CouldntQueryDevice {
+                property: "Resolutions".to_string(),
+                error: why.to_string(),
+            }),
+        }
+    }
+
+    /// Get the inner device (immutable) for e.g. Controls
+    pub fn inner_device(&self) -> &Device {
+        &self.device
+    }
+
+    /// Get the inner device (mutable) for e.g. Controls
+    pub fn inner_device_mut(&mut self) -> &mut Device {
+        &mut self.device
+    }
 }
 
 impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
@@ -100,6 +192,72 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
 
     fn get_camera_format(&self) -> CameraFormat {
         self.camera_format
+    }
+
+    fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
+        let prev_format = match Capture::format(&self.device) {
+            Ok(fmt) => fmt,
+            Err(why) => {
+                return Err(NokhwaError::CouldntQueryDevice {
+                    property: "Resolution, FrameFormat".to_string(),
+                    error: why.to_string(),
+                })
+            }
+        };
+        let prev_fps = match Capture::params(&self.device) {
+            Ok(fps) => fps,
+            Err(why) => {
+                return Err(NokhwaError::CouldntQueryDevice {
+                    property: "Framerate".to_string(),
+                    error: why.to_string(),
+                })
+            }
+        };
+
+        let format: Format = new_fmt.into();
+        let framerate = Parameters::with_fps(new_fmt.framerate());
+
+        if let Err(why) = Capture::set_format(&self.device, &format) {
+            return Err(NokhwaError::CouldntSetProperty {
+                property: "Resolution, FrameFormat".to_string(),
+                value: format.to_string(),
+                error: why.to_string(),
+            });
+        }
+        if let Err(why) = Capture::set_params(&self.device, &framerate) {
+            return Err(NokhwaError::CouldntSetProperty {
+                property: "Framerate".to_string(),
+                value: framerate.to_string(),
+                error: why.to_string(),
+            });
+        }
+
+        if self.stream_handle.is_some() {
+            return match self.open_stream() {
+                Ok(_) => Ok(()),
+                Err(why) => {
+                    // undo
+                    if let Err(why) = Capture::set_format(&self.device, &prev_format) {
+                        return Err(NokhwaError::CouldntSetProperty {
+                            property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why.to_string()),
+                            value: prev_format.to_string(),
+                            error: why.to_string(),
+                        });
+                    }
+                    if let Err(why) = Capture::set_params(&self.device, &prev_fps) {
+                        return Err(NokhwaError::CouldntSetProperty {
+                            property:
+                            format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
+                            value: prev_fps.to_string(),
+                            error: why.to_string(),
+                        });
+                    }
+                    Err(why)
+                }
+            };
+        }
+        self.camera_format = new_fmt;
+        Ok(())
     }
 
     fn get_compatible_list_by_resolution(
@@ -114,10 +272,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let mut resmap = HashMap::new();
         for res in resolutions {
             let mut compatible_fps = vec![];
-            match self
-                .device
-                .enum_frameintervals(format, res.width(), res.height())
-            {
+            match Capture::enum_frameintervals(&self.device, format, res.width(), res.height()) {
                 Ok(intervals) => {
                     for interval in intervals {
                         match interval.interval {
@@ -143,100 +298,35 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(resmap)
     }
 
-    fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
-        let format = match fourcc {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-        };
-
-        match self.device.enum_framesizes(format) {
-            Ok(framesizes) => {
-                let mut resolutions = vec![];
-                for framesize in framesizes {
-                    match framesize.size {
-                        FrameSizeEnum::Discrete(dis) => {
-                            resolutions.push(Resolution::new(dis.width, dis.height))
+    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+        match Capture::enum_formats(&self.device) {
+            Ok(formats) => {
+                let mut frameformat_vec = vec![];
+                for format in formats {
+                    let format_as_string = match format.fourcc.str() {
+                        Ok(s) => s,
+                        Err(why) => {
+                            return Err(NokhwaError::CouldntQueryDevice {
+                                property: "FrameFormat".to_string(),
+                                error: why.to_string(),
+                            })
                         }
-                        FrameSizeEnum::Stepwise(step) => {
-                            resolutions.push(Resolution::new(step.min_width, step.min_height));
-                            resolutions.push(Resolution::new(step.max_width, step.max_height));
-                            // TODO: Respect step size
-                        }
+                    };
+                    match format_as_string {
+                        "YUYV" => frameformat_vec.push(FrameFormat::YUYV),
+                        "MJPG" => frameformat_vec.push(FrameFormat::MJPEG),
+                        _ => {}
                     }
                 }
-                Ok(resolutions)
+                frameformat_vec.sort();
+                frameformat_vec.dedup();
+                Ok(frameformat_vec)
             }
             Err(why) => Err(NokhwaError::CouldntQueryDevice {
-                property: "Resolutions".to_string(),
+                property: "FrameFormat".to_string(),
                 error: why.to_string(),
             }),
         }
-    }
-
-    fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        let prev_format = match self.device.format() {
-            Ok(fmt) => fmt,
-            Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
-                    property: "Resolution, FrameFormat".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-        let prev_fps = match self.device.params() {
-            Ok(fps) => fps,
-            Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
-                    property: "Framerate".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        let format: Format = new_fmt.into();
-        let framerate = Parameters::with_fps(new_fmt.framerate());
-
-        if let Err(why) = self.device.set_format(&format) {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "Resolution, FrameFormat".to_string(),
-                value: format.to_string(),
-                error: why.to_string(),
-            });
-        }
-        if let Err(why) = self.device.set_params(&framerate) {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "Framerate".to_string(),
-                value: framerate.to_string(),
-                error: why.to_string(),
-            });
-        }
-
-        if self.stream_handle.is_some() {
-            return match self.open_stream() {
-                Ok(_) => Ok(()),
-                Err(why) => {
-                    // undo
-                    if let Err(why) = self.device.set_format(&prev_format) {
-                        return Err(NokhwaError::CouldntSetProperty {
-                            property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why.to_string()),
-                            value: prev_format.to_string(),
-                            error: why.to_string(),
-                        });
-                    }
-                    if let Err(why) = self.device.set_params(&prev_fps) {
-                        return Err(NokhwaError::CouldntSetProperty {
-                            property:
-                            format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
-                            value: prev_fps.to_string(),
-                            error: why.to_string(),
-                        });
-                    }
-                    Err(why)
-                }
-            };
-        }
-        self.camera_format = new_fmt;
-        Ok(())
     }
 
     fn get_resolution(&self) -> Resolution {

@@ -6,7 +6,7 @@ use std::{cmp::Ordering, convert::TryFrom, fmt::Display, slice::from_raw_parts};
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
 /// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
 /// MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
-#[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd, Ord, Eq)]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
@@ -263,6 +263,7 @@ impl Display for CameraInfo {
 }
 
 /// The list of known capture backends to the library. <br>
+/// **Note: Only V4L2 and UVC (and by extension AUTO) is implemented so far.**
 /// - AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - V4L2 - `Video4Linux2`, a linux specific backend.
 /// - UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
@@ -289,45 +290,18 @@ impl Display for CaptureAPIBackend {
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
 /// If `mozjpeg` fails to read scanlines or setup the decompressor, this will error.
+/// # Panics
+/// This will panic if the input is not a JPEG.
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    let mut mozjpeg_decomp = match Decompress::new_mem(data) {
-        Ok(decomp) => match decomp.rgb() {
-            Ok(decompresser) => decompresser,
-            Err(why) => {
-                return Err(NokhwaError::CouldntDecompressFrame {
-                    src: FrameFormat::MJPEG,
-                    destination: "RGB888".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        },
-        Err(why) => {
-            return Err(NokhwaError::CouldntDecompressFrame {
-                src: FrameFormat::MJPEG,
-                destination: "RGB888".to_string(),
-                error: why.to_string(),
-            })
-        }
-    };
-
-    let decompressed = match mozjpeg_decomp.read_scanlines::<[u8; 3]>() {
-        Some(pixels) => unsafe {
-            &*(from_raw_parts(pixels.as_ptr(), pixels.len() * 3) as *const [[u8; 3]]
-                as *const [u8])
-        },
-        None => {
-            return Err(NokhwaError::CouldntDecompressFrame {
-                src: FrameFormat::MJPEG,
-                destination: "RGB888".to_string(),
-                error: "Failed to get read readlines into RGB888 pixels!".to_string(),
-            })
-        }
-    };
-
-    Ok(decompressed.to_vec())
+    let mut decompressor = Decompress::new_mem(data).unwrap().rgb().unwrap();
+    let decomp = decompressor.read_scanlines::<[u8; 3]>().unwrap();
+    Ok(unsafe {
+        &*(from_raw_parts(decomp.as_ptr(), data.len() * 3) as *const [[u8; 3]] as *const [u8])
+    }
+    .to_vec())
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2
