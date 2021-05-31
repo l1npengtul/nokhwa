@@ -253,8 +253,8 @@ fn init_v4l(
 #[cfg(not(feature = "input_v4l"))]
 #[allow(clippy::unnecessary_wraps)]
 fn init_v4l(
-    idx: usize,
-    setting: Option<CameraFormat>,
+    _idx: usize,
+    _setting: Option<CameraFormat>,
 ) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
     None
 }
@@ -274,8 +274,8 @@ fn init_uvc(
 #[cfg(not(feature = "input_uvc"))]
 #[allow(clippy::unnecessary_wraps)]
 fn init_uvc(
-    idx: usize,
-    setting: Option<CameraFormat>,
+    _idx: usize,
+    _setting: Option<CameraFormat>,
 ) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
     None
 }
