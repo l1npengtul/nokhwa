@@ -290,18 +290,41 @@ impl Display for CaptureAPIBackend {
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
 /// If `mozjpeg` fails to read scanlines or setup the decompressor, this will error.
-/// # Panics
-/// This will panic if the input is not a JPEG.
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    let mut decompressor = Decompress::new_mem(data).unwrap().rgb().unwrap();
-    let decomp = decompressor.read_scanlines::<[u8; 3]>().unwrap();
-    Ok(unsafe {
-        &*(from_raw_parts(decomp.as_ptr(), data.len() * 3) as *const [[u8; 3]] as *const [u8])
-    }
-    .to_vec())
+    let mut mozjpeg_decomp = match Decompress::new_mem(data) {
+        Ok(decomp) => match decomp.rgb() {
+            Ok(decompresser) => decompresser,
+            Err(why) => {
+                return Err(NokhwaError::CouldntDecompressFrame {
+                    src: FrameFormat::MJPEG,
+                    destination: "RGB888".to_string(),
+                    error: why.to_string(),
+                })
+            }
+        },
+        Err(why) => {
+            return Err(NokhwaError::CouldntDecompressFrame {
+                src: FrameFormat::MJPEG,
+                destination: "RGB888".to_string(),
+                error: why.to_string(),
+            })
+        }
+    };
+    let decompressed = match mozjpeg_decomp.read_scanlines::<[u8; 3]>() {
+        Some(pixels) => pixels,
+        None => {
+            return Err(NokhwaError::CouldntDecompressFrame {
+                src: FrameFormat::MJPEG,
+                destination: "RGB888".to_string(),
+                error: "Failed to get read readlines into RGB888 pixels!".to_string(),
+            })
+        }
+    };
+
+    Ok(unsafe { from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }.to_vec())
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2

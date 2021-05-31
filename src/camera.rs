@@ -6,6 +6,8 @@ use crate::{
 use image::{ImageBuffer, Rgb};
 use std::{cell::RefCell, collections::HashMap};
 
+/// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
+/// For more details, please refer to [`CaptureBackendTrait`]
 pub struct Camera {
     idx: usize,
     backend: RefCell<Box<dyn CaptureBackendTrait>>,
@@ -13,6 +15,9 @@ pub struct Camera {
 }
 
 impl Camera {
+    /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input_v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(
         index: usize,
         format: Option<CameraFormat>,
@@ -90,6 +95,21 @@ impl Camera {
         })
     }
 
+    /// Create a new `Camera` from raw values.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input_v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    pub fn new_with(
+        index: usize,
+        width: u32,
+        height: u32,
+        fps: u32,
+        fourcc: FrameFormat,
+        backend: CaptureAPIBackend,
+    ) -> Result<Self, NokhwaError> {
+        let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
+        Camera::new(index, Some(camera_format), backend)
+    }
+
     /// Gets the current Camera's index.
     pub fn index(&self) -> usize {
         self.idx
@@ -99,7 +119,7 @@ impl Camera {
     /// # Errors
     /// The Backend may fail to initialize.
     pub fn set_index(self, new_idx: usize) -> Result<Self, NokhwaError> {
-        self.backend.borrow_mut().stop_stream();
+        self.backend.borrow_mut().stop_stream()?;
         let new_camera_format = self.backend.borrow().get_camera_format();
         Camera::new(new_idx, Some(new_camera_format), self.backend_api)
     }
@@ -113,7 +133,7 @@ impl Camera {
     /// # Errors
     /// The new backend may not exist or may fail to initialize the new camera.
     pub fn set_backend(self, new_backend: CaptureAPIBackend) -> Result<Self, NokhwaError> {
-        self.backend.borrow_mut().stop_stream();
+        self.backend.borrow_mut().stop_stream()?;
         let new_camera_format = self.backend.borrow().get_camera_format();
         Camera::new(self.idx, Some(new_camera_format), new_backend)
     }

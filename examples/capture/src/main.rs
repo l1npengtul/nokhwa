@@ -1,8 +1,4 @@
 use nokhwa::{Camera, CameraFormat, CaptureAPIBackend, FrameFormat};
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
 
 fn main() {
     // set up the Camera

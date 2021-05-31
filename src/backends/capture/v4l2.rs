@@ -7,7 +7,6 @@ use crate::{
     yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use v4l::video::Output;
 use v4l::{
     buffer::Type,
     frameinterval::FrameIntervalEnum,
@@ -48,7 +47,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if V4L2 can't read device information.
     pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let mut device = match Device::new(index) {
+        let device = match Device::new(index) {
             Ok(dev) => dev,
             Err(why) => {
                 return Err(NokhwaError::CouldntOpenDevice(format!(
@@ -81,25 +80,6 @@ impl<'a> V4LCaptureDevice<'a> {
         let new_param = Parameters::with_fps(camera_format.framerate());
         let new_v4l_fmt = Format::new(camera_format.width(), camera_format.height(), fourcc);
 
-        match Capture::set_params(&device, &new_param) {
-            Ok(param) => {
-                if new_param.interval.denominator != param.interval.denominator {
-                    return Err(NokhwaError::CouldntSetProperty {
-                        property: "Parameter(V4L FPS)".to_string(),
-                        value: camera_format.framerate().to_string(),
-                        error: "Rejected".to_string(),
-                    });
-                }
-            }
-            Err(why) => {
-                return Err(NokhwaError::CouldntSetProperty {
-                    property: "Parameter(V4L FPS)".to_string(),
-                    value: camera_format.framerate().to_string(),
-                    error: why.to_string(),
-                })
-            }
-        }
-
         match Capture::set_format(&device, &new_v4l_fmt) {
             Ok(v4l_fmt) => {
                 if v4l_fmt.height != new_v4l_fmt.height
@@ -117,6 +97,25 @@ impl<'a> V4LCaptureDevice<'a> {
                 return Err(NokhwaError::CouldntSetProperty {
                     property: "Format(V4L Resolution, FourCC)".to_string(),
                     value: camera_format.to_string(),
+                    error: why.to_string(),
+                })
+            }
+        }
+
+        match Capture::set_params(&device, &new_param) {
+            Ok(param) => {
+                if new_param.interval.denominator != param.interval.denominator {
+                    return Err(NokhwaError::CouldntSetProperty {
+                        property: "Parameter(V4L FPS)".to_string(),
+                        value: camera_format.framerate().to_string(),
+                        error: "Rejected".to_string(),
+                    });
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::CouldntSetProperty {
+                    property: "Parameter(V4L FPS)".to_string(),
+                    value: camera_format.framerate().to_string(),
                     error: why.to_string(),
                 })
             }
