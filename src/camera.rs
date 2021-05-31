@@ -1,5 +1,8 @@
+#[cfg(feature = "input_uvc")]
+use crate::backends::capture::UVCCaptureDevice;
+#[cfg(feature = "input_v4l")]
+use crate::backends::capture::V4LCaptureDevice;
 use crate::{
-    backends::capture::{UVCCaptureDevice, V4LCaptureDevice},
     CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
     Resolution,
 };
