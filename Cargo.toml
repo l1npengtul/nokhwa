@@ -3,7 +3,7 @@ name = "nokhwa"
 version = "0.2.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
-description = "A Simple to use, cross platform Rust Webcam Capture Library"
+description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
 license = "MPL-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 
@@ -13,7 +13,8 @@ repository = "https://github.com/l1npengtul/nokhwa"
 default = []
 input_uvc = ["uvc", "uvc/vendor"]
 input_v4l = ["v4l"]
-docs-only = ["input_uvc", "input_v4l"]
+output-wgpu = ["wgpu"]
+docs-only = ["input_uvc", "input_v4l", "output-wgpu"]
 
 [dependencies]
 thiserror = "1.0.24"
@@ -28,6 +29,10 @@ optional = true
 
 [dependencies.uvc]
 version = "0.2.0"
+optional = true
+
+[dependencies.wgpu]
+version = "0.8.1"
 optional = true
 
 [package.metadata.docs.rs]

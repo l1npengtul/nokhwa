@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
-use image::{ImageBuffer, Rgb};
-
 use crate::{
     error::NokhwaError,
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
 };
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use std::{collections::HashMap, convert::TryFrom, num::NonZeroU32};
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become availible.
@@ -75,6 +73,72 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
+}
+
+#[cfg(feature = "output-wgpu")]
+use wgpu::{
+    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
+    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
+};
+
+/// Trait that allows the user to copy directly into a Wgpu Texture
+#[cfg(feature = "output-wgpu")]
+pub trait GpuCopyBackendTrait: CaptureBackendTrait {
+    /// Directly copies a frame to a Wgpu texture.
+    /// # Errors
+    /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
+    fn get_frame_texture<'a>(
+        &mut self,
+        device: &WgpuDevice,
+        queue: &WgpuQueue,
+        label: Option<&'a str>,
+    ) -> Result<WgpuTexture, NokhwaError> {
+        let frame = self.get_frame()?;
+        let rgba_frame: RgbaImage = frame.convert();
+
+        let texture_size = Extent3d {
+            width: frame.width(),
+            height: frame.height(),
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&TextureDescriptor {
+            label,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            usage: TextureUsage::SAMPLED | TextureUsage::COPY_DST,
+        });
+
+        let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
+            Ok(w) => Some(w),
+            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+        };
+
+        let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
+            Ok(h) => Some(h),
+            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+        };
+
+        queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &rgba_frame.to_vec(),
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: width_nonzero,
+                rows_per_image: height_nonzero,
+            },
+            texture_size,
+        );
+
+        Ok(texture)
+    }
 }
 
 pub trait VirtualBackendTrait {}

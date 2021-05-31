@@ -1,7 +1,7 @@
 # nokhwa
 Nokhwa(녹화): Korean word meaning "to record".
 
-A Simple to use, cross platform Rust Webcam Capture Library
+A Simple-to-use, cross-platform Rust Webcam Capture Library
 
 ## Example
 
@@ -26,7 +26,16 @@ loop {
 They can be found in the `examples` folder.
 
 ## Feature
-The default feature includes nothing. Currently availible backends are UVC and V4L.
+The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
+
+`input-*` features:
+ - `input-v4l`: Enables the `Video4Linux` backend (linux)
+ - `input-uvc`: Enables the `libuvc` backend (cross-platform)
+
+Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
+
+`output-*` features:
+ - `output-wgpu`: Copies a frame directly into a wgpu texture.
 
 You many want to pick and choose to reduce bloat.
 
@@ -35,3 +44,6 @@ Contributions are welcome!
  - Please `rustfmt` all your code and adhere to the clippy lints (unless necessary not to do so)
  - Please limit use of `unsafe`
  - All contributions are under the MPL 2.0 license unless otherwise specified
+
+## Minimum Service Rust Version
+`nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 

@@ -465,3 +465,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         Ok(())
     }
 }
+
+// use default
+#[cfg(feature = "output-wgpu")]
+use crate::GpuCopyBackendTrait;
+#[cfg(feature = "output-wgpu")]
+impl<'a> GpuCopyBackendTrait for UVCCaptureDevice<'a> {}
