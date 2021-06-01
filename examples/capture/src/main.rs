@@ -5,7 +5,7 @@ fn main() {
     let mut camera = Camera::new(
         0,
         Some(CameraFormat::new_from(640, 480, FrameFormat::MJPEG, 30)),
-        CaptureAPIBackend::AUTO,
+        CaptureAPIBackend::Auto,
     )
     .unwrap();
     // open stream

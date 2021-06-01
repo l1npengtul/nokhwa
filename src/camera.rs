@@ -28,41 +28,41 @@ impl Camera {
     ) -> Result<Self, NokhwaError> {
         let platform = std::env::consts::OS;
         let use_backend = match backend {
-            CaptureAPIBackend::AUTO => {
-                let mut cap = CaptureAPIBackend::AUTO;
+            CaptureAPIBackend::Auto => {
+                let mut cap = CaptureAPIBackend::Auto;
                 if cfg!(feature = "input_v4l") && platform == "linux" {
-                    cap = CaptureAPIBackend::V4L2
+                    cap = CaptureAPIBackend::Video4Linux
                 } else if cfg!(feature = "input_uvc") {
-                    cap = CaptureAPIBackend::UVC;
+                    cap = CaptureAPIBackend::UniversalVideoClass;
                 }
-                if cap == CaptureAPIBackend::AUTO {
+                if cap == CaptureAPIBackend::Auto {
                     return Err(NokhwaError::NotImplemented(
                         "Platform requirements not satisfied.".to_string(),
                     ));
                 }
                 cap
             }
-            CaptureAPIBackend::V4L2 => {
+            CaptureAPIBackend::Video4Linux => {
                 if !(cfg!(feature = "input_v4l") && platform == "linux") {
                     return Err(NokhwaError::NotImplemented(
                         "V4L Requirements: Linux and `input_v4l`.".to_string(),
                     ));
                 }
-                CaptureAPIBackend::V4L2
+                CaptureAPIBackend::Video4Linux
             }
-            CaptureAPIBackend::UVC => {
+            CaptureAPIBackend::UniversalVideoClass => {
                 if !(cfg!(feature = "input_uvc")) {
                     return Err(NokhwaError::NotImplemented(
                         "UVC Requirements: `input_uvc`.".to_string(),
                     ));
                 }
-                CaptureAPIBackend::UVC
+                CaptureAPIBackend::UniversalVideoClass
             }
             _ => return Err(NokhwaError::NotImplemented(backend.to_string())),
         };
 
         let capture_backend = match use_backend {
-            CaptureAPIBackend::V4L2 => match init_v4l(index, format) {
+            CaptureAPIBackend::Video4Linux => match init_v4l(index, format) {
                 Some(capture) => match capture {
                     Ok(cap_back) => cap_back,
                     Err(why) => return Err(why),
@@ -73,7 +73,7 @@ impl Camera {
                     ));
                 }
             },
-            CaptureAPIBackend::UVC => match init_uvc(index, format) {
+            CaptureAPIBackend::UniversalVideoClass => match init_uvc(index, format) {
                 Some(capture) => match capture {
                     Ok(cap_back) => cap_back,
                     Err(why) => return Err(why),

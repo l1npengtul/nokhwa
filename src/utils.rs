@@ -272,12 +272,12 @@ impl Display for CameraInfo {
 /// - FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CaptureAPIBackend {
-    AUTO,
-    V4L2,
-    UVC,
-    WINDOWS,
-    OPENCV,
-    FFMPEG,
+    Auto,
+    Video4Linux,
+    UniversalVideoClass,
+    Windows,
+    OpenCv,
+    Ffmpeg,
 }
 
 impl Display for CaptureAPIBackend {
