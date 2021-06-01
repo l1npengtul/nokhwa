@@ -11,10 +11,7 @@ fn main() {
     // open stream
     camera.open_stream().unwrap();
     loop {
-        println!(
-            "{:?}, {:?}",
-            camera.get_frame().unwrap().width(),
-            camera.get_frame().unwrap().height()
-        );
+        let frame = camera.get_frame().unwrap();
+        println!("{}, {}", frame.width(), frame.height());
     }
 }
