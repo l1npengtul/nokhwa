@@ -32,7 +32,7 @@ The default feature includes nothing. Anything starting with `input-*` is a feat
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
 
 `output-*` features:
- - `output-wgpu`: Copies a frame directly into a wgpu texture.
+ - `output-wgpu`: Enables the API to copy a frame directly into a `wgpu` texture.
 
 You many want to pick and choose to reduce bloat.
 

@@ -414,9 +414,3 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(())
     }
 }
-
-// use default
-#[cfg(feature = "output-wgpu")]
-use crate::GpuCopyBackendTrait;
-#[cfg(feature = "output-wgpu")]
-impl<'a> GpuCopyBackendTrait for V4LCaptureDevice<'a> {}

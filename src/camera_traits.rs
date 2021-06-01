@@ -5,6 +5,12 @@ use crate::{
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::{collections::HashMap, convert::TryFrom, num::NonZeroU32};
 
+#[cfg(feature = "output-wgpu")]
+use wgpu::{
+    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
+    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
+};
+
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become availible.
 ///
@@ -69,21 +75,21 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
+    /// The minimum buffer size needed to write the current frame. If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
+    fn min_buffer_size(&self, rgba: bool) -> usize;
+    /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
+    /// # Errors
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
+    fn get_frame_buffer(
+        &mut self,
+        buffer: &mut [u8],
+        convert_rgba: bool,
+    ) -> Result<usize, NokhwaError>;
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
-}
-
-#[cfg(feature = "output-wgpu")]
-use wgpu::{
-    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
-    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
-};
-
-/// Trait that allows the user to copy directly into a Wgpu Texture
-#[cfg(feature = "output-wgpu")]
-pub trait GpuCopyBackendTrait: CaptureBackendTrait {
+    #[cfg(feature = "output-wgpu")]
     /// Directly copies a frame to a Wgpu texture.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.

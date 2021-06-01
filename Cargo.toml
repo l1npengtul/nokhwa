@@ -15,7 +15,7 @@ repository = "https://github.com/l1npengtul/nokhwa"
 default = []
 input-uvc = ["uvc", "uvc/vendor", "ouroboros"]
 input-v4l = ["v4l"]
-input-opencv = ["opencv"]
+input-opencv = ["opencv", "opencv/clang-runtime"]
 output-wgpu = ["wgpu"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "output-wgpu"]
 
