@@ -39,6 +39,10 @@ Conversely, anything that starts with `output-*` controls a feature that control
 
 You many want to pick and choose to reduce bloat.
 
+## Issues
+If you are making an issue, please make sure that
+ - It has not been made yet
+
 ## Contributing
 Contributions are welcome!
  - Please `rustfmt` all your code and adhere to the clippy lints (unless necessary not to do so)
