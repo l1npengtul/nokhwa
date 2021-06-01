@@ -1,6 +1,6 @@
-#[cfg(feature = "input_uvc")]
+#[cfg(feature = "input-uvc")]
 use crate::backends::capture::UVCCaptureDevice;
-#[cfg(feature = "input_v4l")]
+#[cfg(feature = "input-v4l")]
 use crate::backends::capture::V4LCaptureDevice;
 use crate::{
     CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
@@ -20,7 +20,7 @@ pub struct Camera {
 impl Camera {
     /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
     /// # Errors
-    /// This will error if you either have a bad platform configuration (e.g. `input_v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(
         index: usize,
         format: Option<CameraFormat>,
@@ -30,9 +30,9 @@ impl Camera {
         let use_backend = match backend {
             CaptureAPIBackend::Auto => {
                 let mut cap = CaptureAPIBackend::Auto;
-                if cfg!(feature = "input_v4l") && platform == "linux" {
+                if cfg!(feature = "input-v4l") && platform == "linux" {
                     cap = CaptureAPIBackend::Video4Linux
-                } else if cfg!(feature = "input_uvc") {
+                } else if cfg!(feature = "input-uvc") {
                     cap = CaptureAPIBackend::UniversalVideoClass;
                 }
                 if cap == CaptureAPIBackend::Auto {
@@ -43,17 +43,17 @@ impl Camera {
                 cap
             }
             CaptureAPIBackend::Video4Linux => {
-                if !(cfg!(feature = "input_v4l") && platform == "linux") {
+                if !(cfg!(feature = "input-v4l") && platform == "linux") {
                     return Err(NokhwaError::NotImplemented(
-                        "V4L Requirements: Linux and `input_v4l`.".to_string(),
+                        "V4L Requirements: Linux and `input-v4l`.".to_string(),
                     ));
                 }
                 CaptureAPIBackend::Video4Linux
             }
             CaptureAPIBackend::UniversalVideoClass => {
-                if !(cfg!(feature = "input_uvc")) {
+                if !(cfg!(feature = "input-uvc")) {
                     return Err(NokhwaError::NotImplemented(
-                        "UVC Requirements: `input_uvc`.".to_string(),
+                        "UVC Requirements: `input-uvc`.".to_string(),
                     ));
                 }
                 CaptureAPIBackend::UniversalVideoClass
@@ -100,7 +100,7 @@ impl Camera {
 
     /// Create a new `Camera` from raw values.
     /// # Errors
-    /// This will error if you either have a bad platform configuration (e.g. `input_v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new_with(
         index: usize,
         width: u32,
@@ -238,7 +238,7 @@ impl Camera {
     }
 }
 
-#[cfg(feature = "input_v4l")]
+#[cfg(feature = "input-v4l")]
 #[allow(clippy::unnecessary_wraps)]
 fn init_v4l(
     idx: usize,
@@ -250,7 +250,7 @@ fn init_v4l(
     }
 }
 
-#[cfg(not(feature = "input_v4l"))]
+#[cfg(not(feature = "input-v4l"))]
 #[allow(clippy::unnecessary_wraps)]
 fn init_v4l(
     _idx: usize,
@@ -271,7 +271,7 @@ fn init_uvc(
     }
 }
 
-#[cfg(not(feature = "input_uvc"))]
+#[cfg(not(feature = "input-uvc"))]
 #[allow(clippy::unnecessary_wraps)]
 fn init_uvc(
     _idx: usize,

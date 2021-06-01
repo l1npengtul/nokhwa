@@ -13,7 +13,7 @@ use uvc::{
     StreamFormat, StreamHandle,
 };
 
-#[cfg(feature = "input_uvc")]
+#[cfg(feature = "input-uvc")]
 impl From<FrameFormat> for UVCFrameFormat {
     fn from(ff: FrameFormat) -> Self {
         match ff {
@@ -23,7 +23,7 @@ impl From<FrameFormat> for UVCFrameFormat {
     }
 }
 
-#[cfg(feature = "input_uvc")]
+#[cfg(feature = "input-uvc")]
 impl From<CameraFormat> for StreamFormat {
     fn from(cf: CameraFormat) -> Self {
         StreamFormat {

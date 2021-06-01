@@ -17,7 +17,7 @@ use v4l::{
     Format, FourCC,
 };
 
-#[cfg(feature = "input_v4l")]
+#[cfg(feature = "input-v4l")]
 impl From<CameraFormat> for Format {
     fn from(cam_fmt: CameraFormat) -> Self {
         let pxfmt = match cam_fmt.format() {

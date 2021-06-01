@@ -4,6 +4,8 @@ version = "0.2.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
+keywords = ["camera", "webcam", "capture", "cross-platform"]
+
 license = "MPL-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 
@@ -11,20 +13,24 @@ repository = "https://github.com/l1npengtul/nokhwa"
 
 [features]
 default = []
-input_uvc = ["uvc", "uvc/vendor"]
-input_v4l = ["v4l"]
+input-uvc = ["uvc", "uvc/vendor", "ouroboros"]
+input-v4l = ["v4l"]
+input-opencv = ["opencv"]
 output-wgpu = ["wgpu"]
-docs-only = ["input_uvc", "input_v4l", "output-wgpu"]
+docs-only = ["input-uvc", "input-v4l", "input-opencv", "output-wgpu"]
 
 [dependencies]
 thiserror = "1.0.24"
 image = "0.23.14"
 mozjpeg = "0.8.24"
-ouroboros = "0.9.3"
 flume = "0.10.5"
 
 [dependencies.v4l]
 version = "0.12.1"
+optional = true
+
+[dependencies.ouroboros]
+version = "0.9.3"
 optional = true
 
 [dependencies.uvc]
@@ -33,6 +39,11 @@ optional = true
 
 [dependencies.wgpu]
 version = "0.8.1"
+optional = true
+
+[dependencies.opencv]
+version = "0.53.0"
+features = ["clang-runtime"]
 optional = true
 
 [package.metadata.docs.rs]

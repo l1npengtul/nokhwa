@@ -10,4 +10,4 @@ edition = "2018"
 
 [dependencies.nokhwa]
 path = "../../../nokhwa"
-features = ["input_uvc", "input_v4l"]
+features = ["input-uvc", "input-v4l"]
