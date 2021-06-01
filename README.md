@@ -42,6 +42,8 @@ You many want to pick and choose to reduce bloat.
 ## Issues
 If you are making an issue, please make sure that
  - It has not been made yet
+ - Attach what you were doing, your environment, steps to reproduce, and backtrace.
+Thank you!
 
 ## Contributing
 Contributions are welcome!
