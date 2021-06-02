@@ -3,6 +3,18 @@ Nokhwa(녹화): Korean word meaning "to record".
 
 A Simple-to-use, cross-platform Rust Webcam Capture Library
 
+## Using nokhwa
+Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
+```.ignore
+[dependencies.nokhwa]
+// TODO: replace the "*" with the latest version of `nokhwa`
+version = "*"
+// TODO: add some features
+features = [""]
+```
+
+Most likely, you will only use functionality provided by the `Camera` struct. If you need lower-level access, you may instead opt to use the raw capture backends found at `nokhwa::backends::capture::*`.
+
 ## Example
 
 ```rust

@@ -75,8 +75,14 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
-    /// The minimum buffer size needed to write the current frame. If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
-    fn min_buffer_size(&self, rgba: bool) -> usize;
+    /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
+    fn min_buffer_size(&self, rgba: bool) -> usize {
+        let resolution = self.get_resolution();
+        if rgba {
+            return (resolution.width() * resolution.height() * 4) as usize;
+        }
+        return (resolution.width() * resolution.height() * 3) as usize;
+    }
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
@@ -84,13 +90,23 @@ pub trait CaptureBackendTrait {
         &mut self,
         buffer: &mut [u8],
         convert_rgba: bool,
-    ) -> Result<usize, NokhwaError>;
+    ) -> Result<usize, NokhwaError> {
+        let frame = self.get_frame()?;
+        let mut frame_data = frame.to_vec();
+        if convert_rgba {
+            let rgba_image: RgbaImage = frame.convert();
+            frame_data = rgba_image.to_vec();
+        }
+        let bytes = frame_data.len();
+        buffer.copy_from_slice(&frame_data);
+        Ok(bytes)
+    }
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
     #[cfg(feature = "output-wgpu")]
-    /// Directly copies a frame to a Wgpu texture.
+    /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
     fn get_frame_texture<'a>(

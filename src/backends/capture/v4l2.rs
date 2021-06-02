@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     error::NokhwaError,
     mjpeg_to_rgb888,
@@ -7,6 +5,7 @@ use crate::{
     yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
+use std::collections::HashMap;
 use v4l::{
     buffer::Type,
     frameinterval::FrameIntervalEnum,
