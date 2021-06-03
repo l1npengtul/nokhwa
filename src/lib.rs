@@ -1,7 +1,5 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
-#![allow(clippy::upper_case_acronyms)]
-#![allow(clippy::must_use_candidate)]
 
 //! # nokhwa
 //! Nokhwa(녹화): Korean word meaning "to record".
