@@ -24,7 +24,9 @@
 //!
 //! `input-*` features:
 //!  - `input-v4l`: Enables the `Video4Linux` backend (linux)
-//!  - `input-uvc`: Enables the `libuvc` backend (cross-platform)
+//!  - `input-uvc`: Enables the `libuvc` backend (cross-platform, libuvc statically-linked)
+//!  - `input-opencv`: Enables the `opencv` backend (cross-platform)
+//!  - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
 //!
 //! Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
 //!
@@ -55,10 +57,14 @@ pub mod backends;
 mod camera;
 mod camera_traits;
 mod error;
+#[cfg(feature = "input-ipcam")]
+mod network_camera;
 mod query;
 mod utils;
 
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
+#[cfg(feature = "input-ipcam")]
+pub use network_camera::NetworkCamera;
 pub use utils::*;

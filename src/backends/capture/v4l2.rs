@@ -29,7 +29,7 @@ impl From<CameraFormat> for Format {
 }
 
 /// The backend struct that interfaces with V4L2.
-/// To see what this does, please see [`CaptureBackendTrait`]
+/// To see what this does, please see [`CaptureBackendTrait`].
 /// # Quirks
 /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_framerate()`](CaptureBackendTrait::set_framerate), or [`set_frameformat()`](CaptureBackendTrait::set_frameformat) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
 pub struct V4LCaptureDevice<'a> {
@@ -184,11 +184,11 @@ impl<'a> V4LCaptureDevice<'a> {
 }
 
 impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
-    fn get_info(&self) -> CameraInfo {
+    fn camera_info(&self) -> CameraInfo {
         self.camera_info.clone()
     }
 
-    fn get_camera_format(&self) -> CameraFormat {
+    fn camera_format(&self) -> CameraFormat {
         self.camera_format
     }
 
@@ -327,7 +327,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         }
     }
 
-    fn get_resolution(&self) -> Resolution {
+    fn resolution(&self) -> Resolution {
         self.camera_format.resolution()
     }
 
@@ -338,7 +338,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.set_camera_format(new_fmt)
     }
 
-    fn get_framerate(&self) -> u32 {
+    fn frame_rate(&self) -> u32 {
         self.camera_format.framerate()
     }
 
@@ -349,7 +349,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.set_camera_format(new_fmt)
     }
 
-    fn get_frameformat(&self) -> FrameFormat {
+    fn frameformat(&self) -> FrameFormat {
         self.camera_format.format()
     }
 

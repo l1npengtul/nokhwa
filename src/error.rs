@@ -27,6 +27,8 @@ pub enum NokhwaError {
         destination: String,
         error: String,
     },
+    #[error("Could not stop stream: {0}")]
+    CouldntStopStream(String),
     #[error("This operation is not supported by backend {0}.")]
     UnsupportedOperation(CaptureAPIBackend),
     #[error("This operation is not implemented yet: {0}")]

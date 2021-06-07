@@ -200,11 +200,11 @@ impl<'a> UVCCaptureDevice<'a> {
 // IDE Autocomplete ends here. Do not be afraid it your IDE does not show completion.
 // Here are some docs to help you out: https://docs.rs/ouroboros/0.9.3/ouroboros/attr.self_referencing.html
 impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
-    fn get_info(&self) -> CameraInfo {
+    fn camera_info(&self) -> CameraInfo {
         self.borrow_camera_info().clone()
     }
 
-    fn get_camera_format(&self) -> CameraFormat {
+    fn camera_format(&self) -> CameraFormat {
         *self.borrow_camera_format()
     }
 
@@ -292,7 +292,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         Ok(frameformats)
     }
 
-    fn get_resolution(&self) -> Resolution {
+    fn resolution(&self) -> Resolution {
         self.borrow_camera_format().resolution()
     }
 
@@ -302,7 +302,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.set_camera_format(current_format)
     }
 
-    fn get_framerate(&self) -> u32 {
+    fn frame_rate(&self) -> u32 {
         self.borrow_camera_format().framerate()
     }
 
@@ -312,7 +312,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.set_camera_format(current_format)
     }
 
-    fn get_frameformat(&self) -> FrameFormat {
+    fn frameformat(&self) -> FrameFormat {
         self.borrow_camera_format().format()
     }
 

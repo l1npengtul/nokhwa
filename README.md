@@ -39,7 +39,9 @@ The default feature includes nothing. Anything starting with `input-*` is a feat
 
 `input-*` features:
  - `input-v4l`: Enables the `Video4Linux` backend (linux)
- - `input-uvc`: Enables the `libuvc` backend (cross-platform)
+ - `input-uvc`: Enables the `libuvc` backend (cross-platform, libuvc statically-linked)
+ - `input-opencv`: Enables the `opencv` backend (cross-platform) 
+ - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
 

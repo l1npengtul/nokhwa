@@ -16,8 +16,9 @@ default = []
 input-uvc = ["uvc", "uvc/vendor", "ouroboros"]
 input-v4l = ["v4l"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
+input-ipcam = ["input-opencv"]
 output-wgpu = ["wgpu"]
-docs-only = ["input-uvc", "input-v4l", "input-opencv", "output-wgpu"]
+docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "output-wgpu"]
 
 [dependencies]
 thiserror = "1.0.24"

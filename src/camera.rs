@@ -6,11 +6,20 @@ use crate::{
     CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
     Resolution,
 };
-use image::{ImageBuffer, Rgb};
-use std::{cell::RefCell, collections::HashMap};
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use std::{
+    convert::TryFrom,
+    cell::RefCell,
+    collections::HashMap,
+    num::NonZeroU32,
+};
+#[cfg(feature = "output-wgpu")]
+use wgpu::{
+    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
+    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
+};
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
-/// For more details, please refer to [`CaptureBackendTrait`]
 pub struct Camera {
     idx: usize,
     backend: RefCell<Box<dyn CaptureBackendTrait>>,
@@ -123,7 +132,7 @@ impl Camera {
     /// The Backend may fail to initialize.
     pub fn set_index(self, new_idx: usize) -> Result<Self, NokhwaError> {
         self.backend.borrow_mut().stop_stream()?;
-        let new_camera_format = self.backend.borrow().get_camera_format();
+        let new_camera_format = self.backend.borrow().camera_format();
         Camera::new(new_idx, Some(new_camera_format), self.backend_api)
     }
 
@@ -137,17 +146,17 @@ impl Camera {
     /// The new backend may not exist or may fail to initialize the new camera.
     pub fn set_backend(self, new_backend: CaptureAPIBackend) -> Result<Self, NokhwaError> {
         self.backend.borrow_mut().stop_stream()?;
-        let new_camera_format = self.backend.borrow().get_camera_format();
+        let new_camera_format = self.backend.borrow().camera_format();
         Camera::new(self.idx, Some(new_camera_format), new_backend)
     }
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     pub fn get_info(&self) -> CameraInfo {
-        self.backend.borrow().get_info()
+        self.backend.borrow().camera_info()
     }
     /// Gets the current [`CameraFormat`].
     pub fn get_camera_format(&self) -> CameraFormat {
-        self.backend.borrow().get_camera_format()
+        self.backend.borrow().camera_format()
     }
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -175,7 +184,7 @@ impl Camera {
     }
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
     pub fn get_resolution(&self) -> Resolution {
-        self.backend.borrow().get_resolution()
+        self.backend.borrow().resolution()
     }
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -186,7 +195,7 @@ impl Camera {
     }
     /// Gets the current camera framerate (See: [`CameraFormat`]).
     pub fn get_framerate(&self) -> u32 {
-        self.backend.borrow().get_framerate()
+        self.backend.borrow().frame_rate()
     }
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
@@ -197,7 +206,7 @@ impl Camera {
     }
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
     pub fn get_frameformat(&self) -> FrameFormat {
-        self.backend.borrow().get_frameformat()
+        self.backend.borrow().frameformat()
     }
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -230,6 +239,93 @@ impl Camera {
     pub fn get_frame_raw(&self) -> Result<Vec<u8>, NokhwaError> {
         self.backend.borrow_mut().get_frame_raw()
     }
+
+    /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
+    pub fn min_buffer_size(&self, rgba: bool) -> usize {
+        let resolution = self.backend.borrow().resolution();
+        if rgba {
+            return (resolution.width() * resolution.height() * 4) as usize;
+        }
+        return (resolution.width() * resolution.height() * 3) as usize;
+    }
+    /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
+    /// # Errors
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
+    pub fn get_frame_to_buffer(
+        &self,
+        buffer: &mut [u8],
+        convert_rgba: bool,
+    ) -> Result<usize, NokhwaError> {
+        let frame = self.get_frame()?;
+        let mut frame_data = frame.to_vec();
+        if convert_rgba {
+            let rgba_image: RgbaImage = frame.convert();
+            frame_data = rgba_image.to_vec();
+        }
+        let bytes = frame_data.len();
+        buffer.copy_from_slice(&frame_data);
+        Ok(bytes)
+    }
+    /// Will drop the stream.
+    /// # Errors
+    /// Please check the `Quirks` section of each backend.
+    #[cfg(feature = "output-wgpu")]
+    /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
+    /// # Errors
+    /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
+    pub fn get_frame_texture<'a>(
+        &mut self,
+        device: &WgpuDevice,
+        queue: &WgpuQueue,
+        label: Option<&'a str>,
+    ) -> Result<WgpuTexture, NokhwaError> {
+        let frame = self.get_frame()?;
+        let rgba_frame: RgbaImage = frame.convert();
+
+        let texture_size = Extent3d {
+            width: frame.width(),
+            height: frame.height(),
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&TextureDescriptor {
+            label,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            usage: TextureUsage::SAMPLED | TextureUsage::COPY_DST,
+        });
+
+        let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
+            Ok(w) => Some(w),
+            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+        };
+
+        let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
+            Ok(h) => Some(h),
+            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+        };
+
+        queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &rgba_frame.to_vec(),
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: width_nonzero,
+                rows_per_image: height_nonzero,
+            },
+            texture_size,
+        );
+
+        Ok(texture)
+    }
+
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
