@@ -3,6 +3,7 @@ name = "nokhwa-bindings-windows"
 version = "0.1.0"
 authors = ["l1npengtul"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
 description = "The Windows binding crate for `nokhwa` so crates.io won't reject my builds, please don't use this (unless you are developing `nokhwa`)"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
