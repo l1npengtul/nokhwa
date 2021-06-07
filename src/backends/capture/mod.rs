@@ -6,7 +6,12 @@ pub use v4l2::V4LCaptureDevice;
 mod uvc_backend;
 #[cfg(feature = "input-uvc")]
 pub use uvc_backend::UVCCaptureDevice;
+#[cfg(feature = "input-msmf")]
+mod msmf;
 #[cfg(feature = "input-opencv")]
 mod opencv_backend;
+#[cfg(feature = "input-msmf")]
+pub use msmf::MediaFoundationCaptureDevice;
+
 #[cfg(feature = "input-opencv")]
 pub use opencv_backend::OpenCvCaptureDevice;
