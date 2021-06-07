@@ -12,7 +12,7 @@ use wgpu::{
 };
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
-/// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become availible.
+/// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
 ///
 /// **Note**:
 /// - Backends, if not provided with a camera format, will be spawned with 640x480@15 FPS, MJPEG [`CameraFormat`].
@@ -33,7 +33,7 @@ pub trait CaptureBackendTrait {
 
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupporteOperation`](crate::NokhwaError::UnsupportedOperation)).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
     fn get_compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
@@ -41,7 +41,7 @@ pub trait CaptureBackendTrait {
 
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupporteOperation`](crate::NokhwaError::UnsupportedOperation)).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
     fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
@@ -68,7 +68,7 @@ pub trait CaptureBackendTrait {
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
-    /// If you started the stream and the camera rejects the new frame foramt, this will return an error.
+    /// If you started the stream and the camera rejects the new frame format, this will return an error.
     fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`get_frame()`](CaptureBackendTrait::get_frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
@@ -97,7 +97,7 @@ pub trait CaptureBackendTrait {
         if rgba {
             return (resolution.width() * resolution.height() * 4) as usize;
         }
-        return (resolution.width() * resolution.height() * 3) as usize;
+        (resolution.width() * resolution.height() * 3) as usize
     }
 
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.

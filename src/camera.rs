@@ -7,12 +7,7 @@ use crate::{
     Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::{
-    convert::TryFrom,
-    cell::RefCell,
-    collections::HashMap,
-    num::NonZeroU32,
-};
+use std::{cell::RefCell, collections::HashMap, convert::TryFrom, num::NonZeroU32};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -26,6 +21,7 @@ pub struct Camera {
     backend_api: CaptureAPIBackend,
 }
 
+#[allow(clippy::nonminimal_bool)]
 impl Camera {
     /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
     /// # Errors
@@ -211,7 +207,7 @@ impl Camera {
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
-    /// If you started the stream and the camera rejects the new frame foramt, this will return an error.
+    /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         self.backend.borrow_mut().set_frameformat(fourcc)
     }
@@ -246,7 +242,7 @@ impl Camera {
         if rgba {
             return (resolution.width() * resolution.height() * 4) as usize;
         }
-        return (resolution.width() * resolution.height() * 3) as usize;
+        (resolution.width() * resolution.height() * 3) as usize
     }
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors

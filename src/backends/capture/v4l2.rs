@@ -173,6 +173,7 @@ impl<'a> V4LCaptureDevice<'a> {
     }
 
     /// Get the inner device (immutable) for e.g. Controls
+    #[allow(clippy::must_use_candidate)]
     pub fn inner_device(&self) -> &Device {
         &self.device
     }

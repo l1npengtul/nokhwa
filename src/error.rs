@@ -2,11 +2,13 @@ use thiserror::Error;
 
 use crate::{CaptureAPIBackend, FrameFormat};
 
-/// All errors in Nokhwa.
+/// All errors in `nokhwa`.
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
 pub enum NokhwaError {
+    #[error("Error: {0}")]
+    GeneralError(String),
     #[error("Could not open device: {0}")]
     CouldntOpenDevice(String),
     #[error("Could not query device property {property}: {error}")]

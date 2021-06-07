@@ -36,7 +36,7 @@ impl From<CameraFormat> for StreamFormat {
 }
 
 // ignore the IDE, this compiles
-/// The backend struct that interfaces with libuvc.
+/// The backend struct that interfaces with `libuvc`.
 /// To see what this does, please see [`CaptureBackendTrait`]
 /// # Quirks
 /// - The indexing for this backend is based off of `libuvc`'s device ordering, not the OS.
@@ -48,7 +48,7 @@ impl From<CameraFormat> for StreamFormat {
 /// # Safety
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
 /// - If [`open_stream()`](CaptureBackendTrait::open_stream()) and [`get_frame()`](CaptureBackendTrait::get_frame()) are called in the wrong order this may crash the entire program.
-/// - If internal varibles `stream_handle_init` and `active_stream_init` become desynchronized with the true reality (wether streamhandle/activestream is init or not) this will cause undefined behaviour.
+/// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
 #[self_referencing(chain_hack)]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
@@ -78,7 +78,7 @@ impl<'a> UVCCaptureDevice<'a> {
     /// # Panics
     /// This operation may panic! If the UVC Context fails to retrieve the device from the gotten IDs, this operation will panic.
     /// # Errors
-    /// This may error when the `libuvc` backend fails to retreive the device or its data.
+    /// This may error when the `libuvc` backend fails to retrieve the device or its data.
     pub fn create(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let context = match Context::new() {
             Ok(ctx) => Box::new(ctx),
@@ -184,7 +184,7 @@ impl<'a> UVCCaptureDevice<'a> {
     /// # Panics
     /// This operation may panic! If the UVC Context fails to retrieve the device from the gotten IDs, this operation will panic.
     /// # Errors
-    /// This may error when the `libuvc` backend fails to retreive the device or its data.
+    /// This may error when the `libuvc` backend fails to retrieve the device or its data.
     pub fn create_with(
         index: usize,
         width: u32,

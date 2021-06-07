@@ -1,5 +1,5 @@
 use crate::{backends::capture::OpenCvCaptureDevice, CaptureBackendTrait, NokhwaError};
-use image::{buffer::ConvertBuffer, Bgr, ImageBuffer, Rgb, RgbaImage};
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::{cell::RefCell, convert::TryFrom, num::NonZeroU32};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{

@@ -61,6 +61,8 @@ mod error;
 mod network_camera;
 mod query;
 mod utils;
+#[macro_use]
+mod macros;
 
 pub use camera::Camera;
 pub use camera_traits::*;
