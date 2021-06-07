@@ -8,7 +8,9 @@ use opencv::{
     core::{ToInputArray, ToOutputArray, Vector},
     imgproc::{cvt_color, ColorConversionCodes},
     types::VectorOfu8,
-    videoio::{VideoCapture, VideoCaptureTrait, VideoWriter, CAP_ANY, CAP_PROP_FOURCC, CAP_V4L2},
+    videoio::{
+        VideoCapture, VideoCaptureTrait, VideoWriter, CAP_ANY, CAP_DSHOW, CAP_PROP_FOURCC, CAP_V4L2,
+    },
     videoio::{CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH},
 };
 use std::{
@@ -442,7 +444,7 @@ impl Display for CameraIndexType {
 fn get_api_pref_int() -> u32 {
     match std::env::consts::OS {
         "linux" => CAP_V4L2 as u32,
-        "windows" => CAP_MSMF as u32,
+        "windows" => CAP_DSHOW as u32,
         "mac" => CAP_AVFOUNDATION as u32,
         &_ => CAP_ANY as u32,
     }
