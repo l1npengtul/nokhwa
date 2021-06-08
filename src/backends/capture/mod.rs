@@ -8,10 +8,9 @@ mod uvc_backend;
 pub use uvc_backend::UVCCaptureDevice;
 #[cfg(feature = "input-msmf")]
 mod msmf;
-#[cfg(feature = "input-opencv")]
-mod opencv_backend;
 #[cfg(feature = "input-msmf")]
 pub use msmf::MediaFoundationCaptureDevice;
-
+#[cfg(feature = "input-opencv")]
+mod opencv_backend;
 #[cfg(feature = "input-opencv")]
 pub use opencv_backend::OpenCvCaptureDevice;
