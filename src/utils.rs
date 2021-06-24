@@ -340,7 +340,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     let mut rgb_vec: Vec<u8> = vec![];
     if data.len() % 4 == 0 {
         for px_idx in (0..data.len()).step_by(4) {
-            let u = match data.get(px_idx) {
+            let y1 = match data.get(px_idx) {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
@@ -359,7 +359,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 }
             };
 
-            let y1 = match data.get(px_idx + 1) {
+            let u = match data.get(px_idx + 1) {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
@@ -378,7 +378,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 }
             };
 
-            let v = match data.get(px_idx + 2) {
+            let y2 = match data.get(px_idx + 2) {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
@@ -397,7 +397,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 }
             };
 
-            let y2 = match data.get(px_idx + 3) {
+            let v = match data.get(px_idx + 3) {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
