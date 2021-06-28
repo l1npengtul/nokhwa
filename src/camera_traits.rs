@@ -3,7 +3,7 @@ use crate::{
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::{collections::HashMap, convert::TryFrom, num::NonZeroU32};
+use std::collections::HashMap;
 
 #[cfg(feature = "output-wgpu")]
 use wgpu::{

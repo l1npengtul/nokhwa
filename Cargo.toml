@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -18,15 +18,18 @@ input-v4l = ["v4l"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
 input-msmf = ["nokhwa-bindings-windows"]
-input-ffmpeg = ["rusty_ffmpeg"]
+input-gst = ["gstreamer", "glib", "gstreamer-app"]
 output-wgpu = ["wgpu"]
-docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-ffmpeg", "output-wgpu"]
+output-threaded = ["parking_lot"]
+docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "output-wgpu", "output-threaded"]
 
 [dependencies]
 thiserror = "1.0.24"
 image = "0.23.14"
 mozjpeg = "0.8.24"
 flume = "0.10.5"
+usb_enumeration = "0.1.2"
+paste = "1.0.5"
 
 [dependencies.v4l]
 version = "0.12.1"
@@ -53,8 +56,20 @@ optional = true
 version = "0.1.0"
 optional = true
 
-[dependencies.rusty_ffmpeg]
-version = "0.7.0"
+[dependencies.gstreamer]
+version = "0.16.7"
+optional = true
+
+[dependencies.gstreamer-app]
+version = "0.16.5"
+optional = true
+
+[dependencies.glib]
+version = "0.14.0"
+optional = true
+
+[dependencies.parking_lot]
+version = "0.11.1"
 optional = true
 
 [package.metadata.docs.rs]

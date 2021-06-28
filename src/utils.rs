@@ -265,19 +265,23 @@ impl Display for CameraInfo {
 /// The list of known capture backends to the library. <br>
 /// **Note: Only V4L2 and UVC (and by extension AUTO) is implemented so far.**
 /// - AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
+/// - `AVFoundation` - Uses `AVFoundation` on Mac **Not Implemted**
 /// - V4L2 - `Video4Linux2`, a linux specific backend.
 /// - UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
-/// - Windows - Directshow, Windows only
+/// - Windows - MSMF, Windows only, **Not Implemted**
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
-/// - FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic.
+/// - FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic. **Not Implemted**
+/// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CaptureAPIBackend {
     Auto,
+    AVFoundation,
     Video4Linux,
     UniversalVideoClass,
     Windows,
     OpenCv,
     Ffmpeg,
+    GStreamer,
 }
 
 impl Display for CaptureAPIBackend {

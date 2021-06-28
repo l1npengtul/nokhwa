@@ -44,6 +44,7 @@ impl From<CameraFormat> for StreamFormat {
 /// - The [create()](UVCCaptureDevice::create()) method will open the device twice.
 /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution()), [`set_framerate()`](CaptureBackendTrait::set_framerate()), or [`set_frameformat()`](CaptureBackendTrait::set_frameformat()) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format()).
 /// - [`get_frame_raw()`](CaptureBackendTrait::get_frame_raw()) returns the same raw data as [`get_frame()`](CaptureBackendTrait::get_frame()), a.k.a. no custom decoding required, all data is automatically RGB
+/// - The [`get_frame_raw()`](CaptureBackendTrait::get_frame_raw()) and by extension [`get_frame()`](CaptureBackendTrait::get_frame()) functions block.
 /// This backend, once stream is open, will constantly collect frames. When you call [`get_frame()`](CaptureBackendTrait::get_frame()) or one of its variants, it will only give you the latest frame.
 /// # Safety
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
@@ -85,7 +86,7 @@ impl<'a> UVCCaptureDevice<'a> {
             Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
         };
 
-        let (camera_info, frame_receiver, frame_sender, vendor_id, product_id, serial) = {
+        let (camera_info, frame_receiver, frame_sender) = {
             let device_list = match context.devices() {
                 Ok(device_list) => device_list,
                 Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
@@ -129,24 +130,11 @@ impl<'a> UVCCaptureDevice<'a> {
                 index,
             );
 
-            let (vendor_id, product_id, serial) = (
-                Some(i32::from(device_desc.product_id)),
-                Some(i32::from(device_desc.vendor_id)),
-                device_desc.serial_number,
-            );
-
             let (frame_sender, frame_receiver) = {
                 let (a, b) = flume::unbounded::<Vec<u8>>();
                 (Box::new(a), Box::new(b))
             };
-            (
-                camera_info,
-                frame_receiver,
-                frame_sender,
-                vendor_id,
-                product_id,
-                serial,
-            )
+            (camera_info, frame_receiver, frame_sender)
         };
 
         let camera_format = match cam_fmt {
@@ -165,7 +153,10 @@ impl<'a> UVCCaptureDevice<'a> {
             device_builder: |context_builder| {
                 Box::new(
                     context_builder
-                        .find_device(vendor_id, product_id, serial.as_deref())
+                        .devices()
+                        .unwrap()
+                        .into_iter()
+                        .nth(index)
                         .unwrap(),
                 )
             },
@@ -402,6 +393,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         if ret_2.is_err() {
             return ret_2;
         }
+        self.borrow_active_stream_init().set(true);
 
         Ok(())
     }
@@ -444,7 +436,15 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let messages_iter = f_recv.drain();
         match messages_iter.last() {
             Some(msg) => Ok(msg),
-            None => Err(NokhwaError::CouldntCaptureFrame("Too fast!".to_string())),
+            None => match f_recv.recv() {
+                Ok(msg) => Ok(msg),
+                Err(why) => {
+                    return Err(NokhwaError::CouldntCaptureFrame(format!(
+                        "All sender dropped: {}",
+                        why.to_string()
+                    )))
+                }
+            },
         }
     }
 

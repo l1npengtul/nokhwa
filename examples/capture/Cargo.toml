@@ -7,7 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = "2.33.3"
+glium = "0.30.0"
+glutin = "0.27.0"
+flume = "0.10.7"
 
+# Use these as you need
 [dependencies.nokhwa]
 path = "../../../nokhwa"
-features = ["input-uvc", "input-v4l"]
+features = ["input-uvc", "input-v4l", "input-ipcam", "input-opencv", "input-gst"]

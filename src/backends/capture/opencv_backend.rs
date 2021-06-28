@@ -3,13 +3,14 @@ use crate::{
     NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use opencv::videoio::{CAP_AVFOUNDATION, CAP_MSMF};
+
 use opencv::{
     core::{ToInputArray, ToOutputArray, Vector},
     imgproc::{cvt_color, ColorConversionCodes},
     types::VectorOfu8,
     videoio::{
-        VideoCapture, VideoCaptureTrait, VideoWriter, CAP_ANY, CAP_DSHOW, CAP_PROP_FOURCC, CAP_V4L2,
+        VideoCapture, VideoCaptureTrait, VideoWriter, CAP_ANY, CAP_AVFOUNDATION, CAP_DSHOW,
+        CAP_PROP_FOURCC, CAP_V4L2,
     },
     videoio::{CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH},
 };
@@ -140,6 +141,17 @@ impl OpenCvCaptureDevice {
     ) -> Result<Self, NokhwaError> {
         let camera_location = CameraIndexType::Index(tryinto_num!(u32, index));
         OpenCvCaptureDevice::new(camera_location, cfmt, api_pref)
+    }
+
+    /// Creates a new capture device using the `OpenCV` backend.
+    /// Indexes are gives to devices by the OS, and usually numbered by order of discovery.
+    ///
+    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera.
+    /// # Errors
+    /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
+    pub fn new_autopref(index: usize, cfmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+        let camera_location = CameraIndexType::Index(tryinto_num!(u32, index));
+        OpenCvCaptureDevice::new(camera_location, cfmt, None)
     }
 
     /// Gets weather said capture device is an `IPCamera`.

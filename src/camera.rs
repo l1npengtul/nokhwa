@@ -1,13 +1,9 @@
-#[cfg(feature = "input-uvc")]
-use crate::backends::capture::UVCCaptureDevice;
-#[cfg(feature = "input-v4l")]
-use crate::backends::capture::V4LCaptureDevice;
 use crate::{
-    CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
-    Resolution,
+    cap_impl_fn, cap_impl_matches, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, NokhwaError, Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::{cell::RefCell, collections::HashMap, convert::TryFrom, num::NonZeroU32};
+use std::{cell::RefCell, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -31,75 +27,18 @@ impl Camera {
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
-        let platform = std::env::consts::OS;
-        let use_backend = match backend {
-            CaptureAPIBackend::Auto => {
-                let mut cap = CaptureAPIBackend::Auto;
-                if cfg!(feature = "input-v4l") && platform == "linux" {
-                    cap = CaptureAPIBackend::Video4Linux
-                } else if cfg!(feature = "input-uvc") {
-                    cap = CaptureAPIBackend::UniversalVideoClass;
-                }
-                if cap == CaptureAPIBackend::Auto {
-                    return Err(NokhwaError::NotImplemented(
-                        "Platform requirements not satisfied.".to_string(),
-                    ));
-                }
-                cap
-            }
-            CaptureAPIBackend::Video4Linux => {
-                if !(cfg!(feature = "input-v4l") && platform == "linux") {
-                    return Err(NokhwaError::NotImplemented(
-                        "V4L Requirements: Linux and `input-v4l`.".to_string(),
-                    ));
-                }
-                CaptureAPIBackend::Video4Linux
-            }
-            CaptureAPIBackend::UniversalVideoClass => {
-                if !(cfg!(feature = "input-uvc")) {
-                    return Err(NokhwaError::NotImplemented(
-                        "UVC Requirements: `input-uvc`.".to_string(),
-                    ));
-                }
-                CaptureAPIBackend::UniversalVideoClass
-            }
-            _ => return Err(NokhwaError::NotImplemented(backend.to_string())),
-        };
-
-        let capture_backend = match use_backend {
-            CaptureAPIBackend::Video4Linux => match init_v4l(index, format) {
-                Some(capture) => match capture {
-                    Ok(cap_back) => cap_back,
-                    Err(why) => return Err(why),
-                },
-                None => {
-                    return Err(NokhwaError::NotImplemented(
-                        "Platform requirements not satisfied.".to_string(),
-                    ));
-                }
-            },
-            CaptureAPIBackend::UniversalVideoClass => match init_uvc(index, format) {
-                Some(capture) => match capture {
-                    Ok(cap_back) => cap_back,
-                    Err(why) => return Err(why),
-                },
-                None => {
-                    return Err(NokhwaError::NotImplemented(
-                        "Platform requirements not satisfied.".to_string(),
-                    ));
-                }
-            },
-            _ => {
-                return Err(NokhwaError::NotImplemented(
-                    "Platform requirements not satisfied.".to_string(),
-                ));
-            }
+        let camera_backend = cap_impl_matches! {
+            backend, index, format,
+            ("input-v4l", Video4Linux, init_v4l),
+            ("input-uvc", UniversalVideoClass, init_uvc),
+            ("input-gst", GStreamer, init_gst),
+            ("input-opencv", OpenCv, init_opencv)
         };
 
         Ok(Camera {
             idx: index,
-            backend: RefCell::new(capture_backend),
-            backend_api: use_backend,
+            backend: RefCell::new(camera_backend),
+            backend_api: backend,
         })
     }
 
@@ -262,9 +201,7 @@ impl Camera {
         buffer.copy_from_slice(&frame_data);
         Ok(bytes)
     }
-    /// Will drop the stream.
-    /// # Errors
-    /// Please check the `Quirks` section of each backend.
+
     #[cfg(feature = "output-wgpu")]
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
@@ -330,44 +267,32 @@ impl Camera {
     }
 }
 
-#[cfg(feature = "input-v4l")]
-#[allow(clippy::unnecessary_wraps)]
-fn init_v4l(
-    idx: usize,
-    setting: Option<CameraFormat>,
-) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
-    match V4LCaptureDevice::new(idx, setting) {
-        Ok(cap) => Some(Ok(Box::new(cap))),
-        Err(why) => Some(Err(why)),
+// TODO: Update as we go
+fn figure_out_auto() -> Option<CaptureAPIBackend> {
+    let platform = std::env::consts::OS;
+    let mut cap = CaptureAPIBackend::Auto;
+    if cfg!(feature = "input-v4l") && platform == "linux" {
+        cap = CaptureAPIBackend::Video4Linux
+    } else if cfg!(feature = "input-msmf") && platform == "windows" {
+        cap = CaptureAPIBackend::Windows
+    } else if cfg!(feature = "input-avfoundationn") && platform == "mac" {
+        cap = CaptureAPIBackend::AVFoundation
+    } else if cfg!(feature = "input-uvc") {
+        cap = CaptureAPIBackend::UniversalVideoClass;
+    } else if cfg!(feature = "input-gst") {
+        cap = CaptureAPIBackend::GStreamer;
+    } else if cfg!(feature = "input-opencv") {
+        cap = CaptureAPIBackend::OpenCv;
     }
-}
-
-#[cfg(not(feature = "input-v4l"))]
-#[allow(clippy::unnecessary_wraps)]
-fn init_v4l(
-    _idx: usize,
-    _setting: Option<CameraFormat>,
-) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
-    None
-}
-
-#[cfg(feature = "uvc")]
-#[allow(clippy::unnecessary_wraps)]
-fn init_uvc(
-    idx: usize,
-    setting: Option<CameraFormat>,
-) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
-    match UVCCaptureDevice::create(idx, setting) {
-        Ok(cap) => Some(Ok(Box::new(cap))),
-        Err(why) => Some(Err(why)),
+    if cap == CaptureAPIBackend::Auto {
+        return None;
     }
+    Some(cap)
 }
 
-#[cfg(not(feature = "input-uvc"))]
-#[allow(clippy::unnecessary_wraps)]
-fn init_uvc(
-    _idx: usize,
-    _setting: Option<CameraFormat>,
-) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
-    None
+cap_impl_fn! {
+    (GStreamerCaptureDevice, new, "input-gst", gst),
+    (OpenCvCaptureDevice, new_autopref, "input-opencv", opencv),
+    (V4LCaptureDevice, new, "input-v4l", v4l),
+    (UVCCaptureDevice, create, "input-uvc", uvc)
 }

@@ -10,6 +10,10 @@ pub use uvc_backend::UVCCaptureDevice;
 mod msmf;
 #[cfg(feature = "input-msmf")]
 pub use msmf::MediaFoundationCaptureDevice;
+#[cfg(feature = "input-gst")]
+mod gst_backend;
+#[cfg(feature = "input-gst")]
+pub use gst_backend::GStreamerCaptureDevice;
 #[cfg(feature = "input-opencv")]
 mod opencv_backend;
 #[cfg(feature = "input-opencv")]
