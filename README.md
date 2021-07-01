@@ -40,15 +40,15 @@ The table below lists current Nokhwa API support.
 - The `Input` column signifies reading frames from the camera
 - The `Query` column signifies system device list support
 - The `Query-Device` column signifies reading device capabilities
-- The `OS` column signifies what OS this is availible on.
+- The `Platform` column signifies what Platform this is availible on.
 
-| Backend                          | Input              | Query              | Query-Device       | OS                  |
+| Backend                          | Input              | Query              | Query-Device       | Platform            |
  |---------------------------------|--------------------|--------------------|--------------------|---------------------|
  | Video4Linux(`input-v4l`)        | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux               |
  | libuvc(`input-uvc`)             | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^         | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^ | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
- | GStreamer(`input-gst`)^         | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)          | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
  | FFMpeg                          |        *           |         *          |         *          | Linux, Windows, Mac |
  | AVFoundation                    |        *           |         *          |         *          | Mac                 |
  | MSMF                            |        *           |         *          |         *          | Windows             |
