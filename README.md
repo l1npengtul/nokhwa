@@ -48,7 +48,7 @@ The table below lists current Nokhwa API support.
  | libuvc(`input-uvc`)             | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^         | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^ | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
- | GStreamer(`input-gst`)^         | :white_check_mark: | :x:                | :white_check_mark: | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)^         | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
  | FFMpeg                          |        *           |         *          |         *          | Linux, Windows, Mac |
  | AVFoundation                    |        *           |         *          |         *          | Mac                 |
  | MSMF                            |        *           |         *          |         *          | Windows             |
