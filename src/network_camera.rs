@@ -6,7 +6,6 @@ use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
     Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
 };
-
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 pub struct NetworkCamera {
     ip: String,
@@ -49,8 +48,8 @@ impl NetworkCamera {
     /// Gets the frame decoded as a RGB24 frame
     /// # Errors
     /// If the backend fails to capture the stream, or if the decoding fails this will error
-    pub fn get_frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        self.opencv_backend.borrow_mut().get_frame()
+    pub fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        self.opencv_backend.borrow_mut().frame()
     }
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
@@ -64,12 +63,12 @@ impl NetworkCamera {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn get_frame_to_buffer(
+    pub fn frame_to_buffer(
         &self,
         buffer: &mut [u8],
         convert_rgba: bool,
     ) -> Result<usize, NokhwaError> {
-        let frame = self.get_frame()?;
+        let frame = self.frame()?;
         let mut frame_data = frame.to_vec();
         if convert_rgba {
             let rgba_image: RgbaImage = frame.convert();
@@ -84,13 +83,14 @@ impl NetworkCamera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn get_frame_texture<'a>(
+    pub fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        let frame = self.get_frame()?;
+        use std::{convert::TryFrom, num::NonZeroU32};
+        let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
         let texture_size = Extent3d {
@@ -142,5 +142,11 @@ impl NetworkCamera {
     /// Please check the `Quirks` section of each backend.
     pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().stop_stream()
+    }
+}
+
+impl Drop for NetworkCamera {
+    fn drop(&mut self) {
+        self.stop_stream().unwrap();
     }
 }

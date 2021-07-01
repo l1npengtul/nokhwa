@@ -1,18 +1,15 @@
 use crate::{
-    tryinto_num, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    NokhwaError, Resolution,
+    tryinto_num, vector, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
+    FrameFormat, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-
+use opencv::core::Vector;
 use opencv::{
-    core::{ToInputArray, ToOutputArray, Vector},
-    imgproc::{cvt_color, ColorConversionCodes},
-    types::VectorOfu8,
+    core::{Mat, MatTrait, MatTraitManual, Vec3b},
     videoio::{
         VideoCapture, VideoCaptureTrait, VideoWriter, CAP_ANY, CAP_AVFOUNDATION, CAP_DSHOW,
-        CAP_PROP_FOURCC, CAP_V4L2,
+        CAP_PROP_FOURCC, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
     },
-    videoio::{CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH},
 };
 use std::{
     collections::HashMap,
@@ -25,6 +22,7 @@ use std::{
 ///
 /// To see what this does, please see [`CaptureBackendTrait`]
 /// # Quirks
+///  - **Some features don't work properly on this backend (yet)! Setting Resolution, FPS, FourCC does not work and will default to 640x480 30FPS. This is being worked on.**
 ///  - This is a **cross-platform** backend. This means that it will work on most platforms given that `OpenCV` is present.
 ///  - This backend can also do IP Camera input.
 ///  - The backend's backend will default to system level APIs on Linux(V4L2), Mac(AVFoundation), and Windows(Media Foundation). Otherwise, it will decide for itself.
@@ -59,7 +57,7 @@ impl OpenCvCaptureDevice {
     /// # Errors
     /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
     /// # Panics
-    /// If the API u32 -> i32
+    /// If the API u32 -> i32 fails this will error
     pub fn new(
         camera_location: CameraIndexType,
         cfmt: Option<CameraFormat>,
@@ -78,16 +76,15 @@ impl OpenCvCaptureDevice {
             None => CameraFormat::default(),
         };
 
-        let video_capture = match camera_location.clone() {
+        let mut video_capture = match camera_location.clone() {
             CameraIndexType::Index(idx) => {
-                let mut vid_cap = match VideoCapture::new(tryinto_num!(i32, idx), api) {
+                let vid_cap = match VideoCapture::new(tryinto_num!(i32, idx), api) {
                     Ok(vc) => {
                         index = idx;
                         vc
                     }
                     Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
                 };
-                set_properties(&mut vid_cap, camera_format)?;
                 vid_cap
             }
             CameraIndexType::IPCamera(ip) => match VideoCapture::from_file(&*ip, CAP_ANY) {
@@ -95,6 +92,8 @@ impl OpenCvCaptureDevice {
                 Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
             },
         };
+
+        set_properties(&mut video_capture, camera_format, &camera_location)?;
 
         let camera_info = CameraInfo::new(
             format!("OpenCV Capture Device {}", camera_location),
@@ -180,27 +179,98 @@ impl OpenCvCaptureDevice {
         self.api_preference
     }
 
-    /// Gets the BGR24 frame directly read from `OpenCV` without any additional processing
+    /// Gets the RGB24 frame directly read from `OpenCV` without any additional processing.
     /// # Errors
     /// If the frame is failed to be read, this will error.
-    pub fn get_raw_frame_vector(&mut self) -> Result<Vector<u8>, NokhwaError> {
-        let mut image_read_vector = VectorOfu8::new();
-        let image_out_arr = &mut match image_read_vector.output_array() {
-            Ok(out) => out,
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
-        };
-        match self.video_capture.read(image_out_arr) {
-            Ok(read) => {
-                if !read {
+    #[allow(clippy::cast_sign_loss)]
+    pub fn raw_frame_vec(&mut self) -> Result<Vec<u8>, NokhwaError> {
+        if !self.is_stream_open() {
+            return Err(NokhwaError::CouldntCaptureFrame(
+                "Stream is not open!".to_string(),
+            ));
+        }
+
+        let mut frame = Mat::default();
+        match self.video_capture.read(&mut frame) {
+            Ok(a) => {
+                if !a {
                     return Err(NokhwaError::CouldntCaptureFrame(
-                        "OpenCV failed to read frame, returned false".to_string(),
+                        "Failed to read frame from videocapture: OpenCV return false, camera disconnected?".to_string(),
                     ));
                 }
             }
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => {
+                return Err(NokhwaError::CouldntCaptureFrame(format!(
+                    "Failed to read frame from videocapture: {}",
+                    why.to_string()
+                )))
+            }
         }
 
-        Ok(image_read_vector)
+        let frame_empty = match frame.empty() {
+            Ok(e) => e,
+            Err(why) => {
+                return Err(NokhwaError::CouldntCaptureFrame(format!(
+                    "Failed to check for empty OpenCV frame: {}",
+                    why.to_string()
+                )))
+            }
+        };
+
+        match frame.size() {
+            Ok(size) => {
+                if size.width > 0 && !frame_empty {
+                    return match frame.is_continuous() {
+                        Ok(cont) => {
+                            if cont {
+                                let mut raw_vec: Vec<u8> = Vec::new();
+                                raw_vec.reserve(
+                                    (self.resolution().width()
+                                        * self.resolution().height()
+                                        * (frame.channels().unwrap_or(3)) as u32)
+                                        as usize,
+                                );
+
+                                let frame_data_vec = match Mat::data_typed::<Vec3b>(&frame) {
+                                    Ok(v) => v,
+                                    Err(why) => {
+                                        return Err(NokhwaError::CouldntCaptureFrame(format!(
+                                            "Failed to convert frame into raw Vec3b: {}",
+                                            why.to_string()
+                                        )))
+                                    }
+                                };
+
+                                for pixel in frame_data_vec.iter() {
+                                    let pixel_slice: &[u8; 3] = &**pixel;
+                                    raw_vec.push(pixel_slice[2]);
+                                    raw_vec.push(pixel_slice[1]);
+                                    raw_vec.push(pixel_slice[0]);
+                                }
+
+                                return Ok(raw_vec);
+                            }
+                            Err(NokhwaError::CouldntCaptureFrame(
+                                "Failed to read frame from videocapture: not cont".to_string(),
+                            ))
+                        }
+                        Err(why) => Err(NokhwaError::CouldntCaptureFrame(format!(
+                            "Failed to read frame from videocapture: failed to read continuous: {}",
+                            why.to_string()
+                        ))),
+                    };
+                }
+                Err(NokhwaError::CouldntCaptureFrame(
+                    "Frame width is less than zero!".to_string(),
+                ))
+            }
+            Err(why) => {
+                return Err(NokhwaError::CouldntCaptureFrame(format!(
+                    "Failed to read frame from videocapture: failed to read size: {}",
+                    why.to_string()
+                )))
+            }
+        }
     }
 
     /// Gets the resolution raw as read by `OpenCV`.
@@ -208,7 +278,7 @@ impl OpenCvCaptureDevice {
     /// If the resolution is failed to be read (e.g. invalid or not supported), this will error.
     #[allow(clippy::cast_sign_loss)]
     #[allow(clippy::cast_possible_truncation)]
-    pub fn get_resolution_raw(&self) -> Result<Resolution, NokhwaError> {
+    pub fn raw_resolution(&self) -> Result<Resolution, NokhwaError> {
         let width = match self.video_capture.get(CAP_PROP_FRAME_WIDTH) {
             Ok(width) => width as u32,
             Err(why) => {
@@ -268,26 +338,30 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                 })
             }
         };
-        set_properties(&mut self.video_capture, new_fmt)?;
+
+        self.camera_format = new_fmt;
+
+        if let Err(why) = set_properties(&mut self.video_capture, new_fmt, &self.camera_location) {
+            self.camera_format = current_format;
+            return Err(why);
+        }
         if is_opened {
             self.stop_stream()?;
             if let Err(why) = self.open_stream() {
-                // revert
-                set_properties(&mut self.video_capture, current_format)?;
                 return Err(NokhwaError::CouldntOpenDevice(why.to_string()));
             }
         }
         Ok(())
     }
 
-    fn get_compatible_list_by_resolution(
+    fn compatible_list_by_resolution(
         &self,
         _fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::OpenCv))
     }
 
-    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::OpenCv))
     }
 
@@ -321,38 +395,37 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.set_camera_format(current_fmt)
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        let is_opened = match self.video_capture.is_opened() {
-            Ok(opened) => opened,
-            Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
-                    property: "Is Stream Open".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        if is_opened {
-            match self.video_capture.release() {
-                Ok(_) => {}
-                Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
-            }
-        }
-
-        self.video_capture = match self.camera_location.clone() {
+        match self.camera_location.clone() {
             CameraIndexType::Index(idx) => {
-                let mut vid_cap =
-                    match VideoCapture::new(tryinto_num!(i32, idx), self.api_preference as i32) {
-                        Ok(vc) => vc,
-                        Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
-                    };
-                set_properties(&mut vid_cap, self.camera_format)?;
-                vid_cap
+                match self
+                    .video_capture
+                    .open_1(idx as i32, get_api_pref_int() as i32)
+                {
+                    Ok(_) => {}
+                    Err(why) => {
+                        return Err(NokhwaError::CouldntOpenDevice(format!(
+                            "Failed to open device: {}",
+                            why.to_string()
+                        )))
+                    }
+                }
             }
-            CameraIndexType::IPCamera(ip) => match VideoCapture::from_file(&*ip, CAP_ANY) {
-                Ok(vc) => vc,
-                Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
-            },
+            CameraIndexType::IPCamera(ip) => {
+                match self
+                    .video_capture
+                    .open_file(&*ip, get_api_pref_int() as i32)
+                {
+                    Ok(_) => {}
+                    Err(why) => {
+                        return Err(NokhwaError::CouldntOpenDevice(format!(
+                            "Failed to open device: {}",
+                            why.to_string()
+                        )))
+                    }
+                }
+            }
         };
 
         match self.video_capture.is_opened() {
@@ -375,48 +448,35 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.video_capture.is_opened().unwrap_or(false)
     }
 
-    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let image_data = self.get_raw_frame_vector()?;
-        let image_input_arr = &match image_data.input_array() {
-            Ok(input) => input,
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
-        };
-
-        let mut image_rgb_out = VectorOfu8::new();
-        let rgb_image_output_arr = &mut match image_rgb_out.output_array() {
-            Ok(out) => out,
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
-        };
-
-        match cvt_color(
-            image_input_arr,
-            rgb_image_output_arr,
-            ColorConversionCodes::COLOR_BGR2RGB as i32,
-            0,
-        ) {
-            Ok(_) => {
-                let rgb_image = image_rgb_out.to_vec();
-                let camera_resolution = self.camera_format.resolution();
-                let imagebuf =
-                    match ImageBuffer::from_vec(camera_resolution.width(), camera_resolution.height(), rgb_image) {
-                        Some(buf) => {
-                            let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                            rgbbuf
-                        }
-                        None => return Err(NokhwaError::CouldntCaptureFrame(
-                            "Imagebuffer is not large enough! This is probably a bug, please report it!"
-                                .to_string(),
-                        )),
-                    };
-                Ok(imagebuf)
-            }
-            Err(why) => Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
-        }
+    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        let mut image_data = self.frame_raw()?;
+        let camera_resolution = self.camera_format.resolution();
+        image_data.resize(
+            (camera_resolution.width() * camera_resolution.height() * 3) as usize,
+            0_u8,
+        );
+        let imagebuf =
+            match ImageBuffer::from_vec(
+                camera_resolution.width(),
+                camera_resolution.height(),
+                image_data,
+            ) {
+                Some(buf) => {
+                    let rgb: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
+                    rgb
+                }
+                None => return Err(NokhwaError::CouldntCaptureFrame(
+                    "Imagebuffer is not large enough! This is probably a bug, please report it!"
+                        .to_string(),
+                )),
+            };
+        Ok(imagebuf)
     }
 
-    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
-        let data = self.get_raw_frame_vector()?;
-        Ok(data.to_vec())
+    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+        let vec = self.raw_frame_vec()?;
+        // println!("{:?}", vec);
+        Ok(vec)
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
@@ -461,125 +521,87 @@ fn get_api_pref_int() -> u32 {
         &_ => CAP_ANY as u32,
     }
 }
-fn set_properties(vc: &mut VideoCapture, camera_format: CameraFormat) -> Result<(), NokhwaError> {
-    set_property_fourcc(vc, camera_format.format())?;
-    set_property_res(vc, camera_format.resolution())?;
-    set_property_fps(vc, camera_format.framerate())?;
-    Ok(())
-}
 
-fn set_property_res(vc: &mut VideoCapture, res: Resolution) -> Result<(), NokhwaError> {
-    match vc.set(CAP_PROP_FRAME_HEIGHT as i32, f64::from(res.height())) {
-        Ok(r) => {
-            if !r {
-                return Err(NokhwaError::CouldntSetProperty {
-                    property: "Resolution Height".to_string(),
-                    value: res.height().to_string(),
-                    error: "OpenCV bool assert failure".to_string(),
-                });
-            }
-        }
-        Err(why) => {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "Resolution Height".to_string(),
-                value: res.height().to_string(),
-                error: why.to_string(),
-            })
-        }
-    }
-
-    match vc.set(CAP_PROP_FRAME_WIDTH as i32, f64::from(res.width())) {
-        Ok(r) => {
-            if !r {
-                return Err(NokhwaError::CouldntSetProperty {
-                    property: "Resolution Width".to_string(),
-                    value: res.width().to_string(),
-                    error: "OpenCV bool assert failure".to_string(),
-                });
-            }
-        }
-        Err(why) => {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "Resolution Width".to_string(),
-                value: res.width().to_string(),
-                error: why.to_string(),
-            })
-        }
-    }
-
-    Ok(())
-}
-
-fn set_property_fps(vc: &mut VideoCapture, fps: u32) -> Result<(), NokhwaError> {
-    match vc.set(CAP_PROP_FPS as i32, f64::from(fps)) {
-        Ok(r) => {
-            if !r {
-                return Err(NokhwaError::CouldntSetProperty {
-                    property: "Framerate".to_string(),
-                    value: fps.to_string(),
-                    error: "OpenCV bool assert failure".to_string(),
-                });
-            }
-        }
-        Err(why) => {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "Framerate".to_string(),
-                value: fps.to_string(),
-                error: why.to_string(),
-            })
-        }
-    }
-    Ok(())
-}
-
-fn set_property_fourcc(vc: &mut VideoCapture, frame_fmt: FrameFormat) -> Result<(), NokhwaError> {
-    let fourcc = match frame_fmt {
-        FrameFormat::MJPEG => f64::from(
-            match VideoWriter::fourcc('M' as i8, 'J' as i8, 'P' as i8, 'G' as i8) {
-                Ok(fcc) => fcc,
+#[allow(clippy::cast_possible_wrap)]
+fn set_properties(
+    vc: &mut VideoCapture,
+    camera_format: CameraFormat,
+    camera_location: &CameraIndexType,
+) -> Result<(), NokhwaError> {
+    let fourcc = match camera_format.format() {
+        FrameFormat::MJPEG => {
+            match VideoWriter::fourcc('m' as i8, 'j' as i8, 'p' as i8, 'g' as i8) {
+                Ok(fmt) => fmt,
                 Err(why) => {
                     return Err(NokhwaError::CouldntSetProperty {
-                        property: "FourCC".to_string(),
-                        value: "MJPG".to_string(),
+                        property: "FrameFormat".to_string(),
+                        value: "FourCC MJPG".to_string(),
                         error: why.to_string(),
                     })
                 }
-            },
-        ),
-        FrameFormat::YUYV => f64::from(
-            match VideoWriter::fourcc('Y' as i8, 'U' as i8, 'Y' as i8, 'V' as i8) {
-                Ok(fcc) => fcc,
+            }
+        }
+        FrameFormat::YUYV => {
+            match VideoWriter::fourcc('y' as i8, 'u' as i8, 'y' as i8, 'v' as i8) {
+                Ok(fmt) => fmt,
                 Err(why) => {
                     return Err(NokhwaError::CouldntSetProperty {
-                        property: "FourCC".to_string(),
-                        value: "YUYV".to_string(),
+                        property: "FrameFormat".to_string(),
+                        value: "FourCC YUYV".to_string(),
                         error: why.to_string(),
                     })
                 }
-            },
-        ),
+            }
+        }
     };
 
-    match vc.set(
+    let properties: &Vector<i32> = &vector!(
         CAP_PROP_FOURCC as i32,
-        f64::from(VideoWriter::fourcc('M' as i8, 'J' as i8, 'P' as i8, 'G' as i8).unwrap()),
-    ) {
-        Ok(r) => {
-            if !r {
-                return Err(NokhwaError::CouldntSetProperty {
-                    property: "FourCC".to_string(),
-                    value: format!("FrameFormat: {}, OpenCV FourCC {}", frame_fmt, fourcc),
-                    error: "OpenCV bool assert failure".to_string(),
-                });
+        fourcc,
+        CAP_PROP_FRAME_WIDTH as i32,
+        camera_format.width() as i32,
+        CAP_PROP_FRAME_HEIGHT as i32,
+        camera_format.height() as i32,
+        CAP_PROP_FPS as i32,
+        camera_format.framerate() as i32
+    );
+
+    match camera_location {
+        CameraIndexType::Index(idx) => {
+            match vc.open_2(*idx as i32, get_api_pref_int() as i32, properties) {
+                Ok(v) => {
+                    if !v {
+                        return Err(NokhwaError::CouldntOpenDevice(
+                            "Failed to re-open camera, OpenCV Bool return error".to_string(),
+                        ));
+                    }
+                }
+                Err(why) => {
+                    return Err(NokhwaError::CouldntOpenDevice(format!(
+                        "Failed to re-open camera with properties: {}",
+                        why.to_string()
+                    )))
+                }
             }
         }
-        Err(why) => {
-            return Err(NokhwaError::CouldntSetProperty {
-                property: "FourCC".to_string(),
-                value: format!("FrameFormat: {}, OpenCV FourCC {}", frame_fmt, fourcc),
-                error: why.to_string(),
-            })
+        CameraIndexType::IPCamera(ip) => {
+            match vc.open(ip.as_str(), get_api_pref_int() as i32, properties) {
+                Ok(v) => {
+                    if !v {
+                        return Err(NokhwaError::CouldntOpenDevice(
+                            "Failed to re-open camera, OpenCV Bool return error".to_string(),
+                        ));
+                    }
+                }
+                Err(why) => {
+                    return Err(NokhwaError::CouldntOpenDevice(format!(
+                        "Failed to re-open camera with properties: {}",
+                        why.to_string()
+                    )))
+                }
+            }
         }
     }
+
     Ok(())
 }

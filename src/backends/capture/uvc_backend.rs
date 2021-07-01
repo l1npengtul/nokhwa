@@ -228,7 +228,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn get_compatible_list_by_resolution(
+    fn compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
@@ -262,7 +262,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         Ok(resolution_fps_map)
     }
 
-    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         let mut frameformats = vec![];
         for fmt in self.with_device_handle(|devh| devh).supported_formats() {
             for frame_desc in fmt.supported_formats() {
@@ -402,8 +402,8 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.with_active_stream_init(Cell::get)
     }
 
-    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let data = match self.get_frame_raw() {
+    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        let data = match self.frame_raw() {
             Ok(d) => d,
             Err(why) => return Err(why),
         };
@@ -424,7 +424,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         Ok(imagebuf)
     }
 
-    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
         // assertions
         if !self.borrow_active_stream_init().get() {
             return Err(NokhwaError::CouldntCaptureFrame(

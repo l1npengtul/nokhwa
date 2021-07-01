@@ -31,18 +31,18 @@ pub trait CaptureBackendTrait {
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
 
-    /// A hashmap of [`Resolution`]s mapped to framerates
+    /// A hashmap of [`Resolution`]s mapped to framerates. Not sorted!
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
-    fn get_compatible_list_by_resolution(
+    fn compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
-    /// A Vector of compatible [`FrameFormat`]s.
+    /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
-    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
     fn resolution(&self) -> Resolution;
@@ -84,12 +84,12 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError>;
+    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
+    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
     fn min_buffer_size(&self, rgba: bool) -> usize {
@@ -103,12 +103,12 @@ pub trait CaptureBackendTrait {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn get_frame_to_buffer(
+    fn write_frame_to_buffer(
         &mut self,
         buffer: &mut [u8],
         convert_rgba: bool,
     ) -> Result<usize, NokhwaError> {
-        let frame = self.get_frame()?;
+        let frame = self.frame()?;
         let mut frame_data = frame.to_vec();
         if convert_rgba {
             let rgba_image: RgbaImage = frame.convert();
@@ -123,13 +123,14 @@ pub trait CaptureBackendTrait {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    fn get_frame_texture<'a>(
+    fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        let frame = self.get_frame()?;
+        use std::{convert::TryFrom, num::NonZeroU32};
+        let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
         let texture_size = Extent3d {

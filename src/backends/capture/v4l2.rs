@@ -259,7 +259,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(())
     }
 
-    fn get_compatible_list_by_resolution(
+    fn compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
@@ -297,7 +297,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(resmap)
     }
 
-    fn get_compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         match Capture::enum_formats(&self.device) {
             Ok(formats) => {
                 let mut frameformat_vec = vec![];
@@ -374,8 +374,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.stream_handle.is_some()
     }
 
-    fn get_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let raw_frame = self.get_frame_raw()?;
+    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        let raw_frame = self.frame_raw()?;
         let cam_fmt = self.camera_format;
         let conv = match cam_fmt.format() {
             FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
@@ -395,7 +395,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(imagebuf)
     }
 
-    fn get_frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
         match &mut self.stream_handle {
             Some(streamh) => match streamh.next() {
                 Ok((data, _)) => Ok(data.to_vec()),

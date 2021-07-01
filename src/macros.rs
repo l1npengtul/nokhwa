@@ -128,3 +128,17 @@ macro_rules! cap_impl_matches {
         };
     }
 }
+
+#[cfg(feature = "input-opencv")]
+#[macro_export]
+macro_rules! vector {
+    ( $( $elem:expr ),* ) => {
+        {
+            let mut vector = opencv::core::Vector::new();
+            $(
+                vector.push($elem);
+            )*
+            vector
+        }
+    };
+}

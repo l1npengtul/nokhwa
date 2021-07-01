@@ -29,19 +29,21 @@
 /// - The `Query-Device` column signifies reading device capabilities
 /// - The `OS` column signifies what OS this is availible on.
 ///
-/// | Backend                        | Input              | Query              | Query-Device       | OS                  |
-/// |--------------------------------|--------------------|--------------------|--------------------|---------------------|
-/// | Video4Linux(`input-v4l`)       | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux               |
-/// | libuvc(`input-uvc`)            | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
-/// | OpenCV(`input-opencv`)         | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
-/// | IPCamera(`input-ipcam`/OpenCV) | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
-/// | GStreamer(`input-gst`)         | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
-/// | FFMpeg                         |        *           |         *          |         *          | Linux, Windows, Mac |
-/// | AVFoundation                   |        *           |         *          |         *          | Mac                 |
-/// | MSMF                           |        *           |         *          |         *          | Windows             |
-/// | JS/WASM                        |        *           |         *          |         *          | Web                 |
+/// | Backend                         | Input              | Query              | Query-Device       | OS                  |
+/// |---------------------------------|--------------------|--------------------|--------------------|---------------------|
+/// | Video4Linux(`input-v4l`)        | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux               |
+/// | libuvc(`input-uvc`)             | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
+/// | OpenCV(`input-opencv`)^         | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
+/// | IPCamera(`input-ipcam`/OpenCV)^ | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
+/// | GStreamer(`input-gst`)^         | :white_check_mark: | :x:                | :white_check_mark: | Linux, Windows, Mac |
+/// | FFMpeg                          |        *           |         *          |         *          | Linux, Windows, Mac |
+/// | AVFoundation                    |        *           |         *          |         *          | Mac                 |
+/// | MSMF                            |        *           |         *          |         *          | Windows             |
+/// | JS/WASM                         |        *           |         *          |         *          | Web                 |
 ///
 /// :white_check_mark: : Working, :warning: : Experimental, :x: : Not Supported, *: Planned
+///
+///  ^ = No CameraFormat setting support.
 ///
 /// ## Feature
 /// The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend.
@@ -89,8 +91,6 @@ mod query;
 mod utils;
 #[macro_use]
 mod macros;
-#[cfg(feature = "output-threaded")]
-mod threaded_camera;
 
 pub use camera::Camera;
 pub use camera_traits::*;
@@ -98,6 +98,4 @@ pub use error::NokhwaError;
 #[cfg(feature = "input-ipcam")]
 pub use network_camera::NetworkCamera;
 pub use query::query_devices;
-#[cfg(feature = "output-threaded")]
-pub use threaded_camera::ThreadedCamera;
 pub use utils::*;

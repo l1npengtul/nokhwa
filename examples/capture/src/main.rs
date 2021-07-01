@@ -4,7 +4,7 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera};
+use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera, Resolution};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -24,6 +24,7 @@ fn main() {
             .value_name("BACKEND")
             // TODO: Update as new backends are added!
             .help("Query the system? Pass AUTO for automatic backend, UVC to query using UVC, V4L to query using Video4Linux, GST to query using Gstreamer.. Will post the list of availible devices.")
+            .default_value("AUTO")
             .takes_value(true))
         .arg(Arg::with_name("capture")
             .short("c")
@@ -32,6 +33,11 @@ fn main() {
             .help("Capture from device? Pass the device index or string. Defaults to 0. If the input is not a number, it will be assumed an IPCamera")
             .default_value("0")
             .takes_value(true))
+        .arg(Arg::with_name("query-device")
+            .short("s")
+            .long("query-device")
+            .help("Show device queries from `compatible_fourcc` and `compatible_list_by_resolution`. Requires -c to be passed to work.")
+            .takes_value(false))
         .arg(Arg::with_name("width")
             .short("w")
             .long("width")
@@ -149,10 +155,41 @@ fn main() {
             {
                 let mut camera =
                     Camera::new_with(index, width, height, fps, format, backend_value).unwrap();
+
+                if matches_clone.is_present("query-device") {
+                    match camera.compatible_fourcc() {
+                        Ok(fcc) => {
+                            for ff in fcc {
+                                match camera.compatible_list_by_resolution(ff) {
+                                    Ok(compat) => {
+                                        println!("For FourCC {}", ff);
+                                        for (res, fps) in compat {
+                                            println!("{}x{}: {:?}", res.width(), res.height(), fps);
+                                        }
+                                    }
+                                    Err(why) => {
+                                        println!("Failed to get compatible resolution/FPS list for FrameFormat {}: {}", ff, why.to_string())
+                                    }
+                                }
+                            }
+                        }
+                        Err(why) => {
+                            println!("Failed to get compatible FourCC: {}", why.to_string())
+                        }
+                    }
+                }
+
                 // open stream
                 camera.open_stream().unwrap();
                 loop {
-                    let frame = camera.get_frame().unwrap();
+                    let frame = camera.frame().unwrap();
+                    println!(
+                        "Captured frame {}x{} @ {}FPS size {}",
+                        frame.width(),
+                        frame.height(),
+                        fps,
+                        frame.len()
+                    );
                     send.send(frame).unwrap()
                 }
             }
@@ -163,7 +200,14 @@ fn main() {
                         .expect("Invalid IP!");
                 ip_camera.open_stream().unwrap();
                 loop {
-                    let frame = ip_camera.get_frame().unwrap();
+                    let frame = ip_camera.frame().unwrap();
+                    println!(
+                        "Captured frame {}x{} @ {}FPS size {}",
+                        frame.width(),
+                        frame.height(),
+                        fps,
+                        frame.len()
+                    );
                     send.send(frame).unwrap();
                 }
             }

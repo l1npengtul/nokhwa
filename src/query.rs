@@ -175,7 +175,10 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(feature = "input-gst")]
 fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use gstreamer::{Caps, DeviceExt, DeviceMonitor, DeviceMonitorExt, DeviceMonitorExtManual};
+    use gstreamer::{
+        prelude::{DeviceExt, DeviceMonitorExt, DeviceMonitorExtManual},
+        Caps, DeviceMonitor,
+    };
     use std::str::FromStr;
     if let Err(why) = gstreamer::init() {
         return Err(NokhwaError::GeneralError(format!(
@@ -211,11 +214,11 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
     }
     let mut counter = 0;
     let devices: Vec<CameraInfo> = device_monitor
-        .get_devices()
+        .devices()
         .iter_mut()
         .map(|gst_dev| {
-            let name = DeviceExt::get_display_name(gst_dev);
-            let class = DeviceExt::get_device_class(gst_dev);
+            let name = DeviceExt::display_name(gst_dev);
+            let class = DeviceExt::device_class(gst_dev);
             counter += 1;
             CameraInfo::new(
                 name.to_string(),

@@ -15,4 +15,4 @@ flume = "0.10.7"
 # Use these as you need
 [dependencies.nokhwa]
 path = "../../../nokhwa"
-features = ["input-uvc", "input-v4l", "input-ipcam", "input-opencv", "input-gst"]
+features = ["docs-only"]
