@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
-keywords = ["camera", "webcam", "capture", "cross-platform", "v4l", "uvc", "gstreamer", "opencv"]
+keywords = ["camera", "webcam", "capture", "cross-platform"]
 
 license = "MPL-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
