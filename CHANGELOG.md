@@ -1,3 +1,6 @@
+# 0.3.1
+- Added feature hacks to prevent gstreamer/opencv docs.rs build failure
+
 # 0.3.0
 - Added `query_devices()` to query available devices on system
 - Added `GStreamer` and `OpenCV` backends
