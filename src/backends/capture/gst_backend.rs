@@ -19,7 +19,7 @@ use std::{collections::HashMap, str::FromStr};
 
 type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>);
 
-/// The backend struct that interfaces with GStreamer.
+/// The backend struct that interfaces with `GStreamer`.
 /// To see what this does, please see [`CaptureBackendTrait`].
 /// # Quirks
 /// - `Drop`-ing this may cause a `panic`.
@@ -35,11 +35,11 @@ pub struct GStreamerCaptureDevice {
 impl GStreamerCaptureDevice {
     /// Creates a new capture device using the `GStreamer` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
-    /// GStreamer uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
+    /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if GStreamer can't read device information.
+    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
     pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match cam_fmt {
             Some(fmt) => fmt,
@@ -115,9 +115,9 @@ impl GStreamerCaptureDevice {
 
     /// Creates a new capture device using the `GStreamer` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
-    /// GStreamer uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
+    /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
     /// # Errors
-    /// This function will error if the camera is currently busy or if GStreamer can't read device information.
+    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
     pub fn new_with(index: usize, width: u32, height: u32, fps: u32) -> Result<Self, NokhwaError> {
         let cam_fmt = CameraFormat::new(Resolution::new(width, height), FrameFormat::MJPEG, fps);
         GStreamerCaptureDevice::new(index, Some(cam_fmt))
