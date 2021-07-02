@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
-keywords = ["camera", "webcam", "capture", "cross-platform"]
+keywords = ["camera", "webcam", "capture", "cross-platform", "v4l", "uvc", "gstreamer", "opencv"]
 
 license = "MPL-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
@@ -17,7 +17,6 @@ input-uvc = ["uvc", "uvc/vendor", "ouroboros"]
 input-v4l = ["v4l"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
-input-msmf = ["nokhwa-bindings-windows"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex"]
 output-wgpu = ["wgpu"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "output-wgpu"]
@@ -51,9 +50,9 @@ version = "0.53.0"
 features = ["clang-runtime"]
 optional = true
 
-[dependencies.nokhwa-bindings-windows]
-version = "0.1.0"
-optional = true
+#[dependencies.nokhwa-bindings-windows]
+#version = "0.1.0"
+#optional = true
 
 [dependencies.gstreamer]
 version = "0.17.0"
