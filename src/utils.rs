@@ -450,3 +450,29 @@ pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
     [r, g, b]
 }
+
+/// The `OpenCV` backend supports both native cameras and IP Cameras, so this is an enum to differentiate them
+/// The `IPCamera`'s string follows the pattern
+/// ```.ignore
+/// <protocol>://<IP>:<port>/
+/// ```
+/// but please consult the manufacturer's specification for more details.
+/// The index is a standard webcam index.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CameraIndexType {
+    Index(u32),
+    IPCamera(String),
+}
+
+impl Display for CameraIndexType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CameraIndexType::Index(idx) => {
+                write!(f, "{}", idx)
+            }
+            CameraIndexType::IPCamera(ip) => {
+                write!(f, "{}", ip)
+            }
+        }
+    }
+}

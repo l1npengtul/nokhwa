@@ -60,18 +60,18 @@ pub trait CaptureBackendTrait {
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
-    fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
+    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    fn frameformat(&self) -> FrameFormat;
+    fn frame_format(&self) -> FrameFormat;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
+    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
 
-    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`get_frame()`](CaptureBackendTrait::get_frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     fn open_stream(&mut self) -> Result<(), NokhwaError>;

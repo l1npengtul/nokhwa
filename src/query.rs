@@ -1,5 +1,4 @@
 use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
-use uvc::Device;
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
@@ -72,8 +71,9 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
 // TODO: More
 
 #[cfg(feature = "input-v4l")]
+#[allow(clippy::unnecessary_wraps)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
-    return Ok({
+    Ok({
         let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
             .iter()
             .map(|node| {
@@ -87,7 +87,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
             })
             .collect();
         camera_info
-    });
+    })
 }
 
 #[cfg(not(feature = "input-v4l"))]
@@ -99,6 +99,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(feature = "input-uvc")]
 fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use uvc::Device;
     let context = match uvc::Context::new() {
         Ok(ctx) => ctx,
         Err(why) => {
@@ -112,7 +113,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
     let usb_devices = usb_enumeration::enumerate(None, None);
     let uvc_devices = match context.devices() {
         Ok(devs) => {
-            let device_vec: Vec<Device> = devs.map(|d| d).collect();
+            let device_vec: Vec<Device> = devs.collect();
             device_vec
         }
         Err(why) => {
@@ -126,9 +127,9 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
     let mut camera_info_vec = vec![];
     let mut counter = 0_usize;
 
-    // Optimize this O(n*m) algorithem
-    for usb_dev in usb_devices.iter() {
-        for uvc_dev in uvc_devices.iter() {
+    // Optimize this O(n*m) algorithm
+    for usb_dev in &usb_devices {
+        for uvc_dev in &uvc_devices {
             if let Ok(desc) = uvc_dev.description() {
                 if desc.product_id == usb_dev.product_id && desc.vendor_id == usb_dev.vendor_id {
                     let name = usb_dev
@@ -138,8 +139,8 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
                             "{}:{} {} {}",
                             desc.vendor_id,
                             desc.product_id,
-                            desc.manufacturer.unwrap_or("Generic".to_string()),
-                            desc.product.unwrap_or("Camera".to_string())
+                            desc.manufacturer.unwrap_or_else(|| "Generic".to_string()),
+                            desc.product.unwrap_or_else(|| "Camera".to_string())
                         ))
                         .clone();
 
@@ -154,7 +155,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
                             "{}:{} {}",
                             desc.vendor_id,
                             desc.product_id,
-                            desc.serial_number.unwrap_or("".to_string())
+                            desc.serial_number.unwrap_or_else(|| "".to_string())
                         ),
                         counter,
                     ));

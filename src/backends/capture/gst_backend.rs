@@ -392,17 +392,17 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         self.camera_format.framerate()
     }
 
-    fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
+    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_framerate(new_fps);
         self.set_camera_format(new_fmt)
     }
 
-    fn frameformat(&self) -> FrameFormat {
+    fn frame_format(&self) -> FrameFormat {
         self.camera_format.format()
     }
 
-    fn set_frameformat(&mut self, _fourcc: FrameFormat) -> Result<(), NokhwaError> {
+    fn set_frame_format(&mut self, _fourcc: FrameFormat) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperation(
             CaptureAPIBackend::GStreamer,
         ))

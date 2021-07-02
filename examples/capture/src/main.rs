@@ -4,7 +4,7 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera, Resolution};
+use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -60,7 +60,7 @@ fn main() {
             .default_value("15")
             .takes_value(true))
         .arg(Arg::with_name("format")
-            .short("l")
+            .short("4cc")
             .long("format")
             .value_name("FORMAT")
             .help("Set format of capture. Does nothing if -c flag is not set. Possible values are MJPG and YUYV. Will be ignored if not either. Ignored by GStreamer backend.")

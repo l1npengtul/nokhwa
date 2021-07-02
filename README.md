@@ -32,7 +32,7 @@ loop {
     println!("{}, {}", frame.width(), frame.height());
 }
 ```
-They can be found in the `examples` folder.
+A command line app made with `nokhwa` can be found in the `examples` folder.
 
 ## API Support
 The table below lists current Nokhwa API support.
@@ -54,7 +54,7 @@ The table below lists current Nokhwa API support.
  | MSMF                            |        *           |         *          |         *          | Windows             |
  | JS/WASM                         |        *           |         *          |         *          | Web                 |
 
- :white_check_mark: : Working, :warning: : Experimental, :x: : Not Supported, *: Planned
+ :white_check_mark: : Working, :warning: : Experimental, :x: : Not Supported, *: Planned/WIP
 
   ^ = No CameraFormat setting support.
 

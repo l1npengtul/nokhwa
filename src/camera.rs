@@ -1,6 +1,6 @@
 use crate::{
-    cap_impl_fn, cap_impl_matches, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, NokhwaError, Resolution,
+    CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
+    Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::{cell::RefCell, collections::HashMap};
@@ -129,28 +129,28 @@ impl Camera {
         self.backend.borrow_mut().set_resolution(new_res)
     }
     /// Gets the current camera framerate (See: [`CameraFormat`]).
-    pub fn framerate(&self) -> u32 {
+    pub fn frame_rate(&self) -> u32 {
         self.backend.borrow().frame_rate()
     }
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
-    pub fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_framerate(new_fps)
+    pub fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
+        self.backend.borrow_mut().set_frame_rate(new_fps)
     }
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    pub fn frameformat(&self) -> FrameFormat {
-        self.backend.borrow().frameformat()
+    pub fn frame_format(&self) -> FrameFormat {
+        self.backend.borrow().frame_format()
     }
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    pub fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_frameformat(fourcc)
+    pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+        self.backend.borrow_mut().set_frame_format(fourcc)
     }
-    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`get_frame()`](CaptureBackendTrait::get_frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     pub fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -295,6 +295,110 @@ fn figure_out_auto() -> Option<CaptureAPIBackend> {
         return None;
     }
     Some(cap)
+}
+
+macro_rules! cap_impl_fn {
+    {
+        $( ($backend:ty, $init_fn:ident, $feature:expr, $backend_name:ident) ),+
+    } => {
+        $(
+            paste::paste! {
+                #[cfg(feature = $feature)]
+                fn [< init_ $backend_name>](idx: usize, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                    use crate::backends::capture::$backend;
+                    match <$backend>::$init_fn(idx, setting) {
+                        Ok(cap) => Some(Ok(Box::new(cap))),
+                        Err(why) => Some(Err(why)),
+                    }
+                }
+                #[cfg(not(feature = $feature))]
+                fn [< init_ $backend_name>](_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                    None
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! cap_impl_matches {
+    {
+        $use_backend: expr, $index:expr, $setting:expr,
+        $( ($feature:expr, $backend:ident, $fn:ident) ),+
+    } => {
+        {
+            let i = $index;
+            let s = $setting;
+            match $use_backend {
+                CaptureAPIBackend::Auto => match figure_out_auto() {
+                    Some(cap) => match cap {
+                        $(
+                            CaptureAPIBackend::$backend => {
+                                match cfg!(feature = $feature) {
+                                    true => {
+                                        match $fn(i,s) {
+                                            Some(cap) => match cap {
+                                                Ok(c) => c,
+                                                Err(why) => return Err(why),
+                                            }
+                                            None => {
+                                                return Err(NokhwaError::NotImplemented(
+                                                    "Platform requirements not satisfied.".to_string(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    false => {
+                                        return Err(NokhwaError::NotImplemented(
+                                            "Platform requirements not satisfied.".to_string(),
+                                        ));
+                                    }
+                                }
+                            }
+                        )+
+                        _ => {
+                            return Err(NokhwaError::NotImplemented(
+                                "Platform requirements not satisfied.".to_string(),
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err(NokhwaError::NotImplemented(
+                            "Platform requirements not satisfied.".to_string(),
+                        ));
+                    }
+                }
+                $(
+                    CaptureAPIBackend::$backend => {
+                        match cfg!(feature = $feature) {
+                            true => {
+                                match $fn(i,s) {
+                                    Some(cap) => match cap {
+                                        Ok(c) => c,
+                                        Err(why) => return Err(why),
+                                    }
+                                    None => {
+                                        return Err(NokhwaError::NotImplemented(
+                                            "Platform requirements not satisfied.".to_string(),
+                                        ));
+                                    }
+                                }
+                            }
+                            false => {
+                                return Err(NokhwaError::NotImplemented(
+                                    "Platform requirements not satisfied.".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                )+
+                _ => {
+                    return Err(NokhwaError::NotImplemented(
+                        "Platform requirements not satisfied.".to_string(),
+                    ));
+                }
+            }
+        };
+    }
 }
 
 cap_impl_fn! {

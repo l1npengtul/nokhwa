@@ -31,7 +31,7 @@ impl From<CameraFormat> for Format {
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
 /// # Quirks
-/// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_framerate()`](CaptureBackendTrait::set_framerate), or [`set_frameformat()`](CaptureBackendTrait::set_frameformat) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
+/// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_frame_rate()`](CaptureBackendTrait::set_frame_rate), or [`set_frame_format()`](CaptureBackendTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
 pub struct V4LCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
@@ -344,18 +344,18 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     #[allow(clippy::option_if_let_else)]
-    fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
+    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_framerate(new_fps);
         self.set_camera_format(new_fmt)
     }
 
-    fn frameformat(&self) -> FrameFormat {
+    fn frame_format(&self) -> FrameFormat {
         self.camera_format.format()
     }
 
     #[allow(clippy::option_if_let_else)]
-    fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_format(fourcc);
         self.set_camera_format(new_fmt)

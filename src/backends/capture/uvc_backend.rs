@@ -297,17 +297,17 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.borrow_camera_format().framerate()
     }
 
-    fn set_framerate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
+    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut current_format = *self.borrow_camera_format();
         current_format.set_framerate(new_fps);
         self.set_camera_format(current_format)
     }
 
-    fn frameformat(&self) -> FrameFormat {
+    fn frame_format(&self) -> FrameFormat {
         self.borrow_camera_format().format()
     }
 
-    fn set_frameformat(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         let mut current_format = *self.borrow_camera_format();
         current_format.set_format(fourcc);
         self.set_camera_format(current_format)
