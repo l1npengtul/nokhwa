@@ -18,6 +18,7 @@ input-v4l = ["v4l"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex"]
+input-msmf = ["nokhwa-bindings-windows"]
 output-wgpu = ["wgpu"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "output-wgpu"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
@@ -51,9 +52,11 @@ version = "0.53.0"
 features = ["clang-runtime"]
 optional = true
 
-#[dependencies.nokhwa-bindings-windows]
-#version = "0.1.0"
-#optional = true
+[dependencies.nokhwa-bindings-windows]
+path = "../nokhwa/nokhwa-bindings-windows"
+optional = true
+
+
 
 [dependencies.gstreamer]
 version = "0.17.0"

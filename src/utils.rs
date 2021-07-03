@@ -1,7 +1,11 @@
 use crate::NokhwaError;
 use mozjpeg::Decompress;
-use std::fmt::Formatter;
-use std::{cmp::Ordering, convert::TryFrom, fmt::Display, slice::from_raw_parts};
+use std::{
+    cmp::Ordering,
+    convert::TryFrom,
+    fmt::{Display, Formatter},
+    slice::from_raw_parts,
+};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
 /// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
@@ -270,7 +274,6 @@ impl Display for CameraInfo {
 /// - UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - Windows - MSMF, Windows only, **Not Implemted**
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
-/// - FFMPEG - Uses FFMPEG (libavdevice) to capture. Platform agnostic. **Not Implemted**
 /// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CaptureAPIBackend {
@@ -280,7 +283,6 @@ pub enum CaptureAPIBackend {
     UniversalVideoClass,
     Windows,
     OpenCv,
-    Ffmpeg,
     GStreamer,
 }
 

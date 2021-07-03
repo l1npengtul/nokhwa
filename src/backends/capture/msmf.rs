@@ -1,3 +1,3 @@
+use nokhwa_bindings_windows::Windows::Win32::Media::MediaFoundation::*;
 
-use nokhwa_bindings_windows::Windows::*;
 pub struct MediaFoundationCaptureDevice {}

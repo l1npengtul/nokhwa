@@ -239,3 +239,111 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
         CaptureAPIBackend::GStreamer,
     ))
 }
+
+// please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
+#[cfg(feature = "input-msmf")]
+fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use nokhwa_bindings_windows::Windows::Win32::{
+        Foundation::PWSTR,
+        Media::MediaFoundation::{
+            IMFActivate, IMFAttributes, MFCreateAttributes, MFEnumDeviceSources, MFStartup,
+            MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+            MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+        },
+        System::Com::CoTaskMemFree,
+    };
+    use std::ffi::{c_void, OsStr, OsString};
+
+    unsafe {
+        MFStartup(MF_API_VERSION, MFSTARTUP_NOSOCKET);
+    }
+
+    let mut attributes_opt: Option<IMFAttributes> = None;
+    unsafe { MFCreateAttributes(&mut attributes_opt, 1) };
+
+    let attributes = match attributes_opt {
+        Some(attr) => {
+            if let Err(why) = unsafe {
+                attr.SetGUID(
+                    &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                    &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+                )
+            } {
+                return Err(NokhwaError::GeneralError(format!(
+                    "Failed to set GUID for MSMF: {}",
+                    why.to_string()
+                )));
+            }
+            attr
+        }
+        None => {
+            return Err(NokhwaError::GeneralError(
+                "Failed to set Attributes for MSMF: {}"(),
+            ))
+        }
+    };
+
+    let mut devices_opt: Option<IMFActivate> = None;
+    let mut devices_ptr: *mut Option<IMFActivate> = &mut devices_opt;
+    let devices_ptr_d: *mut *mut Option<IMFActivate> = &mut devices_ptr; // WHYYYYYYYYYYYYYYY
+
+    let mut camera_info_vec = vec![];
+    let mut count = 0;
+
+    if let Err(why) = unsafe { MFEnumDeviceSources(attributes, devices_ptr_d, &mut count) } {
+        return Err(NokhwaError::GeneralError(format!(
+            "Failed to query devices: {}",
+            why.to_string()
+        )));
+    }
+
+    match &mut devices_opt {
+        Some(devices) => {
+            for device_index in 0..count {
+                let mut raw_name = PWSTR::default();
+                let mut size = 0_u32;
+                unsafe {
+                    devices.GetAllocatedString(
+                        &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                        &mut raw_name,
+                        &mut size,
+                    )
+                }
+
+                let device_name = {
+                    let os_str =
+                        unsafe { OsString::from_wide_ptr(&raw_name as *const u16, size as usize) };
+                    os_str.to_string_lossy().to_string()
+                };
+
+                camera_info_vec.push(CameraInfo::new(
+                    device_name,
+                    "".to_string(),
+                    "".to_string(),
+                    device_index as usize,
+                ));
+
+                unsafe { CoTaskMemFree(&mut (raw_name as c_void)) }
+            }
+        }
+        None => {}
+    }
+
+    if let Some(mut devices) = devices_opt {
+        if let Err(why) = unsafe { devices.DeleteAllItems() } {
+            return Err(NokhwaError::GeneralError(format!(
+                "Failed to free IMFActivate device list: {}",
+                why.to_string()
+            )));
+        }
+    }
+
+    Ok(camera_info_vec)
+}
+
+#[cfg(not(feature = "input-msmf"))]
+fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
+    Err(NokhwaError::UnsupportedOperation(
+        CaptureAPIBackend::Windows,
+    ))
+}
