@@ -248,7 +248,9 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
         Media::MediaFoundation::{
             IMFActivate, IMFAttributes, MFCreateAttributes, MFEnumDeviceSources, MFStartup,
             MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-            MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+            MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY,
+            MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+            MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
         },
         System::Com::CoTaskMemFree,
     };
@@ -300,33 +302,73 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     match &mut devices_opt {
         Some(devices) => {
             for device_index in 0..count {
+                // name
                 let mut raw_name = PWSTR::default();
-                let mut size = 0_u32;
+                let mut size_name = 0_u32;
                 unsafe {
                     devices.GetAllocatedString(
                         &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
                         &mut raw_name,
-                        &mut size,
+                        &mut size_name,
                     )
                 }
 
                 let device_name = {
-                    let os_str =
-                        unsafe { OsString::from_wide_ptr(&raw_name as *const u16, size as usize) };
+                    let os_str = unsafe {
+                        OsString::from_wide_ptr(&raw_name as *const u16, size_name as usize)
+                    };
+                    os_str.to_string_lossy().to_string()
+                };
+
+                // desc
+                let mut raw_catagory = PWSTR::default();
+                let mut size_catagory = 0_u32;
+                unsafe {
+                    devices.GetAllocatedString(
+                        &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                        &mut raw_catagory,
+                        &mut size_catagory,
+                    )
+                }
+
+                let device_catagory = {
+                    let os_str = unsafe {
+                        OsString::from_wide_ptr(&raw_catagory as *const u16, size_catagory as usize)
+                    };
+                    os_str.to_string_lossy().to_string()
+                };
+
+                // symbolic link
+                let mut raw_lnk = PWSTR::default();
+                let mut size_lnk = 0_u32;
+                unsafe {
+                    devices.GetAllocatedString(
+                        &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+                        &mut raw_lnk,
+                        &mut size_lnk,
+                    )
+                }
+
+                let device_lnk = {
+                    let os_str = unsafe {
+                        OsString::from_wide_ptr(&raw_lnk as *const u16, size_lnk as usize)
+                    };
                     os_str.to_string_lossy().to_string()
                 };
 
                 camera_info_vec.push(CameraInfo::new(
                     device_name,
-                    "".to_string(),
-                    "".to_string(),
+                    device_catagory,
+                    device_lnk,
                     device_index as usize,
                 ));
 
                 unsafe { CoTaskMemFree(&mut (raw_name as c_void)) }
             }
         }
-        None => {}
+        None => {
+            return Ok(camera_info_vec);
+        }
     }
 
     if let Some(mut devices) = devices_opt {
