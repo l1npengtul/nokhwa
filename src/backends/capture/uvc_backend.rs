@@ -51,27 +51,27 @@ impl From<CameraFormat> for StreamFormat {
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
 /// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this may crash the entire program.
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
-#[self_referencing(chain_hack)]
+#[self_referencing]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
-    frame_receiver: Box<Receiver<Vec<u8>>>,
-    frame_sender: Box<Sender<Vec<u8>>>,
+    frame_receiver: Receiver<Vec<u8>>,
+    frame_sender: Sender<Vec<u8>>,
     stream_handle_init: Cell<bool>,
     active_stream_init: Cell<bool>,
-    context: Box<Context<'a>>,
+    context: Context<'a>,
     #[borrows(context)]
     #[not_covariant]
-    device: Box<Device<'this>>,
+    device: Device<'this>,
     #[borrows(device)]
     #[not_covariant]
-    device_handle: Box<DeviceHandle<'this>>,
+    device_handle: DeviceHandle<'this>,
     #[borrows(device_handle)]
     #[not_covariant]
-    stream_handle: Box<RefCell<MaybeUninit<StreamHandle<'this>>>>,
+    stream_handle: RefCell<MaybeUninit<StreamHandle<'this>>>,
     #[borrows(stream_handle)]
     #[not_covariant]
-    active_stream: Box<RefCell<MaybeUninit<ActiveStream<'this, Arc<AtomicUsize>>>>>,
+    active_stream: RefCell<MaybeUninit<ActiveStream<'this, Arc<AtomicUsize>>>>,
 }
 
 impl<'a> UVCCaptureDevice<'a> {
@@ -83,7 +83,7 @@ impl<'a> UVCCaptureDevice<'a> {
     /// This may error when the `libuvc` backend fails to retrieve the device or its data.
     pub fn create(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let context = match Context::new() {
-            Ok(ctx) => Box::new(ctx),
+            Ok(ctx) => ctx,
             Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
         };
 
@@ -94,7 +94,7 @@ impl<'a> UVCCaptureDevice<'a> {
             };
 
             let device = match device_list.into_iter().nth(index) {
-                Some(d) => Box::new(d),
+                Some(d) => d,
                 None => {
                     return Err(NokhwaError::CouldntOpenDevice(format!(
                         "Device at {} not found",
@@ -133,7 +133,7 @@ impl<'a> UVCCaptureDevice<'a> {
 
             let (frame_sender, frame_receiver) = {
                 let (a, b) = flume::unbounded::<Vec<u8>>();
-                (Box::new(a), Box::new(b))
+                (a, b)
             };
             (camera_info, frame_receiver, frame_sender)
         };
@@ -152,22 +152,16 @@ impl<'a> UVCCaptureDevice<'a> {
             stream_handle_init: Cell::new(false),
             active_stream_init: Cell::new(false),
             device_builder: |context_builder| {
-                Box::new(
-                    context_builder
-                        .devices()
-                        .unwrap()
-                        .into_iter()
-                        .nth(index)
-                        .unwrap(),
-                )
+                context_builder
+                    .devices()
+                    .unwrap()
+                    .into_iter()
+                    .nth(index)
+                    .unwrap()
             },
-            device_handle_builder: |device_builder| Box::new(device_builder.open().unwrap()),
-            stream_handle_builder: |_device_handle_builder| {
-                Box::new(RefCell::new(MaybeUninit::uninit()))
-            },
-            active_stream_builder: |_stream_handle_builder| {
-                Box::new(RefCell::new(MaybeUninit::uninit()))
-            },
+            device_handle_builder: |device_builder| device_builder.open().unwrap(),
+            stream_handle_builder: |_device_handle_builder| RefCell::new(MaybeUninit::uninit()),
+            active_stream_builder: |_stream_handle_builder| RefCell::new(MaybeUninit::uninit()),
         }
         .build())
     }
