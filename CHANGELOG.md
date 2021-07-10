@@ -1,3 +1,7 @@
+# 0.3.2
+- Updated Ouroboros to 0.10.0 to fix possible UB
+- Remove `Box<T>` from many places in the UVC Backend
+
 # 0.3.1
 - Added feature hacks to prevent gstreamer/opencv docs.rs build failure
 

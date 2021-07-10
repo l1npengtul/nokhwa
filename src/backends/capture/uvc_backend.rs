@@ -350,7 +350,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let ret_2: Result<(), NokhwaError> = self.with(|fields| {
             // finally, get the active stream
             let counter = Arc::new(AtomicUsize::new(0));
-            let frame_sender: Sender<Vec<u8>> = *(self.with_frame_sender(|send| send)).clone();
+            let frame_sender: Sender<Vec<u8>> = (self.with_frame_sender(|send| send)).clone();
             let streamh = unsafe {
                 let raw_ptr =
                     (*fields.stream_handle.borrow_mut()).as_ptr() as *mut MaybeUninit<StreamHandle>;

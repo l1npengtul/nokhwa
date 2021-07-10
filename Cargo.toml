@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
