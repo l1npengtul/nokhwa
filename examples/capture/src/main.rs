@@ -4,7 +4,7 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera};
+use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -195,21 +195,22 @@ fn main() {
             }
             // IP Camera
             else {
-                let ip_camera =
-                    NetworkCamera::new(matches_clone.value_of("capture").unwrap().to_string())
-                        .expect("Invalid IP!");
-                ip_camera.open_stream().unwrap();
-                loop {
-                    let frame = ip_camera.frame().unwrap();
-                    println!(
-                        "Captured frame {}x{} @ {}FPS size {}",
-                        frame.width(),
-                        frame.height(),
-                        fps,
-                        frame.len()
-                    );
-                    send.send(frame).unwrap();
-                }
+                // let ip_camera =
+                //     NetworkCamera::new(matches_clone.value_of("capture").unwrap().to_string())
+                //         .expect("Invalid IP!");
+                // ip_camera.open_stream().unwrap();
+                // loop {
+                //     let frame = ip_camera.frame().unwrap();
+                //     println!(
+                //         "Captured frame {}x{} @ {}FPS size {}",
+                //         frame.width(),
+                //         frame.height(),
+                //         fps,
+                //         frame.len()
+                //     );
+                //     send.send(frame).unwrap();
+                // }
+                panic!("Network camera support is currently not implemented!");
             }
         });
 

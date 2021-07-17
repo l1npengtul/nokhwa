@@ -3,6 +3,7 @@
 ## capture
 Capture is a command line application designed to test features of backends to see if they are implemented correctly. 
 For the UVC backend, you may need to run the app as admin. 
+NOTE: Network Camera support is currently broken.
 
 ### Capture - Usage
 `<>` indicates an optional parameter. `[]` indicates a mandatory one.
