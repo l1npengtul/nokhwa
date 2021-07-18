@@ -56,7 +56,7 @@ pub enum MFFrameFormat {
 pub struct MFCameraFormat {
     resolution: MFResolution,
     format: MFFrameFormat,
-    framerate: u32,
+    frame_rate: u32,
 }
 
 impl Default for MFCameraFormat {
@@ -67,17 +67,17 @@ impl Default for MFCameraFormat {
                 height_y: 480,
             },
             format: MFFrameFormat::MJPEG,
-            framerate: 15,
+            frame_rate: 15,
         }
     }
 }
 
 impl MFCameraFormat {
-    pub fn new(resolution: MFResolution, format: MFFrameFormat, framerate: u32) -> Self {
+    pub fn new(resolution: MFResolution, format: MFFrameFormat, frame_rate: u32) -> Self {
         MFCameraFormat {
             resolution,
             format,
-            framerate,
+            frame_rate: frame_rate,
         }
     }
 
@@ -88,7 +88,7 @@ impl MFCameraFormat {
                 height_y: res_y,
             },
             format,
-            framerate: fps,
+            frame_rate: fps,
         }
     }
 
@@ -109,11 +109,11 @@ impl MFCameraFormat {
     }
 
     pub fn framerate(&self) -> u32 {
-        self.framerate
+        self.frame_rate
     }
 
     pub fn set_framerate(&mut self, framerate: u32) {
-        self.framerate = framerate;
+        self.frame_rate = framerate;
     }
 
     pub fn format(&self) -> MFFrameFormat {
@@ -491,13 +491,17 @@ pub mod wmf {
                         ));
                     }
 
-                    device_list.push(MediaFoundationDeviceDescriptor::new(
-                        index,
-                        name.0,
-                        symlink.0,
-                        len_name,
-                        len_symlink,
-                    ));
+                    let device_descriptor = unsafe {
+                        MediaFoundationDeviceDescriptor::new(
+                            index,
+                            name.0,
+                            symlink.0,
+                            len_name,
+                            len_symlink,
+                        )
+                    }?;
+
+                    device_list.push(device_descriptor);
                 }
                 None => {
                     continue; // swallow errors
@@ -711,7 +715,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::MJPEG,
-                            framerate: frame_rate_min,
+                            frame_rate: frame_rate_min,
                         });
                     }
 
@@ -722,7 +726,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::MJPEG,
-                            framerate: frame_rate,
+                            frame_rate,
                         });
                     }
 
@@ -733,7 +737,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::MJPEG,
-                            framerate: frame_rate_max,
+                            frame_rate: frame_rate_max,
                         });
                     }
                 } else if fourcc == MF_VIDEO_FORMAT_YUY2 {
@@ -744,7 +748,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::YUYV,
-                            framerate: frame_rate_min,
+                            frame_rate: frame_rate_min,
                         });
                     }
 
@@ -755,7 +759,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::YUYV,
-                            framerate: frame_rate,
+                            frame_rate: frame_rate,
                         });
                     }
 
@@ -766,7 +770,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::YUYV,
-                            framerate: frame_rate_max,
+                            frame_rate: frame_rate_max,
                         });
                     }
                 }
@@ -1503,7 +1507,7 @@ pub mod wmf {
 
             let resolution = ((format.resolution.width_x as u64) << 32_u64)
                 + (format.resolution.height_y as u64);
-            let fps = ((format.framerate as u64) << 32) + 1_u64;
+            let fps = ((format.frame_rate as u64) << 32) + 1_u64;
             let fourcc = match format.format {
                 MFFrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
                 MFFrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
