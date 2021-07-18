@@ -1,25 +1,30 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["l1npengtul"]
 edition = "2018"
-license = "MIT OR Apache-2.0"
-description = "The Windows binding crate for `nokhwa` so crates.io won't reject my builds, please don't use this (unless you are developing `nokhwa`) You dont actually have to do any crediting or anything, just please dont use this."
+license = "MPL-2.0"
+repository = "https://github.com/l1npengtul/nokhwa"
+description = "The Windows Media Foundation bindings crate for `nokhwa`"
+keywords = ["media-foundation", "windows", "capture"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
+default = ["windows"]
 docs-only = [] # please don't try to build this
 
 [dependencies]
-once_cell = "1.8.0"
 thiserror = "1.0.26"
-lazy_static = "1.4.0"
+
+[dependencies.windows]
+version = "0.17.2"
+optional = true
 
 [build-dependencies]
-bindgen = "0.58.1"
-cc = "1.0.69"
+
+[target.'cfg(windows)'.build-dependencies]
+windows = "0.17.2"
 
 [package.metadata.docs.rs]
 no-default-features = true
