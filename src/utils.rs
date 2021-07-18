@@ -382,7 +382,7 @@ impl From<MediaFoundationDeviceDescriptor> for CameraInfo {
 
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
-/// Note that not all backends/devices support all these. Run [`available_camera_controls()`](crate::CaptureBackendTrait::available_camera_controls()) to see which ones can be set.
+/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControls {
     Brightness,

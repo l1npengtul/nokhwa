@@ -3,6 +3,7 @@
 ## capture
 Capture is a command line application designed to test features of backends to see if they are implemented correctly. 
 For the UVC backend, you may need to run the app as admin. 
+NOTE: You **need** to adjust the build features! Edit the `Cargo.toml` for the backends you need to test.
 
 ### Capture - Usage
 `<>` indicates an optional parameter. `[]` indicates a mandatory one.

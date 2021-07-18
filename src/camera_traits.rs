@@ -1,6 +1,13 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 use crate::{
     error::NokhwaError,
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
+    CameraControl, KnownCameraControls,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::collections::HashMap;
@@ -71,6 +78,13 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
+
+    /// Gets the current supported list of [`KnownCameraControls`]
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError>;
+
+    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError>;
+
+    fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError>;
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
