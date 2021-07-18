@@ -8,8 +8,8 @@ mod uvc_backend;
 pub use uvc_backend::UVCCaptureDevice;
 #[cfg(feature = "input-msmf")]
 mod msmf;
-// #[cfg(feature = "input-msmf")]
-// pub use msmf::MediaFoundationCaptureDevice;
+#[cfg(feature = "input-msmf")]
+pub use msmf::MediaFoundationCaptureDevice;
 #[cfg(feature = "input-gst")]
 mod gst_backend;
 #[cfg(feature = "input-gst")]

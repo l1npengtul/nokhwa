@@ -5,7 +5,7 @@ use crate::{
     yuyv422_to_rgb888, CaptureBackendTrait, FrameFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 use v4l::{
     buffer::Type,
     frameinterval::FrameIntervalEnum,
@@ -15,18 +15,6 @@ use v4l::{
     video::{capture::Parameters, Capture},
     Format, FourCC,
 };
-
-#[cfg(feature = "input-v4l")]
-impl From<CameraFormat> for Format {
-    fn from(cam_fmt: CameraFormat) -> Self {
-        let pxfmt = match cam_fmt.format() {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-        };
-
-        Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
-    }
-}
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -49,17 +37,17 @@ impl<'a> V4LCaptureDevice<'a> {
         let device = match Device::new(index) {
             Ok(dev) => dev,
             Err(why) => {
-                return Err(NokhwaError::CouldntOpenDevice(format!(
-                    "V4L2 Error: {}",
-                    why.to_string()
-                )))
+                return Err(NokhwaError::OpenDeviceError(
+                    index.to_string(),
+                    format!("V4L2 Error: {}", why.to_string()),
+                ))
             }
         };
 
         let camera_info = match device.query_caps() {
             Ok(caps) => CameraInfo::new(caps.card, "".to_string(), caps.driver, index),
             Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
+                return Err(NokhwaError::GetPropertyError {
                     property: "Capabilities".to_string(),
                     error: why.to_string(),
                 })
@@ -85,7 +73,7 @@ impl<'a> V4LCaptureDevice<'a> {
                     && v4l_fmt.width != new_v4l_fmt.width
                     && v4l_fmt.fourcc != new_v4l_fmt.fourcc
                 {
-                    return Err(NokhwaError::CouldntSetProperty {
+                    return Err(NokhwaError::SetPropertyError {
                         property: "Format(V4L Resolution, FourCC)".to_string(),
                         value: camera_format.to_string(),
                         error: "Rejected".to_string(),
@@ -93,7 +81,7 @@ impl<'a> V4LCaptureDevice<'a> {
                 }
             }
             Err(why) => {
-                return Err(NokhwaError::CouldntSetProperty {
+                return Err(NokhwaError::SetPropertyError {
                     property: "Format(V4L Resolution, FourCC)".to_string(),
                     value: camera_format.to_string(),
                     error: why.to_string(),
@@ -104,7 +92,7 @@ impl<'a> V4LCaptureDevice<'a> {
         match Capture::set_params(&device, &new_param) {
             Ok(param) => {
                 if new_param.interval.denominator != param.interval.denominator {
-                    return Err(NokhwaError::CouldntSetProperty {
+                    return Err(NokhwaError::SetPropertyError {
                         property: "Parameter(V4L FPS)".to_string(),
                         value: camera_format.framerate().to_string(),
                         error: "Rejected".to_string(),
@@ -112,7 +100,7 @@ impl<'a> V4LCaptureDevice<'a> {
                 }
             }
             Err(why) => {
-                return Err(NokhwaError::CouldntSetProperty {
+                return Err(NokhwaError::SetPropertyError {
                     property: "Parameter(V4L FPS)".to_string(),
                     value: camera_format.framerate().to_string(),
                     error: why.to_string(),
@@ -165,7 +153,7 @@ impl<'a> V4LCaptureDevice<'a> {
                 }
                 Ok(resolutions)
             }
-            Err(why) => Err(NokhwaError::CouldntQueryDevice {
+            Err(why) => Err(NokhwaError::GetPropertyError {
                 property: "Resolutions".to_string(),
                 error: why.to_string(),
             }),
@@ -197,7 +185,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let prev_format = match Capture::format(&self.device) {
             Ok(fmt) => fmt,
             Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
+                return Err(NokhwaError::GetPropertyError {
                     property: "Resolution, FrameFormat".to_string(),
                     error: why.to_string(),
                 })
@@ -206,7 +194,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let prev_fps = match Capture::params(&self.device) {
             Ok(fps) => fps,
             Err(why) => {
-                return Err(NokhwaError::CouldntQueryDevice {
+                return Err(NokhwaError::GetPropertyError {
                     property: "Framerate".to_string(),
                     error: why.to_string(),
                 })
@@ -217,14 +205,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let framerate = Parameters::with_fps(new_fmt.framerate());
 
         if let Err(why) = Capture::set_format(&self.device, &format) {
-            return Err(NokhwaError::CouldntSetProperty {
+            return Err(NokhwaError::SetPropertyError {
                 property: "Resolution, FrameFormat".to_string(),
                 value: format.to_string(),
                 error: why.to_string(),
             });
         }
         if let Err(why) = Capture::set_params(&self.device, &framerate) {
-            return Err(NokhwaError::CouldntSetProperty {
+            return Err(NokhwaError::SetPropertyError {
                 property: "Framerate".to_string(),
                 value: framerate.to_string(),
                 error: why.to_string(),
@@ -237,14 +225,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 Err(why) => {
                     // undo
                     if let Err(why) = Capture::set_format(&self.device, &prev_format) {
-                        return Err(NokhwaError::CouldntSetProperty {
+                        return Err(NokhwaError::SetPropertyError {
                             property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why.to_string()),
                             value: prev_format.to_string(),
                             error: why.to_string(),
                         });
                     }
                     if let Err(why) = Capture::set_params(&self.device, &prev_fps) {
-                        return Err(NokhwaError::CouldntSetProperty {
+                        return Err(NokhwaError::SetPropertyError {
                             property:
                             format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
                             value: prev_fps.to_string(),
@@ -286,7 +274,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     }
                 }
                 Err(why) => {
-                    return Err(NokhwaError::CouldntQueryDevice {
+                    return Err(NokhwaError::GetPropertyError {
                         property: "Framerate".to_string(),
                         error: why.to_string(),
                     })
@@ -305,7 +293,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     let format_as_string = match format.fourcc.str() {
                         Ok(s) => s,
                         Err(why) => {
-                            return Err(NokhwaError::CouldntQueryDevice {
+                            return Err(NokhwaError::GetPropertyError {
                                 property: "FrameFormat".to_string(),
                                 error: why.to_string(),
                             })
@@ -321,7 +309,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 frameformat_vec.dedup();
                 Ok(frameformat_vec)
             }
-            Err(why) => Err(NokhwaError::CouldntQueryDevice {
+            Err(why) => Err(NokhwaError::GetPropertyError {
                 property: "FrameFormat".to_string(),
                 error: why.to_string(),
             }),
@@ -364,7 +352,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         let stream = match MmapStream::new(&self.device, Type::VideoCapture) {
             Ok(s) => s,
-            Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+            Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
         };
         self.stream_handle = Some(stream);
         Ok(())
@@ -387,7 +375,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
                     rgbbuf
                 }
-                None => return Err(NokhwaError::CouldntCaptureFrame(
+                None => return Err(NokhwaError::ReadFrameError(
                     "Imagebuffer is not large enough! This is probably a bug, please report it!"
                         .to_string(),
                 )),
@@ -395,13 +383,13 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(imagebuf)
     }
 
-    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         match &mut self.stream_handle {
             Some(streamh) => match streamh.next() {
-                Ok((data, _)) => Ok(data.to_vec()),
-                Err(why) => Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+                Ok((data, _)) => Ok(Cow::from(data)),
+                Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
             },
-            None => Err(NokhwaError::CouldntCaptureFrame(
+            None => Err(NokhwaError::ReadFrameError(
                 "Stream not initialized! Please call \"open_stream()\" first!".to_string(),
             )),
         }

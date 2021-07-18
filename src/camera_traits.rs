@@ -5,6 +5,7 @@ use crate::{
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::collections::HashMap;
 
+use std::borrow::Cow;
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -89,7 +90,7 @@ pub trait CaptureBackendTrait {
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError>;
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
     fn min_buffer_size(&self, rgba: bool) -> usize {
@@ -151,12 +152,12 @@ pub trait CaptureBackendTrait {
 
         let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
             Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
             Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         queue.write_texture(

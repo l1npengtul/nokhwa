@@ -111,12 +111,12 @@ impl NetworkCamera {
 
         let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
             Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
             Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         queue.write_texture(

@@ -15,7 +15,7 @@ use gstreamer_app::{AppSink, AppSinkCallbacks};
 use gstreamer_video::{VideoFormat, VideoInfo};
 use image::{ImageBuffer, Rgb};
 use regex::Regex;
-use std::{collections::HashMap, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>);
 
@@ -47,10 +47,10 @@ impl GStreamerCaptureDevice {
         };
 
         if let Err(why) = gstreamer::init() {
-            return Err(NokhwaError::CouldntOpenDevice(format!(
-                "Failed to initialize GStreamer: {}",
-                why.to_string()
-            )));
+            return Err(NokhwaError::InitializeError {
+                backend: CaptureAPIBackend::GStreamer,
+                error: why.to_string(),
+            });
         }
 
         let (camera_info, caps) = {
@@ -64,28 +64,29 @@ impl GStreamerCaptureDevice {
                     )))
                 }
             };
-            let _video_filter_id = match device_monitor
-                .add_filter(Some("Video/Source"), Some(&video_caps))
-            {
-                Some(id) => id,
-                None => return Err(NokhwaError::CouldntOpenDevice(
-                    "Failed to generate Device Monitor Filter ID with video/x-raw and Video/Source"
-                        .to_string(),
-                )),
-            };
+            let _video_filter_id =
+                match device_monitor.add_filter(Some("Video/Source"), Some(&video_caps)) {
+                    Some(id) => id,
+                    None => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "Video Filter ID Video/Source".to_string(),
+                            error: "Null".to_string(),
+                        })
+                    }
+                };
             if let Err(why) = device_monitor.start() {
-                return Err(NokhwaError::CouldntOpenDevice(format!(
-                    "Failed to start device monitor: {}",
-                    why.to_string()
-                )));
+                return Err(NokhwaError::StructureError {
+                    structure: "Device Monitor".to_string(),
+                    error: format!("Not started, {}", why),
+                });
             }
             let device = match device_monitor.devices().get(index) {
                 Some(dev) => dev.clone(),
                 None => {
-                    return Err(NokhwaError::CouldntOpenDevice(format!(
-                        "Failed to find device at index {}",
-                        index
-                    )))
+                    return Err(NokhwaError::OpenDeviceError(
+                        index.to_string(),
+                        "No device".to_string(),
+                    ))
                 }
             };
             device_monitor.stop();
@@ -171,7 +172,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                 let width = match capability.get::<i32>("width") {
                                     Ok(w) => w,
                                     Err(why) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Capibilities by Resolution: Width"
                                                 .to_string(),
                                             error: why.to_string(),
@@ -181,7 +182,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                 let height = match capability.get::<i32>("height") {
                                     Ok(w) => w,
                                     Err(why) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Capibilities by Resolution: Height"
                                                 .to_string(),
                                             error: why.to_string(),
@@ -196,7 +197,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             format!("{:?}", s)
                                         }
                                         Err(why) => {
-                                            return Err(NokhwaError::CouldntQueryDevice {
+                                            return Err(NokhwaError::GetPropertyError {
                                                 property: "Framerates".to_string(),
                                                 error: format!(
                                                     "Failed to make framerates into string: {}",
@@ -206,7 +207,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                         }
                                     },
                                     Err(_) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Framerates".to_string(),
                                             error: "Failed to get framerates: doesnt exist!"
                                                 .to_string(),
@@ -218,7 +219,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                     let fraction_string: Vec<&str> =
                                         m.as_str().split('/').collect();
                                     if fraction_string.len() != 2 {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: format!("Fraction framerate had more than one demoninator: {:?}", fraction_string) });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: format!("Fraction framerate had more than one demoninator: {:?}", fraction_string) });
                                     }
 
                                     if let Some(v) = fraction_string.get(1) {
@@ -226,14 +227,14 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             continue; // swallow error
                                         }
                                     } else {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: "No framerate denominator? Shouldn't happen, please report!".to_string() });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: "No framerate denominator? Shouldn't happen, please report!".to_string() });
                                     }
 
                                     if let Some(numerator) = fraction_string.get(0) {
                                         match numerator.parse::<u32>() {
                                             Ok(fps) => fps_vec.push(fps),
                                             Err(why) => {
-                                                return Err(NokhwaError::CouldntQueryDevice {
+                                                return Err(NokhwaError::GetPropertyError {
                                                     property: "Framerates".to_string(),
                                                     error: format!(
                                                         "Failed to parse numerator: {}",
@@ -243,7 +244,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             }
                                         }
                                     } else {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: "No framerate numerator? Shouldn't happen, please report!".to_string() });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: "No framerate numerator? Shouldn't happen, please report!".to_string() });
                                     }
                                 }
                                 resolution_map
@@ -259,7 +260,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                 let width = match capability.get::<i32>("width") {
                                     Ok(w) => w,
                                     Err(why) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Capibilities by Resolution: Width"
                                                 .to_string(),
                                             error: why.to_string(),
@@ -269,7 +270,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                 let height = match capability.get::<i32>("height") {
                                     Ok(w) => w,
                                     Err(why) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Capibilities by Resolution: Height"
                                                 .to_string(),
                                             error: why.to_string(),
@@ -284,7 +285,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             format!("{:?}", s)
                                         }
                                         Err(why) => {
-                                            return Err(NokhwaError::CouldntQueryDevice {
+                                            return Err(NokhwaError::GetPropertyError {
                                                 property: "Framerates".to_string(),
                                                 error: format!(
                                                     "Failed to make framerates into string: {}",
@@ -294,7 +295,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                         }
                                     },
                                     Err(_) => {
-                                        return Err(NokhwaError::CouldntQueryDevice {
+                                        return Err(NokhwaError::GetPropertyError {
                                             property: "Framerates".to_string(),
                                             error: "Failed to get framerates: doesnt exist!"
                                                 .to_string(),
@@ -306,7 +307,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                     let fraction_string: Vec<&str> =
                                         m.as_str().split('/').collect();
                                     if fraction_string.len() != 2 {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: format!("Fraction framerate had more than one demoninator: {:?}", fraction_string) });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: format!("Fraction framerate had more than one demoninator: {:?}", fraction_string) });
                                     }
 
                                     if let Some(v) = fraction_string.get(1) {
@@ -314,14 +315,14 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             continue; // swallow error
                                         }
                                     } else {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: "No framerate denominator? Shouldn't happen, please report!".to_string() });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: "No framerate denominator? Shouldn't happen, please report!".to_string() });
                                     }
 
                                     if let Some(numerator) = fraction_string.get(0) {
                                         match numerator.parse::<u32>() {
                                             Ok(fps) => fps_vec.push(fps),
                                             Err(why) => {
-                                                return Err(NokhwaError::CouldntQueryDevice {
+                                                return Err(NokhwaError::GetPropertyError {
                                                     property: "Framerates".to_string(),
                                                     error: format!(
                                                         "Failed to parse numerator: {}",
@@ -331,7 +332,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                             }
                                         }
                                     } else {
-                                        return Err(NokhwaError::CouldntQueryDevice { property: "Framerates".to_string(), error: "No framerate numerator? Shouldn't happen, please report!".to_string() });
+                                        return Err(NokhwaError::GetPropertyError { property: "Framerates".to_string(), error: "No framerate numerator? Shouldn't happen, please report!".to_string() });
                                     }
                                 }
                                 resolution_map
@@ -342,7 +343,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                 }
             }
             None => {
-                return Err(NokhwaError::CouldntQueryDevice {
+                return Err(NokhwaError::GetPropertyError {
                     property: "Device Caps".to_string(),
                     error: "No device caps!".to_string(),
                 })
@@ -367,7 +368,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                 }
             }
             None => {
-                return Err(NokhwaError::CouldntQueryDevice {
+                return Err(NokhwaError::GetPropertyError {
                     property: "Device Caps".to_string(),
                     error: "No device caps!".to_string(),
                 })
@@ -403,14 +404,14 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
     }
 
     fn set_frame_format(&mut self, _fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        Err(NokhwaError::UnsupportedOperation(
+        Err(NokhwaError::UnsupportedOperationError(
             CaptureAPIBackend::GStreamer,
         ))
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         if let Err(why) = self.pipeline.set_state(State::Playing) {
-            return Err(NokhwaError::CouldntOpenStream(format!(
+            return Err(NokhwaError::OpenStreamError(format!(
                 "Failed to set appsink to playing: {}",
                 why.to_string()
             )));
@@ -438,12 +439,12 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         let image_data = self.frame_raw()?;
         let cam_fmt = self.camera_format;
         let imagebuf =
-            match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), image_data) {
+            match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), image_data.to_vec()) {
                 Some(buf) => {
                     let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
                     rgbbuf
                 }
-                None => return Err(NokhwaError::CouldntCaptureFrame(
+                None => return Err(NokhwaError::ReadFrameError(
                     "Imagebuffer is not large enough! This is probably a bug, please report it!"
                         .to_string(),
                 )),
@@ -451,11 +452,11 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         Ok(imagebuf)
     }
 
-    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         let bus = match self.pipeline.bus() {
             Some(bus) => bus,
             None => {
-                return Err(NokhwaError::CouldntCaptureFrame(
+                return Err(NokhwaError::ReadFrameError(
                     "The pipeline has no bus!".to_string(),
                 ))
             }
@@ -464,12 +465,10 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         if let Some(message) = bus.timed_pop(ClockTime::from_seconds(0)) {
             match message.view() {
                 MessageView::Eos(..) => {
-                    return Err(NokhwaError::CouldntCaptureFrame(
-                        "Stream is ended!".to_string(),
-                    ))
+                    return Err(NokhwaError::ReadFrameError("Stream is ended!".to_string()))
                 }
                 MessageView::Error(err) => {
-                    return Err(NokhwaError::CouldntCaptureFrame(format!(
+                    return Err(NokhwaError::ReadFrameError(format!(
                         "Bus error: {}",
                         err.error().to_string()
                     )));
@@ -479,9 +478,9 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         }
 
         match self.receiver.recv() {
-            Ok(msg) => Ok(msg.to_vec()),
+            Ok(msg) => Ok(Cow::from(msg.to_vec())),
             Err(why) => {
-                return Err(NokhwaError::CouldntCaptureFrame(format!(
+                return Err(NokhwaError::ReadFrameError(format!(
                     "Receiver Error: {}",
                     why.to_string()
                 )));
@@ -491,7 +490,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         if let Err(why) = self.pipeline.set_state(State::Null) {
-            return Err(NokhwaError::CouldntStopStream(format!(
+            return Err(NokhwaError::StreamShutdownError(format!(
                 "Could not change state: {}",
                 why.to_string()
             )));
@@ -550,11 +549,14 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
         {
             Ok(p) => p,
             Err(why) => {
-                return Err(NokhwaError::CouldntOpenDevice(format!(
-                    "Failed to open pipeline with args {}: {}",
-                    webcam_pipeline(format!("{}", index).as_str(), fmt),
-                    why.to_string()
-                )))
+                return Err(NokhwaError::OpenDeviceError(
+                    index.to_string(),
+                    format!(
+                        "Failed to open pipeline with args {}: {}",
+                        webcam_pipeline(format!("{}", index).as_str(), fmt),
+                        why.to_string()
+                    ),
+                ))
             }
         };
 
@@ -566,7 +568,8 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
     {
         Some(s) => s,
         None => {
-            return Err(NokhwaError::CouldntOpenDevice(
+            return Err(NokhwaError::OpenDeviceError(
+                index.to_string(),
                 "Failed to get sink element!".to_string(),
             ))
         }
@@ -575,7 +578,8 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
     let appsink = match sink.dynamic_cast::<AppSink>() {
         Ok(aps) => aps,
         Err(_) => {
-            return Err(NokhwaError::CouldntOpenDevice(
+            return Err(NokhwaError::OpenDeviceError(
+                index.to_string(),
                 "Failed to get sink element as appsink".to_string(),
             ))
         }

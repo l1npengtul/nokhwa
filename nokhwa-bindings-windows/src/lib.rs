@@ -3,7 +3,7 @@
 #![allow(clippy::must_use_candidate)]
 
 //! # nokhwa-bindings-windows
-//! This crate is the MediaFoundation bindings for the `nokhwa` crate.
+//! This crate is the `MediaFoundation` bindings for the `nokhwa` crate.
 //!
 //! It is not meant for general consumption. If you are looking for a Windows camera capture crate, consider using `nokhwa` with feature `input-msmf`.
 //!
@@ -34,8 +34,6 @@ pub enum BindingError {
     EnumerateError(String),
     #[error("Failed to open device {0}: {1}")]
     DeviceOpenFailError(usize, String),
-    #[error("Failed to query device: {0}")]
-    DeviceQueryError(String),
     #[error("Failed to read frame: {0}")]
     ReadFrameError(String),
     #[error("Not Implemented!")]
@@ -607,13 +605,21 @@ pub mod wmf {
                         if why.code().0 == 14009 {
                             break;
                         }
-                        return Err(BindingError::DeviceQueryError(why.to_string()));
+                        return Err(BindingError::GUIDReadError(
+                            "MF_SOURCE_READER_FIRST_VIDEO_STREAM".to_string(),
+                            why.to_string(),
+                        ));
                     }
                 };
 
                 let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
                     Ok(fcc) => fcc,
-                    Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                    Err(why) => {
+                        return Err(BindingError::GUIDReadError(
+                            "MF_MT_SUBTYPE".to_string(),
+                            why.to_string(),
+                        ))
+                    }
                 };
 
                 let (width, height) = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_SIZE) } {
@@ -622,7 +628,12 @@ pub mod wmf {
                         let height = res_u64 as u32; // the cast will truncate the upper bits
                         (width, height)
                     }
-                    Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                    Err(why) => {
+                        return Err(BindingError::GUIDReadError(
+                            "MF_MT_FRAME_SIZE".to_string(),
+                            why.to_string(),
+                        ))
+                    }
                 };
 
                 // MFRatio is represented as 2 u32s in memory. This means we cann convert it to 2
@@ -636,7 +647,12 @@ pub mod wmf {
                             }
                             numerator
                         }
-                        Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                        Err(why) => {
+                            return Err(BindingError::GUIDReadError(
+                                "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
+                                why.to_string(),
+                            ))
+                        }
                     };
 
                 let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
@@ -648,7 +664,12 @@ pub mod wmf {
                         }
                         numerator
                     }
-                    Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                    Err(why) => {
+                        return Err(BindingError::GUIDReadError(
+                            "MF_MT_FRAME_RATE".to_string(),
+                            why.to_string(),
+                        ))
+                    }
                 };
 
                 let frame_rate_min =
@@ -661,7 +682,12 @@ pub mod wmf {
                             }
                             numerator
                         }
-                        Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                        Err(why) => {
+                            return Err(BindingError::GUIDReadError(
+                                "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
+                                why.to_string(),
+                            ))
+                        }
                     };
 
                 if fourcc == MF_VIDEO_FORMAT_MJPEG {
@@ -741,12 +767,22 @@ pub mod wmf {
         pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
             let camera_control = match self.media_source.cast::<IAMCameraControl>() {
                 Ok(cc) => cc,
-                Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IAMCameraControl".to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let video_proc_amp = match self.media_source.cast::<IAMVideoProcAmp>() {
                 Ok(vpa) => vpa,
-                Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IAMVideoProcAmp".to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let mut min = 0;
@@ -1218,12 +1254,22 @@ pub mod wmf {
         pub fn set_control(&mut self, control: MFControl) -> Result<(), BindingError> {
             let camera_control = match self.media_source.cast::<IAMCameraControl>() {
                 Ok(cc) => cc,
-                Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IAMCameraControl".to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let video_proc_amp = match self.media_source.cast::<IAMVideoProcAmp>() {
                 Ok(vpa) => vpa,
-                Err(why) => return Err(BindingError::DeviceQueryError(why.to_string())),
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IAMVideoProcAmp".to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let value = control.current;
@@ -1600,6 +1646,8 @@ pub mod wmf {
 }
 
 #[cfg(any(not(windows), feature = "docs-only"))]
+#[allow(clippy::missing_errors_doc)]
+#[allow(clippy::unused_self)]
 pub mod wmf {
     use crate::{
         BindingError, MFCameraFormat, MFControl, MediaFoundationControls,

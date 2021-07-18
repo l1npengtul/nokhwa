@@ -2,6 +2,7 @@ use crate::{CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat, NokhwaEr
 use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
 use ouroboros::self_referencing;
+use std::borrow::Cow;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -55,8 +56,8 @@ impl From<CameraFormat> for StreamFormat {
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
-    frame_receiver: Receiver<Vec<u8>>,
-    frame_sender: Sender<Vec<u8>>,
+    frame_receiver: Receiver<Cow<'a, [u8]>>,
+    frame_sender: Sender<Cow<'a, [u8]>>,
     stream_handle_init: Cell<bool>,
     active_stream_init: Cell<bool>,
     context: Context<'a>,
@@ -84,28 +85,43 @@ impl<'a> UVCCaptureDevice<'a> {
     pub fn create(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let context = match Context::new() {
             Ok(ctx) => ctx,
-            Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
+            Err(why) => {
+                return Err(NokhwaError::OpenDeviceError(
+                    index.to_string(),
+                    why.to_string(),
+                ))
+            }
         };
 
         let (camera_info, frame_receiver, frame_sender) = {
             let device_list = match context.devices() {
                 Ok(device_list) => device_list,
-                Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
+                Err(why) => {
+                    return Err(NokhwaError::OpenDeviceError(
+                        index.to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let device = match device_list.into_iter().nth(index) {
                 Some(d) => d,
                 None => {
-                    return Err(NokhwaError::CouldntOpenDevice(format!(
-                        "Device at {} not found",
-                        index
-                    )))
+                    return Err(NokhwaError::OpenDeviceError(
+                        index.to_string(),
+                        "Not Found".to_string(),
+                    ))
                 }
             };
 
             let device_desc = match device.description() {
                 Ok(desc) => desc,
-                Err(why) => return Err(NokhwaError::CouldntOpenDevice(why.to_string())),
+                Err(why) => {
+                    return Err(NokhwaError::OpenDeviceError(
+                        index.to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             let device_name = match (device_desc.manufacturer, device_desc.product) {
@@ -211,7 +227,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                     self.with_camera_format_mut(|cfmt| {
                         *cfmt = prev_fmt;
                     });
-                    Err(NokhwaError::CouldntSetProperty {
+                    Err(NokhwaError::SetPropertyError {
                         property: "CameraFormat".to_string(),
                         value: new_fmt.to_string(),
                         error: why.to_string(),
@@ -336,9 +352,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                         *streamh_raw = MaybeUninit::new(streamh);
                         fields.stream_handle_init.set(true);
                     }
-                    Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+                    Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
                 },
-                Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+                Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
             }
             Ok(())
         });
@@ -350,7 +366,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let ret_2: Result<(), NokhwaError> = self.with(|fields| {
             // finally, get the active stream
             let counter = Arc::new(AtomicUsize::new(0));
-            let frame_sender: Sender<Vec<u8>> = *(self.with_frame_sender(|send| send)).clone();
+            let frame_sender: Sender<Cow<[u8]>> = *(self.with_frame_sender(|send| send)).clone();
             let streamh = unsafe {
                 let raw_ptr =
                     (*fields.stream_handle.borrow_mut()).as_ptr() as *mut MaybeUninit<StreamHandle>;
@@ -362,7 +378,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                 match streamh.as_mut_ptr().as_mut() {
                     Some(sth) => sth,
                     None => {
-                        return Err(NokhwaError::CouldntOpenStream(
+                        return Err(NokhwaError::OpenStreamError(
                             "Failed to get mutable raw pointer to stream handle!".to_string(),
                         ))
                     }
@@ -371,7 +387,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
             let active_stream = match streamh_init.start_stream(
                 move |frame, _count| {
-                    let vec_frame: Vec<u8> = frame.to_rgb().unwrap().to_bytes().to_vec();
+                    let vec_frame = Cow::from(frame.to_rgb().unwrap().to_bytes());
                     if frame_sender.send(vec_frame).is_err() {
                         // do nothing
                     }
@@ -379,7 +395,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                 counter,
             ) {
                 Ok(active) => active,
-                Err(why) => return Err(NokhwaError::CouldntOpenStream(why.to_string())),
+                Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
             };
             *fields.active_stream.borrow_mut() = MaybeUninit::new(active_stream);
             Ok(())
@@ -406,10 +422,10 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let resolution: Resolution = self.borrow_camera_format().resolution();
 
         let imagebuf: ImageBuffer<Rgb<u8>, Vec<u8>> =
-            match ImageBuffer::from_vec(resolution.width(), resolution.height(), data) {
+            match ImageBuffer::from_vec(resolution.width(), resolution.height(), data.to_vec()) {
                 Some(img) => img,
                 None => {
-                    return Err(NokhwaError::CouldntCaptureFrame(
+                    return Err(NokhwaError::ReadFrameError(
                         "ImageBuffer too small! This is probably a bug, please report it!"
                             .to_string(),
                     ))
@@ -419,10 +435,10 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         Ok(imagebuf)
     }
 
-    fn frame_raw(&mut self) -> Result<Vec<u8>, NokhwaError> {
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         // assertions
         if !self.borrow_active_stream_init().get() {
-            return Err(NokhwaError::CouldntCaptureFrame(
+            return Err(NokhwaError::ReadFrameError(
                 "Please call `open_stream()` first!".to_string(),
             ));
         }
@@ -434,7 +450,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
             None => match f_recv.recv() {
                 Ok(msg) => Ok(msg),
                 Err(why) => {
-                    return Err(NokhwaError::CouldntCaptureFrame(format!(
+                    return Err(NokhwaError::ReadFrameError(format!(
                         "All sender dropped: {}",
                         why.to_string()
                     )))

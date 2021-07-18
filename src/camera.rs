@@ -234,12 +234,12 @@ impl Camera {
 
         let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
             Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
             Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::CouldntCaptureFrame(why.to_string())),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         queue.write_texture(
@@ -281,7 +281,7 @@ fn figure_out_auto() -> Option<CaptureAPIBackend> {
     if cfg!(feature = "input-v4l") && platform == "linux" {
         cap = CaptureAPIBackend::Video4Linux
     } else if cfg!(feature = "input-msmf") && platform == "windows" {
-        cap = CaptureAPIBackend::Windows
+        cap = CaptureAPIBackend::MediaFoundation
     } else if cfg!(feature = "input-avfoundationn") && platform == "mac" {
         cap = CaptureAPIBackend::AVFoundation
     } else if cfg!(feature = "input-uvc") {
@@ -405,7 +405,8 @@ cap_impl_fn! {
     (GStreamerCaptureDevice, new, "input-gst", gst),
     (OpenCvCaptureDevice, new_autopref, "input-opencv", opencv),
     (V4LCaptureDevice, new, "input-v4l", v4l),
-    (UVCCaptureDevice, create, "input-uvc", uvc)
+    (UVCCaptureDevice, create, "input-uvc", uvc),
+    (MediaFoundationCaptureDevice, new, "input-msmf", msmf)
 }
 
 fn init_camera(
@@ -418,7 +419,8 @@ fn init_camera(
             ("input-v4l", Video4Linux, init_v4l),
             ("input-uvc", UniversalVideoClass, init_uvc),
             ("input-gst", GStreamer, init_gst),
-            ("input-opencv", OpenCv, init_opencv)
+            ("input-opencv", OpenCv, init_opencv),
+            ("input-msmf", MediaFoundation, init_msmf)
     };
     Ok(camera_backend)
 }

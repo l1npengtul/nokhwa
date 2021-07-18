@@ -7,6 +7,16 @@ use std::{
     slice::from_raw_parts,
 };
 
+#[cfg(feature = "input-msmf")]
+use nokhwa_bindings_windows::{
+    MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
+    MediaFoundationDeviceDescriptor,
+};
+#[cfg(feature = "input-uvc")]
+use uvc::StreamFormat;
+#[cfg(feature = "input-v4l")]
+use v4l::{Format, FourCC};
+
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
 /// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
 /// MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
@@ -24,6 +34,36 @@ impl Display for FrameFormat {
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
             }
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl From<MFFrameFormat> for FrameFormat {
+    fn from(mf_ff: MFFrameFormat) -> Self {
+        match mf_ff {
+            MFFrameFormat::MJPEG => FrameFormat::MJPEG,
+            MFFrameFormat::YUYV => FrameFormat::YUYV,
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl Into<MFFrameFormat> for FrameFormat {
+    fn into(self) -> MFFrameFormat {
+        match self {
+            FrameFormat::MJPEG => MFFrameFormat::MJPEG,
+            FrameFormat::YUYV => MFFrameFormat::YUYV,
+        }
+    }
+}
+
+#[cfg(feature = "input-uvc")]
+impl Into<uvc::FrameFormat> for FrameFormat {
+    fn into(self) -> uvc::FrameFormat {
+        match self {
+            FrameFormat::MJPEG => uvc::FrameFormat::MJPEG,
+            FrameFormat::YUYV => uvc::FrameFormat::YUYV,
         }
     }
 }
@@ -85,6 +125,26 @@ impl Ord for Resolution {
             Ordering::Less => Ordering::Less,
             Ordering::Equal => self.y().cmp(&other.y()),
             Ordering::Greater => Ordering::Greater,
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl From<MFResolution> for Resolution {
+    fn from(mf_res: MFResolution) -> Self {
+        Resolution {
+            width_x: mf_res.width_x,
+            height_y: mf_res.height_y,
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl Into<MFResolution> for Resolution {
+    fn into(self) -> MFResolution {
+        MFResolution {
+            width_x: self.width_x,
+            height_y: self.height_y,
         }
     }
 }
@@ -181,6 +241,48 @@ impl Display for CameraFormat {
     }
 }
 
+#[cfg(feature = "input-uvc")]
+impl Into<StreamFormat> for CameraFormat {
+    fn into(self) -> StreamFormat {
+        StreamFormat {
+            width: self.width(),
+            height: self.height(),
+            fps: self.framerate,
+            format: self.format().into(),
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl From<MFCameraFormat> for CameraFormat {
+    fn from(mf_cam_fmt: MFCameraFormat) -> Self {
+        CameraFormat {
+            resolution: mf_cam_fmt.resolution().into(),
+            format: mf_cam_fmt.format().into(),
+            framerate: mf_cam_fmt.framerate(),
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl Into<MFCameraFormat> for CameraFormat {
+    fn into(self) -> MFCameraFormat {
+        MFCameraFormat::new(self.resolution.into(), self.format.into(), self.framerate)
+    }
+}
+
+#[cfg(feature = "input-v4l")]
+impl From<CameraFormat> for Format {
+    fn from(cam_fmt: CameraFormat) -> Self {
+        let pxfmt = match cam_fmt.format() {
+            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
+            FrameFormat::YUYV => FourCC::new(b"YUYV"),
+        };
+
+        Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
+    }
+}
+
 /// Information about a Camera e.g. its name.
 /// `description` amd `misc` may contain backend-specific information.
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
@@ -266,13 +368,238 @@ impl Display for CameraInfo {
     }
 }
 
+#[cfg(feature = "input-msmf")]
+impl From<MediaFoundationDeviceDescriptor> for CameraInfo {
+    fn from(dev_desc: MediaFoundationDeviceDescriptor) -> Self {
+        CameraInfo {
+            human_name: dev_desc.name_as_string(),
+            description: "Media Foundation Device".to_string(),
+            misc: dev_desc.link_as_string(),
+            index: dev_desc.index(),
+        }
+    }
+}
+
+/// The list of known camera controls to the library. <br>
+/// These can control the picture brightness, etc. <br>
+/// Note that not all backends/devices support all these. Run [`available_camera_controls()`](crate::CaptureBackendTrait::available_camera_controls()) to see which ones can be set.
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum KnownCameraControls {
+    Brightness,
+    Contrast,
+    Hue,
+    Saturation,
+    Sharpness,
+    Gamma,
+    ColorEnable,
+    WhiteBalance,
+    BacklightComp,
+    Gain,
+    Pan,
+    Tilt,
+    Roll,
+    Zoom,
+    Exposure,
+    Iris,
+    Focus,
+}
+
+impl Display for KnownCameraControls {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", &self)
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl From<MediaFoundationControls> for KnownCameraControls {
+    fn from(mf_c: MediaFoundationControls) -> Self {
+        match mf_c {
+            MediaFoundationControls::Brightness => KnownCameraControls::Brightness,
+            MediaFoundationControls::Contrast => KnownCameraControls::Contrast,
+            MediaFoundationControls::Hue => KnownCameraControls::Hue,
+            MediaFoundationControls::Saturation => KnownCameraControls::Saturation,
+            MediaFoundationControls::Sharpness => KnownCameraControls::Sharpness,
+            MediaFoundationControls::Gamma => KnownCameraControls::Gamma,
+            MediaFoundationControls::ColorEnable => KnownCameraControls::ColorEnable,
+            MediaFoundationControls::WhiteBalance => KnownCameraControls::WhiteBalance,
+            MediaFoundationControls::BacklightComp => KnownCameraControls::BacklightComp,
+            MediaFoundationControls::Gain => KnownCameraControls::Gain,
+            MediaFoundationControls::Pan => KnownCameraControls::Pan,
+            MediaFoundationControls::Tilt => KnownCameraControls::Tilt,
+            MediaFoundationControls::Roll => KnownCameraControls::Roll,
+            MediaFoundationControls::Zoom => KnownCameraControls::Zoom,
+            MediaFoundationControls::Exposure => KnownCameraControls::Exposure,
+            MediaFoundationControls::Iris => KnownCameraControls::Iris,
+            MediaFoundationControls::Focus => KnownCameraControls::Focus,
+        }
+    }
+}
+
+#[cfg(feature = "input-msmf")]
+impl From<MFControl> for KnownCameraControls {
+    fn from(mf_cc: MFControl) -> Self {
+        mf_cc.control().into()
+    }
+}
+
+/// This tells you weather a [`KnownCameraControls`] is automatically managed by the OS/Driver
+/// or manually managed by you, the programmer.
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum KnownCameraControlFlag {
+    Automatic,
+    Manual,
+}
+
+/// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
+/// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
+/// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+pub struct CameraControl {
+    control: KnownCameraControls,
+    min: i32,
+    max: i32,
+    value: i32,
+    step: i32,
+    default: i32,
+    flag: KnownCameraControlFlag,
+    active: bool,
+}
+
+impl CameraControl {
+    /// Creates a new [`CameraControl`]
+    /// # Errors
+    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
+    pub fn new(
+        control: KnownCameraControls,
+        min: i32,
+        max: i32,
+        value: i32,
+        step: i32,
+        default: i32,
+        flag: KnownCameraControlFlag,
+        active: bool,
+    ) -> Result<Self, NokhwaError> {
+        if value >= max {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too large".to_string(),
+            });
+        }
+        if value <= min {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too low".to_string(),
+            });
+        }
+        if value % step != 0 {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Not aligned with step".to_string(),
+            });
+        }
+
+        Ok(CameraControl {
+            control,
+            min,
+            max,
+            value,
+            step,
+            default,
+            flag,
+            active,
+        })
+    }
+
+    /// Gets the [`KnownCameraControls`] of this [`CameraControl`]
+    pub fn control(&self) -> KnownCameraControls {
+        self.control
+    }
+
+    /// Gets the minimum value of this [`CameraControl`]
+    pub fn min(&self) -> i32 {
+        self.min
+    }
+
+    /// Gets the maximum value of this [`CameraControl`]
+    pub fn max(&self) -> i32 {
+        self.max
+    }
+
+    /// Gets the current value of this [`CameraControl`]
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+
+    /// Sets the value of this [`CameraControl`]
+    /// # Errors
+    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
+    pub fn set_value(&mut self, value: i32) -> Result<(), NokhwaError> {
+        if new_value >= self.max() {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too large".to_string(),
+            });
+        }
+        if new_value <= self.min() {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too low".to_string(),
+            });
+        }
+        if new_value % self.step() != 0 {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Not aligned with step".to_string(),
+            });
+        }
+
+        self.value = value;
+        Ok(())
+    }
+
+    /// Gets the step value of this [`CameraControl`]
+    /// Note that `value` must be divisible by `step`
+    pub fn step(&self) -> i32 {
+        self.step
+    }
+
+    /// Gets the default value of this [`CameraControl`]
+    pub fn default(&self) -> i32 {
+        self.default
+    }
+
+    /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
+    /// telling you weather this control is automatically set or manually set.
+    pub fn flag(&self) -> KnownCameraControlFlag {
+        self.flag
+    }
+
+    /// Gets `active` of this [`CameraControl`],
+    /// telling you weather this control is currently active(in-use).
+    pub fn active(&self) -> bool {
+        self.active
+    }
+}
+
+impl PartialOrd for CameraControl {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CameraControl {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.control().cmp(&other.control())
+    }
+}
+
 /// The list of known capture backends to the library. <br>
 /// **Note: Only V4L2 and UVC (and by extension AUTO) is implemented so far.**
 /// - AUTO is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - `AVFoundation` - Uses `AVFoundation` on Mac **Not Implemted**
 /// - V4L2 - `Video4Linux2`, a linux specific backend.
 /// - UVC - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
-/// - Windows - MSMF, Windows only, **Not Implemted**
+/// - MediaFoundation - MSMF, Windows only,
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
 /// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -281,7 +608,7 @@ pub enum CaptureAPIBackend {
     AVFoundation,
     Video4Linux,
     UniversalVideoClass,
-    Windows,
+    MediaFoundation,
     OpenCv,
     GStreamer,
 }
@@ -304,7 +631,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         Ok(decomp) => match decomp.rgb() {
             Ok(decompresser) => decompresser,
             Err(why) => {
-                return Err(NokhwaError::CouldntDecompressFrame {
+                return Err(NokhwaError::ProcessFrameError {
                     src: FrameFormat::MJPEG,
                     destination: "RGB888".to_string(),
                     error: why.to_string(),
@@ -312,7 +639,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
             }
         },
         Err(why) => {
-            return Err(NokhwaError::CouldntDecompressFrame {
+            return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
                 destination: "RGB888".to_string(),
                 error: why.to_string(),
@@ -322,7 +649,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     let decompressed = match mozjpeg_decomp.read_scanlines::<[u8; 3]>() {
         Some(pixels) => pixels,
         None => {
-            return Err(NokhwaError::CouldntDecompressFrame {
+            return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
                 destination: "RGB888".to_string(),
                 error: "Failed to get read readlines into RGB888 pixels!".to_string(),
@@ -350,11 +677,11 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
-                        return Err(NokhwaError::CouldntDecompressFrame{ src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx, why.to_string()) });
+                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx, why.to_string()) });
                     }
                 },
                 None => {
-                    return Err(NokhwaError::CouldntDecompressFrame {
+                    return Err(NokhwaError::ProcessFrameError {
                         src: FrameFormat::YUYV,
                         destination: "RGB888".to_string(),
                         error: format!(
@@ -369,11 +696,11 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
-                        return Err(NokhwaError::CouldntDecompressFrame{ src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+1, why.to_string()) });
+                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+1, why.to_string()) });
                     }
                 },
                 None => {
-                    return Err(NokhwaError::CouldntDecompressFrame {
+                    return Err(NokhwaError::ProcessFrameError {
                         src: FrameFormat::YUYV,
                         destination: "RGB888".to_string(),
                         error: format!(
@@ -388,11 +715,11 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
-                        return Err(NokhwaError::CouldntDecompressFrame{ src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+2, why.to_string()) });
+                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+2, why.to_string()) });
                     }
                 },
                 None => {
-                    return Err(NokhwaError::CouldntDecompressFrame {
+                    return Err(NokhwaError::ProcessFrameError {
                         src: FrameFormat::YUYV,
                         destination: "RGB888".to_string(),
                         error: format!(
@@ -407,11 +734,11 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
                 Some(px) => match i32::try_from(*px) {
                     Ok(i) => i,
                     Err(why) => {
-                        return Err(NokhwaError::CouldntDecompressFrame{ src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+3, why.to_string()) });
+                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+3, why.to_string()) });
                     }
                 },
                 None => {
-                    return Err(NokhwaError::CouldntDecompressFrame {
+                    return Err(NokhwaError::ProcessFrameError {
                         src: FrameFormat::YUYV,
                         destination: "RGB888".to_string(),
                         error: format!(
@@ -429,7 +756,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         }
         Ok(rgb_vec)
     } else {
-        Err(NokhwaError::CouldntDecompressFrame {
+        Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::YUYV,
             destination: "RGB888".to_string(),
             error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"

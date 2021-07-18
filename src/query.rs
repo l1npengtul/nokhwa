@@ -21,18 +21,22 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
                     } else {
-                        Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::Auto))
+                        Err(NokhwaError::UnsupportedOperationError(
+                            CaptureAPIBackend::Auto,
+                        ))
                     }
                 }
                 "windows" => {
                     if cfg!(feature = "input-msmf") {
-                        query_devices(CaptureAPIBackend::Windows)
+                        query_devices(CaptureAPIBackend::MediaFoundation)
                     } else if cfg!(feature = "input-uvc") {
                         query_devices(CaptureAPIBackend::UniversalVideoClass)
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
                     } else {
-                        Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::Auto))
+                        Err(NokhwaError::UnsupportedOperationError(
+                            CaptureAPIBackend::Auto,
+                        ))
                     }
                 }
                 "macos" => {
@@ -43,19 +47,21 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
                     } else {
-                        Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::Auto))
+                        Err(NokhwaError::UnsupportedOperationError(
+                            CaptureAPIBackend::Auto,
+                        ))
                     }
                 }
-                _ => Err(NokhwaError::UnsupportedOperation(CaptureAPIBackend::Auto)),
+                _ => Err(NokhwaError::UnsupportedOperationError(
+                    CaptureAPIBackend::Auto,
+                )),
             }
         }
         CaptureAPIBackend::Video4Linux => query_v4l(),
         CaptureAPIBackend::UniversalVideoClass => query_uvc(),
-        CaptureAPIBackend::Windows => Err(NokhwaError::UnsupportedOperation(
-            CaptureAPIBackend::Windows,
-        )),
+        CaptureAPIBackend::MediaFoundation => query_msmf(),
         CaptureAPIBackend::GStreamer => query_gstreamer(),
-        _ => Err(NokhwaError::UnsupportedOperation(api)),
+        _ => Err(NokhwaError::UnsupportedOperationError(api)),
     }
 }
 
@@ -83,7 +89,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(not(feature = "input-v4l"))]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::UnsupportedOperation(
+    Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::Video4Linux,
     ))
 }
@@ -160,7 +166,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(not(feature = "input-uvc"))]
 fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::UnsupportedOperation(
+    Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::UniversalVideoClass,
     ))
 }
@@ -192,10 +198,10 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
     {
         Some(id) => id,
         None => {
-            return Err(NokhwaError::CouldntOpenDevice(
-                "Failed to generate Device Monitor Filter ID with video/x-raw and Video/Source"
-                    .to_string(),
-            ))
+            return Err(return Err(NokhwaError::StructureError {
+                structure: "Video Filter ID Video/Source".to_string(),
+                error: "Null".to_string(),
+            }))
         }
     };
     if let Err(why) = device_monitor.start() {
@@ -226,7 +232,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(not(feature = "input-gst"))]
 fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::UnsupportedOperation(
+    Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::GStreamer,
     ))
 }
@@ -234,12 +240,24 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
 #[cfg(feature = "input-msmf")]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::NotImplemented("".to_string()))
+    use nokhwa_bindings_windows::{BindingError, MediaFoundationDeviceDescriptor};
+
+    let list: Vec<CameraInfo> = match nokhwa_bindings_windows::wmf::query_msmf() {
+        Ok(l) => l
+            .into_iter()
+            .map(|mf_desc| {
+                let camera_info: CameraInfo = mf_desc.into();
+                camera_info
+            })
+            .collect(),
+        Err(why) => return Err(why.into()),
+    };
+    Ok(list)
 }
 
 #[cfg(not(feature = "input-msmf"))]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::UnsupportedOperation(
-        CaptureAPIBackend::Windows,
+    Err(NokhwaError::UnsupportedOperationError(
+        CaptureAPIBackend::MediaFoundation,
     ))
 }
