@@ -1,3 +1,7 @@
+# 0.3.2
+- Bumped `ouroboros` to avoid potential UB
+- [INTERNAL] Removed `Box<T>` from many internal struct fields of `UVCCaptureDevice`
+
 # 0.3.1
 - Added feature hacks to prevent gstreamer/opencv docs.rs build failure
 
