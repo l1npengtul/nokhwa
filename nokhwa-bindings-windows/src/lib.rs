@@ -133,22 +133,34 @@ pub struct MediaFoundationDeviceDescriptor<'a> {
 }
 
 impl<'a> MediaFoundationDeviceDescriptor<'a> {
-    pub fn new(
+    /// # Errors
+    /// If name or symlink is a nullptr, this will error.
+    /// # Safety
+    /// name and symlink must not be null
+    pub unsafe fn new(
         index: usize,
         name: *mut u16,
         symlink: *mut u16,
         name_len: u32,
         symlink_len: u32,
-    ) -> Self {
-        let name = Cow::from(unsafe { from_raw_parts(name, name_len as usize) });
+    ) -> Result<Self, BindingError> {
+        let name = if name.is_null() {
+            return Err(BindingError::AttributeError("name nullptr".to_string()));
+        } else {
+            Cow::from(from_raw_parts(name, name_len as usize))
+        };
 
-        let symlink = Cow::from(unsafe { from_raw_parts(symlink, symlink_len as usize) });
+        let symlink = if symlink.is_null() {
+            return Err(BindingError::AttributeError("symlink nullptr".to_string()));
+        } else {
+            Cow::from(from_raw_parts(symlink, symlink_len as usize))
+        };
 
-        return MediaFoundationDeviceDescriptor {
+        Ok(MediaFoundationDeviceDescriptor {
             index,
             name,
             symlink,
-        };
+        })
     }
 
     pub fn index(&self) -> usize {
@@ -156,11 +168,11 @@ impl<'a> MediaFoundationDeviceDescriptor<'a> {
     }
 
     pub fn name(&self) -> &Cow<[u16]> {
-        return &self.name;
+        &self.name
     }
 
     pub fn symlink(&self) -> &Cow<[u16]> {
-        return &self.symlink;
+        &self.symlink
     }
 
     pub fn name_as_string(&self) -> String {
@@ -218,6 +230,7 @@ pub struct MFControl {
 }
 
 impl MFControl {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         control: MediaFoundationControls,
         min: i32,
@@ -1702,6 +1715,14 @@ pub mod wmf {
         }
 
         pub fn set_control(&mut self, _control: MFControl) -> Result<(), BindingError> {
+            Err(BindingError::NotImplementedError)
+        }
+
+        pub fn format(&self) -> MFCameraFormat {
+            MFCameraFormat::default()
+        }
+
+        pub fn set_format(&mut self, _format: MFCameraFormat) -> Result<(), BindingError> {
             Err(BindingError::NotImplementedError)
         }
 
