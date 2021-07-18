@@ -1,8 +1,4 @@
 # 0.3.2
-<<<<<<< HEAD
-- Updated Ouroboros to 0.10.0 to fix possible UB
-- Remove `Box<T>` from many places in the UVC Backend
-=======
 - Bumped `ouroboros` to avoid potential UB
 - [INTERNAL] Removed `Box<T>` from many internal struct fields of `UVCCaptureDevice`
 
