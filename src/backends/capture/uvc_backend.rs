@@ -4,10 +4,14 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-use crate::{CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat, NokhwaError, Resolution};
+use crate::{
+    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    KnownCameraControlFlag, KnownCameraControls, NokhwaError, Resolution,
+};
 use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
 use ouroboros::self_referencing;
+use std::any::Any;
 use std::borrow::Cow;
 use std::{
     cell::{Cell, RefCell},
@@ -20,28 +24,6 @@ use uvc::{
     StreamFormat, StreamHandle,
 };
 
-#[cfg(feature = "input-uvc")]
-impl From<FrameFormat> for UVCFrameFormat {
-    fn from(ff: FrameFormat) -> Self {
-        match ff {
-            FrameFormat::MJPEG => UVCFrameFormat::MJPEG,
-            FrameFormat::YUYV => UVCFrameFormat::YUYV,
-        }
-    }
-}
-
-#[cfg(feature = "input-uvc")]
-impl From<CameraFormat> for StreamFormat {
-    fn from(cf: CameraFormat) -> Self {
-        StreamFormat {
-            width: cf.width(),
-            height: cf.height(),
-            fps: cf.framerate(),
-            format: cf.format().into(),
-        }
-    }
-}
-
 // ignore the IDE, this compiles
 /// The backend struct that interfaces with `libuvc`.
 /// To see what this does, please see [`CaptureBackendTrait`]
@@ -53,7 +35,8 @@ impl From<CameraFormat> for StreamFormat {
 /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution()), [`set_frame_rate()`](crate::CaptureBackendTrait::set_frame_rate()), or [`set_frame_format()`](crate::CaptureBackendTrait::set_frame_format()) each internally calls [`set_camera_format()`](crate::CaptureBackendTrait::set_camera_format()).
 /// - [`frame_raw()`](crate::CaptureBackendTrait::frame_raw()) returns the same raw data as [`get_frame()`](crate::CaptureBackendTrait::frame()), a.k.a. no custom decoding required, all data is automatically RGB
 /// - The [`frame_raw()`](crate::CaptureBackendTrait::frame_raw()) and by extension [`frame()`](crate::CaptureBackendTrait::frame()) functions block.
-/// This backend, once stream is open, will constantly collect frames. When you call [`frame()`](crate::CaptureBackendTrait::frame()) or one of its variants, it will only give you the latest frame.
+/// - Setting controls is not supported.
+/// - This backend, once stream is open, will constantly collect frames. When you call [`frame()`](crate::CaptureBackendTrait::frame()) or one of its variants, it will only give you the latest frame.
 /// # Safety
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
 /// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this may crash the entire program.
@@ -154,7 +137,7 @@ impl<'a> UVCCaptureDevice<'a> {
             );
 
             let (frame_sender, frame_receiver) = {
-                let (a, b) = flume::unbounded::<Vec<u8>>();
+                let (a, b) = flume::unbounded::<Cow<[u8]>>();
                 (a, b)
             };
             (camera_info, frame_receiver, frame_sender)
@@ -208,6 +191,10 @@ impl<'a> UVCCaptureDevice<'a> {
 // IDE Autocomplete ends here. Do not be afraid it your IDE does not show completion.
 // Here are some docs to help you out: https://docs.rs/ouroboros/0.9.3/ouroboros/attr.self_referencing.html
 impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
+    fn backend(&self) -> CaptureAPIBackend {
+        CaptureAPIBackend::UniversalVideoClass
+    }
+
     fn camera_info(&self) -> CameraInfo {
         self.borrow_camera_info().clone()
     }
@@ -330,6 +317,71 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.set_camera_format(current_format)
     }
 
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+        Ok(vec![
+            KnownCameraControls::Exposure,
+            KnownCameraControls::Focus,
+        ])
+    }
+
+    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+        match control {
+            KnownCameraControls::Focus => match self.borrow_device_handle().exposure_rel() {
+                Ok(v) => {
+                    let v: i8 = v;
+                    match CameraControl::new(
+                        control,
+                        i8::MIN as i32,
+                        i8::MAX as i32,
+                        v as i32,
+                        1_i32,
+                        v as i32,
+                        KnownCameraControlFlag::Automatic,
+                        true,
+                    ) {
+                        Ok(cc) => Ok(cc),
+                        Err(why) => Err(NokhwaError::GetPropertyError {
+                            property: control.to_string(),
+                            error: why.to_string(),
+                        }),
+                    }
+                }
+            },
+            _ => Err(NokhwaError::GetPropertyError {
+                property: control.to_string(),
+                error: "Not Supported".to_string(),
+            }),
+        }
+    }
+
+    fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn set_raw_camera_control(
+        &mut self,
+        _control: &dyn Any,
+        _value: &dyn Any,
+    ) -> Result<(), NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         let ret: Result<(), NokhwaError> = self.with_mut(|fields| {
             let stream_format: StreamFormat = CameraFormat::into(*fields.camera_format);
@@ -372,7 +424,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let ret_2: Result<(), NokhwaError> = self.with(|fields| {
             // finally, get the active stream
             let counter = Arc::new(AtomicUsize::new(0));
-            let frame_sender: Sender<Cow<[u8]>> = *(self.with_frame_sender(|send| send)).clone();
+            let frame_sender: Sender<Cow<[u8]>> = (self.with_frame_sender(|send| send)).clone();
             let streamh = unsafe {
                 let raw_ptr =
                     (*fields.stream_handle.borrow_mut()).as_ptr() as *mut MaybeUninit<StreamHandle>;

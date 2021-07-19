@@ -7,12 +7,11 @@
 use crate::{
     error::NokhwaError,
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
-    CameraControl, KnownCameraControls,
+    CameraControl, CaptureAPIBackend, KnownCameraControls,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::collections::HashMap;
 
-use std::borrow::Cow;
+use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -27,6 +26,9 @@ use wgpu::{
 /// - Behaviour can differ from backend to backend. While the [`Camera`](crate::camera::Camera) struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureBackendTrait {
+    /// Returns the current backend used.
+    fn backend(&self) -> CaptureAPIBackend;
+
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     fn camera_info(&self) -> CameraInfo;
 
@@ -80,11 +82,50 @@ pub trait CaptureBackendTrait {
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
 
     /// Gets the current supported list of [`KnownCameraControls`]
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError>;
 
+    /// Gets the value of [`KnownCameraControls`].
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
+    /// this will error.
     fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError>;
 
+    /// Sets the control to `control` in the camera.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the `value ([`set_value()`](CameraControl::set_value()), [`with_value()`](CameraControl::with_value())) to set the value.
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
+    /// this will error.
     fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError>;
+
+    /// Gets the current supported list of Controls as an `Any` from the backend.
+    /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError>;
+
+    /// Sets the control to `control` in the camera.
+    /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
+    /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
+    /// this will error.
+    fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError>;
+
+    /// Sets the control to `control` in the camera.
+    /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the `value ([`set_value()`](CameraControl::set_value()), [`with_value()`](CameraControl::with_value())) to set the value.
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
+    /// this will error.
+    fn set_raw_camera_control(
+        &mut self,
+        control: &dyn Any,
+        value: &dyn Any,
+    ) -> Result<(), NokhwaError>;
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors

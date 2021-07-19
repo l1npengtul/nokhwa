@@ -5,8 +5,8 @@
  */
 
 use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, NokhwaError, Resolution,
+    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use flume::Receiver;
 use glib::Quark;
@@ -21,6 +21,7 @@ use gstreamer_app::{AppSink, AppSinkCallbacks};
 use gstreamer_video::{VideoFormat, VideoInfo};
 use image::{ImageBuffer, Rgb};
 use regex::Regex;
+use std::any::Any;
 use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>);
@@ -29,6 +30,7 @@ type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>
 /// To see what this does, please see [`CaptureBackendTrait`].
 /// # Quirks
 /// - `Drop`-ing this may cause a `panic`.
+/// - Setting controls is not supported.
 pub struct GStreamerCaptureDevice {
     pipeline: Element,
     app_sink: AppSink,
@@ -132,6 +134,10 @@ impl GStreamerCaptureDevice {
 }
 
 impl CaptureBackendTrait for GStreamerCaptureDevice {
+    fn backend(&self) -> CaptureAPIBackend {
+        CaptureAPIBackend::GStreamer
+    }
+
     fn camera_info(&self) -> CameraInfo {
         self.camera_info.clone()
     }
@@ -415,6 +421,46 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         ))
     }
 
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
+    fn camera_control(&self, _control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
+    fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
+    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
+    fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
+    fn set_raw_camera_control(
+        &mut self,
+        _control: &dyn Any,
+        _value: &dyn Any,
+    ) -> Result<(), NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            CaptureAPIBackend::GStreamer.to_string(),
+        ))
+    }
+
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         if let Err(why) = self.pipeline.set_state(State::Playing) {
             return Err(NokhwaError::OpenStreamError(format!(
@@ -442,8 +488,8 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
     }
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let image_data = self.frame_raw()?;
         let cam_fmt = self.camera_format;
+        let image_data = self.frame_raw()?;
         let imagebuf =
             match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), image_data.to_vec()) {
                 Some(buf) => {

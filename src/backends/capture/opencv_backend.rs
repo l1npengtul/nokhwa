@@ -5,8 +5,8 @@
  */
 
 use crate::{
-    CameraFormat, CameraIndexType, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    NokhwaError, Resolution,
+    CameraControl, CameraFormat, CameraIndexType, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use opencv::{
@@ -16,8 +16,7 @@ use opencv::{
         CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
     },
 };
-use std::borrow::Cow;
-use std::collections::HashMap;
+use std::{any::Any, borrow::Cow, collections::HashMap};
 
 /// Converts $from into $to
 /// Example usage:
@@ -57,6 +56,9 @@ macro_rules! tryinto_num {
 ///  - [`CameraInfo`]'s human name will be "`OpenCV` Capture Device {location}"
 ///  - [`CameraInfo`]'s description will contain the Camera's Index or IP.
 ///  - The API Preference order is the native OS API (linux => `v4l2`, mac => `AVFoundation`, windows => `MSMF`) than [`CAP_AUTO`](https://docs.opencv.org/4.5.2/d4/d15/group__videoio__flags__base.html#gga023786be1ee68a9105bf2e48c700294da77ab1fe260fd182f8ec7655fab27a31d)
+/// - The `Any` type for [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control) is [`i32`], and its return `Any` is a [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
+/// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`i32`] and [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
+
 pub struct OpenCvCaptureDevice {
     camera_format: CameraFormat,
     camera_location: CameraIndexType,
@@ -343,6 +345,10 @@ impl OpenCvCaptureDevice {
 }
 
 impl CaptureBackendTrait for OpenCvCaptureDevice {
+    fn backend(&self) -> CaptureAPIBackend {
+        CaptureAPIBackend::OpenCv
+    }
+
     fn camera_info(&self) -> CameraInfo {
         self.camera_info.clone()
     }
@@ -427,6 +433,96 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.set_camera_format(current_fmt)
     }
 
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn camera_control(&self, _control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
+        Err(NokhwaError::UnsupportedOperationError(
+            CaptureAPIBackend::UniversalVideoClass,
+        ))
+    }
+
+    fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
+        let id = match control.downcast_ref::<i32>() {
+            Some(id) => *id,
+            None => {
+                return Err(NokhwaError::StructureError {
+                    structure: "OpenCV ID".to_string(),
+                    error: "Failed Any Cast".to_string(),
+                })
+            }
+        };
+
+        match self.video_capture.get(id) {
+            Ok(v) => Ok(Box::new(v)),
+            Err(why) => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: format!("OpenCV PROP ID {}", id),
+                    error: why.to_string(),
+                })
+            }
+        }
+    }
+
+    fn set_raw_camera_control(
+        &mut self,
+        control: &dyn Any,
+        value: &dyn Any,
+    ) -> Result<(), NokhwaError> {
+        let id = match control.downcast_ref::<i32>() {
+            Some(id) => *id,
+            None => {
+                return Err(NokhwaError::StructureError {
+                    structure: "OpenCV ID".to_string(),
+                    error: "Failed Any Cast".to_string(),
+                })
+            }
+        };
+
+        let value = match value.downcast_ref::<f64>() {
+            Some(id) => *id,
+            None => {
+                return Err(NokhwaError::StructureError {
+                    structure: "OpenCV Value".to_string(),
+                    error: "Failed Any Cast".to_string(),
+                })
+            }
+        };
+
+        match self.video_capture.set(id, value) {
+            Ok(b) => {
+                if b {
+                    return Ok(());
+                }
+                Err(NokhwaError::SetPropertyError {
+                    property: format!("OpenCV PROP ID {}", id),
+                    value: value.to_string(),
+                    error: "OpenCV returned false".to_string(),
+                })
+            }
+            Err(why) => Err(NokhwaError::SetPropertyError {
+                property: format!("OpenCV PROP ID {}", id),
+                value: value.to_string(),
+                error: why.to_string(),
+            }),
+        }
+    }
+
     #[allow(clippy::cast_possible_wrap)]
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         match self.camera_location.clone() {
@@ -438,7 +534,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                     Ok(_) => {}
                     Err(why) => {
                         return Err(NokhwaError::OpenDeviceError(
-                            index,
+                            idx.to_string(),
                             format!("Failed to open device: {}", why.to_string()),
                         ))
                     }
@@ -452,7 +548,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                     Ok(_) => {}
                     Err(why) => {
                         return Err(NokhwaError::OpenDeviceError(
-                            index,
+                            ip,
                             format!("Failed to open device: {}", why.to_string()),
                         ))
                     }
@@ -481,17 +577,20 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let mut image_data = self.frame_raw()?;
         let camera_resolution = self.camera_format.resolution();
-        image_data.resize(
-            (camera_resolution.width() * camera_resolution.height() * 3) as usize,
-            0_u8,
-        );
-        let imagebuf =
+        let image_data = {
+            let mut data = self.frame_raw()?.to_vec();
+            data.resize(
+                (camera_resolution.width() * camera_resolution.height() * 3) as usize,
+                0_u8,
+            );
+            data
+        };
+        let image_buf =
             match ImageBuffer::from_vec(
                 camera_resolution.width(),
                 camera_resolution.height(),
-                image_data.to_vec(),
+                image_data,
             ) {
                 Some(buf) => {
                     let rgb: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
@@ -502,7 +601,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                         .to_string(),
                 )),
             };
-        Ok(imagebuf)
+        Ok(image_buf)
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {

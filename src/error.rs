@@ -13,12 +13,12 @@ use crate::{CaptureAPIBackend, FrameFormat};
 #[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
 pub enum NokhwaError {
-    #[error("Could not initialize {backend}: {why}")]
+    #[error("Could not initialize {backend}: {error}")]
     InitializeError {
         backend: CaptureAPIBackend,
         error: String,
     },
-    #[error("Could not shutdown {backend}: {why}")]
+    #[error("Could not shutdown {backend}: {error}")]
     ShutdownError {
         backend: CaptureAPIBackend,
         error: String,

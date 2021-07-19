@@ -178,7 +178,10 @@ impl Camera {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     pub fn frame_raw(&self) -> Result<Vec<u8>, NokhwaError> {
-        self.backend.borrow_mut().frame_raw()
+        match self.backend.borrow_mut().frame_raw() {
+            Ok(f) => Ok(f.to_vec()),
+            Err(why) => Err(why),
+        }
     }
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
@@ -347,14 +350,14 @@ macro_rules! cap_impl_matches {
                                                 Err(why) => return Err(why),
                                             }
                                             None => {
-                                                return Err(NokhwaError::NotImplemented(
+                                                return Err(NokhwaError::NotImplementedError(
                                                     "Platform requirements not satisfied.".to_string(),
                                                 ));
                                             }
                                         }
                                     }
                                     false => {
-                                        return Err(NokhwaError::NotImplemented(
+                                        return Err(NokhwaError::NotImplementedError(
                                             "Platform requirements not satisfied.".to_string(),
                                         ));
                                     }
@@ -362,13 +365,13 @@ macro_rules! cap_impl_matches {
                             }
                         )+
                         _ => {
-                            return Err(NokhwaError::NotImplemented(
+                            return Err(NokhwaError::NotImplementedError(
                                 "Platform requirements not satisfied.".to_string(),
                             ));
                         }
                     }
                     None => {
-                        return Err(NokhwaError::NotImplemented(
+                        return Err(NokhwaError::NotImplementedError(
                             "Platform requirements not satisfied.".to_string(),
                         ));
                     }
@@ -383,14 +386,14 @@ macro_rules! cap_impl_matches {
                                         Err(why) => return Err(why),
                                     }
                                     None => {
-                                        return Err(NokhwaError::NotImplemented(
+                                        return Err(NokhwaError::NotImplementedError(
                                             "Platform requirements not satisfied.".to_string(),
                                         ));
                                     }
                                 }
                             }
                             false => {
-                                return Err(NokhwaError::NotImplemented(
+                                return Err(NokhwaError::NotImplementedError(
                                     "Platform requirements not satisfied.".to_string(),
                                 ));
                             }
@@ -398,7 +401,7 @@ macro_rules! cap_impl_matches {
                     }
                 )+
                 _ => {
-                    return Err(NokhwaError::NotImplemented(
+                    return Err(NokhwaError::NotImplementedError(
                         "Platform requirements not satisfied.".to_string(),
                     ));
                 }
@@ -411,7 +414,7 @@ cap_impl_fn! {
     (GStreamerCaptureDevice, new, "input-gst", gst),
     (OpenCvCaptureDevice, new_autopref, "input-opencv", opencv),
     (V4LCaptureDevice, new, "input-v4l", v4l),
-    (UVCCaptureDevice, create, "input-uvc", uvc),
+    // (UVCCaptureDevice, create, "input-uvc", uvc),
     (MediaFoundationCaptureDevice, new, "input-msmf", msmf)
 }
 
@@ -423,7 +426,7 @@ fn init_camera(
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
-            ("input-uvc", UniversalVideoClass, init_uvc),
+            // ("input-uvc", UniversalVideoClass, init_uvc),
             ("input-gst", GStreamer, init_gst),
             ("input-opencv", OpenCv, init_opencv),
             ("input-msmf", MediaFoundation, init_msmf)

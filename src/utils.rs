@@ -15,7 +15,7 @@ use nokhwa_bindings_windows::{
 #[cfg(feature = "input-uvc")]
 use uvc::StreamFormat;
 #[cfg(feature = "input-v4l")]
-use v4l::{Format, FourCC};
+use v4l::{control::Description, Format, FourCC};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
 /// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
@@ -38,6 +38,16 @@ impl Display for FrameFormat {
     }
 }
 
+#[cfg(feature = "input-uvc")]
+impl From<FrameFormat> for uvc::FrameFormat {
+    fn from(ff: FrameFormat) -> Self {
+        match ff {
+            FrameFormat::MJPEG => uvc::FrameFormat::MJPEG,
+            FrameFormat::YUYV => uvc::FrameFormat::YUYV,
+        }
+    }
+}
+
 #[cfg(feature = "input-msmf")]
 impl From<MFFrameFormat> for FrameFormat {
     fn from(mf_ff: MFFrameFormat) -> Self {
@@ -54,16 +64,6 @@ impl Into<MFFrameFormat> for FrameFormat {
         match self {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
-        }
-    }
-}
-
-#[cfg(feature = "input-uvc")]
-impl Into<uvc::FrameFormat> for FrameFormat {
-    fn into(self) -> uvc::FrameFormat {
-        match self {
-            FrameFormat::MJPEG => uvc::FrameFormat::MJPEG,
-            FrameFormat::YUYV => uvc::FrameFormat::YUYV,
         }
     }
 }
@@ -221,6 +221,18 @@ impl CameraFormat {
     }
 }
 
+#[cfg(feature = "input-uvc")]
+impl From<CameraFormat> for StreamFormat {
+    fn from(cf: CameraFormat) -> Self {
+        StreamFormat {
+            width: cf.width(),
+            height: cf.height(),
+            fps: cf.framerate(),
+            format: cf.format().into(),
+        }
+    }
+}
+
 impl Default for CameraFormat {
     fn default() -> Self {
         CameraFormat {
@@ -238,18 +250,6 @@ impl Display for CameraFormat {
             "{}@{}FPS, {} Format",
             self.resolution, self.framerate, self.format
         )
-    }
-}
-
-#[cfg(feature = "input-uvc")]
-impl Into<StreamFormat> for CameraFormat {
-    fn into(self) -> StreamFormat {
-        StreamFormat {
-            width: self.width(),
-            height: self.height(),
-            fps: self.framerate,
-            format: self.format().into(),
-        }
     }
 }
 
@@ -382,7 +382,7 @@ impl From<MediaFoundationDeviceDescriptor> for CameraInfo {
 
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
-/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
+/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](CaptureBackendTrait::supported_camera_controls()) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControls {
     Brightness,
@@ -402,6 +402,28 @@ pub enum KnownCameraControls {
     Exposure,
     Iris,
     Focus,
+}
+
+pub fn all_known_camera_controls() -> Vec<KnownCameraControls> {
+    vec![
+        KnownCameraControls::Brightness,
+        KnownCameraControls::Contrast,
+        KnownCameraControls::Hue,
+        KnownCameraControls::Saturation,
+        KnownCameraControls::Sharpness,
+        KnownCameraControls::Gamma,
+        KnownCameraControls::ColorEnable,
+        KnownCameraControls::WhiteBalance,
+        KnownCameraControls::BacklightComp,
+        KnownCameraControls::Gain,
+        KnownCameraControls::Pan,
+        KnownCameraControls::Tilt,
+        KnownCameraControls::Roll,
+        KnownCameraControls::Zoom,
+        KnownCameraControls::Exposure,
+        KnownCameraControls::Iris,
+        KnownCameraControls::Focus,
+    ]
 }
 
 impl Display for KnownCameraControls {
@@ -442,6 +464,36 @@ impl From<MFControl> for KnownCameraControls {
     }
 }
 
+#[cfg(feature = "input-v4l")]
+impl TryFrom<Description> for KnownCameraControls {
+    type Error = NokhwaError;
+
+    fn try_from(value: Description) -> Result<Self, Self::Error> {
+        Ok(match value.id {
+            9963776 => KnownCameraControls::Brightness,
+            9963777 => KnownCameraControls::Contrast,
+            9963779 => KnownCameraControls::Hue,
+            9963778 => KnownCameraControls::Saturation,
+            9963803 => KnownCameraControls::Sharpness,
+            9963792 => KnownCameraControls::Gamma,
+            9963802 => KnownCameraControls::WhiteBalance,
+            9963804 => KnownCameraControls::BacklightComp,
+            9963795 => KnownCameraControls::Gain,
+            10094852 => KnownCameraControls::Pan,
+            10094853 => KnownCameraControls::Tilt,
+            10094862 => KnownCameraControls::Zoom,
+            9963793 => KnownCameraControls::Exposure,
+            10094866 => KnownCameraControls::Iris,
+            10094859 => KnownCameraControls::Focus,
+            _ => {
+                return Err(NokhwaError::NotImplementedError(
+                    "Control not implemented!".to_string(),
+                ))
+            }
+        })
+    }
+}
+
 /// This tells you weather a [`KnownCameraControls`] is automatically managed by the OS/Driver
 /// or manually managed by you, the programmer.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -471,21 +523,21 @@ impl CameraControl {
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
     pub fn new(
         control: KnownCameraControls,
-        min: i32,
-        max: i32,
+        minimum: i32,
+        maximum: i32,
         value: i32,
         step: i32,
         default: i32,
         flag: KnownCameraControlFlag,
         active: bool,
     ) -> Result<Self, NokhwaError> {
-        if value >= max {
+        if value >= maximum {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too large".to_string(),
             });
         }
-        if value <= min {
+        if value <= minimum {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
@@ -500,8 +552,8 @@ impl CameraControl {
 
         Ok(CameraControl {
             control,
-            min,
-            max,
+            min: minimum,
+            max: maximum,
             value,
             step,
             default,
@@ -516,12 +568,12 @@ impl CameraControl {
     }
 
     /// Gets the minimum value of this [`CameraControl`]
-    pub fn min(&self) -> i32 {
+    pub fn minimum_value(&self) -> i32 {
         self.min
     }
 
     /// Gets the maximum value of this [`CameraControl`]
-    pub fn max(&self) -> i32 {
+    pub fn maximum_value(&self) -> i32 {
         self.max
     }
 
@@ -534,19 +586,19 @@ impl CameraControl {
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
     pub fn set_value(&mut self, value: i32) -> Result<(), NokhwaError> {
-        if new_value >= self.max() {
+        if value >= self.maximum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too large".to_string(),
             });
         }
-        if new_value <= self.min() {
+        if value <= self.minimum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
             });
         }
-        if new_value % self.step() != 0 {
+        if value % self.step() != 0 {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Not aligned with step".to_string(),
@@ -555,6 +607,41 @@ impl CameraControl {
 
         self.value = value;
         Ok(())
+    }
+
+    /// Creates a new [`CameraControl`] but with `value`
+    /// # Errors
+    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
+    pub fn with_value(self, value: i32) -> Result<Self, NokhwaError> {
+        if value >= self.maximum_value() {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too large".to_string(),
+            });
+        }
+        if value <= self.minimum_value() {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Value too low".to_string(),
+            });
+        }
+        if value % self.step() != 0 {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Not aligned with step".to_string(),
+            });
+        }
+
+        Ok(CameraControl {
+            control: self.control(),
+            min: self.minimum_value(),
+            max: self.maximum_value(),
+            value,
+            step: self.step(),
+            default: self.default(),
+            flag: self.flag(),
+            active: self.active(),
+        })
     }
 
     /// Gets the step value of this [`CameraControl`]
@@ -578,6 +665,14 @@ impl CameraControl {
     /// telling you weather this control is currently active(in-use).
     pub fn active(&self) -> bool {
         self.active
+    }
+
+    /// Returns a list of i32s that are valid to be set.
+    pub fn valid_values(&self) -> Vec<i32> {
+        (self.minimum_value()..=self.maximum_value())
+            .step_by(self.step() as usize)
+            .into_iter()
+            .collect()
     }
 }
 

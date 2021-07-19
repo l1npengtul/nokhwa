@@ -204,10 +204,10 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
     {
         Some(id) => id,
         None => {
-            return Err(return Err(NokhwaError::StructureError {
+            return Err(NokhwaError::StructureError {
                 structure: "Video Filter ID Video/Source".to_string(),
                 error: "Null".to_string(),
-            }))
+            })
         }
     };
     if let Err(why) = device_monitor.start() {
