@@ -284,15 +284,16 @@ impl Drop for Camera {
 }
 
 // TODO: Update as we go
+#[allow(clippy::ifs_same_cond)]
 fn figure_out_auto() -> Option<CaptureAPIBackend> {
     let platform = std::env::consts::OS;
     let mut cap = CaptureAPIBackend::Auto;
     if cfg!(feature = "input-v4l") && platform == "linux" {
-        cap = CaptureAPIBackend::Video4Linux
+        cap = CaptureAPIBackend::Video4Linux;
     } else if cfg!(feature = "input-msmf") && platform == "windows" {
-        cap = CaptureAPIBackend::MediaFoundation
+        cap = CaptureAPIBackend::MediaFoundation;
     } else if cfg!(feature = "input-avfoundationn") && platform == "mac" {
-        cap = CaptureAPIBackend::AVFoundation
+        cap = CaptureAPIBackend::AVFoundation;
     } else if cfg!(feature = "input-uvc") {
         cap = CaptureAPIBackend::UniversalVideoClass;
     } else if cfg!(feature = "input-gst") {

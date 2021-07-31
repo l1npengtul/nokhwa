@@ -45,7 +45,7 @@
 //!  *: Planned/WIP
 //!
 //!
-//!  ^ = No CameraFormat setting support.
+//!  ^ = No `CameraFormat` setting support.
 //!
 //! ## Feature
 //! The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend.

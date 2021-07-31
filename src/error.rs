@@ -10,7 +10,6 @@ use crate::{CaptureAPIBackend, FrameFormat};
 
 /// All errors in `nokhwa`.
 #[allow(clippy::module_name_repetitions)]
-#[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
 pub enum NokhwaError {
     #[error("Could not initialize {backend}: {error}")]
