@@ -1,7 +1,7 @@
 pipeline {
   agent {
     node {
-      label 'ci-agent-win10'
+      label 'ci_linux'
     }
 
   }
@@ -14,21 +14,20 @@ pipeline {
 
     stage('Clippy Build') {
       parallel {
-        stage('Linux') {
+        stage('V4L2') {
           agent {
             node {
-              label 'ci-agent-linux-fedora'
+              label 'ci_linux'
             }
 
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo clippy --all-features    -- -D warnings'
-            catchError(catchInterruptions: true, stageResult: 'failure')
+            sh 'cargo clippy --features "input-v4l"    -- -D warnings'
           }
         }
 
-        stage('Windows') {
+        stage('Media Foundation') {
           agent {
             node {
               label 'ci-agent-win10'
@@ -37,30 +36,15 @@ pipeline {
           }
           steps {
             bat(script: 'rustup update stabke', encoding: 'UTF8')
-            bat(script: 'cargo clippy --all-features -- -D warnings', encoding: 'UTF8', returnStatus: true, returnStdout: true)
+            bat(script: 'cargo clippy --features "input-msmf" -- -D warnings', encoding: 'UTF8', returnStatus: true, returnStdout: true)
           }
         }
 
-      }
-    }
-
-    stage('Rustfmt') {
-      parallel {
-        stage('Linux') {
-          agent {
-            node {
-              label 'ci-agent-linux-fedora'
-            }
-
-          }
+        stage('libUVC-Linux') {
           steps {
-            sh 'cargo +nightly fmt --all -- --write-mode diff'
-          }
-        }
-
-        stage('Windows') {
-          steps {
-            bat(script: 'cargo +nightly fmt --all -- --write-mode diff', encoding: 'UTF8')
+            sh '''rustup update stable
+'''
+            sh 'cargo clippy --features "input-uvc" -- -D warnings '
           }
         }
 
