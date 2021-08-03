@@ -35,7 +35,7 @@ pipeline {
 
           }
           steps {
-            bat(script: 'rustup update stabke', encoding: 'UTF8')
+            bat(script: 'rustup update stable', encoding: 'UTF8')
             bat(script: 'cargo clippy --features "input-msmf" -- -D warnings', encoding: 'UTF8', returnStatus: true, returnStdout: true)
           }
         }
@@ -45,6 +45,12 @@ pipeline {
             sh '''rustup update stable
 '''
             sh 'cargo clippy --features "input-uvc" -- -D warnings '
+          }
+        }
+
+        stage('OpenCV IPCamera') {
+          steps {
+            echo 'TODO'
           }
         }
 
