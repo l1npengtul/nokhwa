@@ -17,7 +17,7 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 
 ## Example
 
-```rust
+```.ignore
 // set up the Camera
 let mut camera = Camera::new(
     0, // index
@@ -42,38 +42,44 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
-| Backend                          | Input              | Query              | Query-Device       | Platform            |
+ | Backend                         | Input              | Query              | Query-Device       | Platform            |
  |---------------------------------|--------------------|--------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)        | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux               |
- | libuvc(`input-uvc`)             | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
- | OpenCV(`input-opencv`)^         | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
- | IPCamera(`input-ipcam`/OpenCV)^ | :white_check_mark: | :x:                | :x:                | Linux, Windows, Mac |
- | GStreamer(`input-gst`)          | :white_check_mark: | :white_check_mark: | :white_check_mark: | Linux, Windows, Mac |
- | FFMpeg                          |        *           |         *          |         *          | Linux, Windows, Mac |
- | AVFoundation                    |        *           |         *          |         *          | Mac                 |
- | MSMF                            |        *           |         *          |         *          | Windows             |
- | JS/WASM                         |        *           |         *          |         *          | Web                 |
+ | Video4Linux(`input-v4l`)        | ✅                 | ✅                 | ✅                 | Linux               |
+ | MSMF                            | 🔮                 | 🔮                 | 🔮                 | Windows             |
+ | AVFoundation                    | 🚧                 | 🚧                 | 🚧                 | Mac                 |
+ | libuvc(`input-uvc`)             | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | OpenCV(`input-opencv`)^         | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | IPCamera(`input-ipcam`/OpenCV)^ | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)          | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | JS/WASM                         | 🔮*                | 🔮                 | 🔮                 | Web                 |
 
- :white_check_mark: : Working, :warning: : Experimental, :x: : Not Supported, *: Planned/WIP
+ ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
   ^ = No CameraFormat setting support.
+  * = Currently, there is no `ImageCapture` support so you cannot capture frames directly.
 
 ## Feature
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.
 
 `input-*` features:
- - `input-v4l`: Enables the `Video4Linux` backend (linux)
- - `input-uvc`: Enables the `libuvc` backend (cross-platform, libuvc statically-linked)
- - `input-opencv`: Enables the `opencv` backend (cross-platform) 
+ - `input-v4l`: Enables the `Video4Linux` backend. (linux)
+ - `input-msmf`: Enables the `MediaFoundation` backennd. (Windows 7 or newer)
+ - `input-uvc`: Enables the `libuvc` backend. (cross-platform, libuvc statically-linked)
+ - `input-opencv`: Enables the `opencv` backend. (cross-platform) 
  - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
- - `input-gst`: Enables the `gstreamer` backend (cross-platform).
+ - `input-gst`: Enables the `gstreamer` backend. (cross-platform)
+ - `input-jscam`: Enables the use of the `JSCamera` struct, which uses browser APIs. (Web)
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
 
 `output-*` features:
  - `output-wgpu`: Enables the API to copy a frame directly into a `wgpu` texture.
 
+Other features:
+ - `docs-only`: Documentation feature. Enabled for docs.rs builds.
+ - `docs-nolink`: Build documentation **without** linking to any libraries. Enabled for docs.rs builds.
+ - `test-fail-warning`: Fails on warning. Enabled in CI.
 You many want to pick and choose to reduce bloat.
 
 ## Issues
