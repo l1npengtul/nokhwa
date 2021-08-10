@@ -91,15 +91,17 @@ pub mod backends;
 mod camera;
 mod camera_traits;
 mod error;
+#[cfg(feature = "input-jscam")]
+/// A camera that uses native browser APIs meant for WASM applications.
+pub mod js_camera;
 #[cfg(feature = "input-ipcam")]
-mod network_camera;
+/// A camera that uses OpenCV to access IP (rtsp/http) on the local network
+pub mod network_camera;
 mod query;
 mod utils;
 
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
-#[cfg(feature = "input-ipcam")]
-pub use network_camera::NetworkCamera;
 pub use query::query_devices;
 pub use utils::*;

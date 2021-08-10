@@ -8,8 +8,11 @@ use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
-/// Currently, these are V4L, UVC, and GST. <br>
+/// Currently, these are V4L, MediaFoundation, UVC, and GST. <br>
 /// Usually the order goes Native -> UVC -> Gstreamer.
+/// # Quirks
+/// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
+/// - Media Foundation: The names may contain invalid characters since they were converted from UTF16.
 /// # Errors
 /// If you use an unsupported API (check the README or crate root for more info), incompatible backend for current platform, incompatible platform, or insufficient permissions, etc
 /// this will error.
@@ -246,8 +249,6 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
 #[cfg(feature = "input-msmf")]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use nokhwa_bindings_windows::{BindingError, MediaFoundationDeviceDescriptor};
-
     let list: Vec<CameraInfo> = match nokhwa_bindings_windows::wmf::query_msmf() {
         Ok(l) => l
             .into_iter()

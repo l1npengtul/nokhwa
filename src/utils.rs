@@ -71,7 +71,7 @@ impl Into<MFFrameFormat> for FrameFormat {
 /// Describes a Resolution.
 /// This struct consists of a Width and a Height value (x,y). <br>
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
@@ -404,8 +404,8 @@ pub enum KnownCameraControls {
     Focus,
 }
 
-pub fn all_known_camera_controls() -> Vec<KnownCameraControls> {
-    vec![
+pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
+    [
         KnownCameraControls::Brightness,
         KnownCameraControls::Contrast,
         KnownCameraControls::Hue,
