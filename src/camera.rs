@@ -110,7 +110,7 @@ impl Camera {
     }
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`NokhwaError::UnsupportedOperation`]).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
@@ -119,7 +119,7 @@ impl Camera {
     }
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`NokhwaError::UnsupportedOperation`]).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_fourcc(&self) -> Result<Vec<FrameFormat>, NokhwaError> {
         self.backend.borrow_mut().compatible_fourcc()
     }

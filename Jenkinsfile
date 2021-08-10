@@ -36,8 +36,8 @@ pipeline {
 
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-v4l, output-wgpu" -- -D warnings'
-            sh 'cargo clippy --features "input-v4l, output-wgpu" -- -D warnings'
+            sh 'cargo build --features "input-v4l, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-v4l, output-wgpu, test-fail-warning"'
           }
         }
 
@@ -49,8 +49,8 @@ pipeline {
           }
           steps {
             bat(script: 'rustup update stable', encoding: 'UTF8')
-            bat(script: 'cargo build --features "input-msmf, output-wgpu" -- -D warnings', encoding: 'UTF8', returnStatus: true, returnStdout: true)
-            bat(script: 'cargo clippy --features "input-msmf, output-wgpu" -- -D warnings', encoding: 'UTF8', returnStatus: true, returnStdout: true)
+            bat(script: 'cargo build --features "input-msmf, output-wgpu, test-fail-warning"', encoding: 'UTF8', returnStatus: true, returnStdout: true)
+            bat(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', encoding: 'UTF8', returnStatus: true, returnStdout: true)
           }
         }
 
@@ -69,8 +69,8 @@ pipeline {
 
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-uvc, output-wgpu" -- -D warnings'
-            sh 'cargo clippy --features "input-uvc, output-wgpu" -- -D warnings '
+            sh 'cargo build --features "input-uvc, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-uvc, output-wgpu, test-fail-warning"'
           }
         }
 
@@ -82,8 +82,8 @@ pipeline {
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-opencv, input-ipcam, output-wgpu" -- -D warnings'
-            sh 'cargo clippy --features "input-opencv, input-ipcam, output-wgpu" -- -D warnings '
+            sh 'cargo build --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
           }
         }
 
@@ -95,8 +95,8 @@ pipeline {
          }
          steps {
            sh 'rustup update stable'
-           sh 'cargo build --features "input-gst, output-wgpu" -- -D warnings'
-           sh 'cargo clippy --features "input-gst, output-wgpu" -- -D warnings '
+           sh 'cargo build --features "input-gst, output-wgpu, test-fail-warning"'
+           sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
          }
         }
       }
@@ -109,7 +109,8 @@ pipeline {
       }
 
       steps {
-        sh 'cargo doc --features "docs-only, docs-nolink" -- -D warnings'
+        sh 'rustup update nightly'
+        sh 'cargo +nightly doc --features "docs-only, docs-nolink, test-fail-warning" --no-deps --release'
       }
     }
   }

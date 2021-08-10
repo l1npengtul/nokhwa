@@ -369,8 +369,8 @@ impl Display for CameraInfo {
 }
 
 #[cfg(feature = "input-msmf")]
-impl From<MediaFoundationDeviceDescriptor> for CameraInfo {
-    fn from(dev_desc: MediaFoundationDeviceDescriptor) -> Self {
+impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
+    fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
             human_name: dev_desc.name_as_string(),
             description: "Media Foundation Device".to_string(),
@@ -382,7 +382,7 @@ impl From<MediaFoundationDeviceDescriptor> for CameraInfo {
 
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
-/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](CaptureBackendTrait::supported_camera_controls()) to see which ones can be set.
+/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControls {
     Brightness,

@@ -51,7 +51,7 @@ macro_rules! tryinto_num {
 ///  - This backend can also do IP Camera input.
 ///  - The backend's backend will default to system level APIs on Linux(V4L2), Mac(AVFoundation), and Windows(Media Foundation). Otherwise, it will decide for itself.
 ///  - If the [`OpenCvCaptureDevice`] is initialized as a `IPCamera`, the [`CameraFormat`]'s `index` value will be [`u32::MAX`](std::u32::MAX) (4294967295).
-///  - `OpenCV` does not support camera querying. Camera Name and Camera supported resolution/fps/fourcc is a [`UnsupportedOperation`](NokhwaError::UnsupportedOperation).
+///  - `OpenCV` does not support camera querying. Camera Name and Camera supported resolution/fps/fourcc is a [`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError).
 /// Note: [`resolution()`](crate::CaptureBackendTrait::resolution()), [`frame_format()`](crate::CaptureBackendTrait::frame_format()), and [`frame_rate()`](crate::CaptureBackendTrait::frame_rate()) is not affected.
 ///  - [`CameraInfo`]'s human name will be "`OpenCV` Capture Device {location}"
 ///  - [`CameraInfo`]'s description will contain the Camera's Index or IP.

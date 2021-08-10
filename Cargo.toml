@@ -23,6 +23,7 @@ input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen"]
 output-wgpu = ["wgpu"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-jscam","output-wgpu"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
+test-fail-warning = []
 
 [dependencies]
 thiserror = "1.0.26"

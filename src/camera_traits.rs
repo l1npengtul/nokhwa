@@ -43,7 +43,7 @@ pub trait CaptureBackendTrait {
 
     /// A hashmap of [`Resolution`]s mapped to framerates. Not sorted!
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError)).
     fn compatible_list_by_resolution(
         &self,
         fourcc: FrameFormat,
@@ -51,7 +51,7 @@ pub trait CaptureBackendTrait {
 
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperation`](crate::NokhwaError::UnsupportedOperation)).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError)).
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).

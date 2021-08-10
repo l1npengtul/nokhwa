@@ -337,7 +337,7 @@ impl Into<String> for JSCameraResizeMode {
     }
 }
 
-/// A builder that builds a [`JSCameraConstraint`] that is used to construct a [`JSCamera`].
+/// A builder that builds a [`JSCameraConstraints`] that is used to construct a [`JSCamera`].
 /// See More: [`Constraints MDN`](https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints), [`Properties of Media Tracks MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints)
 #[derive(Clone, Debug)]
 pub struct JSCameraConstraintsBuilder {
