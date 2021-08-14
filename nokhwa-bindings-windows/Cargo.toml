@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["l1npengtul"]
 edition = "2018"
 license = "MPL-2.0"
@@ -18,13 +18,13 @@ docs-only = [] # please don't try to build this
 thiserror = "1.0.26"
 
 [dependencies.windows]
-version = "0.17.2"
+version = "0.18.0"
 optional = true
 
 [build-dependencies]
 
 [target.'cfg(windows)'.build-dependencies]
-windows = "0.17.2"
+windows = "0.18.0"
 
 [package.metadata.docs.rs]
 no-default-features = true
