@@ -86,10 +86,17 @@ optional = true
 version = "0.3.50"
 # why
 features = [
+    "CanvasRenderingContext2d",
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlElement", "HtmlVideoElement", "HtmlCanvasElement",
+    "ImageData",
     "MediaDevices", "MediaDeviceInfo", "MediaDeviceKind", "MediaStreamConstraints", "MediaTrackSupportedConstraints", "MediaStream",
     "MimeType", "MimeTypeArray",
-    "Navigator", "Permissions",
-    "PermissionDescriptor", "PermissionState", "PermissionStatus",
+    "Navigator",
+    "Node",
+    "Permissions", "PermissionDescriptor", "PermissionState", "PermissionStatus",
     "Plugin", "PluginArray",
     "Window"
 ]

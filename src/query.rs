@@ -8,7 +8,7 @@ use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
-/// Currently, these are V4L, MediaFoundation, UVC, and GST. <br>
+/// Currently, these are `V4L`, `MediaFoundation`, `UVC`, and `GST`. <br>
 /// Usually the order goes Native -> UVC -> Gstreamer.
 /// # Quirks
 /// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].

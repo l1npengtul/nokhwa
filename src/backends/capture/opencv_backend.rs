@@ -419,7 +419,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut current_fmt = self.camera_format;
-        current_fmt.set_framerate(new_fps);
+        current_fmt.set_frame_rate(new_fps);
         self.set_camera_format(current_fmt)
     }
 

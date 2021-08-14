@@ -9,7 +9,7 @@ use crate::{
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
     CameraControl, CaptureAPIBackend, KnownCameraControls,
 };
-use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, Rgba, RgbaImage};
 
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -164,15 +164,27 @@ pub trait CaptureBackendTrait {
         buffer: &mut [u8],
         convert_rgba: bool,
     ) -> Result<usize, NokhwaError> {
-        let frame = self.frame()?;
-        let mut frame_data = frame.to_vec();
+        let resolution = self.resolution();
+        let frame = self.frame_raw()?;
         if convert_rgba {
-            let rgba_image: RgbaImage = frame.convert();
-            frame_data = rgba_image.to_vec();
+            let image_data =
+                match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
+                    Some(image) => {
+                        let image: ImageBuffer<Rgb<u8>, Cow<[u8]>> = image;
+                        image
+                    }
+                    None => {
+                        return Err(NokhwaError::ReadFrameError(
+                            "Frame Cow Too Small".to_string(),
+                        ))
+                    }
+                };
+            let rgba_image: RgbaImage = image_data.convert();
+            buffer.copy_from_slice(rgba_image.as_raw());
+            return Ok(rgba_image.len());
         }
-        let bytes = frame_data.len();
-        buffer.copy_from_slice(&frame_data);
-        Ok(bytes)
+        buffer.copy_from_slice(&frame);
+        Ok(frame.len())
     }
 
     #[cfg(feature = "output-wgpu")]

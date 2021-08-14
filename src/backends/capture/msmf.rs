@@ -111,13 +111,13 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
 
             match resolution_map.get_mut(&camera_format.resolution()) {
                 Some(fps_list) => {
-                    fps_list.append(camera_format.framerate());
+                    fps_list.append(camera_format.frame_rate());
                 }
                 None => {
                     if let Some(mut wtf_why_we_here_list) = resolution_map
-                        .insert(camera_format.resolution(), vec![camera_format.framerate()])
+                        .insert(camera_format.resolution(), vec![camera_format.frame_rate()])
                     {
-                        wtf_why_we_here_list.push(camera_format.framerate());
+                        wtf_why_we_here_list.push(camera_format.frame_rate());
                         resolution_map.insert(camera_format.resolution(), wtf_why_we_here_list);
                     }
                 }
@@ -166,12 +166,12 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn frame_rate(&self) -> u32 {
-        self.camera_format().framerate()
+        self.camera_format().frame_rate()
     }
 
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_format = self.camera_format();
-        new_format.set_framerate(new_fps);
+        new_format.set_frame_rate(new_fps);
         self.set_camera_format(new_format)
     }
 

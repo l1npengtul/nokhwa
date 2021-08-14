@@ -195,7 +195,7 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         let camera_format = match cam_fmt {
-            Some(cfmt) => cfmt,
+            Some(c_fmt) => c_fmt,
             None => CameraFormat::default(),
         };
 
@@ -204,7 +204,7 @@ impl<'a> V4LCaptureDevice<'a> {
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
         };
 
-        let new_param = Parameters::with_fps(camera_format.framerate());
+        let new_param = Parameters::with_fps(camera_format.frame_rate());
         let new_v4l_fmt = Format::new(camera_format.width(), camera_format.height(), fourcc);
 
         match Capture::set_format(&device, &new_v4l_fmt) {
@@ -234,7 +234,7 @@ impl<'a> V4LCaptureDevice<'a> {
                 if new_param.interval.denominator != param.interval.denominator {
                     return Err(NokhwaError::SetPropertyError {
                         property: "Parameter(V4L FPS)".to_string(),
-                        value: camera_format.framerate().to_string(),
+                        value: camera_format.frame_rate().to_string(),
                         error: "Rejected".to_string(),
                     });
                 }
@@ -242,7 +242,7 @@ impl<'a> V4LCaptureDevice<'a> {
             Err(why) => {
                 return Err(NokhwaError::SetPropertyError {
                     property: "Parameter(V4L FPS)".to_string(),
-                    value: camera_format.framerate().to_string(),
+                    value: camera_format.frame_rate().to_string(),
                     error: why.to_string(),
                 })
             }
@@ -277,10 +277,10 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         match v4l::video::Capture::enum_framesizes(&self.device, format) {
-            Ok(framesizes) => {
+            Ok(frame_sizes) => {
                 let mut resolutions = vec![];
-                for framesize in framesizes {
-                    match framesize.size {
+                for frame_size in frame_sizes {
+                    match frame_size.size {
                         FrameSizeEnum::Discrete(dis) => {
                             resolutions.push(Resolution::new(dis.width, dis.height))
                         }
@@ -339,14 +339,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             Ok(fps) => fps,
             Err(why) => {
                 return Err(NokhwaError::GetPropertyError {
-                    property: "Framerate".to_string(),
+                    property: "Frame rate".to_string(),
                     error: why.to_string(),
                 })
             }
         };
 
         let format: Format = new_fmt.into();
-        let framerate = Parameters::with_fps(new_fmt.framerate());
+        let frame_rate = Parameters::with_fps(new_fmt.frame_rate());
 
         if let Err(why) = Capture::set_format(&self.device, &format) {
             return Err(NokhwaError::SetPropertyError {
@@ -355,10 +355,10 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 error: why.to_string(),
             });
         }
-        if let Err(why) = Capture::set_params(&self.device, &framerate) {
+        if let Err(why) = Capture::set_params(&self.device, &frame_rate) {
             return Err(NokhwaError::SetPropertyError {
-                property: "Framerate".to_string(),
-                value: framerate.to_string(),
+                property: "Frame rate".to_string(),
+                value: frame_rate.to_string(),
                 error: why.to_string(),
             });
         }
@@ -378,7 +378,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     if let Err(why) = Capture::set_params(&self.device, &prev_fps) {
                         return Err(NokhwaError::SetPropertyError {
                             property:
-                            format!("Attempt undo due to stream acquisition failure with error {}. Framerate", why.to_string()),
+                            format!("Attempt undo due to stream acquisition failure with error {}. Frame rate", why.to_string()),
                             value: prev_fps.to_string(),
                             error: why.to_string(),
                         });
@@ -400,7 +400,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
         };
-        let mut resmap = HashMap::new();
+        let mut res_map = HashMap::new();
         for res in resolutions {
             let mut compatible_fps = vec![];
             match Capture::enum_frameintervals(&self.device, format, res.width(), res.height()) {
@@ -419,20 +419,20 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 }
                 Err(why) => {
                     return Err(NokhwaError::GetPropertyError {
-                        property: "Framerate".to_string(),
+                        property: "Frame rate".to_string(),
                         error: why.to_string(),
                     })
                 }
             }
-            resmap.insert(res, compatible_fps);
+            res_map.insert(res, compatible_fps);
         }
-        Ok(resmap)
+        Ok(res_map)
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         match Capture::enum_formats(&self.device) {
             Ok(formats) => {
-                let mut frameformat_vec = vec![];
+                let mut frame_format_vec = vec![];
                 for format in formats {
                     let format_as_string = match format.fourcc.str() {
                         Ok(s) => s,
@@ -444,14 +444,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                         }
                     };
                     match format_as_string {
-                        "YUYV" => frameformat_vec.push(FrameFormat::YUYV),
-                        "MJPG" => frameformat_vec.push(FrameFormat::MJPEG),
+                        "YUYV" => frame_format_vec.push(FrameFormat::YUYV),
+                        "MJPG" => frame_format_vec.push(FrameFormat::MJPEG),
                         _ => {}
                     }
                 }
-                frameformat_vec.sort();
-                frameformat_vec.dedup();
-                Ok(frameformat_vec)
+                frame_format_vec.sort();
+                frame_format_vec.dedup();
+                Ok(frame_format_vec)
             }
             Err(why) => Err(NokhwaError::GetPropertyError {
                 property: "FrameFormat".to_string(),
@@ -472,13 +472,13 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn frame_rate(&self) -> u32 {
-        self.camera_format.framerate()
+        self.camera_format.frame_rate()
     }
 
     #[allow(clippy::option_if_let_else)]
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
-        new_fmt.set_framerate(new_fps);
+        new_fmt.set_frame_rate(new_fps);
         self.set_camera_format(new_fmt)
     }
 
@@ -494,8 +494,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
-        let v4l2_ctrls = match self.device.query_controls() {
-            Ok(ctrls) => ctrls,
+        let v4l2_controls = match self.device.query_controls() {
+            Ok(controls) => controls,
             Err(why) => {
                 return Err(NokhwaError::GetPropertyError {
                     property: "Controls".to_string(),
@@ -505,7 +505,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         };
 
         let mut camera_controls = vec![];
-        for ctrl in v4l2_ctrls {
+        for ctrl in v4l2_controls {
             if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
                 camera_controls.push(cam_control.control())
             }
@@ -526,8 +526,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
 
         match self.device.control(id) {
             Ok(_) => {
-                let v4l2_ctrls = match self.device.query_controls() {
-                    Ok(ctrls) => ctrls,
+                let v4l2_controls = match self.device.query_controls() {
+                    Ok(controls) => controls,
                     Err(why) => {
                         return Err(NokhwaError::GetPropertyError {
                             property: "Controls".to_string(),
@@ -536,7 +536,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     }
                 };
 
-                for ctrl in v4l2_ctrls {
+                for ctrl in v4l2_controls {
                     if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
                         if Some(ctrl.id) == try_known_camera_control_to_id(cam_control.control()) {
                             return Ok(cam_control);
@@ -579,8 +579,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        let v4l2_ctrls = match self.device.query_controls() {
-            Ok(ctrls) => ctrls,
+        let v4l2_controls = match self.device.query_controls() {
+            Ok(controls) => controls,
             Err(why) => {
                 return Err(NokhwaError::GetPropertyError {
                     property: "Controls".to_string(),
@@ -589,7 +589,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             }
         };
 
-        Ok(v4l2_ctrls
+        Ok(v4l2_controls
             .into_iter()
             .map(|c| {
                 let a: Box<dyn Any> = Box::new(c);
@@ -678,23 +678,23 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
             FrameFormat::YUYV => yuyv422_to_rgb888(&raw_frame)?,
         };
-        let imagebuf =
+        let image_buf =
             match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {
                 Some(buf) => {
-                    let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                    rgbbuf
+                    let rgb_buf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
+                    rgb_buf
                 }
                 None => return Err(NokhwaError::ReadFrameError(
-                    "Imagebuffer is not large enough! This is probably a bug, please report it!"
+                    "ImageBuffer is not large enough! This is probably a bug, please report it!"
                         .to_string(),
                 )),
             };
-        Ok(imagebuf)
+        Ok(image_buf)
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         match &mut self.stream_handle {
-            Some(streamh) => match streamh.next() {
+            Some(stream_handler) => match stream_handler.next() {
                 Ok((data, _)) => Ok(Cow::from(data)),
                 Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
             },

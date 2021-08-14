@@ -402,12 +402,12 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
     }
 
     fn frame_rate(&self) -> u32 {
-        self.camera_format.framerate()
+        self.camera_format.frame_rate()
     }
 
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
-        new_fmt.set_framerate(new_fps);
+        new_fmt.set_frame_rate(new_fps);
         self.set_camera_format(new_fmt)
     }
 
@@ -561,10 +561,10 @@ impl Drop for GStreamerCaptureDevice {
 fn webcam_pipeline(device: &str, camera_format: CameraFormat) -> String {
     match camera_format.format() {
         FrameFormat::MJPEG => {
-            format!("autovideosrc location=/dev/video{} ! image/jpeg,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("autovideosrc location=/dev/video{} ! image/jpeg,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
         FrameFormat::YUYV => {
-            format!("autovideosrc location=/dev/video{} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("autovideosrc location=/dev/video{} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
     }
 }
@@ -573,10 +573,10 @@ fn webcam_pipeline(device: &str, camera_format: CameraFormat) -> String {
 fn webcam_pipeline(device: &str, camera_format: CameraFormat) -> String {
     match camera_format.format() {
         FrameFormat::MJPEG => {
-            format!("v4l2src device=/dev/video{} ! image/jpeg, width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("v4l2src device=/dev/video{} ! image/jpeg, width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
         FrameFormat::YUYV => {
-            format!("v4l2src device=/dev/video{} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("v4l2src device=/dev/video{} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
     }
 }
@@ -585,10 +585,10 @@ fn webcam_pipeline(device: &str, camera_format: CameraFormat) -> String {
 fn webcam_pipeline(device: &str, camera_format: CameraFormat) -> String {
     match camera_format.format() {
         FrameFormat::MJPEG => {
-            format!("ksvideosrc device_index={} ! image/jpeg, width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("ksvideosrc device_index={} ! image/jpeg, width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
         FrameFormat::YUYV => {
-            format!("ksvideosrc device_index={} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.framerate())
+            format!("ksvideosrc device_index={} ! video/x-raw,format=YUY2,width={},height={},framerate={}/1 ! appsink name=appsink async=false sync=false", device, camera_format.width(), camera_format.height(), camera_format.frame_rate())
         }
     }
 }

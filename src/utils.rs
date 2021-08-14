@@ -79,6 +79,7 @@ pub struct Resolution {
 
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
+    #[must_use]
     pub fn new(x: u32, y: u32) -> Self {
         Resolution {
             width_x: x,
@@ -87,21 +88,25 @@ impl Resolution {
     }
 
     /// Get the width of Resolution
+    #[must_use]
     pub fn width(self) -> u32 {
         self.width_x
     }
 
     /// Get the height of Resolution
+    #[must_use]
     pub fn height(self) -> u32 {
         self.height_y
     }
 
     /// Get the x (width) of Resolution
+    #[must_use]
     pub fn x(self) -> u32 {
         self.width_x
     }
 
     /// Get the y (height) of Resolution
+    #[must_use]
     pub fn y(self) -> u32 {
         self.height_y
     }
@@ -150,25 +155,27 @@ impl Into<MFResolution> for Resolution {
 }
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
-/// It consists of a [`Resolution`], [`FrameFormat`], and a framerate(u8).
+/// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
-    framerate: u32,
+    frame_rate: u32,
 }
 
 impl CameraFormat {
     /// Construct a new [`CameraFormat`]
+    #[must_use]
     pub fn new(resolution: Resolution, format: FrameFormat, framerate: u32) -> Self {
         CameraFormat {
             resolution,
             format,
-            framerate,
+            frame_rate: framerate,
         }
     }
 
     /// [`CameraFormat::new()`], but raw.
+    #[must_use]
     pub fn new_from(res_x: u32, res_y: u32, format: FrameFormat, fps: u32) -> Self {
         CameraFormat {
             resolution: Resolution {
@@ -176,21 +183,24 @@ impl CameraFormat {
                 height_y: res_y,
             },
             format,
-            framerate: fps,
+            frame_rate: fps,
         }
     }
 
     /// Get the resolution of the current [`CameraFormat`]
+    #[must_use]
     pub fn resolution(&self) -> Resolution {
         self.resolution
     }
 
     /// Get the width of the resolution of the current [`CameraFormat`]
+    #[must_use]
     pub fn width(&self) -> u32 {
         self.resolution.width()
     }
 
     /// Get the height of the resolution of the current [`CameraFormat`]
+    #[must_use]
     pub fn height(&self) -> u32 {
         self.resolution.height()
     }
@@ -200,17 +210,19 @@ impl CameraFormat {
         self.resolution = resolution;
     }
 
-    /// Get the framerate of the current [`CameraFormat`]
-    pub fn framerate(&self) -> u32 {
-        self.framerate
+    /// Get the frame rate of the current [`CameraFormat`]
+    #[must_use]
+    pub fn frame_rate(&self) -> u32 {
+        self.frame_rate
     }
 
-    /// Set the [`CameraFormat`]'s framerate.
-    pub fn set_framerate(&mut self, framerate: u32) {
-        self.framerate = framerate;
+    /// Set the [`CameraFormat`]'s frame rate.
+    pub fn set_frame_rate(&mut self, frame_rate: u32) {
+        self.frame_rate = frame_rate;
     }
 
     /// Get the [`CameraFormat`]'s format.
+    #[must_use]
     pub fn format(&self) -> FrameFormat {
         self.format
     }
@@ -227,7 +239,7 @@ impl From<CameraFormat> for StreamFormat {
         StreamFormat {
             width: cf.width(),
             height: cf.height(),
-            fps: cf.framerate(),
+            fps: cf.frame_rate(),
             format: cf.format().into(),
         }
     }
@@ -238,7 +250,7 @@ impl Default for CameraFormat {
         CameraFormat {
             resolution: Resolution::new(640, 480),
             format: FrameFormat::MJPEG,
-            framerate: 15,
+            frame_rate: 15,
         }
     }
 }
@@ -248,7 +260,7 @@ impl Display for CameraFormat {
         write!(
             f,
             "{}@{}FPS, {} Format",
-            self.resolution, self.framerate, self.format
+            self.resolution, self.frame_rate, self.format
         )
     }
 }
@@ -259,7 +271,7 @@ impl From<MFCameraFormat> for CameraFormat {
         CameraFormat {
             resolution: mf_cam_fmt.resolution().into(),
             format: mf_cam_fmt.format().into(),
-            framerate: mf_cam_fmt.framerate(),
+            frame_rate: mf_cam_fmt.framerate(),
         }
     }
 }
@@ -267,7 +279,7 @@ impl From<MFCameraFormat> for CameraFormat {
 #[cfg(feature = "input-msmf")]
 impl Into<MFCameraFormat> for CameraFormat {
     fn into(self) -> MFCameraFormat {
-        MFCameraFormat::new(self.resolution.into(), self.format.into(), self.framerate)
+        MFCameraFormat::new(self.resolution.into(), self.format.into(), self.frame_rate)
     }
 }
 
@@ -296,6 +308,7 @@ pub struct CameraInfo {
 
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
+    #[must_use]
     pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
         CameraInfo {
             human_name,
@@ -306,6 +319,7 @@ impl CameraInfo {
     }
 
     /// Get a reference to the device info's human name.
+    #[must_use]
     pub fn human_name(&self) -> &String {
         &self.human_name
     }
@@ -316,6 +330,7 @@ impl CameraInfo {
     }
 
     /// Get a reference to the device info's description.
+    #[must_use]
     pub fn description(&self) -> &String {
         &self.description
     }
@@ -326,6 +341,7 @@ impl CameraInfo {
     }
 
     /// Get a reference to the device info's misc.
+    #[must_use]
     pub fn misc(&self) -> &String {
         &self.misc
     }
@@ -336,6 +352,7 @@ impl CameraInfo {
     }
 
     /// Get a reference to the device info's index.
+    #[must_use]
     pub fn index(&self) -> &usize {
         &self.index
     }
@@ -404,6 +421,7 @@ pub enum KnownCameraControls {
     Focus,
 }
 
+#[must_use]
 pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     [
         KnownCameraControls::Brightness,
@@ -564,21 +582,25 @@ impl CameraControl {
     }
 
     /// Gets the [`KnownCameraControls`] of this [`CameraControl`]
+    #[must_use]
     pub fn control(&self) -> KnownCameraControls {
         self.control
     }
 
     /// Gets the minimum value of this [`CameraControl`]
+    #[must_use]
     pub fn minimum_value(&self) -> i32 {
         self.min
     }
 
     /// Gets the maximum value of this [`CameraControl`]
+    #[must_use]
     pub fn maximum_value(&self) -> i32 {
         self.max
     }
 
     /// Gets the current value of this [`CameraControl`]
+    #[must_use]
     pub fn value(&self) -> i32 {
         self.value
     }
@@ -647,29 +669,34 @@ impl CameraControl {
 
     /// Gets the step value of this [`CameraControl`]
     /// Note that `value` must be divisible by `step`
+    #[must_use]
     pub fn step(&self) -> i32 {
         self.step
     }
 
     /// Gets the default value of this [`CameraControl`]
+    #[must_use]
     pub fn default(&self) -> i32 {
         self.default
     }
 
     /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
     /// telling you weather this control is automatically set or manually set.
+    #[must_use]
     pub fn flag(&self) -> KnownCameraControlFlag {
         self.flag
     }
 
     /// Gets `active` of this [`CameraControl`],
     /// telling you weather this control is currently active(in-use).
+    #[must_use]
     pub fn active(&self) -> bool {
         self.active
     }
 
     /// Returns a list of i32s that are valid to be set.
     #[allow(clippy::cast_sign_loss)]
+    #[must_use]
     pub fn valid_values(&self) -> Vec<i32> {
         (self.minimum_value()..=self.maximum_value())
             .step_by(self.step() as usize)
@@ -867,6 +894,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::many_single_char_names)]
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
+#[must_use]
 pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;
