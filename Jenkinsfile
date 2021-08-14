@@ -13,16 +13,16 @@ pipeline {
     }
 
     stage('Cargo RustFMT') {
-     agent {
-       node {
-         label 'ci_linux'
-       }
-     }
+      agent {
+        node {
+          label 'ci_linux'
+        }
 
-     steps {
-      sh 'rustup update stable'
-      sh "cargo fmt --all -- --check"
-     }
+      }
+      steps {
+        sh 'rustup update stable'
+        sh 'cargo fmt --all -- --check'
+      }
     }
 
     stage('Build, Clippy') {
@@ -32,8 +32,8 @@ pipeline {
             node {
               label 'ci_linux'
             }
-          }
 
+          }
           steps {
             sh 'rustup update stable'
             sh 'cargo build --features "input-v4l, output-wgpu, test-fail-warning"'
@@ -46,6 +46,7 @@ pipeline {
             node {
               label 'ci-agent-win10'
             }
+
           }
           steps {
             bat(script: 'rustup update stable', encoding: 'UTF8')
@@ -55,18 +56,18 @@ pipeline {
         }
 
         stage('AVFoundation') {
-         steps {
-          sh 'echo TODO'
-         }
+          steps {
+            sh 'echo TODO'
+          }
         }
 
-        stage('libUVC Linux') {
+        stage('libUVC') {
           agent {
             node {
               label 'ci_linux'
             }
-          }
 
+          }
           steps {
             sh 'rustup update stable'
             sh 'cargo build --features "input-uvc, output-wgpu, test-fail-warning"'
@@ -74,11 +75,12 @@ pipeline {
           }
         }
 
-        stage('OpenCV IPCamera Linux') {
+        stage('OpenCV IPCamera') {
           agent {
             node {
               label 'ci_linux'
             }
+
           }
           steps {
             sh 'rustup update stable'
@@ -87,31 +89,44 @@ pipeline {
           }
         }
 
-        stage('GStreamer Linux') {
-         agent {
-           node {
-             label 'ci_linux'
-           }
-         }
-         steps {
-           sh 'rustup update stable'
-           sh 'cargo build --features "input-gst, output-wgpu, test-fail-warning"'
-           sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
-         }
+        stage('GStreamer') {
+          agent {
+            node {
+              label 'ci_linux'
+            }
+
+          }
+          steps {
+            sh 'rustup update stable'
+            sh 'cargo build --features "input-gst, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
+          }
         }
+
+        stage('JSCamera') {
+          steps {
+            sh '''rustup update stable
+'''
+            sh 'cargo build --features "input-jscam, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-jscam, output-wgpu, test-fail-warning"'
+          }
+        }
+
       }
     }
+
     stage('RustDOC') {
       agent {
         node {
           label 'ci_linux'
         }
-      }
 
+      }
       steps {
         sh 'rustup update nightly'
         sh 'cargo +nightly doc --features "docs-only, docs-nolink, test-fail-warning" --no-deps --release'
       }
     }
+
   }
 }
