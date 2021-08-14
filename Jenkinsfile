@@ -44,7 +44,7 @@ pipeline {
         stage('Media Foundation') {
           agent {
             node {
-              label 'ci-agent-win10'
+              label 'ci_windows'
             }
 
           }
@@ -105,8 +105,7 @@ pipeline {
 
         stage('JSCamera') {
           steps {
-            sh '''rustup update stable
-'''
+            sh 'rustup update stable'
             sh 'cargo build --features "input-jscam, output-wgpu, test-fail-warning"'
             sh 'cargo clippy --features "input-jscam, output-wgpu, test-fail-warning"'
           }

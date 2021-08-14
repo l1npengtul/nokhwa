@@ -85,7 +85,7 @@ impl From<nokhwa_bindings_windows::BindingError> for NokhwaError {
                 error,
             },
             BindingError::DeviceOpenFailError(device, error) => {
-                NokhwaError::OpenDeviceError(device, error)
+                NokhwaError::OpenDeviceError(device.to_string(), error)
             }
             BindingError::ReadFrameError(error) => NokhwaError::ReadFrameError(error),
             BindingError::NotImplementedError => {

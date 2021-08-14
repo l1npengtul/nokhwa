@@ -166,7 +166,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
     #[allow(clippy::too_many_lines)]
     #[allow(clippy::cast_sign_loss)]
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         let mut resolution_map = HashMap::new();

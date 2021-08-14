@@ -388,7 +388,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         _fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(

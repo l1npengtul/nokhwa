@@ -103,21 +103,21 @@ pub fn to_camera_control(
 /// If the associated control is not found, this will return `None` (ColorEnable, Roll)
 pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> {
     match ctrl {
-        KnownCameraControls::Brightness => Some(9963776),
-        KnownCameraControls::Contrast => Some(9963777),
-        KnownCameraControls::Hue => Some(9963779),
-        KnownCameraControls::Saturation => Some(9963778),
-        KnownCameraControls::Sharpness => Some(9963803),
-        KnownCameraControls::Gamma => Some(9963792),
-        KnownCameraControls::WhiteBalance => Some(9963802),
-        KnownCameraControls::BacklightComp => Some(9963804),
-        KnownCameraControls::Gain => Some(9963795),
-        KnownCameraControls::Pan => Some(10094852),
-        KnownCameraControls::Tilt => Some(100948530),
-        KnownCameraControls::Zoom => Some(10094862),
-        KnownCameraControls::Exposure => Some(99637930),
-        KnownCameraControls::Iris => Some(10094866),
-        KnownCameraControls::Focus => Some(10094859),
+        KnownCameraControls::Brightness => Some(9_963_776),
+        KnownCameraControls::Contrast => Some(9_963_777),
+        KnownCameraControls::Hue => Some(9_963_779),
+        KnownCameraControls::Saturation => Some(9_963_778),
+        KnownCameraControls::Sharpness => Some(9_963_803),
+        KnownCameraControls::Gamma => Some(9_963_792),
+        KnownCameraControls::WhiteBalance => Some(9_963_802),
+        KnownCameraControls::BacklightComp => Some(9_963_804),
+        KnownCameraControls::Gain => Some(9_963_795),
+        KnownCameraControls::Pan => Some(10_094_852),
+        KnownCameraControls::Tilt => Some(100_948_530),
+        KnownCameraControls::Zoom => Some(10_094_862),
+        KnownCameraControls::Exposure => Some(99_637_930),
+        KnownCameraControls::Iris => Some(10_094_866),
+        KnownCameraControls::Focus => Some(10_094_859),
         _ => None,
     }
 }
@@ -126,21 +126,21 @@ pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> 
 /// If the associated control is not found, this will return `None` (ColorEnable, Roll)
 pub fn try_id_to_known_camera_control(id: u32) -> Option<KnownCameraControls> {
     match id {
-        9963776 => Some(KnownCameraControls::Brightness),
-        9963777 => Some(KnownCameraControls::Contrast),
-        9963779 => Some(KnownCameraControls::Hue),
-        9963778 => Some(KnownCameraControls::Saturation),
-        9963803 => Some(KnownCameraControls::Sharpness),
-        9963792 => Some(KnownCameraControls::Gamma),
-        9963802 => Some(KnownCameraControls::WhiteBalance),
-        9963804 => Some(KnownCameraControls::BacklightComp),
-        9963795 => Some(KnownCameraControls::Gain),
-        10094852 => Some(KnownCameraControls::Pan),
-        100948530 => Some(KnownCameraControls::Tilt),
-        10094862 => Some(KnownCameraControls::Zoom),
-        99637930 => Some(KnownCameraControls::Exposure),
-        10094866 => Some(KnownCameraControls::Iris),
-        10094859 => Some(KnownCameraControls::Focus),
+        9_963_776 => Some(KnownCameraControls::Brightness),
+        9_963_777 => Some(KnownCameraControls::Contrast),
+        9_963_779 => Some(KnownCameraControls::Hue),
+        9_963_778 => Some(KnownCameraControls::Saturation),
+        9_963_803 => Some(KnownCameraControls::Sharpness),
+        9_963_792 => Some(KnownCameraControls::Gamma),
+        9_963_802 => Some(KnownCameraControls::WhiteBalance),
+        9_963_804 => Some(KnownCameraControls::BacklightComp),
+        9_963_795 => Some(KnownCameraControls::Gain),
+        10_094_852 => Some(KnownCameraControls::Pan),
+        100_948_530 => Some(KnownCameraControls::Tilt),
+        10_094_862 => Some(KnownCameraControls::Zoom),
+        99_637_930 => Some(KnownCameraControls::Exposure),
+        10_094_866 => Some(KnownCameraControls::Iris),
+        10_094_859 => Some(KnownCameraControls::Focus),
         _ => None,
     }
 }
@@ -392,7 +392,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
     }
 
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         let resolutions = self.get_resolution_list(fourcc)?;

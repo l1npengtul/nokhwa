@@ -9,7 +9,7 @@ use crate::{
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
     CameraControl, CaptureAPIBackend, KnownCameraControls,
 };
-use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, Rgba, RgbaImage};
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -45,7 +45,7 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError)).
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 

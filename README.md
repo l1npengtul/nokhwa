@@ -51,13 +51,11 @@ The table below lists current Nokhwa API support.
  | OpenCV(`input-opencv`)^         | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^ | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | GStreamer(`input-gst`)          | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM                         | 🔮*                | 🔮                 | 🔮                 | Web                 |
+ | JS/WASM                         | 🔮                 | 🔮                 | 🔮                 | Web                 |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
   ^ = No CameraFormat setting support.
-  * = Currently, there is no `ImageCapture` support so you cannot capture frames directly.
-
 ## Feature
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.

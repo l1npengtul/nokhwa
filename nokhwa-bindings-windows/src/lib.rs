@@ -23,7 +23,6 @@ use std::{
 use thiserror::Error;
 
 #[allow(clippy::module_name_repetitions)]
-#[allow(clippy::pub_enum_variant_names)]
 #[derive(Error, Debug, Clone)]
 pub enum BindingError {
     #[error("Failed to initialize Media Foundation: {0}")]
@@ -83,7 +82,7 @@ impl MFCameraFormat {
         MFCameraFormat {
             resolution,
             format,
-            frame_rate: frame_rate,
+            frame_rate,
         }
     }
 

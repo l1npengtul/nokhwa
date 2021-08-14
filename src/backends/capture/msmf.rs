@@ -6,12 +6,12 @@
 
 use crate::{
     all_known_camera_controls, mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat,
-    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls,
-    NokhwaError, Resolution,
+    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControlFlag,
+    KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
-use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap};
 
 /// The backend that deals with Media Foundation on Windows.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -24,7 +24,7 @@ use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashMap};
 /// - The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - The names may contain invalid characters since they were converted from UTF16.
 pub struct MediaFoundationCaptureDevice {
-    inner: RefCell<MediaFoundationDevice>,
+    inner: MediaFoundationDevice,
 }
 
 impl MediaFoundationCaptureDevice {
@@ -38,9 +38,7 @@ impl MediaFoundationCaptureDevice {
         if let Some(fmt) = camera_fmt {
             mf_device.set_format(fmt.into())?;
         }
-        Ok(MediaFoundationCaptureDevice {
-            inner: RefCell::new(mf_device),
-        })
+        Ok(MediaFoundationCaptureDevice { inner: mf_device })
     }
 
     /// Create a new Media Foundation Device with desired settings.
@@ -64,12 +62,11 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn camera_info(&self) -> CameraInfo {
-        let inner_borrow = self.inner.borrow();
         CameraInfo::new(
-            inner_borrow.name(),
+            self.inner.name(),
             "".to_string(),
-            inner_borrow.symlink(),
-            inner_borrow.index(),
+            self.inner.symlink(),
+            self.inner.index(),
         )
     }
 
@@ -78,28 +75,18 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        if let Err(why) = self.inner.borrow_mut().set_format(new_fmt.into()) {
-            Err(why.into())
+        if let Err(why) = self.inner.set_format(new_fmt.into()) {
+            return Err(why.into());
         }
         Ok(())
     }
 
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        let inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(mut brw) => (&mut brw),
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        let mf_camera_format_list = inner_borrow.compatible_format_list()?;
-        let mut resolution_map = HashMap::new();
+        let mf_camera_format_list = self.inner.compatible_format_list()?;
+        let mut resolution_map: HashMap<Resolution, Vec<u32>> = HashMap::new();
 
         for mf_camera_format in mf_camera_format_list {
             let camera_format: CameraFormat = mf_camera_format.into();
@@ -111,7 +98,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
 
             match resolution_map.get_mut(&camera_format.resolution()) {
                 Some(fps_list) => {
-                    fps_list.append(camera_format.frame_rate());
+                    fps_list.push(camera_format.frame_rate());
                 }
                 None => {
                     if let Some(mut wtf_why_we_here_list) = resolution_map
@@ -127,17 +114,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        let inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(mut brw) => (&mut brw),
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        let mf_camera_format_list = inner_borrow.compatible_format_list()?;
+        let mf_camera_format_list = self.inner.compatible_format_list()?;
         let mut frame_format_list = vec![];
 
         for mf_camera_format in mf_camera_format_list {
@@ -186,22 +163,30 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
-        let inner_borrow = match self.inner.try_borrow() {
-            Ok(brw) => (&*brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
         let mut supported_camera_controls: Vec<KnownCameraControls> = vec![];
 
         for camera_control in all_known_camera_controls() {
-            let msmf_camera_control: MediaFoundationControls = camera_control.into();
+            let msmf_camera_control: MediaFoundationControls = match camera_control {
+                KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
+                KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
+                KnownCameraControls::Hue => MediaFoundationControls::Hue,
+                KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
+                KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
+                KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
+                KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
+                KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
+                KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
+                KnownCameraControls::Gain => MediaFoundationControls::Gain,
+                KnownCameraControls::Pan => MediaFoundationControls::Pan,
+                KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
+                KnownCameraControls::Roll => MediaFoundationControls::Roll,
+                KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
+                KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
+                KnownCameraControls::Iris => MediaFoundationControls::Iris,
+                KnownCameraControls::Focus => MediaFoundationControls::Focus,
+            };
 
-            if let Ok(supported) = inner_borrow.control(msmf_camera_control) {
+            if let Ok(supported) = self.inner.control(msmf_camera_control) {
                 supported_camera_controls.push(supported.control().into());
             }
         }
@@ -210,38 +195,89 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
-        let inner_borrow = match self.inner.try_borrow() {
-            Ok(brw) => (&*brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
+        let msmf_camera_control: MediaFoundationControls = match control {
+            KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
+            KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
+            KnownCameraControls::Hue => MediaFoundationControls::Hue,
+            KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
+            KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
+            KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
+            KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
+            KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
+            KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
+            KnownCameraControls::Gain => MediaFoundationControls::Gain,
+            KnownCameraControls::Pan => MediaFoundationControls::Pan,
+            KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
+            KnownCameraControls::Roll => MediaFoundationControls::Roll,
+            KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
+            KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
+            KnownCameraControls::Iris => MediaFoundationControls::Iris,
+            KnownCameraControls::Focus => MediaFoundationControls::Focus,
         };
 
-        let msmf_camera_control: MediaFoundationControls = control.into();
+        let ctrl = match self.inner.control(msmf_camera_control) {
+            Ok(ctrl) => ctrl,
+            Err(why) => return Err(why.into()),
+        };
 
-        match inner_borrow.control(msmf_camera_control) {
-            Ok(ctrl) => Ok(ctrl.into()),
-            Err(why) => Err(why.into()),
-        }
+        let flag = match ctrl.manual() {
+            true => KnownCameraControlFlag::Manual,
+            false => KnownCameraControlFlag::Automatic,
+        };
+
+        let min = MFControl::min(&ctrl);
+        let max = MFControl::max(&ctrl);
+
+        Ok(CameraControl::new(
+            control,
+            min,
+            max,
+            ctrl.current(),
+            ctrl.step(),
+            ctrl.default(),
+            flag,
+            ctrl.active(),
+        )?)
     }
 
     fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
-        let mut inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(brw) => (&mut *brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
+        let ctrl = match control.control() {
+            KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
+            KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
+            KnownCameraControls::Hue => MediaFoundationControls::Hue,
+            KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
+            KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
+            KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
+            KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
+            KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
+            KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
+            KnownCameraControls::Gain => MediaFoundationControls::Gain,
+            KnownCameraControls::Pan => MediaFoundationControls::Pan,
+            KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
+            KnownCameraControls::Roll => MediaFoundationControls::Roll,
+            KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
+            KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
+            KnownCameraControls::Iris => MediaFoundationControls::Iris,
+            KnownCameraControls::Focus => MediaFoundationControls::Focus,
         };
 
-        let msmf_camera_control: MFControl = control.into();
+        let flag = match control.flag() {
+            KnownCameraControlFlag::Automatic => false,
+            KnownCameraControlFlag::Manual => true,
+        };
 
-        if let Err(why) = inner_borrow.set_control(msmf_camera_control) {
+        let msmf_camera_control = MFControl::new(
+            ctrl,
+            control.minimum_value(),
+            control.maximum_value(),
+            control.step(),
+            control.value(),
+            control.default(),
+            flag,
+            control.active(),
+        );
+
+        if let Err(why) = self.inner.set_control(msmf_camera_control) {
             return Err(why.into());
         }
         Ok(())
@@ -270,17 +306,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        let mut inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(brw) => (&mut *brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        if let Err(why) = inner_borrow.start_stream() {
+        if let Err(why) = self.inner.start_stream() {
             return Err(why.into());
         }
 
@@ -288,13 +314,13 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn is_stream_open(&self) -> bool {
-        self.inner.borrow().is_stream_open()
+        self.inner.is_stream_open()
     }
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let raw_data = self.frame_raw()?;
         let camera_format = self.camera_format();
-        let conv = match cam_fmt.format() {
+        let raw_data = self.frame_raw()?;
+        let conv = match camera_format.format() {
             FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_data)?,
             FrameFormat::YUYV => yuyv422_to_rgb888(&raw_data)?,
         };
@@ -315,33 +341,13 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        let mut inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(brw) => (&mut *brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        match inner_borrow.raw_bytes() {
+        match self.inner.raw_bytes() {
             Ok(data) => Ok(data),
             Err(why) => Err(why.into()),
         }
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
-        let mut inner_borrow = match self.inner.try_borrow_mut() {
-            Ok(brw) => (&mut *brw),
-            Err(why) => {
-                return return Err(NokhwaError::GetPropertyError {
-                    property: "Device".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        Ok(inner_borrow.stop_stream())
+        Ok(self.inner.stop_stream())
     }
 }
