@@ -4,7 +4,8 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat, NetworkCamera};
+use nokhwa::network_camera::NetworkCamera;
+use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -23,7 +24,7 @@ fn main() {
             .long("query")
             .value_name("BACKEND")
             // TODO: Update as new backends are added!
-            .help("Query the system? Pass AUTO for automatic backend, UVC to query using UVC, V4L to query using Video4Linux, GST to query using Gstreamer.. Will post the list of availible devices.")
+            .help("Query the system? Pass AUTO for automatic backend, UVC to query using UVC, V4L to query using Video4Linux, GST to query using Gstreamer, MSMF to query using Media Foundation.. Will post the list of availible devices.")
             .default_value("AUTO")
             .takes_value(true))
         .arg(Arg::with_name("capture")
@@ -70,7 +71,7 @@ fn main() {
             .short("b")
             .long("backend")
             .value_name("BACKEND")
-            .help("Set the capture backend. Pass AUTO for automatic backend, UVC to query using UVC, V4L to query using Video4Linux, GST to query using Gstreamer, OPENCV to use OpenCV.")
+            .help("Set the capture backend. Pass AUTO for automatic backend, UVC to query using UVC, V4L to query using Video4Linux, GST to query using Gstreamer, OPENCV to use OpenCV,  MSMF to use Media Foundation")
             .default_value("AUTO")
             .takes_value(true))
         .arg(Arg::with_name("display")
@@ -92,6 +93,8 @@ fn main() {
             use_backend = CaptureAPIBackend::GStreamer;
         } else if backend_value == "V4L" {
             use_backend = CaptureAPIBackend::Video4Linux;
+        } else if backend_value == "MSMF" {
+            use_backend = CaptureAPIBackend::MediaFoundation;
         }
 
         match query_devices(use_backend) {
@@ -113,6 +116,7 @@ fn main() {
                 "GST" => CaptureAPIBackend::GStreamer,
                 "V4L" => CaptureAPIBackend::Video4Linux,
                 "OPENCV" => CaptureAPIBackend::OpenCv,
+                "MSMF" => CaptureAPIBackend::MediaFoundation,
                 _ => CaptureAPIBackend::Auto,
             }
         };
