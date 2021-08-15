@@ -371,11 +371,11 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
             Some(c) => {
                 for capability in c.iter() {
                     if capability.name() == "image/jpeg" {
-                        format_vec.push(FrameFormat::MJPEG)
+                        format_vec.push(FrameFormat::MJPEG);
                     } else if capability.name() == "video/x-raw"
                         && capability.get::<String>("format").unwrap_or_default() == *"YUY2"
                     {
-                        format_vec.push(FrameFormat::YUYV)
+                        format_vec.push(FrameFormat::YUYV);
                     }
                 }
             }
@@ -699,7 +699,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
 
                 let image_buffer = match video_info.format() {
                     VideoFormat::Yuy2 => {
-                        let mut decoded_buffer = match yuyv422_to_rgb888(&buffer_map.as_slice()) {
+                        let mut decoded_buffer = match yuyv422_to_rgb888(&buffer_map) {
                             Ok(buf) => buf,
                             Err(why) => {
                                 element_error!(
@@ -765,7 +765,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                     }
                     // MJPEG
                     VideoFormat::Encoded => {
-                        let mut decoded_buffer = match mjpeg_to_rgb888(&buffer_map.as_slice()) {
+                        let mut decoded_buffer = match mjpeg_to_rgb888(&buffer_map) {
                             Ok(buf) => buf,
                             Err(why) => {
                                 element_error!(

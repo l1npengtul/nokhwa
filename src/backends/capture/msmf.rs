@@ -121,7 +121,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
             let camera_format: CameraFormat = mf_camera_format.into();
 
             if !frame_format_list.contains(&camera_format.format()) {
-                frame_format_list.push(camera_format.format())
+                frame_format_list.push(camera_format.format());
             }
 
             // TODO: Update as we get more frame formats!
@@ -220,15 +220,16 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
             Err(why) => return Err(why.into()),
         };
 
-        let flag = match ctrl.manual() {
-            true => KnownCameraControlFlag::Manual,
-            false => KnownCameraControlFlag::Automatic,
+        let flag = if ctrl.manual() {
+            KnownCameraControlFlag::Manual
+        } else {
+            KnownCameraControlFlag::Automatic
         };
 
         let min = MFControl::min(&ctrl);
         let max = MFControl::max(&ctrl);
 
-        Ok(CameraControl::new(
+        CameraControl::new(
             control,
             min,
             max,
@@ -237,7 +238,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
             ctrl.default(),
             flag,
             ctrl.active(),
-        )?)
+        )
     }
 
     fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
@@ -348,6 +349,7 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
-        Ok(self.inner.stop_stream())
+        self.inner.stop_stream();
+        Ok(())
     }
 }

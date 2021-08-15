@@ -17,7 +17,7 @@ mod error;
 /// A camera that uses native browser APIs meant for WASM applications.
 pub mod js_camera;
 #[cfg(feature = "input-ipcam")]
-/// A camera that uses OpenCV to access IP (rtsp/http) on the local network
+/// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
 pub mod network_camera;
 mod query;
 mod utils;

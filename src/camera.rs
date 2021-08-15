@@ -9,7 +9,7 @@ use crate::{
     Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::{cell::RefCell, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -19,7 +19,7 @@ use wgpu::{
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
 pub struct Camera {
     idx: usize,
-    backend: RefCell<Box<dyn CaptureBackendTrait>>,
+    backend: Box<dyn CaptureBackendTrait>,
     backend_api: CaptureAPIBackend,
 }
 
@@ -37,7 +37,7 @@ impl Camera {
 
         Ok(Camera {
             idx: index,
-            backend: RefCell::new(camera_backend),
+            backend: camera_backend,
             backend_api: backend,
         })
     }
@@ -58,6 +58,7 @@ impl Camera {
     }
 
     /// Gets the current Camera's index.
+    #[must_use]
     pub fn index(&self) -> usize {
         self.idx
     }
@@ -67,15 +68,16 @@ impl Camera {
     /// The Backend may fail to initialize.
     pub fn set_index(&mut self, new_idx: usize) -> Result<(), NokhwaError> {
         {
-            self.backend.borrow_mut().stop_stream()?;
+            self.backend.stop_stream()?;
         }
-        let new_camera_format = self.backend.borrow().camera_format();
+        let new_camera_format = self.backend.camera_format();
         let new_camera = init_camera(new_idx, Some(new_camera_format), self.backend_api)?;
-        *self.backend.borrow_mut() = new_camera;
+        self.backend = new_camera;
         Ok(())
     }
 
     /// Gets the current Camera's backend
+    #[must_use]
     pub fn backend(&self) -> CaptureAPIBackend {
         self.backend_api
     }
@@ -85,108 +87,115 @@ impl Camera {
     /// The new backend may not exist or may fail to initialize the new camera.
     pub fn set_backend(&mut self, new_backend: CaptureAPIBackend) -> Result<(), NokhwaError> {
         {
-            self.backend.borrow_mut().stop_stream()?;
+            self.backend.stop_stream()?;
         }
-        let new_camera_format = self.backend.borrow().camera_format();
+        let new_camera_format = self.backend.camera_format();
         let new_camera = init_camera(self.idx, Some(new_camera_format), new_backend)?;
-        *self.backend.borrow_mut() = new_camera;
+        self.backend = new_camera;
         Ok(())
     }
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
+    #[must_use]
     pub fn info(&self) -> CameraInfo {
-        self.backend.borrow().camera_info()
+        self.backend.camera_info()
     }
     /// Gets the current [`CameraFormat`].
+    #[must_use]
     pub fn camera_format(&self) -> CameraFormat {
-        self.backend.borrow().camera_format()
+        self.backend.camera_format()
     }
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_camera_format(new_fmt)
+        self.backend.set_camera_format(new_fmt)
     }
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        self.backend.borrow().compatible_list_by_resolution(fourcc)
+        self.backend.compatible_list_by_resolution(fourcc)
     }
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
-    pub fn compatible_fourcc(&self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        self.backend.borrow_mut().compatible_fourcc()
+    pub fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+        self.backend.compatible_fourcc()
     }
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
+    #[must_use]
     pub fn resolution(&self) -> Resolution {
-        self.backend.borrow().resolution()
+        self.backend.resolution()
     }
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_resolution(new_res)
+        self.backend.set_resolution(new_res)
     }
     /// Gets the current camera framerate (See: [`CameraFormat`]).
+    #[must_use]
     pub fn frame_rate(&self) -> u32 {
-        self.backend.borrow().frame_rate()
+        self.backend.frame_rate()
     }
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
     pub fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_frame_rate(new_fps)
+        self.backend.set_frame_rate(new_fps)
     }
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
+    #[must_use]
     pub fn frame_format(&self) -> FrameFormat {
-        self.backend.borrow().frame_format()
+        self.backend.frame_format()
     }
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().set_frame_format(fourcc)
+        self.backend.set_frame_format(fourcc)
     }
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     pub fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().open_stream()
+        self.backend.open_stream()
     }
     /// Checks if stream if open. If it is, it will return true.
+    #[must_use]
     pub fn is_stream_open(&self) -> bool {
-        self.backend.borrow().is_stream_open()
+        self.backend.is_stream_open()
     }
     /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
     /// it will either return an error.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    pub fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        self.backend.borrow_mut().frame()
+    pub fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        self.backend.frame()
     }
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn frame_raw(&self) -> Result<Vec<u8>, NokhwaError> {
-        match self.backend.borrow_mut().frame_raw() {
-            Ok(f) => Ok(f.to_vec()),
+    pub fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        match self.backend.frame_raw() {
+            Ok(f) => Ok(f),
             Err(why) => Err(why),
         }
     }
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
+    #[must_use]
     pub fn min_buffer_size(&self, rgba: bool) -> usize {
-        let resolution = self.backend.borrow().resolution();
+        let resolution = self.backend.resolution();
         if rgba {
             return (resolution.width() * resolution.height() * 4) as usize;
         }
@@ -196,19 +205,31 @@ impl Camera {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     pub fn frame_to_buffer(
-        &self,
+        &mut self,
         buffer: &mut [u8],
         convert_rgba: bool,
     ) -> Result<usize, NokhwaError> {
-        let frame = self.frame()?;
-        let mut frame_data = frame.to_vec();
+        let resolution = self.resolution();
+        let frame = self.frame_raw()?;
         if convert_rgba {
-            let rgba_image: RgbaImage = frame.convert();
-            frame_data = rgba_image.to_vec();
+            let image_data =
+                match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
+                    Some(image) => {
+                        let image: ImageBuffer<Rgb<u8>, Cow<[u8]>> = image;
+                        image
+                    }
+                    None => {
+                        return Err(NokhwaError::ReadFrameError(
+                            "Frame Cow Too Small".to_string(),
+                        ))
+                    }
+                };
+            let rgba_image: RgbaImage = image_data.convert();
+            buffer.copy_from_slice(rgba_image.as_raw());
+            return Ok(rgba_image.len());
         }
-        let bytes = frame_data.len();
-        buffer.copy_from_slice(&frame_data);
-        Ok(bytes)
+        buffer.copy_from_slice(&frame);
+        Ok(frame.len())
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -272,8 +293,8 @@ impl Camera {
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
-    pub fn stop_stream(&self) -> Result<(), NokhwaError> {
-        self.backend.borrow_mut().stop_stream()
+    pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+        self.backend.stop_stream()
     }
 }
 
@@ -407,7 +428,7 @@ macro_rules! cap_impl_matches {
                     ));
                 }
             }
-        };
+        }
     }
 }
 

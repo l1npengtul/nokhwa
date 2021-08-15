@@ -58,10 +58,9 @@ impl From<MFFrameFormat> for FrameFormat {
     }
 }
 
-#[cfg(feature = "input-msmf")]
-impl Into<MFFrameFormat> for FrameFormat {
-    fn into(self) -> MFFrameFormat {
-        match self {
+impl From<FrameFormat> for MFFrameFormat {
+    fn from(ff: FrameFormat) -> Self {
+        match ff {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
         }
@@ -145,11 +144,11 @@ impl From<MFResolution> for Resolution {
 }
 
 #[cfg(feature = "input-msmf")]
-impl Into<MFResolution> for Resolution {
-    fn into(self) -> MFResolution {
+impl From<Resolution> for MFResolution {
+    fn from(res: Resolution) -> Self {
         MFResolution {
-            width_x: self.width_x,
-            height_y: self.height_y,
+            width_x: res.width(),
+            height_y: res.height(),
         }
     }
 }
@@ -277,9 +276,9 @@ impl From<MFCameraFormat> for CameraFormat {
 }
 
 #[cfg(feature = "input-msmf")]
-impl Into<MFCameraFormat> for CameraFormat {
-    fn into(self) -> MFCameraFormat {
-        MFCameraFormat::new(self.resolution.into(), self.format.into(), self.frame_rate)
+impl From<CameraFormat> for MFCameraFormat {
+    fn from(cf: CameraFormat) -> Self {
+        MFCameraFormat::new(cf.resolution.into(), cf.format.into(), cf.frame_rate)
     }
 }
 
@@ -488,21 +487,21 @@ impl TryFrom<Description> for KnownCameraControls {
 
     fn try_from(value: Description) -> Result<Self, Self::Error> {
         Ok(match value.id {
-            9963776 => KnownCameraControls::Brightness,
-            9963777 => KnownCameraControls::Contrast,
-            9963779 => KnownCameraControls::Hue,
-            9963778 => KnownCameraControls::Saturation,
-            9963803 => KnownCameraControls::Sharpness,
-            9963792 => KnownCameraControls::Gamma,
-            9963802 => KnownCameraControls::WhiteBalance,
-            9963804 => KnownCameraControls::BacklightComp,
-            9963795 => KnownCameraControls::Gain,
-            10094852 => KnownCameraControls::Pan,
-            10094853 => KnownCameraControls::Tilt,
-            10094862 => KnownCameraControls::Zoom,
-            9963793 => KnownCameraControls::Exposure,
-            10094866 => KnownCameraControls::Iris,
-            10094859 => KnownCameraControls::Focus,
+            9_963_776 => KnownCameraControls::Brightness,
+            9_963_777 => KnownCameraControls::Contrast,
+            9_963_779 => KnownCameraControls::Hue,
+            9_963_778 => KnownCameraControls::Saturation,
+            9_963_803 => KnownCameraControls::Sharpness,
+            9_963_792 => KnownCameraControls::Gamma,
+            9_963_802 => KnownCameraControls::WhiteBalance,
+            9_963_804 => KnownCameraControls::BacklightComp,
+            9_963_795 => KnownCameraControls::Gain,
+            10_094_852 => KnownCameraControls::Pan,
+            10_094_853 => KnownCameraControls::Tilt,
+            10_094_862 => KnownCameraControls::Zoom,
+            9_963_793 => KnownCameraControls::Exposure,
+            10_094_866 => KnownCameraControls::Iris,
+            10_094_859 => KnownCameraControls::Focus,
             _ => {
                 return Err(NokhwaError::NotImplementedError(
                     "Control not implemented!".to_string(),

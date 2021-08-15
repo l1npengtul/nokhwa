@@ -97,9 +97,9 @@ pipeline {
 
           }
           steps {
-            sh 'rustup update stable'
-            sh 'cargo build --features "input-gst, output-wgpu, test-fail-warning"'
-            sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
+            sh 'rustup update nightly'
+            sh 'cargo +nightly build --features "input-gst, output-wgpu, test-fail-warning"'
+            sh 'cargo +nightly clippy --features "input-gst, output-wgpu, test-fail-warning"'
           }
         }
 

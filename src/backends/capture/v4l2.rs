@@ -30,6 +30,8 @@ pub use v4l::control::{Control, Description, Flags};
 /// # Error
 /// If the control is not supported, the value is invalid or string, or the control is write only/the control cannot be read from,
 /// this will error.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_lossless)]
 pub fn to_camera_control(
     device: &Device,
     value: &Description,
@@ -81,13 +83,9 @@ pub fn to_camera_control(
     };
 
     let active =
-        if value.flags.contains(Flags::from(0x0001)) || value.flags.contains(Flags::from(0x0010)) {
-            true
-        } else {
-            false
-        };
+        value.flags.contains(Flags::from(0x0001)) || value.flags.contains(Flags::from(0x0010));
 
-    Ok(CameraControl::new(
+    CameraControl::new(
         control,
         value.minimum,
         value.maximum,
@@ -96,11 +94,11 @@ pub fn to_camera_control(
         value.default,
         KnownCameraControlFlag::Manual,
         active,
-    )?)
+    )
 }
 
 /// Attempts to convert a [`KnownCameraControls`] into a V4L2 Control ID.
-/// If the associated control is not found, this will return `None` (ColorEnable, Roll)
+/// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
 pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> {
     match ctrl {
         KnownCameraControls::Brightness => Some(9_963_776),
@@ -123,7 +121,7 @@ pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> 
 }
 
 /// Attempts to convert a [`u32`] V4L2 Control ID into a [`KnownCameraControls`]
-/// If the associated control is not found, this will return `None` (ColorEnable, Roll)
+/// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
 pub fn try_id_to_known_camera_control(id: u32) -> Option<KnownCameraControls> {
     match id {
         9_963_776 => Some(KnownCameraControls::Brightness),
@@ -282,7 +280,7 @@ impl<'a> V4LCaptureDevice<'a> {
                 for frame_size in frame_sizes {
                     match frame_size.size {
                         FrameSizeEnum::Discrete(dis) => {
-                            resolutions.push(Resolution::new(dis.width, dis.height))
+                            resolutions.push(Resolution::new(dis.width, dis.height));
                         }
                         FrameSizeEnum::Stepwise(step) => {
                             resolutions.push(Resolution::new(step.min_width, step.min_height));
@@ -507,7 +505,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let mut camera_controls = vec![];
         for ctrl in v4l2_controls {
             if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
-                camera_controls.push(cam_control.control())
+                camera_controls.push(cam_control.control());
             }
         }
         Ok(camera_controls)
