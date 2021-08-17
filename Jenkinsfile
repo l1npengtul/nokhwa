@@ -49,9 +49,9 @@ pipeline {
 
           }
           steps {
-            bat(script: 'rustup update stable', encoding: 'UTF8')
-            bat(script: 'cargo build --features "input-msmf, output-wgpu, test-fail-warning"', encoding: 'UTF8', returnStatus: true, returnStdout: true)
-            bat(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', encoding: 'UTF8', returnStatus: true, returnStdout: true)
+            pwsh(script: 'rustup update stable', returnStatus: true)
+            pwsh(script: 'cargo build --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
+            pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning" -- --no-deps', returnStatus: true)
           }
         }
 
