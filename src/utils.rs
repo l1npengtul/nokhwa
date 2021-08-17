@@ -58,6 +58,7 @@ impl From<MFFrameFormat> for FrameFormat {
     }
 }
 
+#[cfg(feature = "input-msmf")]
 impl From<FrameFormat> for MFFrameFormat {
     fn from(ff: FrameFormat) -> Self {
         match ff {
