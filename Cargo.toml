@@ -27,11 +27,14 @@ test-fail-warning = []
 
 [dependencies]
 thiserror = "1.0.26"
-image = "0.23.14"
 mozjpeg = "0.8.24"
 flume = "0.10.5"
 usb_enumeration = "0.1.2"
 paste = "1.0.5"
+
+[dependencies.image]
+version = "0.23.14"
+default-features = false
 
 [dependencies.v4l]
 version = "0.12.1"
