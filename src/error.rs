@@ -4,9 +4,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-use thiserror::Error;
-
 use crate::{CaptureAPIBackend, FrameFormat};
+use thiserror::Error;
 
 /// All errors in `nokhwa`.
 #[allow(clippy::module_name_repetitions)]
@@ -53,9 +52,12 @@ pub enum NokhwaError {
     #[error("This operation is not implemented yet: {0}")]
     NotImplementedError(String),
 }
+
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 use nokhwa_bindings_windows::BindingError;
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<nokhwa_bindings_windows::BindingError> for NokhwaError {
     fn from(err: BindingError) -> Self {

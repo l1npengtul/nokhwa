@@ -4,7 +4,12 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-/// Note: for WASM bindings you need to bind them yourself.
+//! This contains all the code for using webcams in the browser.
+//!
+//! Anything starting with `js` is meant as a binding, a.k.a. not meant for consumption.
+//!
+//! This assumes that you are running a modern browser on the desktop.
+
 use crate::{CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
 use js_sys::{Array, Function, JsString, Object, Promise};
@@ -14,19 +19,18 @@ use std::{
     fmt::{Debug, Display, Formatter},
     ops::Deref,
 };
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement,
+    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement, ImageData,
     MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints, Navigator,
     Node, Window,
 };
 
 #[cfg(feature = "output-wgpu")]
-use wgpu::{Device, Queue, Texture};
 use wgpu::{
-    Extent3d, ImageCopyTexture, ImageDataLayout, TextureDescriptor, TextureDimension,
-    TextureFormat, TextureUsage,
+    Device, Extent3d, ImageCopyTexture, ImageDataLayout, Queue, Texture, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureUsage,
 };
 
 // why no code completion
@@ -163,22 +167,32 @@ fn set_autoplay_inline(element: &Element) -> Result<(), NokhwaError> {
 /// Requests Webcam permissions from the browser using [`MediaDevices::get_user_media()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.get_user_media) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
-pub fn request_permission() -> Result<JsFuture, NokhwaError> {
+pub fn request_permission() -> Result<Promise, NokhwaError> {
     let window: Window = window()?;
     let navigator = window.navigator();
     let media_devices = media_devices(&navigator)?;
 
     match media_devices.get_user_media() {
-        Ok(promise) => {
-            let promise: Promise = promise;
-            Ok(JsFuture::from(promise))
-        }
+        Ok(promise) => Ok(promise),
         Err(why) => {
             return Err(NokhwaError::StructureError {
                 structure: "UserMediaPermission".to_string(),
                 error: format!("{:?}", why),
             })
         }
+    }
+}
+
+/// Requests Webcam permissions from the browser using [`MediaDevices::get_user_media()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.get_user_media) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)
+/// # Errors
+/// This will error if there is no valid web context or the web API is not supported
+/// # JS-WASM
+/// In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = requestPermissions))]
+pub fn js_request_permission() -> Result<Promise, JsValue> {
+    match request_permission() {
+        Ok(f) => Ok(f),
+        Err(why) => Err(JsValue::from(why.to_string())),
     }
 }
 
@@ -231,6 +245,19 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
     }
 }
 
+/// Queries Cameras using [`MediaDevices::enumerate_devices()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.enumerate_devices) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices)
+/// # Errors
+/// This will error if there is no valid web context or the web API is not supported
+/// # JS-WASM
+/// This is exported as `queryCameras`. It may throw an exception.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = queryCameras))]
+pub async fn js_query_js_cameras() -> Result<Array, JsValue> {
+    match query_js_cameras().await {
+        Ok(cameras) => Ok(cameras.into_iter().map(JsValue::from).collect()),
+        Err(why) => Err(JsValue::from(why.to_string())),
+    }
+}
+
 /// Queries the browser's supported constraints using [`navigator.mediaDevices.getSupportedConstraints()`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getSupportedConstraints)
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
@@ -280,6 +307,8 @@ pub fn query_supported_constraints() -> Result<Vec<JSCameraSupportedCapabilities
     }
 }
 
+// pub fn query_supported_capabilities_js() -> Result<Array, JsValue> {}
+
 /// The enum describing the possible constraints for video in the browser.
 /// - `DeviceID`: The ID of the device
 /// - `GroupID`: The ID of the group that the device is in
@@ -290,6 +319,9 @@ pub fn query_supported_constraints() -> Result<Vec<JSCameraSupportedCapabilities
 /// - `Width`: The width of the final stream in pixels
 /// - `ResizeMode`: Whether the client can crop and/or scale the stream to match the resolution (width, height). See [`JSCameraResizeMode`]
 /// See More: [`MediaTrackConstraints`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints) [`Capabilities, constraints, and settings`](https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints)
+/// # JS-WASM
+/// This is exported as `CameraSupportedCapabilities`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraSupportedCapabilities))]
 #[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum JSCameraSupportedCapabilities {
     DeviceID,
@@ -357,6 +389,9 @@ impl TryFrom<String> for JSCameraSupportedCapabilities {
 /// - Left: The camera that shows the user but to their left, such as a camera that shows a user but to their left shoulder
 /// - Right: The camera that shows the user but to their right, such as a camera that shows a user but to their right shoulder
 /// See More: [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode)
+/// # JS-WASM
+/// This is exported as `CameraFacingMode`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraFacingMode))]
 #[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum JSCameraFacingMode {
     Any,
@@ -391,6 +426,9 @@ impl Debug for JSCameraFacingMode {
 /// - `None`: Do not crop and/or scale.
 /// - `CropAndScale`: Crop and/or scale to match the requested resolution.
 /// See More: [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode)
+/// # JS-WASM
+/// This is exported as `CameraResizeMode`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraResizeMode))]
 #[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum JSCameraResizeMode {
     Any,
@@ -419,16 +457,25 @@ impl Debug for JSCameraResizeMode {
 
 /// A builder that builds a [`JSCameraConstraints`] that is used to construct a [`JSCamera`].
 /// See More: [`Constraints MDN`](https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints), [`Properties of Media Tracks MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints)
+/// # JS-WASM
+/// This is exported as `CameraConstraintsBuilder`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraConstraintsBuilder))]
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct JSCameraConstraintsBuilder {
+    pub(crate) min_resolution: Option<Resolution>,
     pub(crate) preferred_resolution: Resolution,
+    pub(crate) max_resolution: Option<Resolution>,
     pub(crate) resolution_exact: bool,
+    pub(crate) min_aspect_ratio: Option<f64>,
     pub(crate) aspect_ratio: f64,
+    pub(crate) max_aspect_ratio: Option<f64>,
     pub(crate) aspect_ratio_exact: bool,
     pub(crate) facing_mode: JSCameraFacingMode,
     pub(crate) facing_mode_exact: bool,
+    pub(crate) min_frame_rate: Option<u32>,
     pub(crate) frame_rate: u32,
+    pub(crate) max_frame_rate: Option<u32>,
     pub(crate) frame_rate_exact: bool,
     pub(crate) resize_mode: JSCameraResizeMode,
     pub(crate) resize_mode_exact: bool,
@@ -438,46 +485,136 @@ pub struct JSCameraConstraintsBuilder {
     pub(crate) group_id_exact: bool,
 }
 
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 impl JSCameraConstraintsBuilder {
     /// Constructs a default [`JSCameraConstraintsBuilder`].
     /// The constructed default [`JSCameraConstraintsBuilder`] has these settings:
-    /// - 640x480 Resolution
-    /// - 15 FPS
-    /// - 1.77777777778 Aspect ratio
+    /// - 480x234 min, 640x360 ideal, 1920x1080 max
+    /// - 10 FPS min, 15 FPS ideal, 30 FPS max
+    /// - 1.0 aspect ratio min, 1.77777777778 aspect ratio ideal, 2.0 aspect ratio max
     /// - No `exact`s
+    /// # JS-WASM
+    /// This is exported as a constructor.
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
         JSCameraConstraintsBuilder::default()
+    }
+
+    /// Sets the minimum resolution for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    /// # JS-WASM
+    /// This is exported as `set_MinResolution`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinResolution)
+    )]
+    pub fn min_resolution(mut self, min_resolution: Resolution) -> JSCameraConstraintsBuilder {
+        self.min_resolution = Some(min_resolution);
+        self
     }
 
     /// Sets the preferred resolution for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    /// # JS-WASM
+    /// This is exported as `set_Resolution`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = Resolution)
+    )]
     pub fn resolution(mut self, new_resolution: Resolution) -> JSCameraConstraintsBuilder {
         self.preferred_resolution = new_resolution;
         self
     }
 
+    /// Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    /// # JS-WASM
+    /// This is exported as `set_MaxResolution`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxResolution)
+    )]
+    pub fn max_resolution(mut self, max_resolution: Resolution) -> JSCameraConstraintsBuilder {
+        self.min_resolution = Some(max_resolution);
+        self
+    }
+
     /// Sets whether the resolution fields ([`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width), [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height)/[`resolution`](crate::js_camera::JSCameraConstraintsBuilder::resolution))
     /// should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// Note that this will make the builder ignore [`min_resolution`](crate::js_camera::JSCameraConstraintsBuilder::min_resolution) and [`max_resolution`](crate::js_camera::JSCameraConstraintsBuilder::max_resolution).
+    /// # JS-WASM
+    /// This is exported as `set_ResolutionExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResolutionExact)
+    )]
     pub fn resolution_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.resolution_exact = value;
+        self
+    }
+
+    /// Sets the minimum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    /// # JS-WASM
+    /// This is exported as `set_MinAspectRatio`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinAspectRatio)
+    )]
+    pub fn min_aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
+        self.min_aspect_ratio = Some(ratio);
         self
     }
 
     /// Sets the aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    /// # JS-WASM
+    /// This is exported as `set_AspectRatio`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = AspectRatio)
+    )]
     pub fn aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
         self.aspect_ratio = ratio;
         self
     }
 
-    /// Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// Sets the maximum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    /// # JS-WASM
+    /// This is exported as `set_MaxAspectRatio`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxAspectRatio)
+    )]
+    pub fn max_aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
+        self.max_aspect_ratio = Some(ratio);
+        self
+    }
+
+    /// Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// Note that this will make the builder ignore [`min_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::min_aspect_ratio) and [`max_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::max_aspect_ratio).
+    /// # JS-WASM
+    /// This is exported as `set_AspectRatioExact`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = AspectRatioExact)
+    )]
     pub fn aspect_ratio_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.aspect_ratio_exact = value;
         self
@@ -486,30 +623,85 @@ impl JSCameraConstraintsBuilder {
     /// Sets the facing mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode).
+    /// # JS-WASM
+    /// This is exported as `set_FacingMode`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FacingMode)
+    )]
     pub fn facing_mode(mut self, facing_mode: JSCameraFacingMode) -> JSCameraConstraintsBuilder {
         self.facing_mode = facing_mode;
         self
     }
 
     /// Sets whether the [`facing_mode`](crate::js_camera::JSCameraConstraintsBuilder::facing_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// # JS-WASM
+    /// This is exported as `set_FacingModeExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FacingModeExact)
+    )]
     pub fn facing_mode_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.facing_mode_exact = value;
+        self
+    }
+
+    /// Sets the minimum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    /// # JS-WASM
+    /// This is exported as `set_MinFrameRate`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinFrameRate)
+    )]
+    pub fn min_frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
+        self.min_frame_rate = Some(fps);
         self
     }
 
     /// Sets the frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    /// # JS-WASM
+    /// This is exported as `set_FrameRate`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FrameRate)
+    )]
     pub fn frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
         self.frame_rate = fps;
         self
     }
 
-    /// Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// Sets the maximum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    ///
+    /// Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    /// # JS-WASM
+    /// This is exported as `set_MaxFrameRate`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxFrameRate)
+    )]
+    pub fn max_frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
+        self.max_frame_rate = Some(fps);
+        self
+    }
+
+    /// Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// Note that this will make the builder ignore [`min_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::min_frame_rate) and [`max_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::max_frame_rate).
+    /// # JS-WASM
+    /// This is exported as `set_FrameRateExact`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FrameRateExact)
+    )]
     pub fn frame_rate_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.frame_rate_exact = value;
         self
@@ -518,14 +710,26 @@ impl JSCameraConstraintsBuilder {
     /// Sets the resize mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode).
+    /// # JS-WASM
+    /// This is exported as `set_ResizeMode`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResizeMode)
+    )]
     pub fn resize_mode(mut self, resize_mode: JSCameraResizeMode) -> JSCameraConstraintsBuilder {
         self.resize_mode = resize_mode;
         self
     }
 
     /// Sets whether the [`resize_mode`](crate::js_camera::JSCameraConstraintsBuilder::resize_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// # JS-WASM
+    /// This is exported as `set_ResizeModeExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResizeModeExact)
+    )]
     pub fn resize_mode_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.resize_mode_exact = value;
         self
@@ -534,14 +738,26 @@ impl JSCameraConstraintsBuilder {
     /// Sets the device ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`deviceId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
+    /// # JS-WASM
+    /// This is exported as `set_DeviceId`.
     #[must_use]
-    pub fn device_id<S: ToString>(mut self, id: &S) -> JSCameraConstraintsBuilder {
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = DeviceId)
+    )]
+    pub fn device_id(mut self, id: &str) -> JSCameraConstraintsBuilder {
         self.device_id = id.to_string();
         self
     }
 
     /// Sets whether the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// # JS-WASM
+    /// This is exported as `set_DeviceIdExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = DeviceIdExact)
+    )]
     pub fn device_id_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.device_id_exact = value;
         self
@@ -550,19 +766,54 @@ impl JSCameraConstraintsBuilder {
     /// Sets the group ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
     ///
     /// Sets [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId).
+    /// # JS-WASM
+    /// This is exported as `set_GroupId`.
     #[must_use]
-    pub fn group_id<S: ToString>(mut self, id: &S) -> JSCameraConstraintsBuilder {
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = GroupId))]
+    pub fn group_id(mut self, id: &str) -> JSCameraConstraintsBuilder {
         self.group_id = id.to_string();
         self
     }
 
     /// Sets whether the [`group_id`](crate::js_camera::JSCameraConstraintsBuilder::group_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    /// # JS-WASM
+    /// This is exported as `set_GroupIdExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = GroupIdExact)
+    )]
     pub fn group_id_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.group_id_exact = value;
         self
     }
 
+    /// Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
+    ///
+    /// Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
+    /// # Security
+    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are not malicious! (This usually boils down to not letting users input data directly).
+    ///
+    /// # Errors
+    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
+    /// Javascript Function fails to run.
+    /// # JS-WASM
+    /// This is exported as `build`. It may throw an error.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(js_name = buildCameraConstraints)
+    )]
+    pub fn js_build(self) -> Result<JSCameraConstraints, JsValue> {
+        match self.build() {
+            Ok(constraints) => Ok(constraints),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+}
+
+impl JSCameraConstraintsBuilder {
     /// Builds the [`JSCameraConstraints`]
     ///
     /// # Security
@@ -585,10 +836,23 @@ impl JSCameraConstraintsBuilder {
                 } else {
                     format!("width: {{ exact: {} }}", self.preferred_resolution.width_x)
                 }
-            } else if self.preferred_resolution.width_x == 0 {
-                format!("")
             } else {
-                format!("width: {{ ideal: {} }}", self.preferred_resolution.width_x)
+                let min_string = if let Some(min_res) = self.min_resolution {
+                    format!("min: {},", min_res.width())
+                } else {
+                    format!("")
+                };
+
+                let ideal_string = format!("ideal: {},", self.preferred_resolution.width());
+                let max_string = if let Some(max_res) = self.max_resolution {
+                    format!("max: {},", max_res.width())
+                } else {
+                    format!("")
+                };
+
+                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
+                total_string.remove(total_string.len() - 1);
+                format!("width: {{ {} }}", total_string)
             }
         };
 
@@ -602,13 +866,23 @@ impl JSCameraConstraintsBuilder {
                         self.preferred_resolution.height_y
                     )
                 }
-            } else if self.preferred_resolution == null_resolution {
-                format!("")
             } else {
-                format!(
-                    "height: {{ ideal: {} }}",
-                    self.preferred_resolution.height_y
-                )
+                let min_string = if let Some(min_res) = self.min_resolution {
+                    format!("min: {},", min_res.height())
+                } else {
+                    format!("")
+                };
+
+                let ideal_string = format!("ideal: {},", self.preferred_resolution.height());
+                let max_string = if let Some(max_res) = self.max_resolution {
+                    format!("max: {},", max_res.height())
+                } else {
+                    format!("")
+                };
+
+                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
+                total_string.remove(total_string.len() - 1);
+                format!("height: {{ {} }}", total_string)
             }
         };
 
@@ -619,10 +893,23 @@ impl JSCameraConstraintsBuilder {
                 } else {
                     format!("aspectRatio: {{ exact: {} }}", self.aspect_ratio)
                 }
-            } else if self.aspect_ratio == 0_f64 {
-                format!("")
             } else {
-                format!("aspectRatio: {{ ideal: {} }}", self.aspect_ratio)
+                let min_string = if let Some(min_ratio) = self.min_aspect_ratio {
+                    format!("min: {},", min_ratio)
+                } else {
+                    format!("")
+                };
+
+                let ideal_string = format!("ideal: {},", self.aspect_ratio);
+                let max_string = if let Some(max_ratio) = self.max_aspect_ratio {
+                    format!("max: {},", max_ratio)
+                } else {
+                    format!("")
+                };
+
+                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
+                total_string.remove(total_string.len() - 1);
+                format!("aspectRatio: {{ {} }}", total_string)
             }
         };
 
@@ -647,10 +934,23 @@ impl JSCameraConstraintsBuilder {
                 } else {
                     format!("frameRate: {{ exact: {} }}", self.frame_rate)
                 }
-            } else if self.frame_rate == 0 {
-                format!("")
             } else {
-                format!("frameRate: {{ ideal: {} }}", self.frame_rate)
+                let min_string = if let Some(min_fps) = self.min_frame_rate {
+                    format!("min: {},", min_fps)
+                } else {
+                    format!("")
+                };
+
+                let ideal_string = format!("ideal: {},", self.frame_rate);
+                let max_string = if let Some(max_fps) = self.max_frame_rate {
+                    format!("max: {},", max_fps)
+                } else {
+                    format!("")
+                };
+
+                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
+                total_string.remove(total_string.len() - 1);
+                format!("frameRate: {{ {} }}", total_string)
             }
         };
 
@@ -738,13 +1038,19 @@ return constraints;
                 let media_stream_constraints = MediaStreamConstraints::from(constraints);
                 Ok(JSCameraConstraints {
                     media_constraints: media_stream_constraints,
+                    min_resolution: self.min_resolution,
                     preferred_resolution: self.preferred_resolution,
+                    max_resolution: self.max_resolution,
                     resolution_exact: self.resolution_exact,
+                    min_aspect_ratio: self.min_aspect_ratio,
                     aspect_ratio: self.aspect_ratio,
+                    max_aspect_ratio: self.max_aspect_ratio,
                     aspect_ratio_exact: self.aspect_ratio_exact,
                     facing_mode: self.facing_mode,
                     facing_mode_exact: self.facing_mode_exact,
+                    min_frame_rate: self.min_frame_rate,
                     frame_rate: self.frame_rate,
+                    max_frame_rate: self.max_frame_rate,
                     frame_rate_exact: self.frame_rate_exact,
                     resize_mode: self.resize_mode,
                     resize_mode_exact: self.resize_mode_exact,
@@ -765,13 +1071,19 @@ return constraints;
 impl Default for JSCameraConstraintsBuilder {
     fn default() -> Self {
         JSCameraConstraintsBuilder {
-            preferred_resolution: Resolution::new(640, 480),
+            min_resolution: Some(Resolution::new(480, 234)),
+            preferred_resolution: Resolution::new(640, 360),
+            max_resolution: Some(Resolution::new(1920, 1080)),
             resolution_exact: false,
+            min_aspect_ratio: Some(1_f64),
             aspect_ratio: 1.777_777_777_78_f64,
+            max_aspect_ratio: Some(2_f64),
             aspect_ratio_exact: false,
             facing_mode: JSCameraFacingMode::Any,
             facing_mode_exact: false,
+            min_frame_rate: Some(10),
             frame_rate: 15,
+            max_frame_rate: Some(30),
             frame_rate_exact: false,
             resize_mode: JSCameraResizeMode::Any,
             resize_mode_exact: false,
@@ -786,17 +1098,26 @@ impl Default for JSCameraConstraintsBuilder {
 /// Constraints to create a [`JSCamera`]
 ///
 /// If you want more options, see [`JSCameraConstraintsBuilder`]
+/// # JS-WASM
+/// This is exported as `CameraConstraints`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraConstraints))]
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct JSCameraConstraints {
     pub(crate) media_constraints: MediaStreamConstraints,
+    pub(crate) min_resolution: Option<Resolution>,
     pub(crate) preferred_resolution: Resolution,
+    pub(crate) max_resolution: Option<Resolution>,
     pub(crate) resolution_exact: bool,
+    pub(crate) min_aspect_ratio: Option<f64>,
     pub(crate) aspect_ratio: f64,
+    pub(crate) max_aspect_ratio: Option<f64>,
     pub(crate) aspect_ratio_exact: bool,
     pub(crate) facing_mode: JSCameraFacingMode,
     pub(crate) facing_mode_exact: bool,
+    pub(crate) min_frame_rate: Option<u32>,
     pub(crate) frame_rate: u32,
+    pub(crate) max_frame_rate: Option<u32>,
     pub(crate) frame_rate_exact: bool,
     pub(crate) resize_mode: JSCameraResizeMode,
     pub(crate) resize_mode_exact: bool,
@@ -806,192 +1127,498 @@ pub struct JSCameraConstraints {
     pub(crate) group_id_exact: bool,
 }
 
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraConstraints))]
 impl JSCameraConstraints {
-    /// Gets the internal
-    /// [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
+    /// Gets the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
+    /// # JS-WASM
+    /// This is exported as `get_MediaStreamConstraints`.
     #[must_use]
-    pub fn media_constraints(&self) -> &MediaStreamConstraints {
-        &self.media_constraints
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MediaStreamConstraints)
+    )]
+    pub fn media_constraints(&self) -> MediaStreamConstraints {
+        self.media_constraints.clone()
+    }
+
+    /// Gets the minimum [`Resolution`].
+    /// # JS-WASM
+    /// This is exported as `get_MinResolution`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MinResolution)
+    )]
+    #[must_use]
+    pub fn min_resolution(&self) -> Option<Resolution> {
+        self.min_resolution
+    }
+
+    /// Gets the minimum [`Resolution`].
+    /// # JS-WASM
+    /// This is exported as `set_MinResolution`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinResolution)
+    )]
+    pub fn set_min_resolution(&mut self, min_resolution: Resolution) {
+        self.min_resolution = Some(min_resolution);
     }
 
     /// Gets the internal [`Resolution`]
+    /// # JS-WASM
+    /// This is exported as `get_Resolution`.
     #[must_use]
-    pub fn preferred_resolution(&self) -> Resolution {
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = Resolution)
+    )]
+    pub fn resolution(&self) -> Resolution {
         self.preferred_resolution
     }
 
     /// Sets the internal [`Resolution`]
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_preferred_resolution(&mut self, preferred_resolution: Resolution) {
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_Resolution`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = Resolution)
+    )]
+    pub fn set_resolution(&mut self, preferred_resolution: Resolution) {
         self.preferred_resolution = preferred_resolution;
     }
 
-    /// Gets the internal resolution exact.
+    /// Gets the maximum [`Resolution`].
+    /// # JS-WASM
+    /// This is exported as `get_MaxResolution`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MaxResolution)
+    )]
     #[must_use]
+    pub fn max_resolution(&self) -> Option<Resolution> {
+        self.max_resolution
+    }
+
+    /// Gets the maximum [`Resolution`].
+    /// # JS-WASM
+    /// This is exported as `set_MaxResolution`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxResolution)
+    )]
+    pub fn set_max_resolution(&mut self, max_resolution: Resolution) {
+        self.max_resolution = Some(max_resolution);
+    }
+
+    /// Gets the internal resolution exact.
+    /// # JS-WASM
+    /// This is exported as `get_ResolutionExact`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = ResolutionExact)
+    )]
     pub fn resolution_exact(&self) -> bool {
         self.resolution_exact
     }
 
     /// Sets the internal resolution exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_ResolutionExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResolutionExact)
+    )]
     pub fn set_resolution_exact(&mut self, resolution_exact: bool) {
         self.resolution_exact = resolution_exact;
     }
 
-    /// Gets the internal aspect ratio.
+    /// Gets the minimum aspect ratio of the [`JSCameraConstraints`].
+    /// # JS-WASM
+    /// This is exported as `get_MinAspectRatio`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MinAspectRatio)
+    )]
+    pub fn min_aspect_ratio(&self) -> Option<f64> {
+        self.min_aspect_ratio
+    }
+
+    /// Sets the minimum aspect ratio of the [`JSCameraConstraints`].
+    /// # JS-WASM
+    /// This is exported as `set_MinAspectRatio`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinAspectRatio)
+    )]
+    pub fn set_min_aspect_ratio(&mut self, min_aspect_ratio: f64) {
+        self.min_aspect_ratio = Some(min_aspect_ratio);
+    }
+
+    /// Gets the internal aspect ratio.
+    /// # JS-WASM
+    /// This is exported as `get_AspectRatio`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = AspectRatio)
+    )]
     pub fn aspect_ratio(&self) -> f64 {
         self.aspect_ratio
     }
 
     /// Sets the internal aspect ratio.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_AspectRatio`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = AspectRatio)
+    )]
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f64) {
         self.aspect_ratio = aspect_ratio;
     }
 
-    /// Gets the internal aspect ratio exact.
+    /// Gets the maximum aspect ratio.
+    /// # JS-WASM
+    /// This is exported as `get_MaxAspectRatio`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MaxAspectRatio)
+    )]
     #[must_use]
+    pub fn max_aspect_ratio(&self) -> Option<f64> {
+        self.max_aspect_ratio
+    }
+
+    /// Sets the maximum internal aspect ratio.
+    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_MaxAspectRatio`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxAspectRatio)
+    )]
+    pub fn set_max_aspect_ratio(&mut self, max_aspect_ratio: f64) {
+        self.max_aspect_ratio = Some(max_aspect_ratio);
+    }
+
+    /// Gets the internal aspect ratio exact.
+    /// # JS-WASM
+    /// This is exported as `get_AspectRatioExact`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = AspectRatioExact)
+    )]
     pub fn aspect_ratio_exact(&self) -> bool {
         self.aspect_ratio_exact
     }
 
     /// Sets the internal aspect ratio exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_AspectRatioExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = AspectRatioExact)
+    )]
     pub fn set_aspect_ratio_exact(&mut self, aspect_ratio_exact: bool) {
         self.aspect_ratio_exact = aspect_ratio_exact;
     }
 
     /// Gets the internal [`JSCameraFacingMode`].
+    /// # JS-WASM
+    /// This is exported as `get_FacingMode`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = FacingMode)
+    )]
     pub fn facing_mode(&self) -> JSCameraFacingMode {
         self.facing_mode
     }
 
     /// Sets the internal [`JSCameraFacingMode`]
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_FacingMode`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FacingMode)
+    )]
     pub fn set_facing_mode(&mut self, facing_mode: JSCameraFacingMode) {
         self.facing_mode = facing_mode;
     }
 
     /// Gets the internal facing mode exact.
+    /// # JS-WASM
+    /// This is exported as `get_FacingModeExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = FacingModeExact)
+    )]
     pub fn facing_mode_exact(&self) -> bool {
         self.facing_mode_exact
     }
 
     /// Sets the internal facing mode exact
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_FacingModeExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FacingModeExact)
+    )]
     pub fn set_facing_mode_exact(&mut self, facing_mode_exact: bool) {
         self.facing_mode_exact = facing_mode_exact;
     }
 
-    /// Gets the internal frame rate.
+    /// Gets the minimum internal frame rate.
+    /// # JS-WASM
+    /// This is exported as `get_MinFrameRate`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MinFrameRate)
+    )]
     #[must_use]
+    pub fn min_frame_rate(&self) -> Option<u32> {
+        self.min_frame_rate
+    }
+
+    /// Sets the minimum internal frame rate
+    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_MinFrameRate`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MinFrameRate)
+    )]
+    pub fn set_min_frame_rate(&mut self, min_frame_rate: u32) {
+        self.min_frame_rate = Some(min_frame_rate);
+    }
+
+    /// Gets the internal frame rate.
+    /// # JS-WASM
+    /// This is exported as `get_FrameRate`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = FrameRate)
+    )]
     pub fn frame_rate(&self) -> u32 {
         self.frame_rate
     }
 
     /// Sets the internal frame rate
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_FrameRate`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FrameRate)
+    )]
     pub fn set_frame_rate(&mut self, frame_rate: u32) {
         self.frame_rate = frame_rate;
     }
 
-    /// Gets the internal frame rate exact.
+    /// Gets the maximum internal frame rate.
+    /// # JS-WASM
+    /// This is exported as `get_MaxFrameRate`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MaxFrameRate)
+    )]
     #[must_use]
+    pub fn max_frame_rate(&self) -> Option<u32> {
+        self.max_frame_rate
+    }
+
+    /// Sets the maximum internal frame rate
+    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_MaxFrameRate`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = MaxFrameRate)
+    )]
+    pub fn set_max_frame_rate(&mut self, max_frame_rate: u32) {
+        self.max_frame_rate = Some(max_frame_rate);
+    }
+
+    /// Gets the internal frame rate exact.
+    /// # JS-WASM
+    /// This is exported as `get_FrameRateExact`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = FrameRateExact)
+    )]
     pub fn frame_rate_exact(&self) -> bool {
         self.frame_rate_exact
     }
 
     /// Sets the internal frame rate exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_FrameRateExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = FrameRateExact)
+    )]
     pub fn set_frame_rate_exact(&mut self, frame_rate_exact: bool) {
         self.frame_rate_exact = frame_rate_exact;
     }
 
     /// Gets the internal [`JSCameraResizeMode`].
+    /// # JS-WASM
+    /// This is exported as `get_ResizeMode`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = ResizeMode)
+    )]
     pub fn resize_mode(&self) -> JSCameraResizeMode {
         self.resize_mode
     }
 
     /// Sets the internal [`JSCameraResizeMode`]
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_ResizeMode`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResizeMode)
+    )]
     pub fn set_resize_mode(&mut self, resize_mode: JSCameraResizeMode) {
         self.resize_mode = resize_mode;
     }
 
     /// Gets the internal resize mode exact.
+    /// # JS-WASM
+    /// This is exported as `get_ResizeModeExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = ResizeModeExact)
+    )]
     pub fn resize_mode_exact(&self) -> bool {
         self.resize_mode_exact
     }
 
     /// Sets the internal resize mode exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_ResizeModeExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = ResizeModeExact)
+    )]
     pub fn set_resize_mode_exact(&mut self, resize_mode_exact: bool) {
         self.resize_mode_exact = resize_mode_exact;
     }
 
     /// Gets the internal device id.
+    /// # JS-WASM
+    /// This is exported as `get_DeviceId`.
     #[must_use]
-    pub fn device_id(&self) -> &str {
-        &self.device_id
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = DeviceId))]
+    pub fn device_id(&self) -> String {
+        self.device_id.to_string()
     }
 
     /// Sets the internal device ID.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_DeviceId`.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = DeviceId))]
     pub fn set_device_id(&mut self, device_id: String) {
         self.device_id = device_id;
     }
 
     /// Gets the internal device id exact.
+    /// # JS-WASM
+    /// This is exported as `get_DeviceIdExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = DeviceIdExact)
+    )]
     pub fn device_id_exact(&self) -> bool {
         self.device_id_exact
     }
 
     /// Sets the internal device ID exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_DeviceIdExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = DeviceIdExact)
+    )]
     pub fn set_device_id_exact(&mut self, device_id_exact: bool) {
         self.device_id_exact = device_id_exact;
     }
 
     /// Gets the internal group id.
+    /// # JS-WASM
+    /// This is exported as `get_GroupId`.
     #[must_use]
-    pub fn group_id(&self) -> &str {
-        &self.group_id
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = GroupId))]
+    pub fn group_id(&self) -> String {
+        self.group_id.to_string()
     }
 
     /// Sets the internal group ID.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_GroupId`.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = GroupId))]
     pub fn set_group_id(&mut self, group_id: String) {
         self.group_id = group_id;
     }
 
     /// Gets the internal group id exact.
+    /// # JS-WASM
+    /// This is exported as `get_GroupIdExact`.
     #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = GroupIdExact)
+    )]
     pub fn group_id_exact(&self) -> bool {
         self.group_id_exact
     }
 
     /// Sets the internal group ID exact.
     /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
+    /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    /// # JS-WASM
+    /// This is exported as `set_GroupIdExact`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = GroupIdExact)
+    )]
     pub fn set_group_id_exact(&mut self, group_id_exact: bool) {
         self.group_id_exact = group_id_exact;
     }
@@ -1005,21 +1632,48 @@ impl JSCameraConstraints {
     /// # Errors
     /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
     /// Javascript Function fails to run.
+    /// # JS-WASM
+    /// This is exported as `applyConstraints`. This may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
+    pub fn js_apply_constraints(&mut self) -> Result<(), JsValue> {
+        if let Err(why) = self.apply_constraints() {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
+}
+
+impl JSCameraConstraints {
+    /// Applies any modified constraints.
+    /// # Security
+    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are not malicious! (This usually boils down to not letting users input data directly)
+    ///
+    /// # Errors
+    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
+    /// Javascript Function fails to run.
     pub fn apply_constraints(&mut self) -> Result<(), NokhwaError> {
         let new_constraints = JSCameraConstraintsBuilder {
-            preferred_resolution: self.preferred_resolution(),
+            min_resolution: self.min_resolution(),
+            preferred_resolution: self.resolution(),
+            max_resolution: self.max_resolution(),
             resolution_exact: self.resolution_exact(),
+            min_aspect_ratio: self.min_aspect_ratio(),
             aspect_ratio: self.aspect_ratio(),
+            max_aspect_ratio: self.max_aspect_ratio(),
             aspect_ratio_exact: self.aspect_ratio_exact(),
             facing_mode: self.facing_mode(),
             facing_mode_exact: self.facing_mode_exact(),
+            min_frame_rate: self.min_frame_rate(),
             frame_rate: self.frame_rate(),
+            max_frame_rate: self.max_frame_rate(),
             frame_rate_exact: self.frame_rate_exact(),
             resize_mode: self.resize_mode(),
             resize_mode_exact: self.resize_mode_exact(),
-            device_id: self.device_id().to_string(),
+            device_id: self.device_id(),
             device_id_exact: self.device_id_exact(),
-            group_id: self.group_id().to_string(),
+            group_id: self.group_id(),
             group_id_exact: self.group_id_exact(),
         }
         .build()?;
@@ -1038,11 +1692,175 @@ impl Deref for JSCameraConstraints {
 }
 
 /// A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
+/// # JS-WASM
+/// This is exported as `NOKCamera`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NOKCamera))]
 pub struct JSCamera {
     media_stream: MediaStream,
     constraints: JSCameraConstraints,
     attached: bool,
     attached_node: Option<Node>,
+    measured_resolution: Resolution,
+}
+
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+impl JSCamera {
+    /// Creates a new [`JSCamera`] using [`JSCameraConstraints`].
+    ///
+    /// # Errors
+    /// This may error if permission is not granted, or the constraints are invalid.
+    /// # JS-WASM
+    /// This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
+    pub async fn js_new(constraints: JSCameraConstraints) -> Result<JSCamera, JsValue> {
+        match JSCamera::new(constraints).await {
+            Ok(camera) => Ok(camera),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+
+    /// Gets the internal [`JSCameraConstraints`].
+    /// Most likely, you will edit this value by taking ownership of it, then feed it back into [`set_constraints`](crate::js_camera::JSCamera::set_constraints).
+    /// # JS-WASM
+    /// This is exported as `get_Constraints`.
+    #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = Constraints))]
+    pub fn constraints(&self) -> JSCameraConstraints {
+        self.constraints.clone()
+    }
+
+    /// Sets the JSCameraConstraints. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
+    ///
+    /// # Errors
+    /// See [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints).
+    /// # JS-WASM
+    /// This is exported as `set_Constraints`. It may throw an error.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = Constraints)
+    )]
+    pub fn js_set_constraints(&mut self, constraints: JSCameraConstraints) -> Result<(), JsValue> {
+        match self.set_constraints(constraints) {
+            Ok(_) => Ok(()),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+
+    /// Gets the internal [`Resolution`].
+    ///
+    /// Note: This value is only updated after you call [`measure_resolution`](crate::js_camera::JSCamera::measure_resolution)
+    /// # JS-WASM
+    /// This is exported as `get_Resolution`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = Resolution)
+    )]
+    pub fn resolution(&self) -> Resolution {
+        self.measured_resolution
+    }
+
+    /// Measures the [`Resolution`] of the internal stream. You usually do not need to call this.
+    ///
+    /// # Errors
+    /// If the camera fails to attach to the created `<video>`, this will error.
+    ///
+    /// # JS-WASM
+    /// This is exported as `measureResolution`. It may throw an error.
+    #[cfg_attr(
+    feature = "output-wasm",
+    wasm_bindgen(js_name = measureResolution)
+    )]
+    pub fn js_measure_resolution(&mut self) -> Result<(), JsValue> {
+        if let Err(why) = self.measure_resolution() {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Applies any modified constraints.
+    /// # Security
+    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
+    /// fields are not malicious! (This usually boils down to not letting users input data directly)
+    ///
+    /// # Errors
+    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
+    /// Javascript Function fails to run.
+    /// # JS-WASM
+    /// This is exported as `applyConstraints`. It may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
+    pub fn js_apply_constraints(&mut self) -> Result<(), JsValue> {
+        if let Err(why) = self.apply_constraints() {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Gets the internal [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
+    /// # JS-WASM
+    /// This is exported as `MediaStream`.
+    #[must_use]
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(getter, js_name = MediaStream)
+    )]
+    pub fn media_stream(&self) -> MediaStream {
+        self.media_stream.clone()
+    }
+
+    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
+    ///
+    /// # Errors
+    /// If drawing to the canvas fails this will error.
+    /// # JS-WASM
+    /// This is exported as `captureImageData`. It may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureImageData))]
+    pub fn js_frame_image_data(&mut self) -> Result<ImageData, JsValue> {
+        match self.frame_image_data() {
+            Ok(img) => Ok(img),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+
+    /// Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
+    /// # Errors
+    /// If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
+    /// # JS-WASM
+    /// This is exported as `captureFrameRawData`. This may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureFrameRawData))]
+    pub fn js_frame_raw(&mut self) -> Result<Box<[u8]>, JsValue> {
+        match self.frame_raw() {
+            Ok(frame) => Ok(frame.to_vec().into_iter().collect()),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+    /// Attaches camera to a `element`(by-id).
+    /// - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+    /// # Errors
+    /// If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
+    /// # JS-WASM
+    /// This is exported as `attachToElement`. It may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = attachToElement))]
+    pub fn js_attach(&mut self, element: &str, generate_new: bool) -> Result<(), JsValue> {
+        if let Err(why) = self.attach(element, generate_new) {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Detaches the camera from the `<video>` node.
+    /// # Errors
+    /// If the casting fails (the stored node is not a `<video>`) this will error.
+    /// # JS-WASM
+    /// This is exported as `detachCamera`. This may throw an error.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = detachCamera))]
+    pub fn js_detach(&mut self) -> Result<(), JsValue> {
+        if let Err(why) = self.detach() {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
 }
 
 impl JSCamera {
@@ -1080,204 +1898,16 @@ impl JSCamera {
             }
         };
 
-        Ok(JSCamera {
+        let mut js_camera = JSCamera {
             media_stream: stream,
             constraints,
             attached: false,
             attached_node: None,
-        })
-    }
+            measured_resolution: Resolution::new(0, 0),
+        };
+        js_camera.measure_resolution()?;
 
-    /// Gets the internal [`Resolution`]
-    #[must_use]
-    pub fn preferred_resolution(&self) -> Resolution {
-        self.constraints.preferred_resolution
-    }
-
-    /// Sets the internal [`Resolution`]
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_preferred_resolution(&mut self, preferred_resolution: Resolution) {
-        self.constraints.preferred_resolution = preferred_resolution;
-    }
-
-    /// Gets the internal resolution exact.
-    #[must_use]
-    pub fn resolution_exact(&self) -> bool {
-        self.constraints.resolution_exact
-    }
-
-    /// Sets the internal resolution exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_resolution_exact(&mut self, resolution_exact: bool) {
-        self.constraints.resolution_exact = resolution_exact;
-    }
-
-    /// Gets the internal aspect ratio.
-    #[must_use]
-    pub fn aspect_ratio(&self) -> f64 {
-        self.constraints.aspect_ratio
-    }
-
-    /// Sets the internal aspect ratio.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_aspect_ratio(&mut self, aspect_ratio: f64) {
-        self.constraints.aspect_ratio = aspect_ratio;
-    }
-
-    /// Gets the internal aspect ratio exact.
-    #[must_use]
-    pub fn aspect_ratio_exact(&self) -> bool {
-        self.constraints.aspect_ratio_exact
-    }
-
-    /// Sets the internal aspect ratio exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_aspect_ratio_exact(&mut self, aspect_ratio_exact: bool) {
-        self.constraints.aspect_ratio_exact = aspect_ratio_exact;
-    }
-
-    /// Gets the internal [`JSCameraFacingMode`].
-    #[must_use]
-    pub fn facing_mode(&self) -> JSCameraFacingMode {
-        self.constraints.facing_mode
-    }
-
-    /// Sets the internal [`JSCameraFacingMode`]
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_facing_mode(&mut self, facing_mode: JSCameraFacingMode) {
-        self.constraints.facing_mode = facing_mode;
-    }
-
-    /// Gets the internal facing mode exact.
-    #[must_use]
-    pub fn facing_mode_exact(&self) -> bool {
-        self.constraints.facing_mode_exact
-    }
-
-    /// Sets the internal facing mode exact
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_facing_mode_exact(&mut self, facing_mode_exact: bool) {
-        self.constraints.facing_mode_exact = facing_mode_exact;
-    }
-
-    /// Gets the internal frame rate.
-    #[must_use]
-    pub fn frame_rate(&self) -> u32 {
-        self.constraints.frame_rate
-    }
-
-    /// Sets the internal frame rate
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_frame_rate(&mut self, frame_rate: u32) {
-        self.constraints.frame_rate = frame_rate;
-    }
-
-    /// Gets the internal frame rate exact.
-    #[must_use]
-    pub fn frame_rate_exact(&self) -> bool {
-        self.constraints.frame_rate_exact
-    }
-
-    /// Sets the internal frame rate exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_frame_rate_exact(&mut self, frame_rate_exact: bool) {
-        self.constraints.frame_rate_exact = frame_rate_exact;
-    }
-
-    /// Gets the internal [`JSCameraResizeMode`].
-    #[must_use]
-    pub fn resize_mode(&self) -> JSCameraResizeMode {
-        self.constraints.resize_mode
-    }
-
-    /// Sets the internal [`JSCameraResizeMode`]
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_resize_mode(&mut self, resize_mode: JSCameraResizeMode) {
-        self.constraints.resize_mode = resize_mode;
-    }
-
-    /// Gets the internal resize mode exact.
-    #[must_use]
-    pub fn resize_mode_exact(&self) -> bool {
-        self.constraints.resize_mode_exact
-    }
-
-    /// Sets the internal resize mode exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_resize_mode_exact(&mut self, resize_mode_exact: bool) {
-        self.constraints.resize_mode_exact = resize_mode_exact;
-    }
-
-    /// Gets the internal device id.
-    #[must_use]
-    pub fn device_id(&self) -> &str {
-        &self.constraints.device_id
-    }
-
-    /// Sets the internal device ID.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_device_id(&mut self, device_id: String) {
-        self.constraints.device_id = device_id;
-    }
-
-    /// Gets the internal device id exact.
-    #[must_use]
-    pub fn device_id_exact(&self) -> bool {
-        self.constraints.device_id_exact
-    }
-
-    /// Sets the internal device ID exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_device_id_exact(&mut self, device_id_exact: bool) {
-        self.constraints.device_id_exact = device_id_exact;
-    }
-
-    /// Gets the internal group id.
-    #[must_use]
-    pub fn group_id(&self) -> &str {
-        &self.constraints.group_id
-    }
-
-    /// Sets the internal group ID.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_group_id(&mut self, group_id: String) {
-        self.constraints.group_id = group_id;
-    }
-
-    /// Gets the internal group id exact.
-    #[must_use]
-    pub fn group_id_exact(&self) -> bool {
-        self.constraints.group_id_exact
-    }
-
-    /// Sets the internal group ID exact.
-    /// Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    /// [`apply_constraints()`](crate::JSCameraConstraints::apply_constraints)
-    pub fn set_group_id_exact(&mut self, group_id_exact: bool) {
-        self.constraints.group_id_exact = group_id_exact;
-    }
-
-    #[must_use]
-    pub fn is_attached(&self) -> bool {
-        self.attached
-    }
-
-    #[must_use]
-    pub fn media_stream(&self) -> &MediaStream {
-        &self.media_stream
+        Ok(js_camera)
     }
 
     /// Applies any modified constraints.
@@ -1291,25 +1921,87 @@ impl JSCamera {
     /// Javascript Function fails to run.
     pub fn apply_constraints(&mut self) -> Result<(), NokhwaError> {
         let new_constraints = JSCameraConstraintsBuilder {
-            preferred_resolution: self.preferred_resolution(),
-            resolution_exact: self.resolution_exact(),
-            aspect_ratio: self.aspect_ratio(),
-            aspect_ratio_exact: self.aspect_ratio_exact(),
-            facing_mode: self.facing_mode(),
-            facing_mode_exact: self.facing_mode_exact(),
-            frame_rate: self.frame_rate(),
-            frame_rate_exact: self.frame_rate_exact(),
-            resize_mode: self.resize_mode(),
-            resize_mode_exact: self.resize_mode_exact(),
-            device_id: self.device_id().to_string(),
-            device_id_exact: self.device_id_exact(),
-            group_id: self.group_id().to_string(),
-            group_id_exact: self.group_id_exact(),
+            min_resolution: self.constraints.min_resolution(),
+            preferred_resolution: self.constraints.resolution(),
+            max_resolution: self.constraints.max_resolution(),
+            resolution_exact: self.constraints.resolution_exact(),
+            min_aspect_ratio: self.constraints.min_aspect_ratio(),
+            aspect_ratio: self.constraints.aspect_ratio(),
+            max_aspect_ratio: self.constraints.max_aspect_ratio(),
+            aspect_ratio_exact: self.constraints.aspect_ratio_exact(),
+            facing_mode: self.constraints.facing_mode(),
+            facing_mode_exact: self.constraints.facing_mode_exact(),
+            min_frame_rate: self.constraints.min_frame_rate(),
+            frame_rate: self.constraints.frame_rate(),
+            max_frame_rate: self.constraints.max_frame_rate(),
+            frame_rate_exact: self.constraints.frame_rate_exact(),
+            resize_mode: self.constraints.resize_mode(),
+            resize_mode_exact: self.constraints.resize_mode_exact(),
+            device_id: self.constraints.device_id(),
+            device_id_exact: self.constraints.device_id_exact(),
+            group_id: self.constraints.group_id(),
+            group_id_exact: self.constraints.group_id_exact(),
         }
         .build()?;
 
         self.constraints.media_constraints = new_constraints.media_constraints;
+        self.measure_resolution()?;
         Ok(())
+    }
+
+    /// Sets the [`JSCameraConstraints`]. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
+    ///
+    /// # Errors
+    /// See [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints).
+    pub fn set_constraints(&mut self, constraints: JSCameraConstraints) -> Result<(), NokhwaError> {
+        let current = std::mem::replace(&mut self.constraints, constraints);
+        if let Err(why) = self.apply_constraints() {
+            self.constraints = current;
+            return Err(why);
+        }
+        Ok(())
+    }
+
+    /// Measures the [`Resolution`] of the internal stream. You usually do not need to call this.
+    ///
+    /// # Errors
+    /// If the camera fails to attach to the created `<video>`, this will error.
+    pub fn measure_resolution(&mut self) -> Result<(), NokhwaError> {
+        if self.attached && self.attached_node.is_some() {
+            let video_node = match &self.attached_node {
+                Some(a_node) => {
+                    element_cast_ref::<Node, HtmlVideoElement>(a_node, "HtmlVideoElement")?
+                }
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "attached_node".to_string(),
+                        error: "is none".to_string(),
+                    })
+                }
+            };
+
+            let resolution = Resolution::new(video_node.video_width(), video_node.video_height());
+            self.measured_resolution = resolution;
+
+            Ok(())
+        } else {
+            let window: Window = window()?;
+            let document: Document = document(&window)?;
+            let video_element = create_element(&document, "video")?;
+
+            set_autoplay_inline(&video_element)?;
+
+            let video_element: HtmlVideoElement =
+                element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
+
+            video_element.set_src_object(Some(&self.media_stream()));
+
+            let resolution =
+                Resolution::new(video_element.video_width(), video_element.video_height());
+            self.measured_resolution = resolution;
+
+            Ok(())
+        }
     }
 
     /// Attaches camera to a `element`(by-id).
@@ -1330,9 +2022,9 @@ impl JSCamera {
             let video_element: HtmlVideoElement =
                 element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
 
-            video_element.set_width(self.preferred_resolution().width());
-            video_element.set_width(self.preferred_resolution().height());
-            video_element.set_src_object(Some(self.media_stream()));
+            video_element.set_width(self.resolution().width());
+            video_element.set_width(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
 
             return match selected_element.append_child(&Node::from(video_element)) {
                 Ok(n) => {
@@ -1352,17 +2044,19 @@ impl JSCamera {
         let selected_element =
             element_cast::<Element, HtmlVideoElement>(selected_element, "HtmlVideoElement")?;
 
-        selected_element.set_width(self.preferred_resolution().width());
-        selected_element.set_width(self.preferred_resolution().height());
-        selected_element.set_src_object(Some(self.media_stream()));
+        selected_element.set_width(self.resolution().width());
+        selected_element.set_width(self.resolution().height());
+        selected_element.set_src_object(Some(&self.media_stream()));
 
         self.attached_node = Some(Node::from(selected_element));
         self.attached = true;
         Ok(())
     }
 
+    /// Detaches the camera from the `<video>` node.
     /// # Errors
-    pub fn de_attach(&mut self) -> Result<(), NokhwaError> {
+    /// If the casting fails (the stored node is not a `<video>`) this will error.
+    pub fn detach(&mut self) -> Result<(), NokhwaError> {
         if !self.attached {
             return Ok(());
         }
@@ -1381,17 +2075,18 @@ impl JSCamera {
         Ok(())
     }
 
-    /// Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
+    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
+    ///
     /// # Errors
-    /// If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
-    pub fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+    /// If drawing to the canvas fails this will error.
+    pub fn frame_image_data(&mut self) -> Result<ImageData, NokhwaError> {
         let window: Window = window()?;
         let document: Document = document(&window)?;
         let canvas = create_element(&document, "canvas")?;
         let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
 
-        canvas.set_height(self.preferred_resolution().height());
-        canvas.set_width(self.preferred_resolution().width());
+        canvas.set_height(self.resolution().height());
+        canvas.set_width(self.resolution().width());
 
         let context = match canvas.get_context("2d") {
             Ok(maybe_ctx) => match maybe_ctx {
@@ -1426,16 +2121,16 @@ impl JSCamera {
                 }
             };
 
-            video_element.set_width(self.preferred_resolution().width());
-            video_element.set_width(self.preferred_resolution().height());
-            video_element.set_src_object(Some(self.media_stream()));
+            video_element.set_width(self.resolution().width());
+            video_element.set_width(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 video_element,
                 0_f64,
                 0_f64,
-                self.preferred_resolution().width().into(),
-                self.preferred_resolution().height().into(),
+                self.resolution().width().into(),
+                self.resolution().height().into(),
             ) {
                 return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
             }
@@ -1455,16 +2150,16 @@ impl JSCamera {
             let video_element: HtmlVideoElement =
                 element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
 
-            video_element.set_width(self.preferred_resolution().width());
-            video_element.set_width(self.preferred_resolution().height());
-            video_element.set_src_object(Some(self.media_stream()));
+            video_element.set_width(self.resolution().width());
+            video_element.set_width(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 &video_element,
                 0_f64,
                 0_f64,
-                self.preferred_resolution().width().into(),
-                self.preferred_resolution().height().into(),
+                self.resolution().width().into(),
+                self.resolution().height().into(),
             ) {
                 return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
             }
@@ -1473,24 +2168,33 @@ impl JSCamera {
         let image_data = match context.get_image_data(
             0_f64,
             0_f64,
-            self.preferred_resolution().width().into(),
-            self.preferred_resolution().height().into(),
+            self.resolution().width().into(),
+            self.resolution().height().into(),
         ) {
-            Ok(data) => data.data().0,
+            Ok(data) => data,
             Err(why) => {
                 return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
             }
         };
 
+        Ok(image_data)
+    }
+
+    /// Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
+    /// # Errors
+    /// If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
+    pub fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        let image_data = self.frame_image_data()?.data().0;
+
         Ok(Cow::from(image_data))
     }
 
-    /// This takes the output from [`frame_raw()`](crate::JSCamera::frame_raw) and turns it into an `ImageBuffer<Rgb<u8>, Vec<u8>>`.
+    /// This takes the output from [`frame_raw()`](crate::js_camera::JSCamera::frame_raw) and turns it into an `ImageBuffer<Rgb<u8>, Vec<u8>>`.
     /// # Errors
-    /// This will error if the frame vec is too small(this is probably a bug, please report it!) or if the frame fails to capture. See [`frame_raw()`](crate::JSCamera::frame_raw).
+    /// This will error if the frame vec is too small(this is probably a bug, please report it!) or if the frame fails to capture. See [`frame_raw()`](crate::js_camera::JSCamera::frame_raw).
     pub fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         let raw_data = self.frame_raw()?.to_vec();
-        let resolution = self.preferred_resolution();
+        let resolution = self.resolution();
         let image_buf =
             match ImageBuffer::from_vec(resolution.width(), resolution.height(), raw_data) {
                 Some(buf) => {
@@ -1506,12 +2210,12 @@ impl JSCamera {
         Ok(image_buf)
     }
 
-    /// This takes the output from [`frame_raw()`](crate::JSCamera::frame_raw) and turns it into an `ImageBuffer<Rgba<u8>, Vec<u8>>`.
+    /// This takes the output from [`frame_raw()`](crate::js_camera::JSCamera::frame_raw) and turns it into an `ImageBuffer<Rgba<u8>, Vec<u8>>`.
     /// # Errors
-    /// This will error if the frame vec is too small(this is probably a bug, please report it!) or if the frame fails to capture. See [`frame_raw()`](crate::JSCamera::frame_raw).
+    /// This will error if the frame vec is too small(this is probably a bug, please report it!) or if the frame fails to capture. See [`frame_raw()`](crate::js_camera::JSCamera::frame_raw).
     pub fn rgba_frame(&mut self) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, NokhwaError> {
         let raw_data = self.frame_raw()?.to_vec();
-        let resolution = self.preferred_resolution();
+        let resolution = self.resolution();
         let image_buf =
             match ImageBuffer::from_vec(resolution.width(), resolution.height(), raw_data) {
                 Some(buf) => {
@@ -1529,7 +2233,7 @@ impl JSCamera {
     /// The minimum buffer size needed to write the current frame (RGB24). If `use_rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
     #[must_use]
     pub fn min_buffer_size(&self, use_rgba: bool) -> usize {
-        let resolution = self.preferred_resolution();
+        let resolution = self.resolution();
         if use_rgba {
             (resolution.width() * resolution.height() * 4) as usize
         } else {
@@ -1539,13 +2243,13 @@ impl JSCamera {
 
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
-    /// If reading the frame fails, this will error. See [`frame_raw()`](crate::JSCamera::frame_raw).
+    /// If reading the frame fails, this will error. See [`frame_raw()`](crate::js_camera::JSCamera::frame_raw).
     pub fn write_frame_to_buffer(
         &mut self,
         buffer: &mut [u8],
         convert_rgba: bool,
     ) -> Result<usize, NokhwaError> {
-        let resolution = self.preferred_resolution();
+        let resolution = self.resolution();
         let frame = self.frame_raw()?;
         if convert_rgba {
             buffer.copy_from_slice(&frame);
@@ -1579,7 +2283,7 @@ impl JSCamera {
         label: Option<&'a str>,
     ) -> Result<Texture, NokhwaError> {
         use std::num::NonZeroU32;
-        let resolution = self.preferred_resolution();
+        let resolution = self.resolution();
         let frame = self.frame_raw()?;
 
         let texture_size = Extent3d {

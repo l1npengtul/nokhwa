@@ -45,13 +45,13 @@ The table below lists current Nokhwa API support.
  | Backend                         | Input              | Query              | Query-Device       | Platform            |
  |---------------------------------|--------------------|--------------------|--------------------|---------------------|
  | Video4Linux(`input-v4l`)        | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF                            | 🔮                 | 🔮                 | 🔮                 | Windows             |
+ | MSMF(`input-msmf`)              | 🔮                 | 🔮                 | 🔮                 | Windows             |
  | AVFoundation                    | 🚧                 | 🚧                 | 🚧                 | Mac                 |
  | libuvc(`input-uvc`)             | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^         | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^ | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | GStreamer(`input-gst`)          | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM                         | 🔮                 | 🔮                 | 🔮                 | Web                 |
+ | JS/WASM(`input-wasm`)           | 🔮                 | 🔮                 | 🔮                 | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
@@ -73,8 +73,19 @@ Conversely, anything that starts with `output-*` controls a feature that control
 
 `output-*` features:
  - `output-wgpu`: Enables the API to copy a frame directly into a `wgpu` texture.
+ - `output-wasm`: Generate WASM API binding specific functions.
 
 Other features:
+ - `decoding`: Enables `mozjpeg` decoding. Enabled by default.  
+ - `small-wasm`: Enables size optimizations for WASM targets. Uses `wee_alloc` instead of default, LTO enabled, `opt-level` set to "s" for size. Note that the LTO and `opt-level` are only enabled if:
+   - `--release` is enabled.
+   - The target family is `wasm`
+   - `--no-default-features` is enabled. (disables `mozjpeg` and MJPEG processing)
+
+ Please use the following command for `wasm-pack` in order to get a functional WASM binary:
+ ```.ignore
+ wasm-pack build --release -- --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features 
+ ```
  - `docs-only`: Documentation feature. Enabled for docs.rs builds.
  - `docs-nolink`: Build documentation **without** linking to any libraries. Enabled for docs.rs builds.
  - `test-fail-warning`: Fails on warning. Enabled in CI.

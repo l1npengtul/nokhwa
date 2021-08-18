@@ -1,30 +1,36 @@
+#[cfg(not(feature = "small-wasm"))]
 use crate::NokhwaError;
-use mozjpeg::Decompress;
 use std::{
     cmp::Ordering,
-    convert::TryFrom,
     fmt::{Display, Formatter},
-    slice::from_raw_parts,
 };
+#[cfg(feature = "input-jscam")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg(feature = "input-msmf")]
+#[cfg(not(feature = "small-wasm"))]
 use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 use uvc::StreamFormat;
 #[cfg(feature = "input-v4l")]
+#[cfg(not(feature = "small-wasm"))]
 use v4l::{control::Description, Format, FourCC};
 
-/// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC` <br>
-/// YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr) <br>
-/// MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
+/// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
+/// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
+/// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
+/// # JS-WASM
+/// This is exported as `FrameFormat`
 #[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd, Ord, Eq)]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
 }
+
 impl Display for FrameFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -38,6 +44,7 @@ impl Display for FrameFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 impl From<FrameFormat> for uvc::FrameFormat {
     fn from(ff: FrameFormat) -> Self {
@@ -48,6 +55,7 @@ impl From<FrameFormat> for uvc::FrameFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MFFrameFormat> for FrameFormat {
     fn from(mf_ff: MFFrameFormat) -> Self {
@@ -58,6 +66,7 @@ impl From<MFFrameFormat> for FrameFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<FrameFormat> for MFFrameFormat {
     fn from(ff: FrameFormat) -> Self {
@@ -71,15 +80,22 @@ impl From<FrameFormat> for MFFrameFormat {
 /// Describes a Resolution.
 /// This struct consists of a Width and a Height value (x,y). <br>
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
+/// # JS-WASM
+/// This is exported as `Resolution`
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = Resolution))]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
 }
 
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
+    /// # JS-WASM
+    /// This is exported as a constructor for [`Resolution`].
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
     pub fn new(x: u32, y: u32) -> Self {
         Resolution {
             width_x: x,
@@ -88,25 +104,33 @@ impl Resolution {
     }
 
     /// Get the width of Resolution
+    /// # JS-WASM
+    /// This is exported as `get_Width`.
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Width"))]
     pub fn width(self) -> u32 {
         self.width_x
     }
 
     /// Get the height of Resolution
+    /// # JS-WASM
+    /// This is exported as `get_Height`.
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Height"))]
     pub fn height(self) -> u32 {
         self.height_y
     }
 
     /// Get the x (width) of Resolution
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(skip))]
     pub fn x(self) -> u32 {
         self.width_x
     }
 
     /// Get the y (height) of Resolution
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(skip))]
     pub fn y(self) -> u32 {
         self.height_y
     }
@@ -134,6 +158,7 @@ impl Ord for Resolution {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MFResolution> for Resolution {
     fn from(mf_res: MFResolution) -> Self {
@@ -144,6 +169,7 @@ impl From<MFResolution> for Resolution {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<Resolution> for MFResolution {
     fn from(res: Resolution) -> Self {
@@ -156,6 +182,7 @@ impl From<Resolution> for MFResolution {
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
+#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -163,14 +190,15 @@ pub struct CameraFormat {
     frame_rate: u32,
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl CameraFormat {
     /// Construct a new [`CameraFormat`]
     #[must_use]
-    pub fn new(resolution: Resolution, format: FrameFormat, framerate: u32) -> Self {
+    pub fn new(resolution: Resolution, format: FrameFormat, frame_rate: u32) -> Self {
         CameraFormat {
             resolution,
             format,
-            frame_rate: framerate,
+            frame_rate,
         }
     }
 
@@ -233,6 +261,7 @@ impl CameraFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 impl From<CameraFormat> for StreamFormat {
     fn from(cf: CameraFormat) -> Self {
@@ -245,6 +274,7 @@ impl From<CameraFormat> for StreamFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl Default for CameraFormat {
     fn default() -> Self {
         CameraFormat {
@@ -255,6 +285,7 @@ impl Default for CameraFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl Display for CameraFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -265,6 +296,7 @@ impl Display for CameraFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MFCameraFormat> for CameraFormat {
     fn from(mf_cam_fmt: MFCameraFormat) -> Self {
@@ -276,6 +308,7 @@ impl From<MFCameraFormat> for CameraFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<CameraFormat> for MFCameraFormat {
     fn from(cf: CameraFormat) -> Self {
@@ -283,6 +316,7 @@ impl From<CameraFormat> for MFCameraFormat {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-v4l")]
 impl From<CameraFormat> for Format {
     fn from(cam_fmt: CameraFormat) -> Self {
@@ -296,8 +330,11 @@ impl From<CameraFormat> for Format {
 }
 
 /// Information about a Camera e.g. its name.
-/// `description` amd `misc` may contain backend-specific information.
+/// `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
+/// # JS-WASM
+/// This is exported as a `CameraInfo`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraInfo))]
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct CameraInfo {
     human_name: String,
@@ -306,9 +343,13 @@ pub struct CameraInfo {
     index: usize,
 }
 
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
+    /// # JS-WASM
+    /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
     pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
         CameraInfo {
             human_name,
@@ -318,46 +359,76 @@ impl CameraInfo {
         }
     }
 
-    /// Get a reference to the device info's human name.
+    /// Get a reference to the device info's human readable name.
+    /// # JS-WASM
+    /// This is exported as a `get_HumanReadableName`.
     #[must_use]
-    pub fn human_name(&self) -> &String {
-        &self.human_name
+    #[cfg_attr(
+        feature = "input-jscam",
+        wasm_bindgen(getter, js_name = "HumanReadableName")
+    )]
+    pub fn human_name(&self) -> String {
+        self.human_name.clone()
     }
 
     /// Set the device info's human name.
+    /// # JS-WASM
+    /// This is exported as a `set_HumanReadableName`.
+    #[cfg_attr(
+        feature = "output-wasm",
+        wasm_bindgen(setter, js_name = "HumanReadableName")
+    )]
     pub fn set_human_name(&mut self, human_name: String) {
         self.human_name = human_name;
     }
 
     /// Get a reference to the device info's description.
+    /// # JS-WASM
+    /// This is exported as a `get_Description`.
     #[must_use]
-    pub fn description(&self) -> &String {
-        &self.description
+    #[cfg_attr(feature = "input-jscam", wasm_bindgen(getter, js_name = "Description"))]
+    pub fn description(&self) -> String {
+        self.description.clone()
     }
 
     /// Set the device info's description.
+    /// # JS-WASM
+    /// This is exported as a `set_Description`.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "Description"))]
     pub fn set_description(&mut self, description: String) {
         self.description = description;
     }
 
     /// Get a reference to the device info's misc.
+    /// # JS-WASM
+    /// This is exported as a `get_MiscString`.
     #[must_use]
-    pub fn misc(&self) -> &String {
-        &self.misc
+    #[cfg_attr(feature = "input-jscam", wasm_bindgen(getter, js_name = "MiscString"))]
+    pub fn misc(&self) -> String {
+        self.misc.clone()
     }
 
     /// Set the device info's misc.
+    /// # JS-WASM
+    /// This is exported as a `set_MiscString`.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "MiscString"))]
     pub fn set_misc(&mut self, misc: String) {
         self.misc = misc;
     }
 
     /// Get a reference to the device info's index.
+    /// # JS-WASM
+    /// This is exported as a `get_Index`.
     #[must_use]
-    pub fn index(&self) -> &usize {
-        &self.index
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Index"))]
+    pub fn index(&self) -> usize {
+        self.index
     }
 
     /// Set the device info's index.
+    /// # JS-WASM
+    /// This is exported as a `set_Index`.
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "Index"))]
     pub fn set_index(&mut self, index: usize) {
         self.index = index;
     }
@@ -385,6 +456,7 @@ impl Display for CameraInfo {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
@@ -400,6 +472,7 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
+#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControls {
     Brightness,
@@ -421,6 +494,7 @@ pub enum KnownCameraControls {
     Focus,
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[must_use]
 pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     [
@@ -444,12 +518,14 @@ pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     ]
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl Display for KnownCameraControls {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", &self)
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MediaFoundationControls> for KnownCameraControls {
     fn from(mf_c: MediaFoundationControls) -> Self {
@@ -475,6 +551,7 @@ impl From<MediaFoundationControls> for KnownCameraControls {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-msmf")]
 impl From<MFControl> for KnownCameraControls {
     fn from(mf_cc: MFControl) -> Self {
@@ -482,8 +559,9 @@ impl From<MFControl> for KnownCameraControls {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-v4l")]
-impl TryFrom<Description> for KnownCameraControls {
+impl std::convert::TryFrom<Description> for KnownCameraControls {
     type Error = NokhwaError;
 
     fn try_from(value: Description) -> Result<Self, Self::Error> {
@@ -514,6 +592,7 @@ impl TryFrom<Description> for KnownCameraControls {
 
 /// This tells you weather a [`KnownCameraControls`] is automatically managed by the OS/Driver
 /// or manually managed by you, the programmer.
+#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControlFlag {
     Automatic,
@@ -523,6 +602,7 @@ pub enum KnownCameraControlFlag {
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
+#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct CameraControl {
     control: KnownCameraControls,
@@ -535,6 +615,7 @@ pub struct CameraControl {
     active: bool,
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl CameraControl {
     /// Creates a new [`CameraControl`]
     /// # Errors
@@ -705,12 +786,14 @@ impl CameraControl {
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl PartialOrd for CameraControl {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+#[cfg(not(feature = "small-wasm"))]
 impl Ord for CameraControl {
     fn cmp(&self, other: &Self) -> Ordering {
         self.control().cmp(&other.control())
@@ -750,10 +833,14 @@ impl Display for CaptureAPIBackend {
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
+#[cfg(not(feature = "small-wasm"))]
+#[cfg(feature = "decoding")]
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    let mut mozjpeg_decomp = match Decompress::new_mem(data) {
-        Ok(decomp) => match decomp.rgb() {
-            Ok(decompresser) => decompresser,
+    use mozjpeg::Decompress;
+
+    let mut jpeg_decompress = match Decompress::new_mem(data) {
+        Ok(decompress) => match decompress.rgb() {
+            Ok(decompressor) => decompressor,
             Err(why) => {
                 return Err(NokhwaError::ProcessFrameError {
                     src: FrameFormat::MJPEG,
@@ -770,7 +857,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
             })
         }
     };
-    let decompressed = match mozjpeg_decomp.read_scanlines::<[u8; 3]>() {
+    let decompressed = match jpeg_decompress.read_scanlines::<[u8; 3]>() {
         Some(pixels) => pixels,
         None => {
             return Err(NokhwaError::ProcessFrameError {
@@ -781,7 +868,10 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         }
     };
 
-    Ok(unsafe { from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }.to_vec())
+    Ok(
+        unsafe { std::slice::from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }
+            .to_vec(),
+    )
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2
@@ -793,7 +883,11 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
+#[cfg(feature = "decoding")]
+#[cfg(not(feature = "small-wasm"))]
 pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    use std::convert::TryFrom;
+
     let mut rgb_vec: Vec<u8> = vec![];
     if data.len() % 4 == 0 {
         for px_idx in (0..data.len()).step_by(4) {
@@ -895,6 +989,8 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
+#[cfg(not(feature = "small-wasm"))]
+#[cfg(feature = "decoding")]
 pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;

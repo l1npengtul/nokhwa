@@ -51,7 +51,7 @@ pipeline {
           steps {
             pwsh(script: 'rustup update stable', returnStatus: true)
             pwsh(script: 'cargo build --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
-            pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning" -- --no-deps', returnStatus: true)
+            pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
           }
         }
 
@@ -103,14 +103,13 @@ pipeline {
           }
         }
 
-        stage('JSCamera') {
+        stage('JSCamera/WASM') {
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-jscam, output-wgpu, test-fail-warning"'
-            sh 'cargo clippy --features "input-jscam, output-wgpu, test-fail-warning"'
+            sh 'wasm-pack build --release -- --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features'
+            sh 'cargo clippy --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features'
           }
         }
-
       }
     }
 
@@ -126,6 +125,5 @@ pipeline {
         sh 'cargo +nightly doc --features "docs-only, docs-nolink, test-fail-warning" --no-deps --release'
       }
     }
-
   }
 }

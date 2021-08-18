@@ -11,9 +11,13 @@ repository = "https://github.com/l1npengtul/nokhwa"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
-default = []
-input-uvc = ["uvc", "uvc/vendor", "ouroboros"]
+default = ["decoding"]
+decoding = ["mozjpeg"]
+input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
@@ -21,16 +25,20 @@ input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen"]
 output-wgpu = ["wgpu"]
-docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-jscam","output-wgpu"]
+output-wasm = ["input-jscam"]
+small-wasm = ["wee_alloc"]
+docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-jscam","output-wgpu", "output-wasm"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
 test-fail-warning = []
 
 [dependencies]
 thiserror = "1.0.26"
-mozjpeg = "0.8.24"
 flume = "0.10.5"
-usb_enumeration = "0.1.2"
 paste = "1.0.5"
+
+[dependencies.mozjpeg]
+version = "0.8.24"
+optional = true
 
 [dependencies.image]
 version = "0.23.14"
@@ -50,6 +58,10 @@ optional = true
 
 [dependencies.uvc]
 version = "0.2.0"
+optional = true
+
+[dependencies.usb_enumeration]
+version = "0.1.2"
 optional = true
 
 [dependencies.wgpu]
@@ -115,6 +127,10 @@ optional = true
 
 [dependencies.wasm-bindgen-futures]
 version = "0.4.24"
+optional = true
+
+[dependencies.wee_alloc]
+version = "0.4.5"
 optional = true
 
 [package.metadata.docs.rs]
