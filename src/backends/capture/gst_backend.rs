@@ -152,7 +152,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
             self.stop_stream()?;
             reopen = true;
         }
-        let (pipeline, app_sink, receiver) = generate_pipeline(new_fmt, *self.camera_info.index())?;
+        let (pipeline, app_sink, receiver) = generate_pipeline(new_fmt, self.camera_info.index())?;
         self.pipeline = pipeline;
         self.app_sink = app_sink;
         self.receiver = receiver;
