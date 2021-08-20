@@ -307,7 +307,21 @@ pub fn query_supported_constraints() -> Result<Vec<JSCameraSupportedCapabilities
     }
 }
 
-// pub fn query_supported_capabilities_js() -> Result<Array, JsValue> {}
+/// Queries the browser's supported constraints using [`navigator.mediaDevices.getSupportedConstraints()`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getSupportedConstraints)
+/// # Errors
+/// This will error if there is no valid web context or the web API is not supported
+/// # JS-WASM
+/// This is exported as `queryConstraints` and returns an array of strings.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = queryConstraints))]
+pub fn query_supported_constraints_js() -> Result<Array, JsValue> {
+    match query_supported_constraints() {
+        Ok(constraints) => Ok(constraints
+            .into_iter()
+            .map(|c| JsValue::from(c.to_string()))
+            .collect()),
+        Err(why) => Err(JsValue::from(why.to_string())),
+    }
+}
 
 /// The enum describing the possible constraints for video in the browser.
 /// - `DeviceID`: The ID of the device
@@ -1823,6 +1837,26 @@ impl JSCamera {
         }
     }
 
+    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) and then returns its `URL` as a string.
+    /// - `mime_type`: The mime type of the resulting URI. It is `image/png` by default (lossless) but can be set to `image/jpeg` or `image/webp` (lossy). Anything else is ignored.
+    /// - `image_quality`: A number between `0` and `1` indicating the resulting image quality in case you are using a lossy image mime type. The default value is 0.92, and all other values are ignored.
+    ///
+    /// # Errors
+    /// If drawing to the canvas fails or URI generation is not supported or fails this will error.
+    /// # JS-WASM
+    /// This is exported as `captureImageURI`. It may throw an error
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureImageURI))]
+    pub fn js_frame_image_data_uri(
+        &mut self,
+        mime_type: &str,
+        image_quality: f64,
+    ) -> Result<String, JsValue> {
+        match self.frame_uri(Some(mime_type), Some(image_quality)) {
+            Ok(uri) => Ok(uri),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+
     /// Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
     /// # Errors
     /// If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
@@ -2178,6 +2212,111 @@ impl JSCamera {
         };
 
         Ok(image_data)
+    }
+
+    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) and then returns its `URL` as a string.
+    /// - `mime_type`: The mime type of the resulting URI. It is `image/png` by default (lossless) but can be set to `image/jpeg` or `image/webp` (lossy). Anything else is ignored.
+    /// - `image_quality`: A number between `0` and `1` indicating the resulting image quality in case you are using a lossy image mime type. The default value is 0.92, and all other values are ignored.
+    ///
+    /// # Errors
+    /// If drawing to the canvas fails or URI generation is not supported or fails this will error.
+    pub fn frame_uri(
+        &mut self,
+        mime_type: Option<&str>,
+        image_quality: Option<f64>,
+    ) -> Result<String, NokhwaError> {
+        let mime_type = mime_type.unwrap_or("image/png");
+        let image_quality = JsValue::from(image_quality.unwrap_or(0.92_f64));
+
+        let window: Window = window()?;
+        let document: Document = document(&window)?;
+        let canvas = create_element(&document, "canvas")?;
+        let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
+
+        canvas.set_height(self.resolution().height());
+        canvas.set_width(self.resolution().width());
+
+        let context = match canvas.get_context("2d") {
+            Ok(maybe_ctx) => match maybe_ctx {
+                Some(ctx) => element_cast::<Object, CanvasRenderingContext2d>(
+                    ctx,
+                    "CanvasRenderingContext2d",
+                )?,
+                None => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "HtmlCanvasElement Context 2D".to_string(),
+                        error: "None".to_string(),
+                    });
+                }
+            },
+            Err(why) => {
+                return Err(NokhwaError::StructureError {
+                    structure: "HtmlCanvasElement Context 2D".to_string(),
+                    error: format!("{:?}", why),
+                });
+            }
+        };
+
+        if self.attached && self.attached_node.is_some() {
+            let video_element = match &self.attached_node {
+                Some(n) => element_cast_ref::<Node, HtmlVideoElement>(n, "HtmlVideoElement")?,
+                None => {
+                    // this shouldn't happen
+                    return Err(NokhwaError::StructureError {
+                        structure: "Document Attached Video Element".to_string(),
+                        error: "None".to_string(),
+                    });
+                }
+            };
+
+            video_element.set_width(self.resolution().width());
+            video_element.set_width(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
+
+            if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
+                video_element,
+                0_f64,
+                0_f64,
+                self.resolution().width().into(),
+                self.resolution().height().into(),
+            ) {
+                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+            }
+        } else {
+            let video_element = match document.create_element("video") {
+                Ok(new_element) => new_element,
+                Err(why) => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "Document Video Element".to_string(),
+                        error: format!("{:?}", why.as_string()),
+                    })
+                }
+            };
+
+            set_autoplay_inline(&video_element)?;
+
+            let video_element: HtmlVideoElement =
+                element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
+
+            video_element.set_width(self.resolution().width());
+            video_element.set_width(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
+
+            if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
+                &video_element,
+                0_f64,
+                0_f64,
+                self.resolution().width().into(),
+                self.resolution().height().into(),
+            ) {
+                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+            }
+        }
+
+        match canvas.to_data_url_with_type_and_encoder_options(mime_type, &image_quality) {
+            Ok(uri) => Ok(uri),
+            Err(why) => Err(NokhwaError::ReadFrameError(format!("{:?}", why))),
+        }
     }
 
     /// Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
