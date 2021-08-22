@@ -462,7 +462,6 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.camera_format.resolution()
     }
 
-    #[allow(clippy::option_if_let_else)]
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_resolution(new_res);
@@ -473,7 +472,6 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.camera_format.frame_rate()
     }
 
-    #[allow(clippy::option_if_let_else)]
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_frame_rate(new_fps);
@@ -484,7 +482,6 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.camera_format.format()
     }
 
-    #[allow(clippy::option_if_let_else)]
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         let mut new_fmt = self.camera_format;
         new_fmt.set_format(fourcc);
