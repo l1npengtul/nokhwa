@@ -4,7 +4,7 @@ use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
-#[cfg(feature = "input-jscam")]
+#[cfg(feature = "output-wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg(feature = "input-msmf")]
@@ -364,7 +364,7 @@ impl CameraInfo {
     /// This is exported as a `get_HumanReadableName`.
     #[must_use]
     #[cfg_attr(
-        feature = "input-jscam",
+        feature = "output-wasm",
         wasm_bindgen(getter, js_name = "HumanReadableName")
     )]
     pub fn human_name(&self) -> String {
@@ -386,7 +386,7 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `get_Description`.
     #[must_use]
-    #[cfg_attr(feature = "input-jscam", wasm_bindgen(getter, js_name = "Description"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Description"))]
     pub fn description(&self) -> String {
         self.description.clone()
     }
@@ -403,7 +403,7 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `get_MiscString`.
     #[must_use]
-    #[cfg_attr(feature = "input-jscam", wasm_bindgen(getter, js_name = "MiscString"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "MiscString"))]
     pub fn misc(&self) -> String {
         self.misc.clone()
     }

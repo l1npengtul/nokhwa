@@ -19,18 +19,19 @@ use std::{
     fmt::{Debug, Display, Formatter},
     ops::Deref,
 };
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
+#[cfg(feature = "output-wasm")]
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement, ImageData,
     MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints, Navigator,
     Node, Window,
 };
-
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
-    Device, Extent3d, ImageCopyTexture, ImageDataLayout, Queue, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsage,
+    Device, Extent3d, ImageCopyTexture, ImageDataLayout, Queue, Texture, TextureAspect,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
 
 // why no code completion
@@ -2438,7 +2439,7 @@ impl JSCamera {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsage::SAMPLED | TextureUsage::COPY_DST,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         });
 
         let width_nonzero = match NonZeroU32::try_from(4 * resolution.width()) {
@@ -2456,6 +2457,7 @@ impl JSCamera {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
+                aspect: TextureAspect::All,
             },
             &frame,
             ImageDataLayout {

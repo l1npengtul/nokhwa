@@ -15,7 +15,8 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
-    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
+    Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
+    TextureUsages,
 };
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
@@ -214,7 +215,7 @@ pub trait CaptureBackendTrait {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsage::SAMPLED | TextureUsage::COPY_DST,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         });
 
         let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
@@ -232,6 +233,7 @@ pub trait CaptureBackendTrait {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
+                aspect: TextureAspect::All,
             },
             &rgba_frame.to_vec(),
             ImageDataLayout {
