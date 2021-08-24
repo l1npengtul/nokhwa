@@ -1,0 +1,17 @@
+{
+  "name": "jscam",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "serve": "webpack-serve --config ./webpack.config.js --content public"
+  },
+  "author": "l1npengtul",
+  "license": "MPL-2.0",
+  "dependencies": {
+    "webpack": "^4.6.0",
+    "webpack-serve": "^1.0.4",
+    "nokhwa": "file:../../nokhwajs"
+  }
+}
