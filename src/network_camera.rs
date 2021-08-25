@@ -10,8 +10,10 @@ use std::cell::RefCell;
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
-    Texture as WgpuTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsage,
+    Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
+    TextureUsages,
 };
+
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 pub struct NetworkCamera {
     ip: String,
@@ -112,7 +114,7 @@ impl NetworkCamera {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsage::SAMPLED | TextureUsage::COPY_DST,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         });
 
         let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
@@ -130,6 +132,7 @@ impl NetworkCamera {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
+                aspect: TextureAspect::All,
             },
             &rgba_frame.to_vec(),
             ImageDataLayout {
