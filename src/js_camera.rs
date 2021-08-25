@@ -24,9 +24,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement, ImageData,
-    MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints, Navigator,
-    Node, Window,
+    console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
+    HtmlVideoElement, ImageData, MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream,
+    MediaStreamConstraints, Navigator, Node, Window,
 };
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -38,19 +38,6 @@ use wgpu::{
 // big sadger
 
 // intellij 2021.2 review: i like structure window, 4 pengs / 5 pengs
-
-const GET_CONSTRAINT_LIST_JS_CODE_STR: &str = r#"
-let constraints_list = navigator.mediaDevices.getSupportedConstraints();
-let constraint_string_arr = [];
-
-for (let constraint in supportedConstraints) {
-    if (constraints_list.hasOwnProperty(constraint)) {
-        constraint_string_arr.push(constraint.to_string());
-    }
-}
-
-return constraint_string_arr;
-"#;
 
 fn window() -> Result<Window, NokhwaError> {
     match web_sys::window() {
@@ -173,7 +160,11 @@ pub fn request_permission() -> Result<Promise, NokhwaError> {
     let navigator = window.navigator();
     let media_devices = media_devices(&navigator)?;
 
-    match media_devices.get_user_media() {
+    match media_devices.get_user_media_with_constraints(
+        MediaStreamConstraints::new()
+            .video(&JsValue::from_bool(true))
+            .audio(&JsValue::from_bool(false)),
+    ) {
         Ok(promise) => Ok(promise),
         Err(why) => {
             return Err(NokhwaError::StructureError {
@@ -254,7 +245,10 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = queryCameras))]
 pub async fn js_query_js_cameras() -> Result<Array, JsValue> {
     match query_js_cameras().await {
-        Ok(cameras) => Ok(cameras.into_iter().map(JsValue::from).collect()),
+        Ok(cameras) => Ok(cameras
+            .into_iter()
+            .map(|e| JsValue::from(e.to_string()))
+            .collect()),
         Err(why) => Err(JsValue::from(why.to_string())),
     }
 }
@@ -263,49 +257,26 @@ pub async fn js_query_js_cameras() -> Result<Array, JsValue> {
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
 pub fn query_supported_constraints() -> Result<Vec<JSCameraSupportedCapabilities>, NokhwaError> {
-    let js_supported_fn = Function::new_no_args(GET_CONSTRAINT_LIST_JS_CODE_STR);
-    match js_supported_fn.call0(&JsValue::NULL) {
-        Ok(value) => {
-            let value: JsValue = value;
-            let supported_cap_array: Array = Array::from(&value);
+    let window: Window = window()?;
+    let navigator = window.navigator();
+    let media_devices = media_devices(&navigator)?;
 
-            let mut capability_list = vec![];
-            for idx_supported in 0_u32..supported_cap_array.length() {
-                let supported = match supported_cap_array.get(idx_supported).dyn_ref::<JsString>() {
-                    Some(v) => {
-                        let v: &JsValue = v.as_ref();
-                        let s: String = match v.as_string() {
-                            Some(str) => str,
-                            None => {
-                                return Err(NokhwaError::StructureError {
-                                    structure: "Query Supported Constraints String None"
-                                        .to_string(),
-                                    error: "None".to_string(),
-                                })
-                            }
-                        };
-                        s
-                    }
-                    None => {
-                        continue;
-                    }
-                };
+    let supported_constraints = JsValue::from(media_devices.get_supported_constraints());
+    let dict_supported_constraints = Object::from(supported_constraints);
 
-                let capability = match JSCameraSupportedCapabilities::try_from(supported) {
-                    Ok(cap) => cap,
-                    Err(_) => {
-                        continue;
-                    }
-                };
-                capability_list.push(capability);
-            }
-            Ok(capability_list)
+    let mut capabilities_vec = vec![];
+    for constraint in Object::keys(&dict_supported_constraints).iter() {
+        let constraint_str = JsValue::from(JsString::from(constraint))
+            .as_string()
+            .unwrap_or_default();
+
+        log_1(&JsValue::from(&constraint_str));
+        // swallow errors
+        if let Ok(cap) = JSCameraSupportedCapabilities::try_from(constraint_str) {
+            capabilities_vec.push(cap);
         }
-        Err(why) => Err(NokhwaError::StructureError {
-            structure: "JSCameraSupportedCapabilities List Dict Function".to_string(),
-            error: why.as_string().unwrap_or_else(|| "".to_string()),
-        }),
     }
+    Ok(capabilities_vec)
 }
 
 /// Queries the browser's supported constraints using [`navigator.mediaDevices.getSupportedConstraints()`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getSupportedConstraints)
@@ -378,7 +349,7 @@ impl TryFrom<String> for JSCameraSupportedCapabilities {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let value = value.as_str();
-        Ok(match value {
+        let result = match value {
             "deviceId" => JSCameraSupportedCapabilities::DeviceID,
             "groupId" => JSCameraSupportedCapabilities::GroupID,
             "aspectRatio" => JSCameraSupportedCapabilities::AspectRatio,
@@ -393,7 +364,8 @@ impl TryFrom<String> for JSCameraSupportedCapabilities {
                     error: "No Match Str".to_string(),
                 })
             }
-        })
+        };
+        Ok(result)
     }
 }
 
@@ -1744,7 +1716,7 @@ impl JSCamera {
         self.constraints.clone()
     }
 
-    /// Sets the JSCameraConstraints. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
+    /// Sets the [`JSCameraConstraints`]. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
     ///
     /// # Errors
     /// See [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints).

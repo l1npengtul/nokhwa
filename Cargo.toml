@@ -104,6 +104,7 @@ optional = true
 version = "0.3.51"
 # why
 features = [
+    "console",
     "CanvasRenderingContext2d",
     "CssStyleDeclaration",
     "Document",

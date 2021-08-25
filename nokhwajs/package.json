@@ -4,7 +4,7 @@
     "l1npengtul <l1npengtul@protonmail.com>"
   ],
   "description": "A Simple-to-use, cross-platform Rust Webcam Capture Library",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "license": "MPL-2.0",
   "repository": {
     "type": "git",

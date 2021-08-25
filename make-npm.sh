@@ -6,6 +6,5 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
 
-cargo clean
 wasm-pack build --release --target web -- --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features
 mv pkg/nokhwa* nokhwajs/

@@ -11,7 +11,7 @@
   "author": "l1npengtul",
   "license": "MPL-2.0",
   "dependencies": {
-    "nokhwa": "^0.4.2",
+    "nokhwa": "file:../../nokhwajs",
     "wasm-loader": "^1.3.0"
   },
   "devDependencies": {
