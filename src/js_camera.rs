@@ -46,22 +46,26 @@ macro_rules! jsv {
 }
 
 macro_rules! obj {
-    ($value: expr) => {{
-        Object::from(JsValue::from($value))
+    ($(($key:expr, $value:expr)),+ ) => {{
+        use js_sys::{Map, Object};
+        use wasm_bindgen::JsValue;
+
+        let map = Map::new();
+        $(
+            map.set(&jsv!($key), &jsv!($value));
+        )+
+        Object::from(map)
     }};
-    ($prop: expr, $value:expr) => {{
-        Object::define_property(
-            &Object::new(),
-            &JsValue::from($prop),
-            &Object::from(JsValue::from($value)),
-        )
-    }};
-    ($object:expr, $prop: expr, $value:expr) => {{
-        Object::define_property(
-            &$object,
-            &JsValue::from($prop),
-            &Object::from(JsValue::from($value)),
-        )
+    ($object:expr, $(($key:expr, $value:expr)),+ ) => {{
+        use js_sys::{Map, Object};
+        use wasm_bindgen::JsValue;
+
+        let map = Map::new();
+        $(
+            map.set(&jsv!($key), &jsv!($value));
+        )+
+        let o = Object::from(map);
+        Object::assign(&$object, &o)
     }};
 }
 
@@ -242,16 +246,18 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                 Ok(v) => {
                     let array: Array = Array::from(&v);
                     let mut device_list = vec![];
+                    request_permission().await?;
                     for idx_device in 0_u32..array.length() {
                         if MediaDeviceInfo::instanceof(&array.get(idx_device)) {
                             let media_device_info =
                                 MediaDeviceInfo::unchecked_from_js(array.get(idx_device));
+
                             if media_device_info.kind() == MediaDeviceKind::Videoinput {
                                 device_list.push(CameraInfo::new(
-                                    media_device_info.label(),
+                                    format!("{:?}#{}", media_device_info.kind(), idx_device),
                                     format!("{:?}", media_device_info.kind()),
                                     format!(
-                                        "{}:{}",
+                                        "{} {}",
                                         media_device_info.group_id(),
                                         media_device_info.device_id()
                                     ),
@@ -845,27 +851,22 @@ impl JSCameraConstraintsBuilder {
             if self.preferred_resolution != null_resolution {
                 video_object = obj!(
                     video_object,
-                    "width",
-                    obj!("exact", self.preferred_resolution.width())
+                    ("width", obj!(("exact", self.preferred_resolution.width())))
                 );
             }
         } else {
             let mut width_object = Object::new();
 
             if let Some(min_res) = self.min_resolution {
-                width_object = obj!(width_object, "min", obj!(min_res.width()));
+                width_object = obj!(width_object, ("min", min_res.width()));
             }
 
-            width_object = obj!(
-                width_object,
-                "ideal",
-                obj!(self.preferred_resolution.width())
-            );
+            width_object = obj!(width_object, ("ideal", self.preferred_resolution.width()));
             if let Some(max_res) = self.max_resolution {
-                width_object = obj!(width_object, "max", obj!(max_res.width()));
+                width_object = obj!(width_object, ("max", max_res.width()));
             }
 
-            video_object = obj!(video_object, "width", width_object);
+            video_object = obj!(video_object, ("width", width_object));
         }
 
         // height
@@ -873,27 +874,25 @@ impl JSCameraConstraintsBuilder {
             if self.preferred_resolution != null_resolution {
                 video_object = obj!(
                     video_object,
-                    "height",
-                    obj!("exact", self.preferred_resolution.height())
+                    (
+                        "height",
+                        obj!(("exact", self.preferred_resolution.height()))
+                    )
                 );
             }
         } else {
             let mut height_object = Object::new();
 
             if let Some(min_res) = self.min_resolution {
-                height_object = obj!(height_object, "min", obj!(min_res.height()));
+                height_object = obj!(height_object, ("min", min_res.height()));
             }
 
-            height_object = obj!(
-                height_object,
-                "ideal",
-                obj!(self.preferred_resolution.height())
-            );
+            height_object = obj!(height_object, ("ideal", self.preferred_resolution.height()));
             if let Some(max_res) = self.max_resolution {
-                height_object = obj!(height_object, "max", obj!(max_res.height()));
+                height_object = obj!(height_object, ("max", max_res.height()));
             }
 
-            video_object = obj!(video_object, "height", height_object);
+            video_object = obj!(video_object, ("height", height_object));
         }
 
         // aspect ratio
@@ -901,99 +900,81 @@ impl JSCameraConstraintsBuilder {
             if self.aspect_ratio != 0_f64 {
                 video_object = obj!(
                     video_object,
-                    "aspectRatio",
-                    obj!("exact", self.aspect_ratio)
+                    ("aspectRatio", obj!(("exact", self.aspect_ratio)))
                 );
             }
         } else {
             let mut aspect_ratio_object = Object::new();
 
             if let Some(min_ratio) = self.min_aspect_ratio {
-                aspect_ratio_object = obj!(aspect_ratio_object, "min", obj!(min_ratio));
+                aspect_ratio_object = obj!(aspect_ratio_object, ("min", min_ratio));
             }
 
-            aspect_ratio_object = obj!(aspect_ratio_object, "ideal", obj!(self.aspect_ratio));
+            aspect_ratio_object = obj!(aspect_ratio_object, ("ideal", self.aspect_ratio));
             if let Some(max_ratio) = self.max_aspect_ratio {
-                aspect_ratio_object = obj!(aspect_ratio_object, "max", obj!(max_ratio));
+                aspect_ratio_object = obj!(aspect_ratio_object, ("max", max_ratio));
             }
 
-            video_object = obj!(video_object, "aspectRatio", aspect_ratio_object);
+            video_object = obj!(video_object, ("aspectRatio", aspect_ratio_object));
         }
 
         if self.facing_mode != JSCameraFacingMode::Any && self.facing_mode_exact {
             video_object = obj!(
                 video_object,
-                "facingMode",
-                obj!("exact", self.facing_mode.to_string())
+                ("facingMode", obj!(("exact", self.facing_mode.to_string())))
             );
         } else if self.facing_mode != JSCameraFacingMode::Any {
             video_object = obj!(
                 video_object,
-                "facingMode",
-                obj!("ideal", self.facing_mode.to_string())
+                ("facingMode", obj!(("ideal", self.facing_mode.to_string())))
             );
         }
 
         // aspect ratio
         if self.frame_rate_exact {
             if self.frame_rate != 0 {
-                video_object = obj!(video_object, "frameRate", obj!("exact", self.frame_rate));
+                video_object = obj!(
+                    video_object,
+                    ("frameRate", obj!(("exact", self.frame_rate)))
+                );
             }
         } else {
             let mut frame_rate_object = Object::new();
 
             if let Some(min_frame_rate) = self.min_frame_rate {
-                frame_rate_object = obj!(frame_rate_object, "min", obj!(min_frame_rate));
+                frame_rate_object = obj!(frame_rate_object, ("min", min_frame_rate));
             }
 
-            frame_rate_object = obj!(frame_rate_object, "ideal", obj!(self.frame_rate));
+            frame_rate_object = obj!(frame_rate_object, ("ideal", self.frame_rate));
             if let Some(max_frame_rate) = self.max_frame_rate {
-                frame_rate_object = obj!(frame_rate_object, "max", obj!(max_frame_rate));
+                frame_rate_object = obj!(frame_rate_object, ("max", max_frame_rate));
             }
 
-            video_object = obj!(video_object, "frameRate", frame_rate_object);
+            video_object = obj!(video_object, ("frameRate", frame_rate_object));
         }
 
         if self.resize_mode != JSCameraResizeMode::Any && self.resize_mode_exact {
             video_object = obj!(
                 video_object,
-                "resizeMode",
-                obj!("exact", self.resize_mode.to_string())
+                ("resizeMode", obj!(("exact", self.resize_mode.to_string())))
             );
         } else if self.resize_mode != JSCameraResizeMode::Any {
             video_object = obj!(
                 video_object,
-                "resizeMode",
-                obj!("ideal", self.resize_mode.to_string())
+                ("resizeMode", obj!(("ideal", self.resize_mode.to_string())))
             );
         }
 
         if self.device_id != null_string && self.device_id_exact {
-            video_object = obj!(
-                video_object,
-                "deviceId",
-                obj!("exact", self.device_id.to_string())
-            );
+            video_object = obj!(video_object, ("deviceId", obj!(("exact", &self.device_id))));
         } else if self.device_id != null_string {
-            video_object = obj!(
-                video_object,
-                "deviceId",
-                obj!("ideal", self.device_id.to_string())
-            );
+            video_object = obj!(video_object, ("deviceId", obj!(("ideal", &self.device_id))));
         }
 
         if self.group_id != null_string && self.group_id_exact {
-            video_object = obj!(
-                video_object,
-                "groupId",
-                obj!("exact", self.group_id.to_string())
-            );
+            video_object = obj!(video_object, ("groupId", obj!(("exact", &self.group_id))));
         } else if self.group_id != null_string {
-            video_object = obj!(
-                video_object,
-                "groupId",
-                obj!("ideal", self.group_id.to_string())
-            );
+            video_object = obj!(video_object, ("groupId", obj!(("ideal", &self.group_id))));
         }
 
         // TODO: Remove
