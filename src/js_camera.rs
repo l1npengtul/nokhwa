@@ -180,6 +180,7 @@ pub fn request_permission() -> Result<Promise, NokhwaError> {
 /// This will error if there is no valid web context or the web API is not supported
 /// # JS-WASM
 /// In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
+#[cfg(feature = "output-wasm")]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = requestPermissions))]
 pub fn js_request_permission() -> Result<Promise, JsValue> {
     match request_permission() {
@@ -242,6 +243,7 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
 /// This will error if there is no valid web context or the web API is not supported
 /// # JS-WASM
 /// This is exported as `queryCameras`. It may throw an exception.
+#[cfg(feature = "output-wasm")]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = queryCameras))]
 pub async fn js_query_js_cameras() -> Result<Array, JsValue> {
     match query_js_cameras().await {
@@ -788,6 +790,7 @@ impl JSCameraConstraintsBuilder {
     /// Javascript Function fails to run.
     /// # JS-WASM
     /// This is exported as `build`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(
         feature = "output-wasm",
         wasm_bindgen(js_name = buildCameraConstraints)
@@ -1621,6 +1624,7 @@ impl JSCameraConstraints {
     /// Javascript Function fails to run.
     /// # JS-WASM
     /// This is exported as `applyConstraints`. This may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
     pub fn js_apply_constraints(&mut self) -> Result<(), JsValue> {
         if let Err(why) = self.apply_constraints() {
@@ -1698,6 +1702,7 @@ impl JSCamera {
     /// This may error if permission is not granted, or the constraints are invalid.
     /// # JS-WASM
     /// This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
     pub async fn js_new(constraints: JSCameraConstraints) -> Result<JSCamera, JsValue> {
         match JSCamera::new(constraints).await {
@@ -1722,6 +1727,7 @@ impl JSCamera {
     /// See [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints).
     /// # JS-WASM
     /// This is exported as `set_Constraints`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(
         feature = "output-wasm",
         wasm_bindgen(setter, js_name = Constraints)
@@ -1754,6 +1760,7 @@ impl JSCamera {
     ///
     /// # JS-WASM
     /// This is exported as `measureResolution`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(
     feature = "output-wasm",
     wasm_bindgen(js_name = measureResolution)
@@ -1776,6 +1783,7 @@ impl JSCamera {
     /// Javascript Function fails to run.
     /// # JS-WASM
     /// This is exported as `applyConstraints`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
     pub fn js_apply_constraints(&mut self) -> Result<(), JsValue> {
         if let Err(why) = self.apply_constraints() {
@@ -1802,6 +1810,7 @@ impl JSCamera {
     /// If drawing to the canvas fails this will error.
     /// # JS-WASM
     /// This is exported as `captureImageData`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureImageData))]
     pub fn js_frame_image_data(&mut self) -> Result<ImageData, JsValue> {
         match self.frame_image_data() {
@@ -1818,6 +1827,7 @@ impl JSCamera {
     /// If drawing to the canvas fails or URI generation is not supported or fails this will error.
     /// # JS-WASM
     /// This is exported as `captureImageURI`. It may throw an error
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureImageURI))]
     pub fn js_frame_image_data_uri(
         &mut self,
@@ -1848,6 +1858,7 @@ impl JSCamera {
     /// If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
     /// # JS-WASM
     /// This is exported as `attachToElement`. It may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = attachToElement))]
     pub fn js_attach(&mut self, element: &str, generate_new: bool) -> Result<(), JsValue> {
         if let Err(why) = self.attach(element, generate_new) {
@@ -1861,6 +1872,7 @@ impl JSCamera {
     /// If the casting fails (the stored node is not a `<video>`) this will error.
     /// # JS-WASM
     /// This is exported as `detachCamera`. This may throw an error.
+    #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = detachCamera))]
     pub fn js_detach(&mut self) -> Result<(), JsValue> {
         if let Err(why) = self.detach() {
