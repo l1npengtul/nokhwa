@@ -203,7 +203,7 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     return real;
 }
 function __wbg_adapter_22(arg0, arg1, arg2) {
-    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b(arg0, arg1, addHeapObject(arg2));
+    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h34bdc8cc85c4eb6b(arg0, arg1, addHeapObject(arg2));
 }
 
 /**
@@ -212,7 +212,7 @@ function __wbg_adapter_22(arg0, arg1, arg2) {
 * This will error if there is no valid web context or the web API is not supported
 * # JS-WASM
 * In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
-* @returns {Promise<any>}
+* @returns {any}
 */
 export function requestPermissions() {
     var ret = wasm.requestPermissions();
@@ -278,8 +278,8 @@ function passArray8ToWasm0(arg, malloc) {
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
-function __wbg_adapter_206(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wbg_adapter_213(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__h138614ba43225cc0(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 /**
@@ -609,14 +609,8 @@ export class JSCamera {
     }
     /**
     * Applies any modified constraints.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly)
-    *
     * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
+    * This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
     * # JS-WASM
     * This is exported as `applyConstraints`. It may throw an error.
     */
@@ -718,6 +712,14 @@ export class JSCamera {
     */
     detachCamera() {
         wasm.jscamera_detachCamera(this.ptr);
+    }
+    /**
+    * Stops all streams and detaches the camera.
+    * # Errors
+    * There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
+    */
+    stopAll() {
+        wasm.jscamera_stopAll(this.ptr);
     }
 }
 
@@ -1217,16 +1219,8 @@ export class JSCameraConstraints {
     }
     /**
     * Applies any modified constraints.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly)
-    *
-    * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
     * # JS-WASM
-    * This is exported as `applyConstraints`. This may throw an error.
+    * This is exported as `applyConstraints`.
     */
     applyConstraints() {
         wasm.jscameraconstraints_applyConstraints(this.ptr);
@@ -1547,16 +1541,8 @@ export class JSCameraConstraintsBuilder {
     * Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
     *
     * Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly).
-    *
-    * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
     * # JS-WASM
-    * This is exported as `build`. It may throw an error.
+    * This is exported as `buildCameraConstraints`.
     * @returns {CameraConstraints}
     */
     buildCameraConstraints() {
@@ -1782,9 +1768,8 @@ async function init(input) {
         var ret = getObject(arg0).getElementById(getStringFromWasm0(arg1, arg2));
         return isLikeNone(ret) ? 0 : addHeapObject(ret);
     };
-    imports.wbg.__wbg_clone_907d18181dd9fdec = function(arg0) {
-        var ret = getObject(arg0).clone();
-        return addHeapObject(ret);
+    imports.wbg.__wbg_stop_f96817735e68ad3d = function(arg0) {
+        getObject(arg0).stop();
     };
     imports.wbg.__wbg_instanceof_MediaDeviceInfo_cdf31c28bb9459ae = function(arg0) {
         var ret = getObject(arg0) instanceof MediaDeviceInfo;
@@ -1827,13 +1812,6 @@ async function init(input) {
         var ret = getObject(arg0).getUserMedia(getObject(arg1));
         return addHeapObject(ret);
     }, arguments) };
-    imports.wbg.__wbg_data_315524ada7b563f4 = function(arg0, arg1) {
-        var ret = getObject(arg1).data;
-        var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
-        var len0 = WASM_VECTOR_LEN;
-        getInt32Memory0()[arg0 / 4 + 1] = len0;
-        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
-    };
     imports.wbg.__wbg_instanceof_HtmlCanvasElement_fd3cbbe3906d7792 = function(arg0) {
         var ret = getObject(arg0) instanceof HTMLCanvasElement;
         return ret;
@@ -1855,20 +1833,12 @@ async function init(input) {
         getInt32Memory0()[arg0 / 4 + 1] = len0;
         getInt32Memory0()[arg0 / 4 + 0] = ptr0;
     }, arguments) };
-    imports.wbg.__wbg_instanceof_HtmlVideoElement_acfaf2202e3e0d29 = function(arg0) {
-        var ret = getObject(arg0) instanceof HTMLVideoElement;
-        return ret;
-    };
-    imports.wbg.__wbg_setwidth_4006f4b33b15224b = function(arg0, arg1) {
-        getObject(arg0).width = arg1 >>> 0;
-    };
-    imports.wbg.__wbg_videoWidth_6bb879ceeecadf27 = function(arg0) {
-        var ret = getObject(arg0).videoWidth;
-        return ret;
-    };
-    imports.wbg.__wbg_videoHeight_384ef46e0b174f86 = function(arg0) {
-        var ret = getObject(arg0).videoHeight;
-        return ret;
+    imports.wbg.__wbg_data_315524ada7b563f4 = function(arg0, arg1) {
+        var ret = getObject(arg1).data;
+        var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        getInt32Memory0()[arg0 / 4 + 1] = len0;
+        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
     };
     imports.wbg.__wbg_setAttribute_27ca65e30a1c3c4a = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
         getObject(arg0).setAttribute(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
@@ -1894,6 +1864,29 @@ async function init(input) {
         var ret = getObject(arg0).mediaDevices;
         return addHeapObject(ret);
     }, arguments) };
+    imports.wbg.__wbg_instanceof_HtmlVideoElement_acfaf2202e3e0d29 = function(arg0) {
+        var ret = getObject(arg0) instanceof HTMLVideoElement;
+        return ret;
+    };
+    imports.wbg.__wbg_setwidth_4006f4b33b15224b = function(arg0, arg1) {
+        getObject(arg0).width = arg1 >>> 0;
+    };
+    imports.wbg.__wbg_videoWidth_6bb879ceeecadf27 = function(arg0) {
+        var ret = getObject(arg0).videoWidth;
+        return ret;
+    };
+    imports.wbg.__wbg_videoHeight_384ef46e0b174f86 = function(arg0) {
+        var ret = getObject(arg0).videoHeight;
+        return ret;
+    };
+    imports.wbg.__wbg_clone_907d18181dd9fdec = function(arg0) {
+        var ret = getObject(arg0).clone();
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_getTracks_453d59960c6b0998 = function(arg0) {
+        var ret = getObject(arg0).getTracks();
+        return addHeapObject(ret);
+    };
     imports.wbg.__wbg_appendChild_6ed236bb79c198df = function() { return handleError(function (arg0, arg1) {
         var ret = getObject(arg0).appendChild(getObject(arg1));
         return addHeapObject(ret);
@@ -1934,6 +1927,10 @@ async function init(input) {
         var ret = getObject(arg0).call(getObject(arg1), getObject(arg2));
         return addHeapObject(ret);
     }, arguments) };
+    imports.wbg.__wbg_defineProperty_df4b577f1780ae0c = function(arg0, arg1, arg2) {
+        var ret = Object.defineProperty(getObject(arg0), getObject(arg1), getObject(arg2));
+        return addHeapObject(ret);
+    };
     imports.wbg.__wbg_keys_9f3a5511f779059c = function(arg0) {
         var ret = Object.keys(getObject(arg0));
         return addHeapObject(ret);
@@ -1945,7 +1942,7 @@ async function init(input) {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_206(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_213(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -2013,7 +2010,7 @@ async function init(input) {
     imports.wbg.__wbindgen_rethrow = function(arg0) {
         throw takeObject(arg0);
     };
-    imports.wbg.__wbindgen_closure_wrapper726 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper735 = function(arg0, arg1, arg2) {
         var ret = makeMutClosure(arg0, arg1, 65, __wbg_adapter_22);
         return addHeapObject(ret);
     };

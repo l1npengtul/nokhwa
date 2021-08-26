@@ -111,7 +111,7 @@ features = [
     "Element",
     "HtmlElement", "HtmlVideoElement", "HtmlCanvasElement",
     "ImageData",
-    "MediaDevices", "MediaDeviceInfo", "MediaDeviceKind", "MediaStreamConstraints", "MediaTrackSupportedConstraints", "MediaStream",
+    "MediaDevices", "MediaDeviceInfo", "MediaDeviceKind", "MediaStreamConstraints", "MediaTrackSupportedConstraints", "MediaStream", "MediaStreamTrack",
     "MimeType", "MimeTypeArray",
     "Navigator",
     "Node",

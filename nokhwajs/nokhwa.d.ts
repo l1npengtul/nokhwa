@@ -6,9 +6,9 @@
 * This will error if there is no valid web context or the web API is not supported
 * # JS-WASM
 * In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
-* @returns {Promise<any>}
+* @returns {any}
 */
-export function requestPermissions(): Promise<any>;
+export function requestPermissions(): any;
 /**
 * Queries Cameras using [`MediaDevices::enumerate_devices()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.enumerate_devices) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices)
 * # Errors
@@ -174,14 +174,8 @@ export class JSCamera {
   measureResolution(): void;
 /**
 * Applies any modified constraints.
-* # Security
-* WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are not malicious! (This usually boils down to not letting users input data directly)
-*
 * # Errors
-* This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-* Javascript Function fails to run.
+* This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
 * # JS-WASM
 * This is exported as `applyConstraints`. It may throw an error.
 */
@@ -239,6 +233,12 @@ export class JSCamera {
 */
   detachCamera(): void;
 /**
+* Stops all streams and detaches the camera.
+* # Errors
+* There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
+*/
+  stopAll(): void;
+/**
 * Gets the internal [`JSCameraConstraints`].
 * Most likely, you will edit this value by taking ownership of it, then feed it back into [`set_constraints`](crate::js_camera::JSCamera::set_constraints).
 * # JS-WASM
@@ -267,16 +267,8 @@ export class JSCameraConstraints {
   free(): void;
 /**
 * Applies any modified constraints.
-* # Security
-* WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are not malicious! (This usually boils down to not letting users input data directly)
-*
-* # Errors
-* This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-* Javascript Function fails to run.
 * # JS-WASM
-* This is exported as `applyConstraints`. This may throw an error.
+* This is exported as `applyConstraints`.
 */
   applyConstraints(): void;
 /**
@@ -444,16 +436,8 @@ export class JSCameraConstraintsBuilder {
 * Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
 *
 * Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
-* # Security
-* WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-* fields are not malicious! (This usually boils down to not letting users input data directly).
-*
-* # Errors
-* This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-* Javascript Function fails to run.
 * # JS-WASM
-* This is exported as `build`. It may throw an error.
+* This is exported as `buildCameraConstraints`.
 * @returns {CameraConstraints}
 */
   buildCameraConstraints(): CameraConstraints;
@@ -792,6 +776,7 @@ export interface InitOutput {
   readonly jscamera_captureFrameRawData: (a: number, b: number) => void;
   readonly jscamera_attachToElement: (a: number, b: number, c: number, d: number) => void;
   readonly jscamera_detachCamera: (a: number) => void;
+  readonly jscamera_stopAll: (a: number) => void;
   readonly jscameraconstraintsbuilder_set_MinResolution: (a: number, b: number) => number;
   readonly __wbg_resolution_free: (a: number) => void;
   readonly __wbg_get_resolution_width_x: (a: number) => number;
@@ -816,11 +801,11 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h34bdc8cc85c4eb6b: (a: number, b: number, c: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__h138614ba43225cc0: (a: number, b: number, c: number, d: number) => void;
 }
 
 /**

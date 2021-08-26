@@ -26,7 +26,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
     HtmlVideoElement, ImageData, MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream,
-    MediaStreamConstraints, Navigator, Node, Window,
+    MediaStreamConstraints, MediaStreamTrack, Navigator, Node, Window,
 };
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -181,7 +181,7 @@ fn set_autoplay_inline(element: &Element) -> Result<(), NokhwaError> {
 /// Requests Webcam permissions from the browser using [`MediaDevices::get_user_media()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.get_user_media) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
-pub fn request_permission() -> Result<Promise, NokhwaError> {
+pub async fn request_permission() -> Result<(), NokhwaError> {
     let window: Window = window()?;
     let navigator = window.navigator();
     let media_devices = media_devices(&navigator)?;
@@ -191,13 +191,24 @@ pub fn request_permission() -> Result<Promise, NokhwaError> {
             .video(&JsValue::from_bool(true))
             .audio(&JsValue::from_bool(false)),
     ) {
-        Ok(promise) => Ok(promise),
-        Err(why) => {
-            return Err(NokhwaError::StructureError {
-                structure: "UserMediaPermission".to_string(),
-                error: format!("{:?}", why),
-            })
+        Ok(promise) => {
+            let js_future = JsFuture::from(promise);
+            match js_future.await {
+                Ok(stream) => {
+                    let media_stream = MediaStream::from(stream);
+                    media_stream
+                        .get_tracks()
+                        .iter()
+                        .for_each(|track| MediaStreamTrack::from(track).stop());
+                    Ok(())
+                }
+                Err(why) => Err(NokhwaError::OpenStreamError(format!("{:?}", why))),
+            }
         }
+        Err(why) => Err(NokhwaError::StructureError {
+            structure: "UserMediaPermission".to_string(),
+            error: format!("{:?}", why),
+        }),
     }
 }
 
@@ -208,11 +219,11 @@ pub fn request_permission() -> Result<Promise, NokhwaError> {
 /// In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
 #[cfg(feature = "output-wasm")]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = requestPermissions))]
-pub fn js_request_permission() -> Result<Promise, JsValue> {
-    match request_permission() {
-        Ok(f) => Ok(f),
-        Err(why) => Err(JsValue::from(why.to_string())),
+pub async fn js_request_permission() -> Result<(), JsValue> {
+    if let Err(why) = request_permission().await {
+        return Err(JsValue::from(why.to_string()));
     }
+    Ok(())
 }
 
 /// Queries Cameras using [`MediaDevices::enumerate_devices()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.enumerate_devices) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices)
@@ -813,6 +824,7 @@ impl JSCameraConstraintsBuilder {
         feature = "output-wasm",
         wasm_bindgen(js_name = buildCameraConstraints)
     )]
+    #[must_use]
     pub fn js_build(self) -> JSCameraConstraints {
         self.build()
     }
@@ -821,6 +833,7 @@ impl JSCameraConstraintsBuilder {
 impl JSCameraConstraintsBuilder {
     /// Builds the [`JSCameraConstraints`]
     #[allow(clippy::too_many_lines)]
+    #[must_use]
     pub fn build(self) -> JSCameraConstraints {
         let null_resolution = Resolution::default();
         let null_string = String::new();
@@ -907,20 +920,18 @@ impl JSCameraConstraintsBuilder {
             video_object = obj!(video_object, "aspectRatio", aspect_ratio_object);
         }
 
-        if self.facing_mode_exact {
-            if self.facing_mode != JSCameraFacingMode::Any {
-                video_object = obj!(
-                    video_object,
-                    "facingMode",
-                    obj!("exact", self.facing_mode.to_string())
-                );
-            } else if self.facing_mode != JSCameraFacingMode::Any {
-                video_object = obj!(
-                    video_object,
-                    "facingMode",
-                    obj!("ideal", self.facing_mode.to_string())
-                );
-            }
+        if self.facing_mode != JSCameraFacingMode::Any && self.facing_mode_exact {
+            video_object = obj!(
+                video_object,
+                "facingMode",
+                obj!("exact", self.facing_mode.to_string())
+            );
+        } else if self.facing_mode != JSCameraFacingMode::Any {
+            video_object = obj!(
+                video_object,
+                "facingMode",
+                obj!("ideal", self.facing_mode.to_string())
+            );
         }
 
         // aspect ratio
@@ -943,52 +954,46 @@ impl JSCameraConstraintsBuilder {
             video_object = obj!(video_object, "frameRate", frame_rate_object);
         }
 
-        if self.resize_mode_exact {
-            if self.resize_mode != JSCameraResizeMode::Any {
-                video_object = obj!(
-                    video_object,
-                    "resizeMode",
-                    obj!("exact", self.resize_mode.to_string())
-                );
-            } else if self.resize_mode != JSCameraResizeMode::Any {
-                video_object = obj!(
-                    video_object,
-                    "resizeMode",
-                    obj!("ideal", self.resize_mode.to_string())
-                );
-            }
+        if self.resize_mode != JSCameraResizeMode::Any && self.resize_mode_exact {
+            video_object = obj!(
+                video_object,
+                "resizeMode",
+                obj!("exact", self.resize_mode.to_string())
+            );
+        } else if self.resize_mode != JSCameraResizeMode::Any {
+            video_object = obj!(
+                video_object,
+                "resizeMode",
+                obj!("ideal", self.resize_mode.to_string())
+            );
         }
 
-        if self.device_id_exact {
-            if self.device_id != null_string {
-                video_object = obj!(
-                    video_object,
-                    "deviceId",
-                    obj!("exact", self.device_id.to_string())
-                );
-            } else if self.device_id != null_string {
-                video_object = obj!(
-                    video_object,
-                    "deviceId",
-                    obj!("ideal", self.device_id.to_string())
-                );
-            }
+        if self.device_id != null_string && self.device_id_exact {
+            video_object = obj!(
+                video_object,
+                "deviceId",
+                obj!("exact", self.device_id.to_string())
+            );
+        } else if self.device_id != null_string {
+            video_object = obj!(
+                video_object,
+                "deviceId",
+                obj!("ideal", self.device_id.to_string())
+            );
         }
 
-        if self.group_id_exact {
-            if self.group_id != null_string {
-                video_object = obj!(
-                    video_object,
-                    "groupId",
-                    obj!("exact", self.group_id.to_string())
-                );
-            } else if self.group_id != null_string {
-                video_object = obj!(
-                    video_object,
-                    "groupId",
-                    obj!("ideal", self.group_id.to_string())
-                );
-            }
+        if self.group_id != null_string && self.group_id_exact {
+            video_object = obj!(
+                video_object,
+                "groupId",
+                obj!("exact", self.group_id.to_string())
+            );
+        } else if self.group_id != null_string {
+            video_object = obj!(
+                video_object,
+                "groupId",
+                obj!("ideal", self.group_id.to_string())
+            );
         }
 
         // TODO: Remove
@@ -1586,7 +1591,7 @@ impl JSCameraConstraints {
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
     pub fn js_apply_constraints(&mut self) {
-        self.apply_constraints()
+        self.apply_constraints();
     }
 }
 
@@ -1817,6 +1822,18 @@ impl JSCamera {
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = detachCamera))]
     pub fn js_detach(&mut self) -> Result<(), JsValue> {
         if let Err(why) = self.detach() {
+            return Err(JsValue::from(why.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Stops all streams and detaches the camera.
+    /// # Errors
+    /// There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
+    #[cfg(feature = "output-wasm")]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = stopAll))]
+    pub fn js_stop_all(&mut self) -> Result<(), JsValue> {
+        if let Err(why) = self.stop_all() {
             return Err(JsValue::from(why.to_string()));
         }
         Ok(())
@@ -2389,6 +2406,18 @@ impl JSCamera {
 
         Ok(texture)
     }
+
+    /// Stops all streams and detaches the camera.
+    /// # Errors
+    /// There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
+    pub fn stop_all(&mut self) -> Result<(), NokhwaError> {
+        self.detach()?;
+        self.media_stream.get_tracks().iter().for_each(|track| {
+            let media_track = MediaStreamTrack::from(track);
+            media_track.stop();
+        });
+        Ok(())
+    }
 }
 
 impl Deref for JSCamera {
@@ -2401,6 +2430,6 @@ impl Deref for JSCamera {
 
 impl Drop for JSCamera {
     fn drop(&mut self) {
-        todo!()
+        self.stop_all().unwrap_or(()); // swallow errors
     }
 }
