@@ -12,7 +12,7 @@
 
 use crate::{CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
-use js_sys::{Array, Function, JsString, Object, Promise};
+use js_sys::{Array, JsString, Object, Promise};
 use std::{
     borrow::Cow,
     convert::TryFrom,
@@ -38,6 +38,32 @@ use wgpu::{
 // big sadger
 
 // intellij 2021.2 review: i like structure window, 4 pengs / 5 pengs
+
+macro_rules! jsv {
+    ($value:expr) => {{
+        JsValue::from($value)
+    }};
+}
+
+macro_rules! obj {
+    ($value: expr) => {{
+        Object::from(JsValue::from($value))
+    }};
+    ($prop: expr, $value:expr) => {{
+        Object::define_property(
+            &Object::new(),
+            &JsValue::from($prop),
+            &Object::from(JsValue::from($value)),
+        )
+    }};
+    ($object:expr, $prop: expr, $value:expr) => {{
+        Object::define_property(
+            &$object,
+            &JsValue::from($prop),
+            &Object::from(JsValue::from($value)),
+        )
+    }};
+}
 
 fn window() -> Result<Window, NokhwaError> {
     match web_sys::window() {
@@ -780,280 +806,221 @@ impl JSCameraConstraintsBuilder {
     /// Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
     ///
     /// Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly).
-    ///
-    /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
     /// # JS-WASM
-    /// This is exported as `build`. It may throw an error.
+    /// This is exported as `buildCameraConstraints`.
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(
         feature = "output-wasm",
         wasm_bindgen(js_name = buildCameraConstraints)
     )]
-    pub fn js_build(self) -> Result<JSCameraConstraints, JsValue> {
-        match self.build() {
-            Ok(constraints) => Ok(constraints),
-            Err(why) => Err(JsValue::from(why.to_string())),
-        }
+    pub fn js_build(self) -> JSCameraConstraints {
+        self.build()
     }
 }
 
 impl JSCameraConstraintsBuilder {
     /// Builds the [`JSCameraConstraints`]
-    ///
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly)
-    ///
-    /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
     #[allow(clippy::too_many_lines)]
-    pub fn build(self) -> Result<JSCameraConstraints, NokhwaError> {
+    pub fn build(self) -> JSCameraConstraints {
         let null_resolution = Resolution::default();
         let null_string = String::new();
 
-        let width_string = {
-            if self.resolution_exact {
-                if self.preferred_resolution == null_resolution {
-                    format!("")
-                } else {
-                    format!("width: {{ exact: {} }}", self.preferred_resolution.width_x)
-                }
-            } else {
-                let min_string = if let Some(min_res) = self.min_resolution {
-                    format!("min: {},", min_res.width())
-                } else {
-                    format!("")
-                };
+        let mut video_object = Object::new();
 
-                let ideal_string = format!("ideal: {},", self.preferred_resolution.width());
-                let max_string = if let Some(max_res) = self.max_resolution {
-                    format!("max: {},", max_res.width())
-                } else {
-                    format!("")
-                };
-
-                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
-                total_string.remove(total_string.len() - 1);
-                format!("width: {{ {} }}", total_string)
+        // width
+        if self.resolution_exact {
+            if self.preferred_resolution != null_resolution {
+                video_object = obj!(
+                    video_object,
+                    "width",
+                    obj!("exact", self.preferred_resolution.width())
+                );
             }
-        };
+        } else {
+            let mut width_object = Object::new();
 
-        let height_string = {
-            if self.aspect_ratio_exact {
-                if self.preferred_resolution == null_resolution {
-                    format!("")
-                } else {
-                    format!(
-                        "height: {{ exact: {} }}",
-                        self.preferred_resolution.height_y
-                    )
-                }
-            } else {
-                let min_string = if let Some(min_res) = self.min_resolution {
-                    format!("min: {},", min_res.height())
-                } else {
-                    format!("")
-                };
-
-                let ideal_string = format!("ideal: {},", self.preferred_resolution.height());
-                let max_string = if let Some(max_res) = self.max_resolution {
-                    format!("max: {},", max_res.height())
-                } else {
-                    format!("")
-                };
-
-                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
-                total_string.remove(total_string.len() - 1);
-                format!("height: {{ {} }}", total_string)
+            if let Some(min_res) = self.min_resolution {
+                width_object = obj!(width_object, "min", obj!(min_res.width()));
             }
-        };
 
-        let aspect_ratio_string = {
-            if self.aspect_ratio_exact {
-                if self.aspect_ratio == 0_f64 {
-                    format!("")
-                } else {
-                    format!("aspectRatio: {{ exact: {} }}", self.aspect_ratio)
-                }
-            } else {
-                let min_string = if let Some(min_ratio) = self.min_aspect_ratio {
-                    format!("min: {},", min_ratio)
-                } else {
-                    format!("")
-                };
-
-                let ideal_string = format!("ideal: {},", self.aspect_ratio);
-                let max_string = if let Some(max_ratio) = self.max_aspect_ratio {
-                    format!("max: {},", max_ratio)
-                } else {
-                    format!("")
-                };
-
-                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
-                total_string.remove(total_string.len() - 1);
-                format!("aspectRatio: {{ {} }}", total_string)
+            width_object = obj!(
+                width_object,
+                "ideal",
+                obj!(self.preferred_resolution.width())
+            );
+            if let Some(max_res) = self.max_resolution {
+                width_object = obj!(width_object, "max", obj!(max_res.width()));
             }
-        };
 
-        let facing_mode_string = {
-            if self.facing_mode_exact {
-                if self.facing_mode == JSCameraFacingMode::Any {
-                    format!("")
-                } else {
-                    format!("facingMode: {{ exact: {} }}", self.facing_mode)
-                }
-            } else if self.facing_mode == JSCameraFacingMode::Any {
-                format!("")
-            } else {
-                format!("facingMode: {{ ideal: {} }}", self.facing_mode)
-            }
-        };
-
-        let frame_rate_string = {
-            if self.frame_rate_exact {
-                if self.frame_rate == 0 {
-                    format!("")
-                } else {
-                    format!("frameRate: {{ exact: {} }}", self.frame_rate)
-                }
-            } else {
-                let min_string = if let Some(min_fps) = self.min_frame_rate {
-                    format!("min: {},", min_fps)
-                } else {
-                    format!("")
-                };
-
-                let ideal_string = format!("ideal: {},", self.frame_rate);
-                let max_string = if let Some(max_fps) = self.max_frame_rate {
-                    format!("max: {},", max_fps)
-                } else {
-                    format!("")
-                };
-
-                let mut total_string = format!("{}{}{}", min_string, ideal_string, max_string);
-                total_string.remove(total_string.len() - 1);
-                format!("frameRate: {{ {} }}", total_string)
-            }
-        };
-
-        let resize_mode_string = {
-            if self.resize_mode_exact {
-                if self.resize_mode == JSCameraResizeMode::Any {
-                    format!("")
-                } else {
-                    format!("resizeMode: {{ exact: {} }}", self.resize_mode)
-                }
-            } else if self.resize_mode == JSCameraResizeMode::Any {
-                format!("")
-            } else {
-                format!("resizeMode: {{ ideal: {} }}", self.resize_mode)
-            }
-        };
-
-        let device_id_string = {
-            if self.device_id_exact {
-                if self.device_id == null_string {
-                    format!("")
-                } else {
-                    format!("deviceId: {{ exact: {} }}", self.device_id)
-                }
-            } else if self.device_id == null_string {
-                format!("")
-            } else {
-                format!("deviceId: {{ ideal: {} }}", self.device_id)
-            }
-        };
-
-        let group_id_string = {
-            if self.group_id_exact {
-                if self.group_id == null_string {
-                    format!("")
-                } else {
-                    format!("groupId: {{ exact: {} }}", self.group_id)
-                }
-            } else if self.group_id == null_string {
-                format!("")
-            } else {
-                format!("groupId: {{ ideal: {} }}", self.group_id)
-            }
-        };
-
-        let mut arguments = vec![
-            width_string,
-            height_string,
-            aspect_ratio_string,
-            facing_mode_string,
-            frame_rate_string,
-            resize_mode_string,
-            device_id_string,
-            group_id_string,
-        ];
-        arguments.sort();
-        arguments.dedup();
-
-        let mut arguments_condensed = String::new();
-        for argument in arguments {
-            if argument != null_string {
-                arguments_condensed = format!("{},{}\n", arguments_condensed, argument);
-            }
-        }
-        if arguments_condensed == null_string {
-            arguments_condensed = "true".to_string();
+            video_object = obj!(video_object, "width", width_object);
         }
 
-        let constraints_fn = Function::new_no_args(&format!(
-            r#"
-let constraints = {{
-    audio: false,
-    video: {{
-        {}
-    }}
-}};
-
-return constraints;
-"#,
-            arguments_condensed
-        ));
-        match constraints_fn.call0(&JsValue::NULL) {
-            Ok(constraints) => {
-                let constraints: JsValue = constraints;
-                let media_stream_constraints = MediaStreamConstraints::from(constraints);
-                Ok(JSCameraConstraints {
-                    media_constraints: media_stream_constraints,
-                    min_resolution: self.min_resolution,
-                    preferred_resolution: self.preferred_resolution,
-                    max_resolution: self.max_resolution,
-                    resolution_exact: self.resolution_exact,
-                    min_aspect_ratio: self.min_aspect_ratio,
-                    aspect_ratio: self.aspect_ratio,
-                    max_aspect_ratio: self.max_aspect_ratio,
-                    aspect_ratio_exact: self.aspect_ratio_exact,
-                    facing_mode: self.facing_mode,
-                    facing_mode_exact: self.facing_mode_exact,
-                    min_frame_rate: self.min_frame_rate,
-                    frame_rate: self.frame_rate,
-                    max_frame_rate: self.max_frame_rate,
-                    frame_rate_exact: self.frame_rate_exact,
-                    resize_mode: self.resize_mode,
-                    resize_mode_exact: self.resize_mode_exact,
-                    device_id: self.device_id,
-                    device_id_exact: self.device_id_exact,
-                    group_id: self.group_id,
-                    group_id_exact: self.device_id_exact,
-                })
+        // height
+        if self.resolution_exact {
+            if self.preferred_resolution != null_resolution {
+                video_object = obj!(
+                    video_object,
+                    "height",
+                    obj!("exact", self.preferred_resolution.height())
+                );
             }
-            Err(why) => Err(NokhwaError::StructureError {
-                structure: "MediaStreamConstraintsJSBuild".to_string(),
-                error: format!("{:?}", why),
-            }),
+        } else {
+            let mut height_object = Object::new();
+
+            if let Some(min_res) = self.min_resolution {
+                height_object = obj!(height_object, "min", obj!(min_res.height()));
+            }
+
+            height_object = obj!(
+                height_object,
+                "ideal",
+                obj!(self.preferred_resolution.height())
+            );
+            if let Some(max_res) = self.max_resolution {
+                height_object = obj!(height_object, "max", obj!(max_res.height()));
+            }
+
+            video_object = obj!(video_object, "height", height_object);
+        }
+
+        // aspect ratio
+        if self.aspect_ratio_exact {
+            if self.aspect_ratio != 0_f64 {
+                video_object = obj!(
+                    video_object,
+                    "aspectRatio",
+                    obj!("exact", self.aspect_ratio)
+                );
+            }
+        } else {
+            let mut aspect_ratio_object = Object::new();
+
+            if let Some(min_ratio) = self.min_aspect_ratio {
+                aspect_ratio_object = obj!(aspect_ratio_object, "min", obj!(min_ratio));
+            }
+
+            aspect_ratio_object = obj!(aspect_ratio_object, "ideal", obj!(self.aspect_ratio));
+            if let Some(max_ratio) = self.max_aspect_ratio {
+                aspect_ratio_object = obj!(aspect_ratio_object, "max", obj!(max_ratio));
+            }
+
+            video_object = obj!(video_object, "aspectRatio", aspect_ratio_object);
+        }
+
+        if self.facing_mode_exact {
+            if self.facing_mode != JSCameraFacingMode::Any {
+                video_object = obj!(
+                    video_object,
+                    "facingMode",
+                    obj!("exact", self.facing_mode.to_string())
+                );
+            } else if self.facing_mode != JSCameraFacingMode::Any {
+                video_object = obj!(
+                    video_object,
+                    "facingMode",
+                    obj!("ideal", self.facing_mode.to_string())
+                );
+            }
+        }
+
+        // aspect ratio
+        if self.frame_rate_exact {
+            if self.frame_rate != 0 {
+                video_object = obj!(video_object, "frameRate", obj!("exact", self.frame_rate));
+            }
+        } else {
+            let mut frame_rate_object = Object::new();
+
+            if let Some(min_frame_rate) = self.min_frame_rate {
+                frame_rate_object = obj!(frame_rate_object, "min", obj!(min_frame_rate));
+            }
+
+            frame_rate_object = obj!(frame_rate_object, "ideal", obj!(self.frame_rate));
+            if let Some(max_frame_rate) = self.max_frame_rate {
+                frame_rate_object = obj!(frame_rate_object, "max", obj!(max_frame_rate));
+            }
+
+            video_object = obj!(video_object, "frameRate", frame_rate_object);
+        }
+
+        if self.resize_mode_exact {
+            if self.resize_mode != JSCameraResizeMode::Any {
+                video_object = obj!(
+                    video_object,
+                    "resizeMode",
+                    obj!("exact", self.resize_mode.to_string())
+                );
+            } else if self.resize_mode != JSCameraResizeMode::Any {
+                video_object = obj!(
+                    video_object,
+                    "resizeMode",
+                    obj!("ideal", self.resize_mode.to_string())
+                );
+            }
+        }
+
+        if self.device_id_exact {
+            if self.device_id != null_string {
+                video_object = obj!(
+                    video_object,
+                    "deviceId",
+                    obj!("exact", self.device_id.to_string())
+                );
+            } else if self.device_id != null_string {
+                video_object = obj!(
+                    video_object,
+                    "deviceId",
+                    obj!("ideal", self.device_id.to_string())
+                );
+            }
+        }
+
+        if self.group_id_exact {
+            if self.group_id != null_string {
+                video_object = obj!(
+                    video_object,
+                    "groupId",
+                    obj!("exact", self.group_id.to_string())
+                );
+            } else if self.group_id != null_string {
+                video_object = obj!(
+                    video_object,
+                    "groupId",
+                    obj!("ideal", self.group_id.to_string())
+                );
+            }
+        }
+
+        // TODO: Remove
+        log_1(&jsv!(video_object.clone()));
+
+        let media_stream_constraints = MediaStreamConstraints::new()
+            .audio(&jsv!(false))
+            .video(&jsv!(video_object))
+            .clone();
+
+        JSCameraConstraints {
+            media_constraints: media_stream_constraints,
+            min_resolution: self.min_resolution,
+            preferred_resolution: self.preferred_resolution,
+            max_resolution: self.max_resolution,
+            resolution_exact: self.resolution_exact,
+            min_aspect_ratio: self.min_aspect_ratio,
+            aspect_ratio: self.aspect_ratio,
+            max_aspect_ratio: self.max_aspect_ratio,
+            aspect_ratio_exact: self.aspect_ratio_exact,
+            facing_mode: self.facing_mode,
+            facing_mode_exact: self.facing_mode_exact,
+            min_frame_rate: self.min_frame_rate,
+            frame_rate: self.frame_rate,
+            max_frame_rate: self.max_frame_rate,
+            frame_rate_exact: self.frame_rate_exact,
+            resize_mode: self.resize_mode,
+            resize_mode_exact: self.resize_mode_exact,
+            device_id: self.device_id,
+            device_id_exact: self.device_id_exact,
+            group_id: self.group_id,
+            group_id_exact: self.device_id_exact,
         }
     }
 }
@@ -1614,37 +1581,18 @@ impl JSCameraConstraints {
     }
 
     /// Applies any modified constraints.
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly)
-    ///
-    /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
     /// # JS-WASM
-    /// This is exported as `applyConstraints`. This may throw an error.
+    /// This is exported as `applyConstraints`.
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = applyConstraints))]
-    pub fn js_apply_constraints(&mut self) -> Result<(), JsValue> {
-        if let Err(why) = self.apply_constraints() {
-            return Err(JsValue::from(why.to_string()));
-        }
-        Ok(())
+    pub fn js_apply_constraints(&mut self) {
+        self.apply_constraints()
     }
 }
 
 impl JSCameraConstraints {
     /// Applies any modified constraints.
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly)
-    ///
-    /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
-    pub fn apply_constraints(&mut self) -> Result<(), NokhwaError> {
+    pub fn apply_constraints(&mut self) {
         let new_constraints = JSCameraConstraintsBuilder {
             min_resolution: self.min_resolution(),
             preferred_resolution: self.resolution(),
@@ -1667,10 +1615,9 @@ impl JSCameraConstraints {
             group_id: self.group_id(),
             group_id_exact: self.group_id_exact(),
         }
-        .build()?;
+        .build();
 
         self.media_constraints = new_constraints.media_constraints;
-        Ok(())
     }
 }
 
@@ -1773,14 +1720,8 @@ impl JSCamera {
     }
 
     /// Applies any modified constraints.
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly)
-    ///
     /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
+    /// This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
     /// # JS-WASM
     /// This is exported as `applyConstraints`. It may throw an error.
     #[cfg(feature = "output-wasm")]
@@ -1930,14 +1871,8 @@ impl JSCamera {
     }
 
     /// Applies any modified constraints.
-    /// # Security
-    /// WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    /// fields are not malicious! (This usually boils down to not letting users input data directly)
-    ///
     /// # Errors
-    /// This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    /// Javascript Function fails to run.
+    /// This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
     pub fn apply_constraints(&mut self) -> Result<(), NokhwaError> {
         let new_constraints = JSCameraConstraintsBuilder {
             min_resolution: self.constraints.min_resolution(),
@@ -1961,7 +1896,7 @@ impl JSCamera {
             group_id: self.constraints.group_id(),
             group_id_exact: self.constraints.group_id_exact(),
         }
-        .build()?;
+        .build();
 
         self.constraints.media_constraints = new_constraints.media_constraints;
         self.measure_resolution()?;
