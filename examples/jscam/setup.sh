@@ -7,4 +7,4 @@ sh make-npm.sh
 cd examples/jscam || return
 npm install --save-dev webpack webpack-cli webpack-dev-server
 npm install --save ../../nokhwajs
-npx webpack --mode=development
+npm run build

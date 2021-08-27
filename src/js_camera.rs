@@ -246,23 +246,68 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                 Ok(v) => {
                     let array: Array = Array::from(&v);
                     let mut device_list = vec![];
-                    request_permission().await?;
+                    request_permission().await.unwrap_or(()); // swallow errors
                     for idx_device in 0_u32..array.length() {
                         if MediaDeviceInfo::instanceof(&array.get(idx_device)) {
                             let media_device_info =
                                 MediaDeviceInfo::unchecked_from_js(array.get(idx_device));
 
                             if media_device_info.kind() == MediaDeviceKind::Videoinput {
-                                device_list.push(CameraInfo::new(
-                                    format!("{:?}#{}", media_device_info.kind(), idx_device),
-                                    format!("{:?}", media_device_info.kind()),
-                                    format!(
-                                        "{} {}",
-                                        media_device_info.group_id(),
-                                        media_device_info.device_id()
-                                    ),
-                                    idx_device as usize,
-                                ));
+                                match media_devices.get_user_media_with_constraints(
+                                    MediaStreamConstraints::new()
+                                        .audio(&jsv!(false))
+                                        .video(&jsv!(obj!((
+                                            "deviceId",
+                                            media_device_info.device_id()
+                                        )))),
+                                ) {
+                                    Ok(promised_stream) => {
+                                        let future_stream = JsFuture::from(promised_stream);
+                                        if let Ok(stream) = future_stream.await {
+                                            let stream = MediaStream::from(stream);
+                                            let tracks = stream.get_video_tracks();
+                                            let first = tracks.get(0);
+                                            let name = if first.is_undefined() {
+                                                format!(
+                                                    "{:?}#{}",
+                                                    media_device_info.kind(),
+                                                    idx_device
+                                                )
+                                            } else {
+                                                MediaStreamTrack::from(first).label()
+                                            };
+                                            device_list.push(CameraInfo::new(
+                                                name,
+                                                format!("{:?}", media_device_info.kind()),
+                                                format!(
+                                                    "{} {}",
+                                                    media_device_info.group_id(),
+                                                    media_device_info.device_id()
+                                                ),
+                                                idx_device as usize,
+                                            ));
+                                            tracks
+                                                .iter()
+                                                .for_each(|t| MediaStreamTrack::from(t).stop());
+                                        }
+                                    }
+                                    Err(_) => {
+                                        device_list.push(CameraInfo::new(
+                                            format!(
+                                                "{:?}#{}",
+                                                media_device_info.kind(),
+                                                idx_device
+                                            ),
+                                            format!("{:?}", media_device_info.kind()),
+                                            format!(
+                                                "{} {}",
+                                                media_device_info.group_id(),
+                                                media_device_info.device_id()
+                                            ),
+                                            idx_device as usize,
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
@@ -290,10 +335,7 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = queryCameras))]
 pub async fn js_query_js_cameras() -> Result<Array, JsValue> {
     match query_js_cameras().await {
-        Ok(cameras) => Ok(cameras
-            .into_iter()
-            .map(|e| JsValue::from(e.to_string()))
-            .collect()),
+        Ok(cameras) => Ok(cameras.into_iter().map(JsValue::from).collect()),
         Err(why) => Err(JsValue::from(why.to_string())),
     }
 }
@@ -517,7 +559,7 @@ pub struct JSCameraConstraintsBuilder {
     pub(crate) group_id_exact: bool,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = CameraConstraintsBuilder))]
 impl JSCameraConstraintsBuilder {
     /// Constructs a default [`JSCameraConstraintsBuilder`].
     /// The constructed default [`JSCameraConstraintsBuilder`] has these settings:
@@ -541,7 +583,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinResolution)
+        wasm_bindgen(js_name = MinResolution)
     )]
     pub fn min_resolution(mut self, min_resolution: Resolution) -> JSCameraConstraintsBuilder {
         self.min_resolution = Some(min_resolution);
@@ -556,7 +598,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = Resolution)
+        wasm_bindgen(js_name = Resolution)
     )]
     pub fn resolution(mut self, new_resolution: Resolution) -> JSCameraConstraintsBuilder {
         self.preferred_resolution = new_resolution;
@@ -571,7 +613,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxResolution)
+        wasm_bindgen(js_name = MaxResolution)
     )]
     pub fn max_resolution(mut self, max_resolution: Resolution) -> JSCameraConstraintsBuilder {
         self.min_resolution = Some(max_resolution);
@@ -586,7 +628,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResolutionExact)
+        wasm_bindgen(js_name = ResolutionExact)
     )]
     pub fn resolution_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.resolution_exact = value;
@@ -601,7 +643,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinAspectRatio)
+        wasm_bindgen(js_name = MinAspectRatio)
     )]
     pub fn min_aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
         self.min_aspect_ratio = Some(ratio);
@@ -616,7 +658,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = AspectRatio)
+        wasm_bindgen(js_name = AspectRatio)
     )]
     pub fn aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
         self.aspect_ratio = ratio;
@@ -631,7 +673,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxAspectRatio)
+        wasm_bindgen(js_name = MaxAspectRatio)
     )]
     pub fn max_aspect_ratio(mut self, ratio: f64) -> JSCameraConstraintsBuilder {
         self.max_aspect_ratio = Some(ratio);
@@ -645,7 +687,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = AspectRatioExact)
+        wasm_bindgen(js_name = AspectRatioExact)
     )]
     pub fn aspect_ratio_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.aspect_ratio_exact = value;
@@ -660,7 +702,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FacingMode)
+        wasm_bindgen(js_name = FacingMode)
     )]
     pub fn facing_mode(mut self, facing_mode: JSCameraFacingMode) -> JSCameraConstraintsBuilder {
         self.facing_mode = facing_mode;
@@ -673,7 +715,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FacingModeExact)
+        wasm_bindgen(js_name = FacingModeExact)
     )]
     pub fn facing_mode_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.facing_mode_exact = value;
@@ -688,7 +730,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinFrameRate)
+        wasm_bindgen(js_name = MinFrameRate)
     )]
     pub fn min_frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
         self.min_frame_rate = Some(fps);
@@ -703,7 +745,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FrameRate)
+        wasm_bindgen(js_name = FrameRate)
     )]
     pub fn frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
         self.frame_rate = fps;
@@ -718,7 +760,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxFrameRate)
+        wasm_bindgen(js_name = MaxFrameRate)
     )]
     pub fn max_frame_rate(mut self, fps: u32) -> JSCameraConstraintsBuilder {
         self.max_frame_rate = Some(fps);
@@ -732,7 +774,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FrameRateExact)
+        wasm_bindgen(js_name = FrameRateExact)
     )]
     pub fn frame_rate_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.frame_rate_exact = value;
@@ -747,7 +789,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResizeMode)
+        wasm_bindgen(js_name = ResizeMode)
     )]
     pub fn resize_mode(mut self, resize_mode: JSCameraResizeMode) -> JSCameraConstraintsBuilder {
         self.resize_mode = resize_mode;
@@ -760,7 +802,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResizeModeExact)
+        wasm_bindgen(js_name = ResizeModeExact)
     )]
     pub fn resize_mode_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.resize_mode_exact = value;
@@ -775,7 +817,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = DeviceId)
+        wasm_bindgen(js_name = DeviceId)
     )]
     pub fn device_id(mut self, id: &str) -> JSCameraConstraintsBuilder {
         self.device_id = id.to_string();
@@ -788,7 +830,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = DeviceIdExact)
+        wasm_bindgen(js_name = DeviceIdExact)
     )]
     pub fn device_id_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.device_id_exact = value;
@@ -801,7 +843,7 @@ impl JSCameraConstraintsBuilder {
     /// # JS-WASM
     /// This is exported as `set_GroupId`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = GroupId))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = GroupId))]
     pub fn group_id(mut self, id: &str) -> JSCameraConstraintsBuilder {
         self.group_id = id.to_string();
         self
@@ -813,7 +855,7 @@ impl JSCameraConstraintsBuilder {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = GroupIdExact)
+        wasm_bindgen(js_name = GroupIdExact)
     )]
     pub fn group_id_exact(mut self, value: bool) -> JSCameraConstraintsBuilder {
         self.group_id_exact = value;
@@ -1070,7 +1112,7 @@ pub struct JSCameraConstraints {
     pub(crate) group_id_exact: bool,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraConstraints))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = CameraConstraints))]
 impl JSCameraConstraints {
     /// Gets the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
     /// # JS-WASM
@@ -1078,7 +1120,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MediaStreamConstraints)
+        wasm_bindgen(getter = MediaStreamConstraints)
     )]
     pub fn media_constraints(&self) -> MediaStreamConstraints {
         self.media_constraints.clone()
@@ -1089,7 +1131,7 @@ impl JSCameraConstraints {
     /// This is exported as `get_MinResolution`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MinResolution)
+        wasm_bindgen(getter = MinResolution)
     )]
     #[must_use]
     pub fn min_resolution(&self) -> Option<Resolution> {
@@ -1101,7 +1143,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MinResolution`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinResolution)
+        wasm_bindgen(setter = MinResolution)
     )]
     pub fn set_min_resolution(&mut self, min_resolution: Resolution) {
         self.min_resolution = Some(min_resolution);
@@ -1113,7 +1155,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = Resolution)
+        wasm_bindgen(getter = Resolution)
     )]
     pub fn resolution(&self) -> Resolution {
         self.preferred_resolution
@@ -1126,7 +1168,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_Resolution`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = Resolution)
+        wasm_bindgen(setter = Resolution)
     )]
     pub fn set_resolution(&mut self, preferred_resolution: Resolution) {
         self.preferred_resolution = preferred_resolution;
@@ -1137,7 +1179,7 @@ impl JSCameraConstraints {
     /// This is exported as `get_MaxResolution`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MaxResolution)
+        wasm_bindgen(getter = MaxResolution)
     )]
     #[must_use]
     pub fn max_resolution(&self) -> Option<Resolution> {
@@ -1149,7 +1191,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MaxResolution`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxResolution)
+        wasm_bindgen(setter = MaxResolution)
     )]
     pub fn set_max_resolution(&mut self, max_resolution: Resolution) {
         self.max_resolution = Some(max_resolution);
@@ -1161,7 +1203,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = ResolutionExact)
+        wasm_bindgen(getter = ResolutionExact)
     )]
     pub fn resolution_exact(&self) -> bool {
         self.resolution_exact
@@ -1174,7 +1216,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_ResolutionExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResolutionExact)
+        wasm_bindgen(setter = ResolutionExact)
     )]
     pub fn set_resolution_exact(&mut self, resolution_exact: bool) {
         self.resolution_exact = resolution_exact;
@@ -1186,7 +1228,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MinAspectRatio)
+        wasm_bindgen(getter = MinAspectRatio)
     )]
     pub fn min_aspect_ratio(&self) -> Option<f64> {
         self.min_aspect_ratio
@@ -1197,7 +1239,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MinAspectRatio`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinAspectRatio)
+        wasm_bindgen(setter = MinAspectRatio)
     )]
     pub fn set_min_aspect_ratio(&mut self, min_aspect_ratio: f64) {
         self.min_aspect_ratio = Some(min_aspect_ratio);
@@ -1209,7 +1251,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = AspectRatio)
+        wasm_bindgen(getter = AspectRatio)
     )]
     pub fn aspect_ratio(&self) -> f64 {
         self.aspect_ratio
@@ -1222,7 +1264,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_AspectRatio`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = AspectRatio)
+        wasm_bindgen(setter = AspectRatio)
     )]
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f64) {
         self.aspect_ratio = aspect_ratio;
@@ -1233,7 +1275,7 @@ impl JSCameraConstraints {
     /// This is exported as `get_MaxAspectRatio`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MaxAspectRatio)
+        wasm_bindgen(getter = MaxAspectRatio)
     )]
     #[must_use]
     pub fn max_aspect_ratio(&self) -> Option<f64> {
@@ -1247,7 +1289,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MaxAspectRatio`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxAspectRatio)
+        wasm_bindgen(setter = MaxAspectRatio)
     )]
     pub fn set_max_aspect_ratio(&mut self, max_aspect_ratio: f64) {
         self.max_aspect_ratio = Some(max_aspect_ratio);
@@ -1259,7 +1301,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = AspectRatioExact)
+        wasm_bindgen(getter = AspectRatioExact)
     )]
     pub fn aspect_ratio_exact(&self) -> bool {
         self.aspect_ratio_exact
@@ -1272,7 +1314,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_AspectRatioExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = AspectRatioExact)
+        wasm_bindgen(setter = AspectRatioExact)
     )]
     pub fn set_aspect_ratio_exact(&mut self, aspect_ratio_exact: bool) {
         self.aspect_ratio_exact = aspect_ratio_exact;
@@ -1284,7 +1326,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = FacingMode)
+        wasm_bindgen(getter = FacingMode)
     )]
     pub fn facing_mode(&self) -> JSCameraFacingMode {
         self.facing_mode
@@ -1297,7 +1339,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_FacingMode`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FacingMode)
+        wasm_bindgen(setter = FacingMode)
     )]
     pub fn set_facing_mode(&mut self, facing_mode: JSCameraFacingMode) {
         self.facing_mode = facing_mode;
@@ -1309,7 +1351,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = FacingModeExact)
+        wasm_bindgen(getter = FacingModeExact)
     )]
     pub fn facing_mode_exact(&self) -> bool {
         self.facing_mode_exact
@@ -1322,7 +1364,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_FacingModeExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FacingModeExact)
+        wasm_bindgen(setter = FacingModeExact)
     )]
     pub fn set_facing_mode_exact(&mut self, facing_mode_exact: bool) {
         self.facing_mode_exact = facing_mode_exact;
@@ -1333,7 +1375,7 @@ impl JSCameraConstraints {
     /// This is exported as `get_MinFrameRate`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MinFrameRate)
+        wasm_bindgen(getter = MinFrameRate)
     )]
     #[must_use]
     pub fn min_frame_rate(&self) -> Option<u32> {
@@ -1347,7 +1389,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MinFrameRate`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MinFrameRate)
+        wasm_bindgen(setter = MinFrameRate)
     )]
     pub fn set_min_frame_rate(&mut self, min_frame_rate: u32) {
         self.min_frame_rate = Some(min_frame_rate);
@@ -1359,7 +1401,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = FrameRate)
+        wasm_bindgen(getter = FrameRate)
     )]
     pub fn frame_rate(&self) -> u32 {
         self.frame_rate
@@ -1372,7 +1414,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_FrameRate`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FrameRate)
+        wasm_bindgen(setter = FrameRate)
     )]
     pub fn set_frame_rate(&mut self, frame_rate: u32) {
         self.frame_rate = frame_rate;
@@ -1383,7 +1425,7 @@ impl JSCameraConstraints {
     /// This is exported as `get_MaxFrameRate`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MaxFrameRate)
+        wasm_bindgen(getter = MaxFrameRate)
     )]
     #[must_use]
     pub fn max_frame_rate(&self) -> Option<u32> {
@@ -1397,7 +1439,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_MaxFrameRate`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = MaxFrameRate)
+        wasm_bindgen(setter = MaxFrameRate)
     )]
     pub fn set_max_frame_rate(&mut self, max_frame_rate: u32) {
         self.max_frame_rate = Some(max_frame_rate);
@@ -1409,7 +1451,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = FrameRateExact)
+        wasm_bindgen(getter = FrameRateExact)
     )]
     pub fn frame_rate_exact(&self) -> bool {
         self.frame_rate_exact
@@ -1422,7 +1464,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_FrameRateExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = FrameRateExact)
+        wasm_bindgen(setter = FrameRateExact)
     )]
     pub fn set_frame_rate_exact(&mut self, frame_rate_exact: bool) {
         self.frame_rate_exact = frame_rate_exact;
@@ -1434,7 +1476,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = ResizeMode)
+        wasm_bindgen(getter = ResizeMode)
     )]
     pub fn resize_mode(&self) -> JSCameraResizeMode {
         self.resize_mode
@@ -1447,7 +1489,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_ResizeMode`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResizeMode)
+        wasm_bindgen(setter = ResizeMode)
     )]
     pub fn set_resize_mode(&mut self, resize_mode: JSCameraResizeMode) {
         self.resize_mode = resize_mode;
@@ -1459,7 +1501,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = ResizeModeExact)
+        wasm_bindgen(getter = ResizeModeExact)
     )]
     pub fn resize_mode_exact(&self) -> bool {
         self.resize_mode_exact
@@ -1472,7 +1514,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_ResizeModeExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = ResizeModeExact)
+        wasm_bindgen(setter = ResizeModeExact)
     )]
     pub fn set_resize_mode_exact(&mut self, resize_mode_exact: bool) {
         self.resize_mode_exact = resize_mode_exact;
@@ -1482,7 +1524,7 @@ impl JSCameraConstraints {
     /// # JS-WASM
     /// This is exported as `get_DeviceId`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = DeviceId))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = DeviceId))]
     pub fn device_id(&self) -> String {
         self.device_id.to_string()
     }
@@ -1492,7 +1534,7 @@ impl JSCameraConstraints {
     /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
     /// # JS-WASM
     /// This is exported as `set_DeviceId`.
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = DeviceId))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = DeviceId))]
     pub fn set_device_id(&mut self, device_id: String) {
         self.device_id = device_id;
     }
@@ -1503,7 +1545,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = DeviceIdExact)
+        wasm_bindgen(getter = DeviceIdExact)
     )]
     pub fn device_id_exact(&self) -> bool {
         self.device_id_exact
@@ -1516,7 +1558,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_DeviceIdExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = DeviceIdExact)
+        wasm_bindgen(setter = DeviceIdExact)
     )]
     pub fn set_device_id_exact(&mut self, device_id_exact: bool) {
         self.device_id_exact = device_id_exact;
@@ -1526,7 +1568,7 @@ impl JSCameraConstraints {
     /// # JS-WASM
     /// This is exported as `get_GroupId`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = GroupId))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = GroupId))]
     pub fn group_id(&self) -> String {
         self.group_id.to_string()
     }
@@ -1536,7 +1578,7 @@ impl JSCameraConstraints {
     /// [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
     /// # JS-WASM
     /// This is exported as `set_GroupId`.
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = GroupId))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = GroupId))]
     pub fn set_group_id(&mut self, group_id: String) {
         self.group_id = group_id;
     }
@@ -1547,7 +1589,7 @@ impl JSCameraConstraints {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = GroupIdExact)
+        wasm_bindgen(getter = GroupIdExact)
     )]
     pub fn group_id_exact(&self) -> bool {
         self.group_id_exact
@@ -1560,7 +1602,7 @@ impl JSCameraConstraints {
     /// This is exported as `set_GroupIdExact`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = GroupIdExact)
+        wasm_bindgen(setter = GroupIdExact)
     )]
     pub fn set_group_id_exact(&mut self, group_id_exact: bool) {
         self.group_id_exact = group_id_exact;
@@ -1618,7 +1660,7 @@ impl Deref for JSCameraConstraints {
 /// A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 /// # JS-WASM
 /// This is exported as `NOKCamera`.
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NOKCamera))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
 pub struct JSCamera {
     media_stream: MediaStream,
     constraints: JSCameraConstraints,
@@ -1627,7 +1669,7 @@ pub struct JSCamera {
     measured_resolution: Resolution,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = NokhwaCamera))]
 impl JSCamera {
     /// Creates a new [`JSCamera`] using [`JSCameraConstraints`].
     ///
@@ -1649,7 +1691,7 @@ impl JSCamera {
     /// # JS-WASM
     /// This is exported as `get_Constraints`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = Constraints))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Constraints))]
     pub fn constraints(&self) -> JSCameraConstraints {
         self.constraints.clone()
     }
@@ -1663,7 +1705,7 @@ impl JSCamera {
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = Constraints)
+        wasm_bindgen(setter = Constraints)
     )]
     pub fn js_set_constraints(&mut self, constraints: JSCameraConstraints) -> Result<(), JsValue> {
         match self.set_constraints(constraints) {
@@ -1680,7 +1722,7 @@ impl JSCamera {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = Resolution)
+        wasm_bindgen(getter = Resolution)
     )]
     pub fn resolution(&self) -> Resolution {
         self.measured_resolution
@@ -1725,7 +1767,7 @@ impl JSCamera {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = MediaStream)
+        wasm_bindgen(getter = MediaStream)
     )]
     pub fn media_stream(&self) -> MediaStream {
         self.media_stream.clone()

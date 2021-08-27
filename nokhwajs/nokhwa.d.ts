@@ -92,179 +92,6 @@ export enum CameraResizeMode {
 */
 export class CameraConstraints {
   free(): void;
-}
-/**
-* A builder that builds a [`JSCameraConstraints`] that is used to construct a [`JSCamera`].
-* See More: [`Constraints MDN`](https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints), [`Properties of Media Tracks MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints)
-* # JS-WASM
-* This is exported as `CameraConstraintsBuilder`.
-*/
-export class CameraConstraintsBuilder {
-  free(): void;
-}
-/**
-* Information about a Camera e.g. its name.
-* `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
-* `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
-* # JS-WASM
-* This is exported as a `CameraInfo`.
-*/
-export class CameraInfo {
-  free(): void;
-/**
-* Create a new [`CameraInfo`].
-* # JS-WASM
-* This is exported as a constructor for [`CameraInfo`].
-* @param {string} human_name
-* @param {string} description
-* @param {string} misc
-* @param {number} index
-*/
-  constructor(human_name: string, description: string, misc: string, index: number);
-/**
-* Get a reference to the device info's description.
-* # JS-WASM
-* This is exported as a `get_Description`.
-* @returns {string}
-*/
-  Description: string;
-/**
-* Get a reference to the device info's human readable name.
-* # JS-WASM
-* This is exported as a `get_HumanReadableName`.
-* @returns {string}
-*/
-  HumanReadableName: string;
-/**
-* Get a reference to the device info's index.
-* # JS-WASM
-* This is exported as a `get_Index`.
-* @returns {number}
-*/
-  Index: number;
-/**
-* Get a reference to the device info's misc.
-* # JS-WASM
-* This is exported as a `get_MiscString`.
-* @returns {string}
-*/
-  MiscString: string;
-}
-export class JSCamera {
-  free(): void;
-/**
-* Creates a new [`JSCamera`] using [`JSCameraConstraints`].
-*
-* # Errors
-* This may error if permission is not granted, or the constraints are invalid.
-* # JS-WASM
-* This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
-* @param {CameraConstraints} constraints
-*/
-  constructor(constraints: CameraConstraints);
-/**
-* Measures the [`Resolution`] of the internal stream. You usually do not need to call this.
-*
-* # Errors
-* If the camera fails to attach to the created `<video>`, this will error.
-*
-* # JS-WASM
-* This is exported as `measureResolution`. It may throw an error.
-*/
-  measureResolution(): void;
-/**
-* Applies any modified constraints.
-* # Errors
-* This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
-* # JS-WASM
-* This is exported as `applyConstraints`. It may throw an error.
-*/
-  applyConstraints(): void;
-/**
-* Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
-*
-* # Errors
-* If drawing to the canvas fails this will error.
-* # JS-WASM
-* This is exported as `captureImageData`. It may throw an error.
-* @returns {ImageData}
-*/
-  captureImageData(): ImageData;
-/**
-* Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) and then returns its `URL` as a string.
-* - `mime_type`: The mime type of the resulting URI. It is `image/png` by default (lossless) but can be set to `image/jpeg` or `image/webp` (lossy). Anything else is ignored.
-* - `image_quality`: A number between `0` and `1` indicating the resulting image quality in case you are using a lossy image mime type. The default value is 0.92, and all other values are ignored.
-*
-* # Errors
-* If drawing to the canvas fails or URI generation is not supported or fails this will error.
-* # JS-WASM
-* This is exported as `captureImageURI`. It may throw an error
-* @param {string} mime_type
-* @param {number} image_quality
-* @returns {string}
-*/
-  captureImageURI(mime_type: string, image_quality: number): string;
-/**
-* Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
-* # Errors
-* If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
-* # JS-WASM
-* This is exported as `captureFrameRawData`. This may throw an error.
-* @returns {Uint8Array}
-*/
-  captureFrameRawData(): Uint8Array;
-/**
-* Attaches camera to a `element`(by-id).
-* - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
-* # Errors
-* If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
-* # JS-WASM
-* This is exported as `attachToElement`. It may throw an error.
-* @param {string} element
-* @param {boolean} generate_new
-*/
-  attachToElement(element: string, generate_new: boolean): void;
-/**
-* Detaches the camera from the `<video>` node.
-* # Errors
-* If the casting fails (the stored node is not a `<video>`) this will error.
-* # JS-WASM
-* This is exported as `detachCamera`. This may throw an error.
-*/
-  detachCamera(): void;
-/**
-* Stops all streams and detaches the camera.
-* # Errors
-* There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
-*/
-  stopAll(): void;
-/**
-* Gets the internal [`JSCameraConstraints`].
-* Most likely, you will edit this value by taking ownership of it, then feed it back into [`set_constraints`](crate::js_camera::JSCamera::set_constraints).
-* # JS-WASM
-* This is exported as `get_Constraints`.
-* @returns {CameraConstraints}
-*/
-  Constraints: CameraConstraints;
-/**
-* Gets the internal [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
-* # JS-WASM
-* This is exported as `MediaStream`.
-* @returns {MediaStream}
-*/
-  readonly MediaStream: MediaStream;
-/**
-* Gets the internal [`Resolution`].
-*
-* Note: This value is only updated after you call [`measure_resolution`](crate::js_camera::JSCamera::measure_resolution)
-* # JS-WASM
-* This is exported as `get_Resolution`.
-* @returns {Resolution}
-*/
-  readonly Resolution: Resolution;
-}
-export class JSCameraConstraints {
-  free(): void;
 /**
 * Applies any modified constraints.
 * # JS-WASM
@@ -419,7 +246,13 @@ export class JSCameraConstraints {
 */
   ResolutionExact: boolean;
 }
-export class JSCameraConstraintsBuilder {
+/**
+* A builder that builds a [`JSCameraConstraints`] that is used to construct a [`JSCamera`].
+* See More: [`Constraints MDN`](https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints), [`Properties of Media Tracks MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints)
+* # JS-WASM
+* This is exported as `CameraConstraintsBuilder`.
+*/
+export class CameraConstraintsBuilder {
   free(): void;
 /**
 * Constructs a default [`JSCameraConstraintsBuilder`].
@@ -433,157 +266,6 @@ export class JSCameraConstraintsBuilder {
 */
   constructor();
 /**
-* Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
-*
-* Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
-* # JS-WASM
-* This is exported as `buildCameraConstraints`.
-* @returns {CameraConstraints}
-*/
-  buildCameraConstraints(): CameraConstraints;
-/**
-* Sets the aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-* # JS-WASM
-* This is exported as `set_AspectRatio`.
-* @param {number} ratio
-* @returns {CameraConstraintsBuilder}
-*/
-  AspectRatio: number;
-/**
-* Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* Note that this will make the builder ignore [`min_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::min_aspect_ratio) and [`max_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::max_aspect_ratio).
-* # JS-WASM
-* This is exported as `set_AspectRatioExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  AspectRatioExact: boolean;
-/**
-* Sets the device ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`deviceId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
-* # JS-WASM
-* This is exported as `set_DeviceId`.
-* @param {string} id
-* @returns {CameraConstraintsBuilder}
-*/
-  DeviceId: string;
-/**
-* Sets whether the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* # JS-WASM
-* This is exported as `set_DeviceIdExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  DeviceIdExact: boolean;
-/**
-* Sets the facing mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode).
-* # JS-WASM
-* This is exported as `set_FacingMode`.
-* @param {number} facing_mode
-* @returns {CameraConstraintsBuilder}
-*/
-  FacingMode: number;
-/**
-* Sets whether the [`facing_mode`](crate::js_camera::JSCameraConstraintsBuilder::facing_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* # JS-WASM
-* This is exported as `set_FacingModeExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  FacingModeExact: boolean;
-/**
-* Sets the frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-* # JS-WASM
-* This is exported as `set_FrameRate`.
-* @param {number} fps
-* @returns {CameraConstraintsBuilder}
-*/
-  FrameRate: number;
-/**
-* Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* Note that this will make the builder ignore [`min_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::min_frame_rate) and [`max_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::max_frame_rate).
-* # JS-WASM
-* This is exported as `set_FrameRateExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  FrameRateExact: boolean;
-/**
-* Sets the group ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId).
-* # JS-WASM
-* This is exported as `set_GroupId`.
-* @param {string} id
-* @returns {CameraConstraintsBuilder}
-*/
-  GroupId: string;
-/**
-* Sets whether the [`group_id`](crate::js_camera::JSCameraConstraintsBuilder::group_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* # JS-WASM
-* This is exported as `set_GroupIdExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  GroupIdExact: boolean;
-/**
-* Sets the maximum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-* # JS-WASM
-* This is exported as `set_MaxAspectRatio`.
-* @param {number} ratio
-* @returns {CameraConstraintsBuilder}
-*/
-  MaxAspectRatio: number;
-/**
-* Sets the maximum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-* # JS-WASM
-* This is exported as `set_MaxFrameRate`.
-* @param {number} fps
-* @returns {CameraConstraintsBuilder}
-*/
-  MaxFrameRate: number;
-/**
-* Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
-* # JS-WASM
-* This is exported as `set_MaxResolution`.
-* @param {Resolution} max_resolution
-* @returns {CameraConstraintsBuilder}
-*/
-  MaxResolution: Resolution;
-/**
-* Sets the minimum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-* # JS-WASM
-* This is exported as `set_MinAspectRatio`.
-* @param {number} ratio
-* @returns {CameraConstraintsBuilder}
-*/
-  MinAspectRatio: number;
-/**
-* Sets the minimum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-* # JS-WASM
-* This is exported as `set_MinFrameRate`.
-* @param {number} fps
-* @returns {CameraConstraintsBuilder}
-*/
-  MinFrameRate: number;
-/**
 * Sets the minimum resolution for the [`JSCameraConstraintsBuilder`].
 *
 * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
@@ -592,25 +274,7 @@ export class JSCameraConstraintsBuilder {
 * @param {Resolution} min_resolution
 * @returns {CameraConstraintsBuilder}
 */
-  MinResolution: Resolution;
-/**
-* Sets the resize mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-*
-* Sets [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode).
-* # JS-WASM
-* This is exported as `set_ResizeMode`.
-* @param {number} resize_mode
-* @returns {CameraConstraintsBuilder}
-*/
-  ResizeMode: number;
-/**
-* Sets whether the [`resize_mode`](crate::js_camera::JSCameraConstraintsBuilder::resize_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-* # JS-WASM
-* This is exported as `set_ResizeModeExact`.
-* @param {boolean} value
-* @returns {CameraConstraintsBuilder}
-*/
-  ResizeModeExact: boolean;
+  MinResolution(min_resolution: Resolution): CameraConstraintsBuilder;
 /**
 * Sets the preferred resolution for the [`JSCameraConstraintsBuilder`].
 *
@@ -620,7 +284,17 @@ export class JSCameraConstraintsBuilder {
 * @param {Resolution} new_resolution
 * @returns {CameraConstraintsBuilder}
 */
-  Resolution: Resolution;
+  Resolution(new_resolution: Resolution): CameraConstraintsBuilder;
+/**
+* Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+* # JS-WASM
+* This is exported as `set_MaxResolution`.
+* @param {Resolution} max_resolution
+* @returns {CameraConstraintsBuilder}
+*/
+  MaxResolution(max_resolution: Resolution): CameraConstraintsBuilder;
 /**
 * Sets whether the resolution fields ([`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width), [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height)/[`resolution`](crate::js_camera::JSCameraConstraintsBuilder::resolution))
 * should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
@@ -630,15 +304,332 @@ export class JSCameraConstraintsBuilder {
 * @param {boolean} value
 * @returns {CameraConstraintsBuilder}
 */
-  ResolutionExact: boolean;
+  ResolutionExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the minimum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+* # JS-WASM
+* This is exported as `set_MinAspectRatio`.
+* @param {number} ratio
+* @returns {CameraConstraintsBuilder}
+*/
+  MinAspectRatio(ratio: number): CameraConstraintsBuilder;
+/**
+* Sets the aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+* # JS-WASM
+* This is exported as `set_AspectRatio`.
+* @param {number} ratio
+* @returns {CameraConstraintsBuilder}
+*/
+  AspectRatio(ratio: number): CameraConstraintsBuilder;
+/**
+* Sets the maximum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+* # JS-WASM
+* This is exported as `set_MaxAspectRatio`.
+* @param {number} ratio
+* @returns {CameraConstraintsBuilder}
+*/
+  MaxAspectRatio(ratio: number): CameraConstraintsBuilder;
+/**
+* Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* Note that this will make the builder ignore [`min_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::min_aspect_ratio) and [`max_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::max_aspect_ratio).
+* # JS-WASM
+* This is exported as `set_AspectRatioExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  AspectRatioExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the facing mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode).
+* # JS-WASM
+* This is exported as `set_FacingMode`.
+* @param {number} facing_mode
+* @returns {CameraConstraintsBuilder}
+*/
+  FacingMode(facing_mode: number): CameraConstraintsBuilder;
+/**
+* Sets whether the [`facing_mode`](crate::js_camera::JSCameraConstraintsBuilder::facing_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* # JS-WASM
+* This is exported as `set_FacingModeExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  FacingModeExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the minimum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+* # JS-WASM
+* This is exported as `set_MinFrameRate`.
+* @param {number} fps
+* @returns {CameraConstraintsBuilder}
+*/
+  MinFrameRate(fps: number): CameraConstraintsBuilder;
+/**
+* Sets the frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+* # JS-WASM
+* This is exported as `set_FrameRate`.
+* @param {number} fps
+* @returns {CameraConstraintsBuilder}
+*/
+  FrameRate(fps: number): CameraConstraintsBuilder;
+/**
+* Sets the maximum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+* # JS-WASM
+* This is exported as `set_MaxFrameRate`.
+* @param {number} fps
+* @returns {CameraConstraintsBuilder}
+*/
+  MaxFrameRate(fps: number): CameraConstraintsBuilder;
+/**
+* Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* Note that this will make the builder ignore [`min_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::min_frame_rate) and [`max_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::max_frame_rate).
+* # JS-WASM
+* This is exported as `set_FrameRateExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  FrameRateExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the resize mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode).
+* # JS-WASM
+* This is exported as `set_ResizeMode`.
+* @param {number} resize_mode
+* @returns {CameraConstraintsBuilder}
+*/
+  ResizeMode(resize_mode: number): CameraConstraintsBuilder;
+/**
+* Sets whether the [`resize_mode`](crate::js_camera::JSCameraConstraintsBuilder::resize_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* # JS-WASM
+* This is exported as `set_ResizeModeExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  ResizeModeExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the device ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`deviceId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
+* # JS-WASM
+* This is exported as `set_DeviceId`.
+* @param {string} id
+* @returns {CameraConstraintsBuilder}
+*/
+  DeviceId(id: string): CameraConstraintsBuilder;
+/**
+* Sets whether the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* # JS-WASM
+* This is exported as `set_DeviceIdExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  DeviceIdExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Sets the group ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+*
+* Sets [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId).
+* # JS-WASM
+* This is exported as `set_GroupId`.
+* @param {string} id
+* @returns {CameraConstraintsBuilder}
+*/
+  GroupId(id: string): CameraConstraintsBuilder;
+/**
+* Sets whether the [`group_id`](crate::js_camera::JSCameraConstraintsBuilder::group_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+* # JS-WASM
+* This is exported as `set_GroupIdExact`.
+* @param {boolean} value
+* @returns {CameraConstraintsBuilder}
+*/
+  GroupIdExact(value: boolean): CameraConstraintsBuilder;
+/**
+* Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
+*
+* Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
+* # JS-WASM
+* This is exported as `buildCameraConstraints`.
+* @returns {CameraConstraints}
+*/
+  buildCameraConstraints(): CameraConstraints;
+}
+/**
+* Information about a Camera e.g. its name.
+* `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
+* `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
+* # JS-WASM
+* This is exported as a `CameraInfo`.
+*/
+export class CameraInfo {
+  free(): void;
+/**
+* Create a new [`CameraInfo`].
+* # JS-WASM
+* This is exported as a constructor for [`CameraInfo`].
+* @param {string} human_name
+* @param {string} description
+* @param {string} misc
+* @param {number} index
+*/
+  constructor(human_name: string, description: string, misc: string, index: number);
+/**
+* Get a reference to the device info's description.
+* # JS-WASM
+* This is exported as a `get_Description`.
+* @returns {string}
+*/
+  Description: string;
+/**
+* Get a reference to the device info's human readable name.
+* # JS-WASM
+* This is exported as a `get_HumanReadableName`.
+* @returns {string}
+*/
+  HumanReadableName: string;
+/**
+* Get a reference to the device info's index.
+* # JS-WASM
+* This is exported as a `get_Index`.
+* @returns {number}
+*/
+  Index: number;
+/**
+* Get a reference to the device info's misc.
+* # JS-WASM
+* This is exported as a `get_MiscString`.
+* @returns {string}
+*/
+  MiscString: string;
 }
 /**
 * A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 * # JS-WASM
 * This is exported as `NOKCamera`.
 */
-export class NOKCamera {
+export class NokhwaCamera {
   free(): void;
+/**
+* Creates a new [`JSCamera`] using [`JSCameraConstraints`].
+*
+* # Errors
+* This may error if permission is not granted, or the constraints are invalid.
+* # JS-WASM
+* This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+* @param {CameraConstraints} constraints
+*/
+  constructor(constraints: CameraConstraints);
+/**
+* Measures the [`Resolution`] of the internal stream. You usually do not need to call this.
+*
+* # Errors
+* If the camera fails to attach to the created `<video>`, this will error.
+*
+* # JS-WASM
+* This is exported as `measureResolution`. It may throw an error.
+*/
+  measureResolution(): void;
+/**
+* Applies any modified constraints.
+* # Errors
+* This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
+* # JS-WASM
+* This is exported as `applyConstraints`. It may throw an error.
+*/
+  applyConstraints(): void;
+/**
+* Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
+*
+* # Errors
+* If drawing to the canvas fails this will error.
+* # JS-WASM
+* This is exported as `captureImageData`. It may throw an error.
+* @returns {ImageData}
+*/
+  captureImageData(): ImageData;
+/**
+* Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) and then returns its `URL` as a string.
+* - `mime_type`: The mime type of the resulting URI. It is `image/png` by default (lossless) but can be set to `image/jpeg` or `image/webp` (lossy). Anything else is ignored.
+* - `image_quality`: A number between `0` and `1` indicating the resulting image quality in case you are using a lossy image mime type. The default value is 0.92, and all other values are ignored.
+*
+* # Errors
+* If drawing to the canvas fails or URI generation is not supported or fails this will error.
+* # JS-WASM
+* This is exported as `captureImageURI`. It may throw an error
+* @param {string} mime_type
+* @param {number} image_quality
+* @returns {string}
+*/
+  captureImageURI(mime_type: string, image_quality: number): string;
+/**
+* Creates an off-screen canvas and a `<video>` element (if not already attached) and returns a raw `Cow<[u8]>` RGBA frame.
+* # Errors
+* If a cast fails, the camera fails to attach, the currently attached node is invalid, or writing/reading from the canvas fails, this will error.
+* # JS-WASM
+* This is exported as `captureFrameRawData`. This may throw an error.
+* @returns {Uint8Array}
+*/
+  captureFrameRawData(): Uint8Array;
+/**
+* Attaches camera to a `element`(by-id).
+* - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+* # Errors
+* If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
+* # JS-WASM
+* This is exported as `attachToElement`. It may throw an error.
+* @param {string} element
+* @param {boolean} generate_new
+*/
+  attachToElement(element: string, generate_new: boolean): void;
+/**
+* Detaches the camera from the `<video>` node.
+* # Errors
+* If the casting fails (the stored node is not a `<video>`) this will error.
+* # JS-WASM
+* This is exported as `detachCamera`. This may throw an error.
+*/
+  detachCamera(): void;
+/**
+* Stops all streams and detaches the camera.
+* # Errors
+* There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
+*/
+  stopAll(): void;
+/**
+* Gets the internal [`JSCameraConstraints`].
+* Most likely, you will edit this value by taking ownership of it, then feed it back into [`set_constraints`](crate::js_camera::JSCamera::set_constraints).
+* # JS-WASM
+* This is exported as `get_Constraints`.
+* @returns {CameraConstraints}
+*/
+  Constraints: CameraConstraints;
+/**
+* Gets the internal [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
+* # JS-WASM
+* This is exported as `MediaStream`.
+* @returns {MediaStream}
+*/
+  readonly MediaStream: MediaStream;
+/**
+* Gets the internal [`Resolution`].
+*
+* Note: This value is only updated after you call [`measure_resolution`](crate::js_camera::JSCamera::measure_resolution)
+* # JS-WASM
+* This is exported as `get_Resolution`.
+* @returns {Resolution}
+*/
+  readonly Resolution: Resolution;
 }
 /**
 * Describes a Resolution.
@@ -699,113 +690,113 @@ export interface InitOutput {
   readonly queryCameras: () => number;
   readonly queryConstraints: () => number;
   readonly __wbg_cameraconstraintsbuilder_free: (a: number) => void;
-  readonly jscameraconstraintsbuilder_new: () => number;
-  readonly jscameraconstraintsbuilder_set_Resolution: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_MaxResolution: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_ResolutionExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_MinAspectRatio: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_AspectRatio: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_MaxAspectRatio: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_AspectRatioExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_FacingMode: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_FacingModeExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_MinFrameRate: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_FrameRate: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_MaxFrameRate: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_FrameRateExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_ResizeMode: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_ResizeModeExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_DeviceId: (a: number, b: number, c: number) => number;
-  readonly jscameraconstraintsbuilder_set_DeviceIdExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_set_GroupId: (a: number, b: number, c: number) => number;
-  readonly jscameraconstraintsbuilder_set_GroupIdExact: (a: number, b: number) => number;
-  readonly jscameraconstraintsbuilder_buildCameraConstraints: (a: number) => number;
+  readonly cameraconstraintsbuilder_new: () => number;
+  readonly cameraconstraintsbuilder_Resolution: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_MaxResolution: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_ResolutionExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_MinAspectRatio: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_AspectRatio: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_MaxAspectRatio: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_AspectRatioExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_FacingMode: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_FacingModeExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_MinFrameRate: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_FrameRate: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_MaxFrameRate: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_FrameRateExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_ResizeMode: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_ResizeModeExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_DeviceId: (a: number, b: number, c: number) => number;
+  readonly cameraconstraintsbuilder_DeviceIdExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_GroupId: (a: number, b: number, c: number) => number;
+  readonly cameraconstraintsbuilder_GroupIdExact: (a: number, b: number) => number;
+  readonly cameraconstraintsbuilder_buildCameraConstraints: (a: number) => number;
   readonly __wbg_cameraconstraints_free: (a: number) => void;
-  readonly jscameraconstraints_MediaStreamConstraints: (a: number) => number;
-  readonly jscameraconstraints_MinResolution: (a: number) => number;
-  readonly jscameraconstraints_set_MinResolution: (a: number, b: number) => void;
-  readonly jscameraconstraints_Resolution: (a: number) => number;
-  readonly jscameraconstraints_set_Resolution: (a: number, b: number) => void;
-  readonly jscameraconstraints_MaxResolution: (a: number) => number;
-  readonly jscameraconstraints_set_MaxResolution: (a: number, b: number) => void;
-  readonly jscameraconstraints_ResolutionExact: (a: number) => number;
-  readonly jscameraconstraints_set_ResolutionExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_MinAspectRatio: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_MinAspectRatio: (a: number, b: number) => void;
-  readonly jscameraconstraints_AspectRatio: (a: number) => number;
-  readonly jscameraconstraints_set_AspectRatio: (a: number, b: number) => void;
-  readonly jscameraconstraints_MaxAspectRatio: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_MaxAspectRatio: (a: number, b: number) => void;
-  readonly jscameraconstraints_AspectRatioExact: (a: number) => number;
-  readonly jscameraconstraints_set_AspectRatioExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_FacingMode: (a: number) => number;
-  readonly jscameraconstraints_set_FacingMode: (a: number, b: number) => void;
-  readonly jscameraconstraints_FacingModeExact: (a: number) => number;
-  readonly jscameraconstraints_set_FacingModeExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_MinFrameRate: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_MinFrameRate: (a: number, b: number) => void;
-  readonly jscameraconstraints_FrameRate: (a: number) => number;
-  readonly jscameraconstraints_set_FrameRate: (a: number, b: number) => void;
-  readonly jscameraconstraints_MaxFrameRate: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_MaxFrameRate: (a: number, b: number) => void;
-  readonly jscameraconstraints_FrameRateExact: (a: number) => number;
-  readonly jscameraconstraints_set_FrameRateExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_ResizeMode: (a: number) => number;
-  readonly jscameraconstraints_set_ResizeMode: (a: number, b: number) => void;
-  readonly jscameraconstraints_ResizeModeExact: (a: number) => number;
-  readonly jscameraconstraints_set_ResizeModeExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_DeviceId: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_DeviceId: (a: number, b: number, c: number) => void;
-  readonly jscameraconstraints_DeviceIdExact: (a: number) => number;
-  readonly jscameraconstraints_set_DeviceIdExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_GroupId: (a: number, b: number) => void;
-  readonly jscameraconstraints_set_GroupId: (a: number, b: number, c: number) => void;
-  readonly jscameraconstraints_GroupIdExact: (a: number) => number;
-  readonly jscameraconstraints_set_GroupIdExact: (a: number, b: number) => void;
-  readonly jscameraconstraints_applyConstraints: (a: number) => void;
-  readonly __wbg_nokcamera_free: (a: number) => void;
-  readonly jscamera_js_new: (a: number) => number;
-  readonly jscamera_Constraints: (a: number) => number;
-  readonly jscamera_set_Constraints: (a: number, b: number) => void;
-  readonly jscamera_Resolution: (a: number) => number;
-  readonly jscamera_measureResolution: (a: number) => void;
-  readonly jscamera_applyConstraints: (a: number) => void;
-  readonly jscamera_MediaStream: (a: number) => number;
-  readonly jscamera_captureImageData: (a: number) => number;
-  readonly jscamera_captureImageURI: (a: number, b: number, c: number, d: number, e: number) => void;
-  readonly jscamera_captureFrameRawData: (a: number, b: number) => void;
-  readonly jscamera_attachToElement: (a: number, b: number, c: number, d: number) => void;
-  readonly jscamera_detachCamera: (a: number) => void;
-  readonly jscamera_stopAll: (a: number) => void;
-  readonly jscameraconstraintsbuilder_set_MinResolution: (a: number, b: number) => number;
+  readonly cameraconstraints_media_constraints: (a: number) => number;
+  readonly cameraconstraints_min_resolution: (a: number) => number;
+  readonly cameraconstraints_set_min_resolution: (a: number, b: number) => void;
+  readonly cameraconstraints_resolution: (a: number) => number;
+  readonly cameraconstraints_set_resolution: (a: number, b: number) => void;
+  readonly cameraconstraints_max_resolution: (a: number) => number;
+  readonly cameraconstraints_set_max_resolution: (a: number, b: number) => void;
+  readonly cameraconstraints_resolution_exact: (a: number) => number;
+  readonly cameraconstraints_set_resolution_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_min_aspect_ratio: (a: number, b: number) => void;
+  readonly cameraconstraints_set_min_aspect_ratio: (a: number, b: number) => void;
+  readonly cameraconstraints_aspect_ratio: (a: number) => number;
+  readonly cameraconstraints_set_aspect_ratio: (a: number, b: number) => void;
+  readonly cameraconstraints_max_aspect_ratio: (a: number, b: number) => void;
+  readonly cameraconstraints_set_max_aspect_ratio: (a: number, b: number) => void;
+  readonly cameraconstraints_aspect_ratio_exact: (a: number) => number;
+  readonly cameraconstraints_set_aspect_ratio_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_facing_mode: (a: number) => number;
+  readonly cameraconstraints_set_facing_mode: (a: number, b: number) => void;
+  readonly cameraconstraints_facing_mode_exact: (a: number) => number;
+  readonly cameraconstraints_set_facing_mode_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_min_frame_rate: (a: number, b: number) => void;
+  readonly cameraconstraints_set_min_frame_rate: (a: number, b: number) => void;
+  readonly cameraconstraints_frame_rate: (a: number) => number;
+  readonly cameraconstraints_set_frame_rate: (a: number, b: number) => void;
+  readonly cameraconstraints_max_frame_rate: (a: number, b: number) => void;
+  readonly cameraconstraints_set_max_frame_rate: (a: number, b: number) => void;
+  readonly cameraconstraints_frame_rate_exact: (a: number) => number;
+  readonly cameraconstraints_set_frame_rate_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_resize_mode: (a: number) => number;
+  readonly cameraconstraints_set_resize_mode: (a: number, b: number) => void;
+  readonly cameraconstraints_resize_mode_exact: (a: number) => number;
+  readonly cameraconstraints_set_resize_mode_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_device_id: (a: number, b: number) => void;
+  readonly cameraconstraints_set_device_id: (a: number, b: number, c: number) => void;
+  readonly cameraconstraints_device_id_exact: (a: number) => number;
+  readonly cameraconstraints_set_device_id_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_group_id: (a: number, b: number) => void;
+  readonly cameraconstraints_set_group_id: (a: number, b: number, c: number) => void;
+  readonly cameraconstraints_group_id_exact: (a: number) => number;
+  readonly cameraconstraints_set_group_id_exact: (a: number, b: number) => void;
+  readonly cameraconstraints_applyConstraints: (a: number) => void;
+  readonly __wbg_nokhwacamera_free: (a: number) => void;
+  readonly nokhwacamera_js_new: (a: number) => number;
+  readonly nokhwacamera_constraints: (a: number) => number;
+  readonly nokhwacamera_js_set_constraints: (a: number, b: number) => void;
+  readonly nokhwacamera_resolution: (a: number) => number;
+  readonly nokhwacamera_measureResolution: (a: number) => void;
+  readonly nokhwacamera_applyConstraints: (a: number) => void;
+  readonly nokhwacamera_media_stream: (a: number) => number;
+  readonly nokhwacamera_captureImageData: (a: number) => number;
+  readonly nokhwacamera_captureImageURI: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly nokhwacamera_captureFrameRawData: (a: number, b: number) => void;
+  readonly nokhwacamera_attachToElement: (a: number, b: number, c: number, d: number) => void;
+  readonly nokhwacamera_detachCamera: (a: number) => void;
+  readonly nokhwacamera_stopAll: (a: number) => void;
+  readonly cameraconstraintsbuilder_MinResolution: (a: number, b: number) => number;
   readonly __wbg_resolution_free: (a: number) => void;
   readonly __wbg_get_resolution_width_x: (a: number) => number;
   readonly __wbg_set_resolution_width_x: (a: number, b: number) => void;
   readonly __wbg_get_resolution_height_y: (a: number) => number;
   readonly __wbg_set_resolution_height_y: (a: number, b: number) => void;
-  readonly resolution_Width: (a: number) => number;
-  readonly resolution_Height: (a: number) => number;
+  readonly resolution_width: (a: number) => number;
+  readonly resolution_height: (a: number) => number;
   readonly __wbg_camerainfo_free: (a: number) => void;
   readonly camerainfo_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
-  readonly camerainfo_HumanReadableName: (a: number, b: number) => void;
-  readonly camerainfo_set_HumanReadableName: (a: number, b: number, c: number) => void;
-  readonly camerainfo_Description: (a: number, b: number) => void;
-  readonly camerainfo_set_Description: (a: number, b: number, c: number) => void;
-  readonly camerainfo_MiscString: (a: number, b: number) => void;
-  readonly camerainfo_set_MiscString: (a: number, b: number, c: number) => void;
-  readonly camerainfo_Index: (a: number) => number;
-  readonly camerainfo_set_Index: (a: number, b: number) => void;
+  readonly camerainfo_human_name: (a: number, b: number) => void;
+  readonly camerainfo_set_human_name: (a: number, b: number, c: number) => void;
+  readonly camerainfo_description: (a: number, b: number) => void;
+  readonly camerainfo_set_description: (a: number, b: number, c: number) => void;
+  readonly camerainfo_misc: (a: number, b: number) => void;
+  readonly camerainfo_set_misc: (a: number, b: number, c: number) => void;
+  readonly camerainfo_index: (a: number) => number;
+  readonly camerainfo_set_index: (a: number, b: number) => void;
   readonly resolution_new: (a: number, b: number) => number;
   readonly resolution_x: (a: number) => number;
   readonly resolution_y: (a: number) => number;
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h34bdc8cc85c4eb6b: (a: number, b: number, c: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__h138614ba43225cc0: (a: number, b: number, c: number, d: number) => void;
 }
 
 /**

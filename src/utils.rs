@@ -89,7 +89,7 @@ pub struct Resolution {
     pub height_y: u32,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = Resolution))]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     /// # JS-WASM
@@ -107,7 +107,7 @@ impl Resolution {
     /// # JS-WASM
     /// This is exported as `get_Width`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Width"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Width))]
     pub fn width(self) -> u32 {
         self.width_x
     }
@@ -116,7 +116,7 @@ impl Resolution {
     /// # JS-WASM
     /// This is exported as `get_Height`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Height"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Height))]
     pub fn height(self) -> u32 {
         self.height_y
     }
@@ -343,7 +343,7 @@ pub struct CameraInfo {
     index: usize,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = CameraInfo))]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
@@ -365,7 +365,7 @@ impl CameraInfo {
     #[must_use]
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(getter, js_name = "HumanReadableName")
+        wasm_bindgen(getter = HumanReadableName)
     )]
     pub fn human_name(&self) -> String {
         self.human_name.clone()
@@ -376,7 +376,7 @@ impl CameraInfo {
     /// This is exported as a `set_HumanReadableName`.
     #[cfg_attr(
         feature = "output-wasm",
-        wasm_bindgen(setter, js_name = "HumanReadableName")
+        wasm_bindgen(setter = HumanReadableName)
     )]
     pub fn set_human_name(&mut self, human_name: String) {
         self.human_name = human_name;
@@ -386,7 +386,7 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `get_Description`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Description"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Description))]
     pub fn description(&self) -> String {
         self.description.clone()
     }
@@ -394,7 +394,7 @@ impl CameraInfo {
     /// Set the device info's description.
     /// # JS-WASM
     /// This is exported as a `set_Description`.
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "Description"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Description))]
     pub fn set_description(&mut self, description: String) {
         self.description = description;
     }
@@ -403,7 +403,7 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `get_MiscString`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "MiscString"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = MiscString))]
     pub fn misc(&self) -> String {
         self.misc.clone()
     }
@@ -411,7 +411,7 @@ impl CameraInfo {
     /// Set the device info's misc.
     /// # JS-WASM
     /// This is exported as a `set_MiscString`.
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "MiscString"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = MiscString))]
     pub fn set_misc(&mut self, misc: String) {
         self.misc = misc;
     }
@@ -420,7 +420,7 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `get_Index`.
     #[must_use]
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter, js_name = "Index"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
     pub fn index(&self) -> usize {
         self.index
     }
@@ -428,7 +428,7 @@ impl CameraInfo {
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter, js_name = "Index"))]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
     pub fn set_index(&mut self, index: usize) {
         self.index = index;
     }
