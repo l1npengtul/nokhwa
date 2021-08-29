@@ -12,7 +12,7 @@
 
 use crate::{CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
-use js_sys::{Array, JsString, Object, Promise};
+use js_sys::{Array, JsString, Map, Object, Promise};
 use std::{
     borrow::Cow,
     convert::TryFrom,
@@ -24,9 +24,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
-    HtmlVideoElement, ImageData, MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream,
-    MediaStreamConstraints, MediaStreamTrack, Navigator, Node, Window,
+    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement, ImageData,
+    MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints,
+    MediaStreamTrack, MediaStreamTrackState, Navigator, Node, Window,
 };
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -112,7 +112,7 @@ fn document_select_elem(doc: &Document, element: &str) -> Result<Element, Nokhwa
 }
 
 fn element_cast<T: JsCast, U: JsCast>(from: T, name: &str) -> Result<U, NokhwaError> {
-    if !from.has_type::<HtmlVideoElement>() {
+    if !from.has_type::<U>() {
         return Err(NokhwaError::StructureError {
             structure: name.to_string(),
             error: "Cannot Cast - No Subtype".to_string(),
@@ -357,7 +357,6 @@ pub fn query_supported_constraints() -> Result<Vec<JSCameraSupportedCapabilities
             .as_string()
             .unwrap_or_default();
 
-        log_1(&JsValue::from(&constraint_str));
         // swallow errors
         if let Ok(cap) = JSCameraSupportedCapabilities::try_from(constraint_str) {
             capabilities_vec.push(cap);
@@ -1019,9 +1018,6 @@ impl JSCameraConstraintsBuilder {
             video_object = obj!(video_object, ("groupId", obj!(("ideal", &self.group_id))));
         }
 
-        // TODO: Remove
-        log_1(&jsv!(video_object.clone()));
-
         let media_stream_constraints = MediaStreamConstraints::new()
             .audio(&jsv!(false))
             .video(&jsv!(video_object))
@@ -1659,7 +1655,7 @@ impl Deref for JSCameraConstraints {
 
 /// A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 /// # JS-WASM
-/// This is exported as `NOKCamera`.
+/// This is exported as `NokhwaCamera`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
 pub struct JSCamera {
     media_stream: MediaStream,
@@ -1676,7 +1672,7 @@ impl JSCamera {
     /// # Errors
     /// This may error if permission is not granted, or the constraints are invalid.
     /// # JS-WASM
-    /// This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+    /// This is the constructor for `NokhwaCamera`. It returns a promise and may throw an error.
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
     pub async fn js_new(constraints: JSCameraConstraints) -> Result<JSCamera, JsValue> {
@@ -1960,46 +1956,40 @@ impl JSCamera {
     ///
     /// # Errors
     /// If the camera fails to attach to the created `<video>`, this will error.
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     pub fn measure_resolution(&mut self) -> Result<(), NokhwaError> {
-        if self.attached && self.attached_node.is_some() {
-            let video_node = match &self.attached_node {
-                Some(a_node) => {
-                    element_cast_ref::<Node, HtmlVideoElement>(a_node, "HtmlVideoElement")?
-                }
-                None => {
-                    return Err(NokhwaError::GetPropertyError {
-                        property: "attached_node".to_string(),
-                        error: "is none".to_string(),
-                    })
-                }
+        let stream = self
+            .media_stream()
+            .get_video_tracks()
+            .iter()
+            .next()
+            .unwrap_or_else(JsValue::undefined);
+        if !stream.is_undefined() {
+            let stream = MediaStreamTrack::from(stream);
+            let settings_map = {
+                let settings_array = Object::entries(&stream.get_settings());
+                let settings_map = Map::new();
+                settings_array.iter().for_each(|arr_elem| {
+                    let arr_elem = Array::from(&arr_elem);
+                    let key = arr_elem.get(0);
+                    let value = arr_elem.get(1);
+                    if key != JsValue::UNDEFINED && value != JsValue::UNDEFINED {
+                        settings_map.set(&key, &value);
+                    }
+                });
+                settings_map
             };
 
-            let resolution = Resolution::new(video_node.video_width(), video_node.video_height());
-            self.measured_resolution = resolution;
-
-            Ok(())
-        } else {
-            let window: Window = window()?;
-            let document: Document = document(&window)?;
-            let video_element = create_element(&document, "video")?;
-
-            set_autoplay_inline(&video_element)?;
-
-            let video_element: HtmlVideoElement =
-                element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
-
-            video_element.set_src_object(Some(&self.media_stream()));
-
-            let resolution =
-                Resolution::new(video_element.video_width(), video_element.video_height());
-            self.measured_resolution = resolution;
-
-            Ok(())
+            self.measured_resolution = Resolution::new(
+                settings_map.get(&jsv!("width")).as_f64().unwrap_or(0_f64) as u32,
+                settings_map.get(&jsv!("height")).as_f64().unwrap_or(0_f64) as u32,
+            );
+            return Ok(());
         }
+        Err(NokhwaError::ReadFrameError("Null Stream".to_string()))
     }
 
     /// Attaches camera to a `element`(by-id).
-    /// - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
     /// # Errors
     /// If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
     pub fn attach(&mut self, element: &str, generate_new: bool) -> Result<(), NokhwaError> {
@@ -2007,6 +1997,7 @@ impl JSCamera {
         let document: Document = document(&window)?;
 
         let selected_element: Element = document_select_elem(&document, element)?;
+        self.measure_resolution()?;
 
         if generate_new {
             let video_element = create_element(&document, "video")?;
@@ -2017,7 +2008,7 @@ impl JSCamera {
                 element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
 
             video_element.set_width(self.resolution().width());
-            video_element.set_width(self.resolution().height());
+            video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
 
             return match selected_element.append_child(&Node::from(video_element)) {
@@ -2039,7 +2030,7 @@ impl JSCamera {
             element_cast::<Element, HtmlVideoElement>(selected_element, "HtmlVideoElement")?;
 
         selected_element.set_width(self.resolution().width());
-        selected_element.set_width(self.resolution().height());
+        selected_element.set_height(self.resolution().height());
         selected_element.set_src_object(Some(&self.media_stream()));
 
         self.attached_node = Some(Node::from(selected_element));
@@ -2078,9 +2069,10 @@ impl JSCamera {
         let document: Document = document(&window)?;
         let canvas = create_element(&document, "canvas")?;
         let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
+        self.measure_resolution()?;
 
-        canvas.set_height(self.resolution().height());
         canvas.set_width(self.resolution().width());
+        canvas.set_height(self.resolution().height());
 
         let context = match canvas.get_context("2d") {
             Ok(maybe_ctx) => match maybe_ctx {
@@ -2115,9 +2107,9 @@ impl JSCamera {
                 }
             };
 
-            video_element.set_width(self.resolution().width());
-            video_element.set_width(self.resolution().height());
-            video_element.set_src_object(Some(&self.media_stream()));
+            // video_element.set_width(self.resolution().width());
+            // video_element.set_height(self.resolution().height());
+            // video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 video_element,
@@ -2145,7 +2137,7 @@ impl JSCamera {
                 element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
 
             video_element.set_width(self.resolution().width());
-            video_element.set_width(self.resolution().height());
+            video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
@@ -2193,8 +2185,8 @@ impl JSCamera {
         let canvas = create_element(&document, "canvas")?;
         let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
 
-        canvas.set_height(self.resolution().height());
         canvas.set_width(self.resolution().width());
+        canvas.set_height(self.resolution().height());
 
         let context = match canvas.get_context("2d") {
             Ok(maybe_ctx) => match maybe_ctx {
@@ -2230,7 +2222,7 @@ impl JSCamera {
             };
 
             video_element.set_width(self.resolution().width());
-            video_element.set_width(self.resolution().height());
+            video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
@@ -2259,7 +2251,7 @@ impl JSCamera {
                 element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
 
             video_element.set_width(self.resolution().width());
-            video_element.set_width(self.resolution().height());
+            video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
@@ -2428,6 +2420,61 @@ impl JSCamera {
         );
 
         Ok(texture)
+    }
+
+    /// Checks if the stream is open.
+    pub fn is_open(&self) -> bool {
+        let stream = self
+            .media_stream()
+            .get_video_tracks()
+            .iter()
+            .next()
+            .unwrap_or_else(JsValue::undefined);
+        if !stream.is_undefined() {
+            let stream = MediaStreamTrack::from(stream);
+            if stream.ready_state() == MediaStreamTrackState::Live && stream.enabled() {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Restarts the stream.
+    /// # Errors
+    /// There may be errors when re-creating the camera, such as permission errors.
+    pub async fn restart(&mut self) -> Result<(), NokhwaError> {
+        let window: Window = window()?;
+        let navigator = window.navigator();
+        let media_devices = media_devices(&navigator)?;
+
+        let stream: MediaStream = match media_devices
+            .get_user_media_with_constraints(&self.constraints.media_constraints)
+        {
+            Ok(promise) => {
+                let future = JsFuture::from(promise);
+                match future.await {
+                    Ok(stream) => {
+                        let media_stream: MediaStream = MediaStream::from(stream);
+                        media_stream
+                    }
+                    Err(why) => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "MediaDevicesGetUserMediaJsFuture".to_string(),
+                            error: format!("{:?}", why),
+                        })
+                    }
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::StructureError {
+                    structure: "MediaDevicesGetUserMedia".to_string(),
+                    error: format!("{:?}", why),
+                })
+            }
+        };
+
+        self.media_stream = stream;
+        Ok(())
     }
 
     /// Stops all streams and detaches the camera.

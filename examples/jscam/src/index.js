@@ -67,7 +67,54 @@ deviceOpenButton.addEventListener("click", function(event) {
     streamPlayArea.innerHTML = "";
     let constraints = (new CameraConstraintsBuilder()).buildCameraConstraints();
     nokhwaCamera = new NokhwaCamera(constraints).catch((err) => {console.error(err); return});
+    nokhwaCamera = nokhwaCamera.then(
+        (ok) => {
+            nokhwaCamera = ok;
+            nokhwaCamera.attachToElement("streamPlayArea", true);
+            streamPlayLabel.innerHTML = "Stream Get!";
+        },
+        (err) => {
+            console.error(err); 
+            streamPlayLabel.innerHTML = "Error: " + err.toString();
+            return;
+        }
+    );
+});
+
+const streamStopButton = document.getElementById("streamStopButton");
+
+streamStopButton.addEventListener("click", function(event) {
     if (nokhwaCamera !== undefined) {
-        nokhwaCamera.attachToElement("streamPlayArea", true);
+        nokhwaCamera.detachCamera().then(
+            (ok) => {
+                nokhwaCamera = undefined;
+                streamPlayArea.innerHTML = "";
+                streamPlayLabel.innerHTML = "Stream Detached...";
+            },
+            (err) => {
+                console.error(err); 
+                streamPlayLabel.innerHTML = "Error: " + err.toString();
+                return;
+            }
+        )
     }
-})
+});
+
+const streamCaptureImageButton = document.getElementById("streamCaptureImageButton");
+
+function downloadURI(uri, name) {
+    var link = document.createElement("a");
+    link.download = name;
+    link.href = uri;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+  
+
+streamCaptureImageButton.addEventListener("click", function(event) {
+    if (nokhwaCamera !== undefined) {
+        let uri = nokhwaCamera.captureImageURI("image/jpeg", 0.75);
+        downloadURI(uri, "capture.jpg");
+    }
+});
