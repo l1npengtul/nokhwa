@@ -1663,6 +1663,7 @@ pub struct JSCamera {
     attached: bool,
     attached_node: Option<Node>,
     measured_resolution: Resolution,
+    hidden_canvas: Option<HtmlCanvasElement>,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = NokhwaCamera))]
@@ -1900,6 +1901,7 @@ impl JSCamera {
             attached: false,
             attached_node: None,
             measured_resolution: Resolution::new(0, 0),
+            hidden_canvas: None,
         };
         js_camera.measure_resolution()?;
 
@@ -2061,18 +2063,54 @@ impl JSCamera {
     }
 
     /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
+    /// It is greatly advised to call this after calling attach to reduce DOM overhead.
     ///
     /// # Errors
     /// If drawing to the canvas fails this will error.
+    #[allow(clippy::too_many_lines)]
     pub fn frame_image_data(&mut self) -> Result<ImageData, NokhwaError> {
         let window: Window = window()?;
         let document: Document = document(&window)?;
-        let canvas = create_element(&document, "canvas")?;
-        let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
         self.measure_resolution()?;
+        if self.hidden_canvas.is_none() {
+            let canvas = create_element(&document, "canvas")?;
+
+            match document.body() {
+                Some(body) => {
+                    if let Err(why) = body.append_child(&canvas) {
+                        return Err(NokhwaError::ReadFrameError(format!(
+                            "Failed to attach canvas: {:?}",
+                            why
+                        )));
+                    }
+                }
+                None => {
+                    return Err(NokhwaError::ReadFrameError(
+                        "Failed to get body".to_string(),
+                    ))
+                }
+            }
+
+            self.hidden_canvas = Some(element_cast::<Element, HtmlCanvasElement>(
+                canvas,
+                "HtmlCanvasElement",
+            )?);
+        }
+
+        let canvas = match &self.hidden_canvas {
+            Some(canvas) => canvas,
+            None => {
+                // shouldn't happen
+                return Err(NokhwaError::GetPropertyError {
+                    property: "Canvas".to_string(),
+                    error: "None".to_string(),
+                });
+            }
+        };
 
         canvas.set_width(self.resolution().width());
         canvas.set_height(self.resolution().height());
+        canvas.set_hidden(true);
 
         let context = match canvas.get_context("2d") {
             Ok(maybe_ctx) => match maybe_ctx {
@@ -2107,9 +2145,9 @@ impl JSCamera {
                 }
             };
 
-            // video_element.set_width(self.resolution().width());
-            // video_element.set_height(self.resolution().height());
-            // video_element.set_src_object(Some(&self.media_stream()));
+            video_element.set_width(self.resolution().width());
+            video_element.set_height(self.resolution().height());
+            video_element.set_src_object(Some(&self.media_stream()));
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 video_element,
@@ -2139,6 +2177,23 @@ impl JSCamera {
             video_element.set_width(self.resolution().width());
             video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
+            video_element.set_hidden(true);
+
+            match document.body() {
+                Some(body) => {
+                    if let Err(why) = body.append_child(&video_element) {
+                        return Err(NokhwaError::ReadFrameError(format!(
+                            "Failed to attach video: {:?}",
+                            why
+                        )));
+                    }
+                }
+                None => {
+                    return Err(NokhwaError::ReadFrameError(
+                        "Failed to get body".to_string(),
+                    ))
+                }
+            }
 
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 &video_element,
@@ -2148,6 +2203,22 @@ impl JSCamera {
                 self.resolution().height().into(),
             ) {
                 return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+            }
+
+            match document.body() {
+                Some(body) => {
+                    if let Err(why) = body.remove_child(&video_element) {
+                        return Err(NokhwaError::ReadFrameError(format!(
+                            "Failed to remove video: {:?}",
+                            why
+                        )));
+                    }
+                }
+                None => {
+                    return Err(NokhwaError::ReadFrameError(
+                        "Failed to get body".to_string(),
+                    ))
+                }
             }
         }
 
@@ -2172,6 +2243,7 @@ impl JSCamera {
     ///
     /// # Errors
     /// If drawing to the canvas fails or URI generation is not supported or fails this will error.
+    // TODO: Repleace with a data URI from base64!
     pub fn frame_uri(
         &mut self,
         mime_type: Option<&str>,
