@@ -2062,13 +2062,8 @@ impl JSCamera {
         Ok(())
     }
 
-    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
-    /// It is greatly advised to call this after calling attach to reduce DOM overhead.
-    ///
-    /// # Errors
-    /// If drawing to the canvas fails this will error.
     #[allow(clippy::too_many_lines)]
-    pub fn frame_image_data(&mut self) -> Result<ImageData, NokhwaError> {
+    fn draw_to_canvas(&mut self) -> Result<(), NokhwaError> {
         let window: Window = window()?;
         let document: Document = document(&window)?;
         self.measure_resolution()?;
@@ -2221,6 +2216,42 @@ impl JSCamera {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
+    /// It is greatly advised to call this after calling attach to reduce DOM overhead.
+    ///
+    /// # Errors
+    /// If drawing to the canvas fails this will error.
+    pub fn frame_image_data(&mut self) -> Result<ImageData, NokhwaError> {
+        self.draw_to_canvas()?;
+
+        let canvas = match self.hidden_canvas {
+            Some(c) => c,
+            None => return Err(NokhwaError::ReadFrameError("No Canvas".to_string())),
+        };
+
+        let context = match canvas.get_context("2d") {
+            Ok(maybe_ctx) => match maybe_ctx {
+                Some(ctx) => element_cast::<Object, CanvasRenderingContext2d>(
+                    ctx,
+                    "CanvasRenderingContext2d",
+                )?,
+                None => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "HtmlCanvasElement Context 2D".to_string(),
+                        error: "None".to_string(),
+                    });
+                }
+            },
+            Err(why) => {
+                return Err(NokhwaError::StructureError {
+                    structure: "HtmlCanvasElement Context 2D".to_string(),
+                    error: format!("{:?}", why),
+                });
+            }
+        };
 
         let image_data = match context.get_image_data(
             0_f64,
@@ -2251,91 +2282,12 @@ impl JSCamera {
     ) -> Result<String, NokhwaError> {
         let mime_type = mime_type.unwrap_or("image/png");
         let image_quality = JsValue::from(image_quality.unwrap_or(0.92_f64));
+        self.draw_to_canvas()?;
 
-        let window: Window = window()?;
-        let document: Document = document(&window)?;
-        let canvas = create_element(&document, "canvas")?;
-        let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
-
-        canvas.set_width(self.resolution().width());
-        canvas.set_height(self.resolution().height());
-
-        let context = match canvas.get_context("2d") {
-            Ok(maybe_ctx) => match maybe_ctx {
-                Some(ctx) => element_cast::<Object, CanvasRenderingContext2d>(
-                    ctx,
-                    "CanvasRenderingContext2d",
-                )?,
-                None => {
-                    return Err(NokhwaError::StructureError {
-                        structure: "HtmlCanvasElement Context 2D".to_string(),
-                        error: "None".to_string(),
-                    });
-                }
-            },
-            Err(why) => {
-                return Err(NokhwaError::StructureError {
-                    structure: "HtmlCanvasElement Context 2D".to_string(),
-                    error: format!("{:?}", why),
-                });
-            }
+        let canvas = match self.hidden_canvas {
+            Some(c) => c,
+            None => return Err(NokhwaError::ReadFrameError("No Canvas".to_string())),
         };
-
-        if self.attached && self.attached_node.is_some() {
-            let video_element = match &self.attached_node {
-                Some(n) => element_cast_ref::<Node, HtmlVideoElement>(n, "HtmlVideoElement")?,
-                None => {
-                    // this shouldn't happen
-                    return Err(NokhwaError::StructureError {
-                        structure: "Document Attached Video Element".to_string(),
-                        error: "None".to_string(),
-                    });
-                }
-            };
-
-            video_element.set_width(self.resolution().width());
-            video_element.set_height(self.resolution().height());
-            video_element.set_src_object(Some(&self.media_stream()));
-
-            if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
-                video_element,
-                0_f64,
-                0_f64,
-                self.resolution().width().into(),
-                self.resolution().height().into(),
-            ) {
-                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
-            }
-        } else {
-            let video_element = match document.create_element("video") {
-                Ok(new_element) => new_element,
-                Err(why) => {
-                    return Err(NokhwaError::StructureError {
-                        structure: "Document Video Element".to_string(),
-                        error: format!("{:?}", why.as_string()),
-                    })
-                }
-            };
-
-            set_autoplay_inline(&video_element)?;
-
-            let video_element: HtmlVideoElement =
-                element_cast::<Element, HtmlVideoElement>(video_element, "HtmlVideoElement")?;
-
-            video_element.set_width(self.resolution().width());
-            video_element.set_height(self.resolution().height());
-            video_element.set_src_object(Some(&self.media_stream()));
-
-            if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
-                &video_element,
-                0_f64,
-                0_f64,
-                self.resolution().width().into(),
-                self.resolution().height().into(),
-            ) {
-                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
-            }
-        }
 
         match canvas.to_data_url_with_type_and_encoder_options(mime_type, &image_quality) {
             Ok(uri) => Ok(uri),
