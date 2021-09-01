@@ -2271,6 +2271,7 @@ impl JSCamera {
     /// # Errors
     /// If the internal canvas is not here, drawing fails, or a cast fails, this will error.
     #[allow(clippy::must_use_candidate)]
+    #[allow(clippy::too_many_lines)]
     pub fn frame_canvas_copy(
         &mut self,
         html_id: &str,
