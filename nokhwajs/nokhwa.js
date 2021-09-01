@@ -211,7 +211,7 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     return real;
 }
 function __wbg_adapter_26(arg0, arg1, arg2) {
-    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b(arg0, arg1, addHeapObject(arg2));
+    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h34bdc8cc85c4eb6b(arg0, arg1, addHeapObject(arg2));
 }
 
 /**
@@ -278,8 +278,8 @@ function passArray8ToWasm0(arg, malloc) {
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
-function __wbg_adapter_229(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wbg_adapter_240(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__h138614ba43225cc0(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 /**
@@ -1329,7 +1329,7 @@ export class CameraInfo {
 /**
 * A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 * # JS-WASM
-* This is exported as `NOKCamera`.
+* This is exported as `NokhwaCamera`.
 */
 export class NokhwaCamera {
 
@@ -1357,7 +1357,7 @@ export class NokhwaCamera {
     * # Errors
     * This may error if permission is not granted, or the constraints are invalid.
     * # JS-WASM
-    * This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+    * This is the constructor for `NokhwaCamera`. It returns a promise and may throw an error.
     * @param {CameraConstraints} constraints
     */
     constructor(constraints) {
@@ -1499,17 +1499,34 @@ export class NokhwaCamera {
         }
     }
     /**
-    * Attaches camera to a `element`(by-id).
-    * - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+    * Copies camera frame to a `html_id`(by-id, canvas).
+    *
+    * If `generate_new` is true, the generated element will have an Id of `html_id`+`-canvas`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<canvas>`'s ID will be "nokhwaisbest-canvas".
+    * # Errors
+    * If the internal canvas is not here, drawing fails, or a cast fails, this will error.
+    * # JS-WASM
+    * This is exported as `copyToCanvas`. It may error.
+    * @param {string} html_id
+    * @param {boolean} generate_new
+    */
+    copyToCanvas(html_id, generate_new) {
+        var ptr0 = passStringToWasm0(html_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.nokhwacamera_copyToCanvas(this.ptr, ptr0, len0, generate_new);
+    }
+    /**
+    * Attaches camera to a `html_id`(by-id).
+    *
+    * If `generate_new` is true, the generated element will have an Id of `html_id`+`-video`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<video>`'s ID will be "nokhwaisbest-video".
     * # Errors
     * If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
     * # JS-WASM
     * This is exported as `attachToElement`. It may throw an error.
-    * @param {string} element
+    * @param {string} html_id
     * @param {boolean} generate_new
     */
-    attachToElement(element, generate_new) {
-        var ptr0 = passStringToWasm0(element, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    attachToElement(html_id, generate_new) {
+        var ptr0 = passStringToWasm0(html_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
         wasm.nokhwacamera_attachToElement(this.ptr, ptr0, len0, generate_new);
     }
@@ -1727,6 +1744,10 @@ async function init(input) {
         var ret = getObject(arg0).navigator;
         return addHeapObject(ret);
     };
+    imports.wbg.__wbg_body_525168d9e773c3f8 = function(arg0) {
+        var ret = getObject(arg0).body;
+        return isLikeNone(ret) ? 0 : addHeapObject(ret);
+    };
     imports.wbg.__wbg_createElement_ac65a6ce60c4812c = function() { return handleError(function (arg0, arg1, arg2) {
         var ret = getObject(arg0).createElement(getStringFromWasm0(arg1, arg2));
         return addHeapObject(ret);
@@ -1749,6 +1770,10 @@ async function init(input) {
     };
     imports.wbg.__wbg_appendChild_6ed236bb79c198df = function() { return handleError(function (arg0, arg1) {
         var ret = getObject(arg0).appendChild(getObject(arg1));
+        return addHeapObject(ret);
+    }, arguments) };
+    imports.wbg.__wbg_removeChild_f633f19eb895b696 = function() { return handleError(function (arg0, arg1) {
+        var ret = getObject(arg0).removeChild(getObject(arg1));
         return addHeapObject(ret);
     }, arguments) };
     imports.wbg.__wbg_instanceof_MediaDeviceInfo_cdf31c28bb9459ae = function(arg0) {
@@ -1785,16 +1810,25 @@ async function init(input) {
         var ret = getObject(arg0).getUserMedia(getObject(arg1));
         return addHeapObject(ret);
     }, arguments) };
+    imports.wbg.__wbg_setid_cea8de140a58c4f1 = function(arg0, arg1, arg2) {
+        getObject(arg0).id = getStringFromWasm0(arg1, arg2);
+    };
     imports.wbg.__wbg_setAttribute_27ca65e30a1c3c4a = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
         getObject(arg0).setAttribute(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
     }, arguments) };
     imports.wbg.__wbg_log_9a99fb1af846153b = function(arg0) {
         console.log(getObject(arg0));
     };
+    imports.wbg.__wbg_sethidden_4e6127e185ecf2df = function(arg0, arg1) {
+        getObject(arg0).hidden = arg1 !== 0;
+    };
     imports.wbg.__wbg_instanceof_CanvasRenderingContext2d_779e79c4121aa91b = function(arg0) {
         var ret = getObject(arg0) instanceof CanvasRenderingContext2D;
         return ret;
     };
+    imports.wbg.__wbg_drawImage_1edb91863f89d75c = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
+        getObject(arg0).drawImage(getObject(arg1), arg2, arg3, arg4, arg5);
+    }, arguments) };
     imports.wbg.__wbg_drawImage_13e48c4e7b9bcf28 = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
         getObject(arg0).drawImage(getObject(arg1), arg2, arg3, arg4, arg5);
     }, arguments) };
@@ -1928,7 +1962,7 @@ async function init(input) {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_229(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_240(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -1998,7 +2032,7 @@ async function init(input) {
     imports.wbg.__wbindgen_rethrow = function(arg0) {
         throw takeObject(arg0);
     };
-    imports.wbg.__wbindgen_closure_wrapper747 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper761 = function(arg0, arg1, arg2) {
         var ret = makeMutClosure(arg0, arg1, 65, __wbg_adapter_26);
         return addHeapObject(ret);
     };

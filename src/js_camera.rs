@@ -24,9 +24,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, HtmlVideoElement, ImageData,
-    MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints,
-    MediaStreamTrack, MediaStreamTrackState, Navigator, Node, Window,
+    console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
+    HtmlVideoElement, ImageData, MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream,
+    MediaStreamConstraints, MediaStreamTrack, MediaStreamTrackState, Navigator, Node, Window,
 };
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -1663,7 +1663,8 @@ pub struct JSCamera {
     attached: bool,
     attached_node: Option<Node>,
     measured_resolution: Resolution,
-    hidden_canvas: Option<HtmlCanvasElement>,
+    attached_canvas: Option<HtmlCanvasElement>,
+    canvas_context: Option<CanvasRenderingContext2d>,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = NokhwaCamera))]
@@ -1818,16 +1819,38 @@ impl JSCamera {
             Err(why) => Err(JsValue::from(why.to_string())),
         }
     }
-    /// Attaches camera to a `element`(by-id).
-    /// - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+
+    /// Copies camera frame to a `html_id`(by-id, canvas).
+    ///
+    /// If `generate_new` is true, the generated element will have an Id of `html_id`+`-canvas`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<canvas>`'s ID will be "nokhwaisbest-canvas".
+    /// # Errors
+    /// If the internal canvas is not here, drawing fails, or a cast fails, this will error.
+    /// # JS-WASM
+    /// This is exported as `copyToCanvas`. It may error.
+    #[cfg(feature = "output-wasm")]
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = copyToCanvas))]
+    pub fn js_frame_canvas_copy(
+        &mut self,
+        html_id: &str,
+        generate_new: bool,
+    ) -> Result<(), JsValue> {
+        match self.frame_canvas_copy(html_id, generate_new) {
+            Ok(_) => Ok(()),
+            Err(why) => Err(JsValue::from(why.to_string())),
+        }
+    }
+
+    /// Attaches camera to a `html_id`(by-id).
+    ///
+    /// If `generate_new` is true, the generated element will have an Id of `html_id`+`-video`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<video>`'s ID will be "nokhwaisbest-video".
     /// # Errors
     /// If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
     /// # JS-WASM
     /// This is exported as `attachToElement`. It may throw an error.
     #[cfg(feature = "output-wasm")]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = attachToElement))]
-    pub fn js_attach(&mut self, element: &str, generate_new: bool) -> Result<(), JsValue> {
-        if let Err(why) = self.attach(element, generate_new) {
+    pub fn js_attach(&mut self, html_id: &str, generate_new: bool) -> Result<(), JsValue> {
+        if let Err(why) = self.attach(html_id, generate_new) {
             return Err(JsValue::from(why.to_string()));
         }
         Ok(())
@@ -1901,7 +1924,8 @@ impl JSCamera {
             attached: false,
             attached_node: None,
             measured_resolution: Resolution::new(0, 0),
-            hidden_canvas: None,
+            attached_canvas: None,
+            canvas_context: None,
         };
         js_camera.measure_resolution()?;
 
@@ -1991,14 +2015,16 @@ impl JSCamera {
         Err(NokhwaError::ReadFrameError("Null Stream".to_string()))
     }
 
-    /// Attaches camera to a `element`(by-id).
+    /// Attaches camera to a `html_id`(by-id).
+    ///
+    /// If `generate_new` is true, the generated element will have an Id of `html_id`+`-video`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<video>`'s ID will be "nokhwaisbest-video".
     /// # Errors
     /// If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
-    pub fn attach(&mut self, element: &str, generate_new: bool) -> Result<(), NokhwaError> {
+    pub fn attach(&mut self, html_id: &str, generate_new: bool) -> Result<(), NokhwaError> {
         let window: Window = window()?;
         let document: Document = document(&window)?;
 
-        let selected_element: Element = document_select_elem(&document, element)?;
+        let selected_element: Element = document_select_elem(&document, html_id)?;
         self.measure_resolution()?;
 
         if generate_new {
@@ -2012,6 +2038,7 @@ impl JSCamera {
             video_element.set_width(self.resolution().width());
             video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
+            video_element.set_id(&format!("{}-video", html_id));
 
             return match selected_element.append_child(&Node::from(video_element)) {
                 Ok(n) => {
@@ -2067,7 +2094,8 @@ impl JSCamera {
         let window: Window = window()?;
         let document: Document = document(&window)?;
         self.measure_resolution()?;
-        if self.hidden_canvas.is_none() {
+
+        if self.attached_canvas.is_none() {
             let canvas = create_element(&document, "canvas")?;
 
             match document.body() {
@@ -2086,13 +2114,34 @@ impl JSCamera {
                 }
             }
 
-            self.hidden_canvas = Some(element_cast::<Element, HtmlCanvasElement>(
-                canvas,
-                "HtmlCanvasElement",
-            )?);
+            let canvas = element_cast::<Element, HtmlCanvasElement>(canvas, "HtmlCanvasElement")?;
+            canvas.set_hidden(true);
+
+            self.canvas_context = match canvas.get_context("2d") {
+                Ok(maybe_ctx) => match maybe_ctx {
+                    Some(ctx) => Some(element_cast::<Object, CanvasRenderingContext2d>(
+                        ctx,
+                        "CanvasRenderingContext2d",
+                    )?),
+                    None => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "HtmlCanvasElement Context 2D".to_string(),
+                            error: "None".to_string(),
+                        });
+                    }
+                },
+                Err(why) => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "HtmlCanvasElement Context 2D".to_string(),
+                        error: format!("{:?}", why),
+                    });
+                }
+            };
+
+            self.attached_canvas = Some(canvas);
         }
 
-        let canvas = match &self.hidden_canvas {
+        let canvas = match &self.attached_canvas {
             Some(canvas) => canvas,
             None => {
                 // shouldn't happen
@@ -2105,26 +2154,14 @@ impl JSCamera {
 
         canvas.set_width(self.resolution().width());
         canvas.set_height(self.resolution().height());
-        canvas.set_hidden(true);
 
-        let context = match canvas.get_context("2d") {
-            Ok(maybe_ctx) => match maybe_ctx {
-                Some(ctx) => element_cast::<Object, CanvasRenderingContext2d>(
-                    ctx,
-                    "CanvasRenderingContext2d",
-                )?,
-                None => {
-                    return Err(NokhwaError::StructureError {
-                        structure: "HtmlCanvasElement Context 2D".to_string(),
-                        error: "None".to_string(),
-                    });
-                }
-            },
-            Err(why) => {
+        let context = match &self.canvas_context {
+            Some(cc) => cc,
+            None => {
                 return Err(NokhwaError::StructureError {
-                    structure: "HtmlCanvasElement Context 2D".to_string(),
-                    error: format!("{:?}", why),
-                });
+                    structure: "CanvasContext".to_string(),
+                    error: "None".to_string(),
+                })
             }
         };
 
@@ -2140,10 +2177,6 @@ impl JSCamera {
                 }
             };
 
-            video_element.set_width(self.resolution().width());
-            video_element.set_height(self.resolution().height());
-            video_element.set_src_object(Some(&self.media_stream()));
-
             if let Err(why) = context.draw_image_with_html_video_element_and_dw_and_dh(
                 video_element,
                 0_f64,
@@ -2153,6 +2186,18 @@ impl JSCamera {
             ) {
                 return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
             }
+
+            match context.get_image_data(
+                0_f64,
+                0_f64,
+                self.resolution().width().into(),
+                self.resolution().height().into(),
+            ) {
+                Ok(data) => log_1(&jsv!(data)),
+                Err(why) => {
+                    return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+                }
+            };
         } else {
             let video_element = match document.create_element("video") {
                 Ok(new_element) => new_element,
@@ -2216,7 +2261,143 @@ impl JSCamera {
                 }
             }
         }
+
         Ok(())
+    }
+
+    /// Copies camera frame to a `html_id`(by-id, canvas).
+    ///
+    /// If `generate_new` is true, the generated element will have an Id of `html_id`+`-canvas`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<canvas>`'s ID will be "nokhwaisbest-canvas".
+    /// # Errors
+    /// If the internal canvas is not here, drawing fails, or a cast fails, this will error.
+    #[allow(clippy::must_use_candidate)]
+    pub fn frame_canvas_copy(
+        &mut self,
+        html_id: &str,
+        generate_new: bool,
+    ) -> Result<(HtmlCanvasElement, CanvasRenderingContext2d), NokhwaError> {
+        let window: Window = window()?;
+        let document: Document = document(&window)?;
+
+        let selected_element: Element = document_select_elem(&document, html_id)?;
+        self.measure_resolution()?;
+        self.draw_to_canvas()?;
+
+        if generate_new {
+            let new_canvas = create_element(&document, "canvas")?;
+            let new_canvas =
+                element_cast::<Element, HtmlCanvasElement>(new_canvas, "HtmlCanvasElement")?;
+
+            new_canvas.set_width(self.resolution().width());
+            new_canvas.set_height(self.resolution().height());
+            new_canvas.set_id(&format!("{}-canvas", html_id));
+
+            if let Err(why) = selected_element.append_child(&new_canvas) {
+                return Err(NokhwaError::StructureError {
+                    structure: "HtmlCanvasElement".to_string(),
+                    error: format!("add child: {:?}", why),
+                });
+            }
+
+            let context = match new_canvas.get_context("2d") {
+                Ok(objcontext) => match objcontext {
+                    Some(c2d) => c2d,
+                    None => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "CanvasRenderingContext2d".to_string(),
+                            error: "No context".to_string(),
+                        });
+                    }
+                },
+                Err(why) => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "CanvasRenderingContext2d".to_string(),
+                        error: format!("context: {:?}", why),
+                    });
+                }
+            };
+
+            let self_canvas = match &self.attached_canvas {
+                Some(c) => c,
+                None => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "HtmlCanvasElement".to_string(),
+                        error: "Is None?".to_string(),
+                    });
+                }
+            };
+
+            let context = element_cast::<Object, CanvasRenderingContext2d>(
+                context,
+                "CanvasRenderingContext2d",
+            )?;
+
+            if let Err(why) = context.draw_image_with_html_canvas_element_and_dw_and_dh(
+                self_canvas,
+                0_f64,
+                0_f64,
+                self.resolution().width().into(),
+                self.resolution().height().into(),
+            ) {
+                return Err(NokhwaError::ReadFrameError(format!(
+                    "Failed to draw: {:?}",
+                    why
+                )));
+            }
+
+            Ok((new_canvas, context))
+        } else {
+            let canvas =
+                element_cast::<Element, HtmlCanvasElement>(selected_element, "HtmlCanvasElement")?;
+
+            let context = match canvas.get_context("2d") {
+                Ok(objcontext) => match objcontext {
+                    Some(c2d) => c2d,
+                    None => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "CanvasRenderingContext2d".to_string(),
+                            error: "No context".to_string(),
+                        });
+                    }
+                },
+                Err(why) => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "CanvasRenderingContext2d".to_string(),
+                        error: format!("context: {:?}", why),
+                    });
+                }
+            };
+
+            let self_canvas = match &self.attached_canvas {
+                Some(c) => c,
+                None => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "HtmlCanvasElement".to_string(),
+                        error: "Is None?".to_string(),
+                    });
+                }
+            };
+
+            let context = element_cast::<Object, CanvasRenderingContext2d>(
+                context,
+                "CanvasRenderingContext2d",
+            )?;
+
+            if let Err(why) = context.draw_image_with_html_canvas_element_and_dw_and_dh(
+                self_canvas,
+                0_f64,
+                0_f64,
+                self.resolution().width().into(),
+                self.resolution().height().into(),
+            ) {
+                return Err(NokhwaError::ReadFrameError(format!(
+                    "Failed to draw: {:?}",
+                    why
+                )));
+            }
+
+            Ok((canvas, context))
+        }
     }
 
     /// Captures an [`ImageData`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.ImageData.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/ImageData) by drawing the image to a non-existent canvas.
@@ -2227,29 +2408,13 @@ impl JSCamera {
     pub fn frame_image_data(&mut self) -> Result<ImageData, NokhwaError> {
         self.draw_to_canvas()?;
 
-        let canvas = match self.hidden_canvas {
-            Some(c) => c,
-            None => return Err(NokhwaError::ReadFrameError("No Canvas".to_string())),
-        };
-
-        let context = match canvas.get_context("2d") {
-            Ok(maybe_ctx) => match maybe_ctx {
-                Some(ctx) => element_cast::<Object, CanvasRenderingContext2d>(
-                    ctx,
-                    "CanvasRenderingContext2d",
-                )?,
-                None => {
-                    return Err(NokhwaError::StructureError {
-                        structure: "HtmlCanvasElement Context 2D".to_string(),
-                        error: "None".to_string(),
-                    });
-                }
-            },
-            Err(why) => {
+        let context = match &self.canvas_context {
+            Some(cc) => cc,
+            None => {
                 return Err(NokhwaError::StructureError {
-                    structure: "HtmlCanvasElement Context 2D".to_string(),
-                    error: format!("{:?}", why),
-                });
+                    structure: "CanvasContext".to_string(),
+                    error: "None".to_string(),
+                })
             }
         };
 
@@ -2284,7 +2449,7 @@ impl JSCamera {
         let image_quality = JsValue::from(image_quality.unwrap_or(0.92_f64));
         self.draw_to_canvas()?;
 
-        let canvas = match self.hidden_canvas {
+        let canvas = match &self.attached_canvas {
             Some(c) => c,
             None => return Err(NokhwaError::ReadFrameError("No Canvas".to_string())),
         };

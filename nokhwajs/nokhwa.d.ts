@@ -516,7 +516,7 @@ export class CameraInfo {
 /**
 * A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 * # JS-WASM
-* This is exported as `NOKCamera`.
+* This is exported as `NokhwaCamera`.
 */
 export class NokhwaCamera {
   free(): void;
@@ -526,7 +526,7 @@ export class NokhwaCamera {
 * # Errors
 * This may error if permission is not granted, or the constraints are invalid.
 * # JS-WASM
-* This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+* This is the constructor for `NokhwaCamera`. It returns a promise and may throw an error.
 * @param {CameraConstraints} constraints
 */
   constructor(constraints: CameraConstraints);
@@ -582,16 +582,29 @@ export class NokhwaCamera {
 */
   captureFrameRawData(): Uint8Array;
 /**
-* Attaches camera to a `element`(by-id).
-* - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+* Copies camera frame to a `html_id`(by-id, canvas).
+*
+* If `generate_new` is true, the generated element will have an Id of `html_id`+`-canvas`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<canvas>`'s ID will be "nokhwaisbest-canvas".
+* # Errors
+* If the internal canvas is not here, drawing fails, or a cast fails, this will error.
+* # JS-WASM
+* This is exported as `copyToCanvas`. It may error.
+* @param {string} html_id
+* @param {boolean} generate_new
+*/
+  copyToCanvas(html_id: string, generate_new: boolean): void;
+/**
+* Attaches camera to a `html_id`(by-id).
+*
+* If `generate_new` is true, the generated element will have an Id of `html_id`+`-video`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<video>`'s ID will be "nokhwaisbest-video".
 * # Errors
 * If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
 * # JS-WASM
 * This is exported as `attachToElement`. It may throw an error.
-* @param {string} element
+* @param {string} html_id
 * @param {boolean} generate_new
 */
-  attachToElement(element: string, generate_new: boolean): void;
+  attachToElement(html_id: string, generate_new: boolean): void;
 /**
 * Detaches the camera from the `<video>` node.
 * # Errors
@@ -765,6 +778,7 @@ export interface InitOutput {
   readonly nokhwacamera_captureImageData: (a: number) => number;
   readonly nokhwacamera_captureImageURI: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly nokhwacamera_captureFrameRawData: (a: number, b: number) => void;
+  readonly nokhwacamera_copyToCanvas: (a: number, b: number, c: number, d: number) => void;
   readonly nokhwacamera_attachToElement: (a: number, b: number, c: number, d: number) => void;
   readonly nokhwacamera_detachCamera: (a: number) => void;
   readonly nokhwacamera_stopAll: (a: number) => void;
@@ -792,11 +806,11 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h34bdc8cc85c4eb6b: (a: number, b: number, c: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__h138614ba43225cc0: (a: number, b: number, c: number, d: number) => void;
 }
 
 /**

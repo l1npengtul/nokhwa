@@ -51,7 +51,7 @@ The table below lists current Nokhwa API support.
  | OpenCV(`input-opencv`)^         | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^ | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | GStreamer(`input-gst`)          | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)           | 🔮                 | 🔮                 | 🔮                 | Browser(Web)        |
+ | JS/WASM(`input-wasm`)           | ✅                 | ✅                 | ✅                 | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
