@@ -15,7 +15,7 @@ NOTE: You **need** to adjust the build features! Edit the `Cargo.toml` for the b
 - `-rate [FPS:U32]`/`--framerate [FPS:U32]`: Set FPS of capture to `[FPS:U32]`. Does nothing if -c flag is not set. Value Has to be a `u32`
 - `-4cc [FORMAT]`/`--format [FORMAT]`: Set format of capture to `[FORMAT]`. Does nothing if -c flag is not set. Possible values are MJPG and YUYV. Will be ignored if not one of those two.
 - `-b [BACKEND]`/`--backend [BACKEND]`: Set the capture backend to `[BACKEND]`. Pass AUTO for automatic backend, UVC to use UVC, V4L to use Video4Linux, GST to use Gstreamer, OPENCV to use OpenCV.
-- `-d`/`--display`: Enable glium display. Note: This is currently bugged as it shows an upside down feed. It also does not respond to `x` button press from window. (FIXME)
+- `-d`/`--display`: Enable glium display. Note: Does not respond to `x` button press from window. (FIXME)
 
 Example Usage: 
 ```
