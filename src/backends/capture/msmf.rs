@@ -10,6 +10,7 @@ use crate::{
     KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
+use nokhwa_bindings_windows::wmf::de_initialize_mf;
 use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
@@ -23,11 +24,12 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - [`raw_supported_camera_controls()`](CaptureBackendTrait::raw_supported_camera_controls), [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control), [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is **not** supported.
 /// - The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - The names may contain invalid characters since they were converted from UTF16.
-pub struct MediaFoundationCaptureDevice {
-    inner: MediaFoundationDevice,
+/// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.
+pub struct MediaFoundationCaptureDevice<'a> {
+    inner: MediaFoundationDevice<'a>,
 }
 
-impl MediaFoundationCaptureDevice {
+impl<'a> MediaFoundationCaptureDevice<'a> {
     /// Creates a new capture device using the Media Foundation backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
@@ -56,7 +58,7 @@ impl MediaFoundationCaptureDevice {
     }
 }
 
-impl CaptureBackendTrait for MediaFoundationCaptureDevice {
+impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::MediaFoundation
     }

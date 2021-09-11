@@ -77,7 +77,7 @@ features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.2.3"
+path = "nokhwa-bindings-windows/"
 optional = true
 
 [dependencies.gstreamer]

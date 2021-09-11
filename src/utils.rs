@@ -303,7 +303,7 @@ impl From<MFCameraFormat> for CameraFormat {
         CameraFormat {
             resolution: mf_cam_fmt.resolution().into(),
             format: mf_cam_fmt.format().into(),
-            frame_rate: mf_cam_fmt.framerate(),
+            frame_rate: mf_cam_fmt.frame_rate(),
         }
     }
 }
