@@ -4,7 +4,6 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::network_camera::NetworkCamera;
 use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
@@ -197,24 +196,6 @@ fn main() {
                     send.send(frame).unwrap()
                 }
             }
-            // IP Camera
-            else {
-                let ip_camera =
-                    NetworkCamera::new(matches_clone.value_of("capture").unwrap().to_string())
-                        .expect("Invalid IP!");
-                ip_camera.open_stream().unwrap();
-                loop {
-                    let frame = ip_camera.frame().unwrap();
-                    println!(
-                        "Captured frame {}x{} @ {}FPS size {}",
-                        frame.width(),
-                        frame.height(),
-                        fps,
-                        frame.len()
-                    );
-                    send.send(frame).unwrap();
-                }
-            }
         });
 
         // run glium
@@ -249,12 +230,9 @@ fn main() {
             )
             .unwrap();
 
-            let idx_buf = IndexBuffer::new(
-                &gl_display,
-                PrimitiveType::TriangleStrip,
-                &[1 as u16, 2, 0, 3],
-            )
-            .unwrap();
+            let idx_buf =
+                IndexBuffer::new(&gl_display, PrimitiveType::TriangleStrip, &[1_u16, 2, 0, 3])
+                    .unwrap();
 
             let program = program!(&gl_display,
                 140 => {
@@ -319,14 +297,10 @@ fn main() {
                     .unwrap();
                 target.finish().unwrap();
 
-                match event {
-                    glutin::event::Event::WindowEvent { event, .. } => match event {
-                        glutin::event::WindowEvent::CloseRequested => {
-                            *ctrl = glutin::event_loop::ControlFlow::Exit;
-                        }
-                        _ => {}
-                    },
-                    _ => {}
+                if let glutin::event::Event::WindowEvent { event, .. } = event {
+                    if event == glutin::event::WindowEvent::CloseRequested {
+                        *ctrl = glutin::event_loop::ControlFlow::Exit;
+                    }
                 }
 
                 println!(

@@ -113,12 +113,12 @@ impl MFCameraFormat {
         self.resolution = resolution;
     }
 
-    pub fn framerate(&self) -> u32 {
+    pub fn frame_rate(&self) -> u32 {
         self.frame_rate
     }
 
-    pub fn set_framerate(&mut self, framerate: u32) {
-        self.frame_rate = framerate;
+    pub fn set_frame_rate(&mut self, frame_rate: u32) {
+        self.frame_rate = frame_rate;
     }
 
     pub fn format(&self) -> MFFrameFormat {
@@ -322,15 +322,16 @@ impl MFControl {
     }
 }
 
-#[cfg(all(windows, not(feature = "docs-only")))]
-windows::include_bindings!();
+mod bindings {
+    #[cfg(all(windows, not(feature = "docs-only")))]
+    ::windows::include_bindings!();
+}
 
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
+    #![windows_subsystem = "windows"]
     use crate::{
-        BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
-        MediaFoundationControls, MediaFoundationDeviceDescriptor,
-        Windows::Win32::{
+        bindings::Windows::Win32::{
             Foundation::PWSTR,
             Graphics::DirectShow::{
                 CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris, CameraControl_Pan,
@@ -342,19 +343,20 @@ pub mod wmf {
             },
             Media::MediaFoundation::{
                 IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
-                MFCreateAttributes, MFCreateDeviceSource, MFCreateMediaType,
-                MFCreateSourceReaderFromMediaSource, MFEnumDeviceSources, MFMediaType_Video,
-                MFShutdown, MFStartup, MFSTARTUP_NOSOCKET, MF_API_VERSION,
-                MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
-                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, MF_MT_FRAME_RATE,
-                MF_MT_FRAME_RATE_RANGE_MAX, MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE,
-                MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+                MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
+                MFEnumDeviceSources, MFMediaType_Video, MFShutdown, MFStartup, MFSTARTUP_NOSOCKET,
+                MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, MF_MEDIASOURCE_SERVICE,
+                MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX, MF_MT_FRAME_RATE_RANGE_MIN,
+                MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE, MF_READWRITE_DISABLE_CONVERTERS,
             },
             System::Com::{CoInitializeEx, CoUninitialize, COINIT},
         },
+        BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
+        MediaFoundationControls, MediaFoundationDeviceDescriptor,
     };
-    use std::{borrow::Cow, cell::Cell, ffi::c_void, mem::MaybeUninit, slice::from_raw_parts};
+    use std::{borrow::Cow, cell::Cell, mem::MaybeUninit, slice::from_raw_parts};
     use windows::{Guid, Interface};
 
     static mut INITIALIZED: bool = false;
@@ -377,16 +379,17 @@ pub mod wmf {
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
 
+    const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
+
     const CAM_CTRL_AUTO: i32 = 0x0001;
     const CAM_CTRL_MANUAL: i32 = 0x0002;
 
     pub fn initialize_mf() -> Result<(), BindingError> {
         if !(unsafe { INITIALIZED }) {
-            let a = Box::new(0);
-            let c_void = { Box::into_raw(a).cast::<c_void>() };
-            if let Err(why) = unsafe {
-                CoInitializeEx(c_void, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE)
-            } {
+            let a = std::ptr::null_mut();
+            if let Err(why) =
+                unsafe { CoInitializeEx(a, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE) }
+            {
                 return Err(BindingError::InitializeError(why.to_string()));
             }
 
@@ -400,14 +403,11 @@ pub mod wmf {
             unsafe {
                 INITIALIZED = true;
             }
-
-            // reconstruct the box and free the RAM
-            let _b = unsafe { Box::from_raw(c_void) }; // automatic cleanup
         }
         Ok(())
     }
 
-    pub fn deinitialize_mf() -> Result<(), BindingError> {
+    pub fn de_initialize_mf() -> Result<(), BindingError> {
         if unsafe { INITIALIZED } {
             unsafe {
                 if let Err(why) = MFShutdown() {
@@ -420,7 +420,7 @@ pub mod wmf {
         Ok(())
     }
 
-    pub fn query_msmf() -> Result<Vec<MediaFoundationDeviceDescriptor<'static>>, BindingError> {
+    fn query_activate_pointers() -> Result<Vec<IMFActivate>, BindingError> {
         initialize_mf()?;
 
         let mut attributes: Option<IMFAttributes> = None;
@@ -448,145 +448,136 @@ pub mod wmf {
         };
 
         let mut count: u32 = 0;
-        let mut mf_device_enum: MaybeUninit<*mut Option<IMFActivate>> = MaybeUninit::uninit();
+        let mut unused_mf_activate: MaybeUninit<*mut Option<IMFActivate>> = MaybeUninit::uninit(); // WTF?
 
         if let Err(why) =
-            unsafe { MFEnumDeviceSources(attributes, mf_device_enum.as_mut_ptr(), &mut count) }
+            unsafe { MFEnumDeviceSources(attributes, unused_mf_activate.as_mut_ptr(), &mut count) }
         {
             return Err(BindingError::EnumerateError(why.to_string()));
         }
 
         let mut device_list = vec![];
 
-        for (index, mf_activate) in
-            unsafe { from_raw_parts(mf_device_enum.assume_init(), count as usize) }
-                .into_iter()
-                .enumerate()
-        {
-            match mf_activate {
-                Some(activate_ptr) => {
-                    let mut name: PWSTR = PWSTR(&mut 0_u16);
-                    let mut len_name = 0;
-                    let mut symlink: PWSTR = PWSTR(&mut 0_u16);
-                    let mut len_symlink = 0;
-
-                    if let Err(why) = unsafe {
-                        activate_ptr.GetAllocatedString(
-                            &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-                            &mut name,
-                            &mut len_name,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) = unsafe {
-                        activate_ptr.GetAllocatedString(
-                            &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                            &mut symlink,
-                            &mut len_symlink,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    let device_descriptor = unsafe {
-                        MediaFoundationDeviceDescriptor::new(
-                            index,
-                            name.0,
-                            symlink.0,
-                            len_name,
-                            len_symlink,
-                        )
-                    }?;
-
-                    device_list.push(device_descriptor);
+        unsafe { from_raw_parts(unused_mf_activate.assume_init(), count as usize) }
+            .into_iter()
+            .for_each(|pointer| {
+                if let Some(imf_activate) = pointer {
+                    device_list.push(imf_activate.clone())
                 }
-                None => {
-                    continue; // swallow errors
-                }
-            }
+            });
+
+        Ok(device_list)
+    }
+
+    fn activate_to_descriptors(
+        index: usize,
+        imf_activate: IMFActivate,
+    ) -> Result<MediaFoundationDeviceDescriptor<'static>, BindingError> {
+        let mut name: PWSTR = PWSTR(&mut 0_u16);
+        let mut len_name = 0;
+        let mut symlink: PWSTR = PWSTR(&mut 0_u16);
+        let mut len_symlink = 0;
+
+        if let Err(why) = unsafe {
+            imf_activate.GetAllocatedString(
+                &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                &mut name,
+                &mut len_name,
+            )
+        } {
+            return Err(BindingError::GUIDReadError(
+                "MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME".to_string(),
+                why.to_string(),
+            ));
+        }
+
+        if let Err(why) = unsafe {
+            imf_activate.GetAllocatedString(
+                &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+                &mut symlink,
+                &mut len_symlink,
+            )
+        } {
+            return Err(BindingError::GUIDReadError(
+                "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK".to_string(),
+                why.to_string(),
+            ));
+        }
+
+        Ok(unsafe {
+            MediaFoundationDeviceDescriptor::new(index, name.0, symlink.0, len_name, len_symlink)
+        }?)
+    }
+
+    pub fn query_media_foundation_descriptors(
+    ) -> Result<Vec<MediaFoundationDeviceDescriptor<'static>>, BindingError> {
+        let mut device_list = vec![];
+
+        for (index, activate_ptr) in query_activate_pointers()?.into_iter().enumerate() {
+            device_list.push(activate_to_descriptors(index, activate_ptr.clone())?);
         }
         Ok(device_list)
     }
 
-    pub struct MediaFoundationDevice {
+    pub struct MediaFoundationDevice<'a> {
         is_open: Cell<bool>,
-        device_specifier: MediaFoundationDeviceDescriptor<'static>,
+        device_specifier: MediaFoundationDeviceDescriptor<'a>,
         device_format: MFCameraFormat,
-        media_source: IMFMediaSource,
         source_reader: IMFSourceReader,
     }
 
-    impl MediaFoundationDevice {
+    impl<'a> MediaFoundationDevice<'a> {
         pub fn new(index: usize) -> Result<Self, BindingError> {
-            let device_descriptor = {
-                match query_msmf()?.into_iter().nth(index) {
-                    Some(dd) => dd,
-                    None => {
-                        return Err(BindingError::DeviceOpenFailError(
-                            index,
-                            "No Device".to_string(),
-                        ))
+            let (media_source, device_descriptor) = match query_activate_pointers()?
+                .into_iter()
+                .nth(index)
+            {
+                Some(activate) => match unsafe { activate.ActivateObject::<IMFMediaSource>() } {
+                    Ok(media_source) => (
+                        media_source,
+                        activate_to_descriptors(index, activate.clone())?,
+                    ),
+                    Err(why) => {
+                        return Err(BindingError::DeviceOpenFailError(index, why.to_string()))
                     }
+                },
+                None => {
+                    return Err(BindingError::DeviceOpenFailError(
+                        index,
+                        "No Device".to_string(),
+                    ))
                 }
             };
 
-            let attributes = {
-                let cow_vec = device_descriptor.symlink.to_vec().as_mut_ptr();
-                let symlink_pwstr = PWSTR(cow_vec);
+            let source_reader_attr: Option<IMFAttributes> = {
+                let attr = match {
+                    let mut attr: Option<IMFAttributes> = None;
 
-                let mut attr: Option<IMFAttributes> = None;
-
-                if let Err(why) = unsafe { MFCreateAttributes(&mut attr, 2) } {
-                    return Err(BindingError::AttributeError(why.to_string()));
-                }
-
-                let attr = match attr {
-                    Some(at) => {
-                        if let Err(why) = unsafe {
-                            at.SetGUID(
-                                &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-                                &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
-                            )
-                        } {
-                            return Err(BindingError::AttributeError(why.to_string()));
-                        }
-
-                        if let Err(why) = unsafe {
-                            at.SetString(
-                                &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                                &symlink_pwstr,
-                            )
-                        } {
-                            return Err(BindingError::AttributeError(why.to_string()));
-                        }
-                        at
+                    if let Err(why) = unsafe { MFCreateAttributes(&mut attr, 3) } {
+                        return Err(BindingError::AttributeError(why.to_string()));
                     }
+
+                    attr
+                } {
+                    Some(imf_attr) => imf_attr,
                     None => {
-                        return Err(BindingError::DeviceOpenFailError(
-                            index,
-                            "Attribute Error".to_string(),
+                        return Err(BindingError::AttributeError(
+                            "Attribute Alloc Fail".to_string(),
                         ))
                     }
                 };
 
-                attr
-            };
+                if let Err(why) =
+                    unsafe { attr.SetUINT32(&MF_READWRITE_DISABLE_CONVERTERS, true as u32) }
+                {
+                    return Err(BindingError::AttributeError(why.to_string()));
+                }
 
-            let media_source = match unsafe { MFCreateDeviceSource(&attributes) } {
-                Ok(src) => src,
-                Err(why) => return Err(BindingError::DeviceOpenFailError(index, why.to_string())),
+                Some(attr)
             };
 
             let source_reader = match unsafe {
-                MFCreateSourceReaderFromMediaSource(&media_source, None)
+                MFCreateSourceReaderFromMediaSource(&media_source, source_reader_attr)
             } {
                 Ok(sr) => sr,
                 Err(why) => return Err(BindingError::DeviceOpenFailError(index, why.to_string())),
@@ -596,7 +587,6 @@ pub mod wmf {
                 is_open: Cell::new(false),
                 device_specifier: device_descriptor,
                 device_format: MFCameraFormat::default(),
-                media_source,
                 source_reader,
             })
         }
@@ -620,17 +610,11 @@ pub mod wmf {
             loop {
                 let media_type = match unsafe {
                     self.source_reader
-                        .GetNativeMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32, index)
+                        .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
                 } {
                     Ok(mt) => mt,
-                    Err(why) => {
-                        if why.code().0 == 14009 {
-                            break;
-                        }
-                        return Err(BindingError::GUIDReadError(
-                            "MF_SOURCE_READER_FIRST_VIDEO_STREAM".to_string(),
-                            why.to_string(),
-                        ));
+                    Err(_) => {
+                        break;
                     }
                 };
 
@@ -664,7 +648,7 @@ pub mod wmf {
                         Ok(fraction_u64) => {
                             let mut numerator = (fraction_u64 >> 32) as u32;
                             let denominator = fraction_u64 as u32;
-                            if denominator != 0 {
+                            if denominator != 1 {
                                 numerator = 0;
                             }
                             numerator
@@ -681,7 +665,7 @@ pub mod wmf {
                     Ok(fraction_u64) => {
                         let mut numerator = (fraction_u64 >> 32) as u32;
                         let denominator = fraction_u64 as u32;
-                        if denominator != 0 {
+                        if denominator != 1 {
                             numerator = 0;
                         }
                         numerator
@@ -699,7 +683,7 @@ pub mod wmf {
                         Ok(fraction_u64) => {
                             let mut numerator = (fraction_u64 >> 32) as u32;
                             let denominator = fraction_u64 as u32;
-                            if denominator != 0 {
+                            if denominator != 1 {
                                 numerator = 0;
                             }
                             numerator
@@ -764,7 +748,7 @@ pub mod wmf {
                                 height_y: height,
                             },
                             format: MFFrameFormat::YUYV,
-                            frame_rate: frame_rate,
+                            frame_rate,
                         });
                     }
 
@@ -782,12 +766,26 @@ pub mod wmf {
 
                 index = index + 1;
             }
-
             Ok(camera_format_list)
         }
 
         pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
-            let camera_control = match self.media_source.cast::<IAMCameraControl>() {
+            let media_source = match unsafe {
+                self.source_reader.GetServiceForStream::<IMFMediaSource>(
+                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    &MF_MEDIASOURCE_SERVICE,
+                )
+            } {
+                Ok(media_source) => media_source,
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IMFMediaSource".to_string(),
+                        why.to_string(),
+                    ))
+                }
+            };
+
+            let camera_control = match media_source.cast::<IAMCameraControl>() {
                 Ok(cc) => cc,
                 Err(why) => {
                     return Err(BindingError::GUIDReadError(
@@ -797,7 +795,7 @@ pub mod wmf {
                 }
             };
 
-            let video_proc_amp = match self.media_source.cast::<IAMVideoProcAmp>() {
+            let video_proc_amp = match media_source.cast::<IAMVideoProcAmp>() {
                 Ok(vpa) => vpa,
                 Err(why) => {
                     return Err(BindingError::GUIDReadError(
@@ -1274,7 +1272,22 @@ pub mod wmf {
         }
 
         pub fn set_control(&mut self, control: MFControl) -> Result<(), BindingError> {
-            let camera_control = match self.media_source.cast::<IAMCameraControl>() {
+            let media_source = match unsafe {
+                self.source_reader.GetServiceForStream::<IMFMediaSource>(
+                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    &MF_MEDIASOURCE_SERVICE,
+                )
+            } {
+                Ok(media_source) => media_source,
+                Err(why) => {
+                    return Err(BindingError::GUIDReadError(
+                        "IMFMediaSource".to_string(),
+                        why.to_string(),
+                    ))
+                }
+            };
+
+            let camera_control = match media_source.cast::<IAMCameraControl>() {
                 Ok(cc) => cc,
                 Err(why) => {
                     return Err(BindingError::GUIDReadError(
@@ -1284,7 +1297,7 @@ pub mod wmf {
                 }
             };
 
-            let video_proc_amp = match self.media_source.cast::<IAMVideoProcAmp>() {
+            let video_proc_amp = match media_source.cast::<IAMVideoProcAmp>() {
                 Ok(vpa) => vpa,
                 Err(why) => {
                     return Err(BindingError::GUIDReadError(
@@ -1509,7 +1522,6 @@ pub mod wmf {
             };
 
             // set relevant things
-
             let resolution = ((format.resolution.width_x as u64) << 32_u64)
                 + (format.resolution.height_y as u64);
             let fps = ((format.frame_rate as u64) << 32) + 1_u64;
@@ -1517,7 +1529,6 @@ pub mod wmf {
                 MFFrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
                 MFFrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
             };
-
             // setting to the new media_type
             if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video) } {
                 return Err(BindingError::GUIDSetError(
@@ -1562,12 +1573,11 @@ pub mod wmf {
                 ));
             }
 
-            let mut reserved = 0_u32;
-
+            let reserved = std::ptr::null_mut();
             if let Err(why) = unsafe {
                 self.source_reader.SetCurrentMediaType(
-                    MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32,
-                    &mut reserved,
+                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    reserved,
                     media_type.clone(),
                 )
             } {
@@ -1577,7 +1587,6 @@ pub mod wmf {
                     why.to_string(),
                 ));
             }
-
             self.device_format = format;
             Ok(())
         }
@@ -1587,65 +1596,90 @@ pub mod wmf {
         }
 
         pub fn start_stream(&mut self) -> Result<(), BindingError> {
-            self.is_open.set(true);
+            if let Err(why) = unsafe {
+                self.source_reader
+                    .SetStreamSelection(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, true)
+            } {
+                println!("a");
+                return Err(BindingError::ReadFrameError(why.to_string()));
+            }
 
+            self.is_open.set(true);
             Ok(())
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, BindingError> {
+        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, BindingError> {
+            let mut flags: u32 = 0;
             let mut imf_sample: Option<IMFSample> = None;
-            let mut stream_index = 0_u32;
-            let mut stream_flags = 0_u32;
-            let mut time_stamp = 0_i64;
 
-            if let Err(why) = unsafe {
-                self.source_reader.ReadSample(
-                    MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32,
-                    0,
-                    &mut stream_index,
-                    &mut stream_flags,
-                    &mut time_stamp,
-                    &mut imf_sample,
-                )
-            } {
-                return Err(BindingError::ReadFrameError(why.to_string()));
+            // Cursed IMFSourceReader.ReadSample
+            {
+                let sample_pointer =
+                    (&mut imf_sample as *mut Option<IMFSample>) as *mut windows::RawPtr;
+                loop {
+                    if let Err(why) = unsafe {
+                        (::windows::Interface::vtable(&self.source_reader).9)(
+                            ::windows::Abi::abi(&self.source_reader),
+                            MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                            0,
+                            std::ptr::null_mut(),
+                            &mut flags,
+                            std::ptr::null_mut(),
+                            sample_pointer,
+                        )
+                        .ok()
+                    } {
+                        return Err(BindingError::ReadFrameError(why.to_string()));
+                    }
+
+                    if imf_sample.is_some() {
+                        break;
+                    }
+                }
             }
 
             let imf_sample = match imf_sample {
                 Some(sample) => sample,
-                None => return Err(BindingError::ReadFrameError("Sample Not Init".to_string())),
+                None => {
+                    // shouldn't happen
+                    return Err(BindingError::ReadFrameError("why".to_string()));
+                }
             };
 
-            let imf_buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
+            let buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
                 Ok(buf) => buf,
                 Err(why) => return Err(BindingError::ReadFrameError(why.to_string())),
             };
 
-            let mut buffer_length = match unsafe { imf_buffer.GetCurrentLength() } {
-                Ok(len) => len,
-                Err(why) => return Err(BindingError::ReadFrameError(why.to_string())),
-            };
-
-            let mut raw_data_vec: Vec<u8> = vec![];
-            raw_data_vec.resize(buffer_length as usize, 0_u8);
-
-            let mut max_buffer_len = usize::MAX as u32;
+            let mut buffer_valid_length = 0;
+            let mut buffer_start_ptr = std::ptr::null_mut::<u8>();
 
             if let Err(why) = unsafe {
-                imf_buffer.Lock(
-                    &mut raw_data_vec.as_mut_ptr(),
-                    &mut max_buffer_len,
-                    &mut buffer_length,
+                buffer.Lock(
+                    &mut buffer_start_ptr,
+                    std::ptr::null_mut(),
+                    &mut buffer_valid_length,
                 )
             } {
                 return Err(BindingError::ReadFrameError(why.to_string()));
             }
 
-            if let Err(why) = unsafe { imf_buffer.Unlock() } {
-                return Err(BindingError::ReadFrameError(why.to_string()));
+            if buffer_start_ptr.is_null() {
+                return Err(BindingError::ReadFrameError(
+                    "Buffer Pointer Null".to_string(),
+                ));
             }
 
-            Ok(Cow::from(raw_data_vec))
+            if buffer_valid_length == 0 {
+                return Err(BindingError::ReadFrameError("No Data Size".to_string()));
+            }
+
+            Ok(Cow::from(unsafe {
+                std::slice::from_raw_parts(
+                    buffer_start_ptr as *const u8,
+                    buffer_valid_length as usize,
+                )
+            }))
         }
 
         pub fn stop_stream(&mut self) {
@@ -1653,15 +1687,14 @@ pub mod wmf {
         }
     }
 
-    impl Drop for MediaFoundationDevice {
+    impl<'a> Drop for MediaFoundationDevice<'a> {
         fn drop(&mut self) {
             // swallow errors
             unsafe {
                 if let Err(_) = self
                     .source_reader
-                    .Flush(MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32)
+                    .Flush(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM)
                 {}
-                if let Err(_) = self.media_source.Shutdown() {}
             }
         }
     }
@@ -1681,7 +1714,7 @@ pub mod wmf {
         Err(BindingError::NotImplementedError)
     }
 
-    pub fn deinitialize_mf() -> Result<(), BindingError> {
+    pub fn de_initialize_mf() -> Result<(), BindingError> {
         Err(BindingError::NotImplementedError)
     }
 

@@ -249,16 +249,17 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
 #[cfg(feature = "input-msmf")]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
-    let list: Vec<CameraInfo> = match nokhwa_bindings_windows::wmf::query_msmf() {
-        Ok(l) => l
-            .into_iter()
-            .map(|mf_desc| {
-                let camera_info: CameraInfo = mf_desc.into();
-                camera_info
-            })
-            .collect(),
-        Err(why) => return Err(why.into()),
-    };
+    let list: Vec<CameraInfo> =
+        match nokhwa_bindings_windows::wmf::query_media_foundation_descriptors() {
+            Ok(l) => l
+                .into_iter()
+                .map(|mf_desc| {
+                    let camera_info: CameraInfo = mf_desc.into();
+                    camera_info
+                })
+                .collect(),
+            Err(why) => return Err(why.into()),
+        };
     Ok(list)
 }
 
