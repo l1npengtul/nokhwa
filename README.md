@@ -42,10 +42,10 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
- | Backend                         | Input              | Query              | Query-Device       | Platform            |
+ | Backend                         | Input              | Query              | Query-Device        | Platform            |
  |---------------------------------|--------------------|--------------------|--------------------|---------------------|
  | Video4Linux(`input-v4l`)        | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF(`input-msmf`)              | 🔮                 | 🔮                 | 🔮                 | Windows             |
+ | MSMF(`input-msmf`)              | ✅                 | ✅                 | ✅                 | Windows             |
  | AVFoundation                    | 🚧                 | 🚧                 | 🚧                 | Mac                 |
  | libuvc(`input-uvc`)             | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^         | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
