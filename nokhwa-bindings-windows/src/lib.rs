@@ -1708,6 +1708,7 @@ pub mod wmf {
         BindingError, MFCameraFormat, MFControl, MediaFoundationControls,
         MediaFoundationDeviceDescriptor,
     };
+    use std::marker::PhantomData;
     use std::{borrow::Cow, cell::Cell};
 
     pub fn initialize_mf() -> Result<(), BindingError> {
@@ -1722,14 +1723,14 @@ pub mod wmf {
         Err(BindingError::NotImplementedError)
     }
 
-    pub struct MediaFoundationDevice {
-        op: Cell<bool>,
+    pub struct MediaFoundationDevice<'a> {
+        phantom: PhantomData<'a, ()>,
     }
 
-    impl MediaFoundationDevice {
-        pub fn new(_index: usize) -> Result<Self, BindingError> {
+    impl<'a> MediaFoundationDevice<'a> {
+        pub fn new(_: usize) -> Result<Self, BindingError> {
             Ok(MediaFoundationDevice {
-                op: Cell::new(false),
+                phantom: PhantomData::default(),
             })
         }
 
