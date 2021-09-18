@@ -9,3 +9,8 @@ edition = "2018"
 objc = "0.2.7"
 cocoa-foundation = "0.1.0"
 thiserror = "1.0.29"
+lazy_static = "1.4.0"
+core-media-sys = "0.1.2"
+
+[build-dependencies]
+bindgen = "0.59.1"
