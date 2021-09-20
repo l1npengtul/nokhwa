@@ -15,6 +15,11 @@ use nokhwa_bindings_macos::avfoundation::{
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
+/// The backend struct that interfaces with V4L2.
+/// To see what this does, please see [`CaptureBackendTrait`].
+/// # Quirks
+/// - While working with `iOS` is allowed, it is not officially supported and may not work.
+/// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,
@@ -26,6 +31,11 @@ pub struct AVFoundationCaptureDevice {
 }
 
 impl AVFoundationCaptureDevice {
+    /// Creates a new capture device using the `AVFoundation` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
+    ///
+    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
+    /// # Errors
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match camera_format {
             Some(fmt) => fmt,
@@ -57,6 +67,10 @@ impl AVFoundationCaptureDevice {
         })
     }
 
+    /// Creates a new capture device using the `AVFoundation` backend with desired settings.
+    ///
+    /// # Errors
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new_with(
         index: usize,
         width: u32,
@@ -88,6 +102,8 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     fn compatible_list_by_resolution(
         &mut self,
         fourcc: FrameFormat,
@@ -101,7 +117,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
                     FrameFormat::from(fmt.fourcc),
                     Resolution::from(fmt.resolution),
                     (&fmt.fps_list)
-                        .into_iter()
+                        .iter()
                         .map(|f| *f as u32)
                         .collect::<Vec<u32>>(),
                 )
@@ -279,7 +295,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
 impl Drop for AVFoundationCaptureDevice {
     fn drop(&mut self) {
-        let _ = self.stop_stream();
+        if self.stop_stream().is_err() {}
         self.device.unlock();
     }
 }

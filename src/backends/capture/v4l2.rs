@@ -166,11 +166,11 @@ pub struct V4LCaptureDevice<'a> {
 }
 
 impl<'a> V4LCaptureDevice<'a> {
-    /// Creates a new capture device using the V4L2 backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
+    /// Creates a new capture device using the `V4L2` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if V4L2 can't read device information.
+    /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let device = match Device::new(index) {
             Ok(dev) => dev,
@@ -254,9 +254,9 @@ impl<'a> V4LCaptureDevice<'a> {
         })
     }
 
-    /// Create a new V4L Camera with desired settings.
+    /// Create a new `V4L2` Camera with desired settings.
     /// # Errors
-    /// This function will error if the camera is currently busy or if V4L2 can't read device information.
+    /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     pub fn new_with(
         index: usize,
         width: u32,

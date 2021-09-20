@@ -94,9 +94,9 @@ impl From<AVFourCC> for FrameFormat {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
-impl Into<AVFourCC> for FrameFormat {
-    fn into(self) -> AVFourCC {
-        match self {
+impl From<FrameFormat> for AVFourCC {
+    fn from(ff: FrameFormat) -> Self {
+        match ff {
             FrameFormat::MJPEG => AVFourCC::MJPEG,
             FrameFormat::YUYV => AVFourCC::YUV2,
         }
@@ -208,6 +208,7 @@ impl From<Resolution> for MFResolution {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
+#[allow(clippy::cast_sign_loss)]
 impl From<AVVideoResolution> for Resolution {
     fn from(res: AVVideoResolution) -> Self {
         Resolution {
@@ -362,15 +363,17 @@ impl From<CameraFormat> for Format {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
-impl Into<CaptureDeviceFormatDescriptor> for CameraFormat {
-    fn into(self) -> CaptureDeviceFormatDescriptor {
+#[allow(clippy::cast_possible_wrap)]
+#[allow(clippy::cast_lossless)]
+impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
+    fn from(cf: CameraFormat) -> Self {
         CaptureDeviceFormatDescriptor {
             resolution: AVVideoResolution {
-                width: self.width() as i32,
-                height: self.height() as i32,
+                width: cf.width() as i32,
+                height: cf.height() as i32,
             },
-            fps: self.frame_rate() as f64,
-            fourcc: self.format().into(),
+            fps: cf.frame_rate() as f64,
+            fourcc: cf.format().into(),
         }
     }
 }
@@ -518,6 +521,7 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
+#[allow(clippy::cast_possible_truncation)]
 impl From<AVCaptureDeviceDescriptor> for CameraInfo {
     fn from(descriptor: AVCaptureDeviceDescriptor) -> Self {
         CameraInfo {

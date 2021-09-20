@@ -86,7 +86,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
         CaptureAPIBackend::UniversalVideoClass => query_uvc(),
         CaptureAPIBackend::MediaFoundation => query_msmf(),
         CaptureAPIBackend::GStreamer => query_gstreamer(),
-        _ => Err(NokhwaError::UnsupportedOperationError(api)),
+        CaptureAPIBackend::OpenCv => Err(NokhwaError::UnsupportedOperationError(api)),
     }
 }
 
@@ -293,19 +293,19 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
 fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
     use nokhwa_bindings_macos::avfoundation::AVCaptureDeviceDiscoverySession;
 
-    Ok(
-        AVCaptureDeviceDiscoverySession::default()?
-            .devices()
-            .into_iter()
-            .map(|device| CameraInfo::from(device))
-            .collect()
-    )
+    Ok(AVCaptureDeviceDiscoverySession::default()?
+        .devices()
+        .into_iter()
+        .map(CameraInfo::from)
+        .collect())
 }
 
 #[cfg(not(all(
-feature = "input-avfoundation",
-any(target_os = "macos", target_os = "ios")
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
 )))]
 fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
-    Err(NokhwaError::UnsupportedOperationError(CaptureAPIBackend::AVFoundation))
+    Err(NokhwaError::UnsupportedOperationError(
+        CaptureAPIBackend::AVFoundation,
+    ))
 }
