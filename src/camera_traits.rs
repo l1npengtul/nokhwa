@@ -31,7 +31,7 @@ pub trait CaptureBackendTrait {
     fn backend(&self) -> CaptureAPIBackend;
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
-    fn camera_info(&self) -> CameraInfo;
+    fn camera_info(&self) -> &CameraInfo;
 
     /// Gets the current [`CameraFormat`].
     fn camera_format(&self) -> CameraFormat;
@@ -252,5 +252,7 @@ pub trait CaptureBackendTrait {
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
+
+pub trait CaptureBackendSyncTrait: CaptureBackendTrait + Sync {}
 
 pub trait VirtualBackendTrait {}

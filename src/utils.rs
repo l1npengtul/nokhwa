@@ -1,4 +1,3 @@
-#[cfg(not(feature = "small-wasm"))]
 use crate::NokhwaError;
 use std::{
     cmp::Ordering,
@@ -7,17 +6,21 @@ use std::{
 #[cfg(feature = "output-wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[cfg(feature = "input-msmf")]
-#[cfg(not(feature = "small-wasm"))]
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+use nokhwa_bindings_macos::avfoundation::{
+    AVCaptureDeviceDescriptor, AVFourCC, AVVideoResolution, CaptureDeviceFormatDescriptor,
+};
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
-#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 use uvc::StreamFormat;
-#[cfg(feature = "input-v4l")]
-#[cfg(not(feature = "small-wasm"))]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 use v4l::{control::Description, Format, FourCC};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
@@ -44,7 +47,6 @@ impl Display for FrameFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 impl From<FrameFormat> for uvc::FrameFormat {
     fn from(ff: FrameFormat) -> Self {
@@ -55,8 +57,7 @@ impl From<FrameFormat> for uvc::FrameFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MFFrameFormat> for FrameFormat {
     fn from(mf_ff: MFFrameFormat) -> Self {
         match mf_ff {
@@ -66,13 +67,38 @@ impl From<MFFrameFormat> for FrameFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<FrameFormat> for MFFrameFormat {
     fn from(ff: FrameFormat) -> Self {
         match ff {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl From<AVFourCC> for FrameFormat {
+    fn from(av_fcc: AVFourCC) -> Self {
+        match av_fcc {
+            AVFourCC::YUV2 => FrameFormat::YUYV,
+            AVFourCC::MJPEG => FrameFormat::MJPEG,
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl Into<AVFourCC> for FrameFormat {
+    fn into(self) -> AVFourCC {
+        match self {
+            FrameFormat::MJPEG => AVFourCC::MJPEG,
+            FrameFormat::YUYV => AVFourCC::YUV2,
         }
     }
 }
@@ -158,8 +184,7 @@ impl Ord for Resolution {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MFResolution> for Resolution {
     fn from(mf_res: MFResolution) -> Self {
         Resolution {
@@ -169,8 +194,7 @@ impl From<MFResolution> for Resolution {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<Resolution> for MFResolution {
     fn from(res: Resolution) -> Self {
         MFResolution {
@@ -180,9 +204,21 @@ impl From<Resolution> for MFResolution {
     }
 }
 
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl From<AVVideoResolution> for Resolution {
+    fn from(res: AVVideoResolution) -> Self {
+        Resolution {
+            width_x: res.width as u32,
+            height_y: res.height as u32,
+        }
+    }
+}
+
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
-#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -190,7 +226,6 @@ pub struct CameraFormat {
     frame_rate: u32,
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl CameraFormat {
     /// Construct a new [`CameraFormat`]
     #[must_use]
@@ -261,7 +296,6 @@ impl CameraFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "input-uvc")]
 impl From<CameraFormat> for StreamFormat {
     fn from(cf: CameraFormat) -> Self {
@@ -274,7 +308,6 @@ impl From<CameraFormat> for StreamFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl Default for CameraFormat {
     fn default() -> Self {
         CameraFormat {
@@ -285,7 +318,6 @@ impl Default for CameraFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl Display for CameraFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -296,8 +328,7 @@ impl Display for CameraFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MFCameraFormat> for CameraFormat {
     fn from(mf_cam_fmt: MFCameraFormat) -> Self {
         CameraFormat {
@@ -308,16 +339,14 @@ impl From<MFCameraFormat> for CameraFormat {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<CameraFormat> for MFCameraFormat {
     fn from(cf: CameraFormat) -> Self {
         MFCameraFormat::new(cf.resolution.into(), cf.format.into(), cf.frame_rate)
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-v4l")]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 impl From<CameraFormat> for Format {
     fn from(cam_fmt: CameraFormat) -> Self {
         let pxfmt = match cam_fmt.format() {
@@ -326,6 +355,23 @@ impl From<CameraFormat> for Format {
         };
 
         Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
+    }
+}
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl Into<CaptureDeviceFormatDescriptor> for CameraFormat {
+    fn into(self) -> CaptureDeviceFormatDescriptor {
+        CaptureDeviceFormatDescriptor {
+            resolution: AVVideoResolution {
+                width: self.width() as i32,
+                height: self.height() as i32,
+            },
+            fps: self.frame_rate() as f64,
+            fourcc: self.format().into(),
+        }
     }
 }
 
@@ -456,8 +502,7 @@ impl Display for CameraInfo {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
@@ -469,10 +514,24 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     }
 }
 
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl From<AVCaptureDeviceDescriptor> for CameraInfo {
+    fn from(descriptor: AVCaptureDeviceDescriptor) -> Self {
+        CameraInfo {
+            human_name: descriptor.name,
+            description: descriptor.description,
+            misc: descriptor.misc,
+            index: descriptor.index as usize,
+        }
+    }
+}
+
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
-#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControls {
     Brightness,
@@ -494,7 +553,6 @@ pub enum KnownCameraControls {
     Focus,
 }
 
-#[cfg(not(feature = "small-wasm"))]
 #[must_use]
 pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     [
@@ -518,15 +576,13 @@ pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     ]
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl Display for KnownCameraControls {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", &self)
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MediaFoundationControls> for KnownCameraControls {
     fn from(mf_c: MediaFoundationControls) -> Self {
         match mf_c {
@@ -551,16 +607,14 @@ impl From<MediaFoundationControls> for KnownCameraControls {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 impl From<MFControl> for KnownCameraControls {
     fn from(mf_cc: MFControl) -> Self {
         mf_cc.control().into()
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-v4l")]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 impl std::convert::TryFrom<Description> for KnownCameraControls {
     type Error = NokhwaError;
 
@@ -592,7 +646,6 @@ impl std::convert::TryFrom<Description> for KnownCameraControls {
 
 /// This tells you weather a [`KnownCameraControls`] is automatically managed by the OS/Driver
 /// or manually managed by you, the programmer.
-#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControlFlag {
     Automatic,
@@ -602,7 +655,6 @@ pub enum KnownCameraControlFlag {
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
-#[cfg(not(feature = "small-wasm"))]
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct CameraControl {
     control: KnownCameraControls,
@@ -615,7 +667,6 @@ pub struct CameraControl {
     active: bool,
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl CameraControl {
     /// Creates a new [`CameraControl`]
     /// # Errors
@@ -786,14 +837,12 @@ impl CameraControl {
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl PartialOrd for CameraControl {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-#[cfg(not(feature = "small-wasm"))]
 impl Ord for CameraControl {
     fn cmp(&self, other: &Self) -> Ordering {
         self.control().cmp(&other.control())
@@ -833,7 +882,6 @@ impl Display for CaptureAPIBackend {
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
-#[cfg(not(feature = "small-wasm"))]
 #[cfg(feature = "decoding")]
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
@@ -883,8 +931,8 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
-#[cfg(feature = "decoding")]
-#[cfg(not(feature = "small-wasm"))]
+#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
+#[inline]
 pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use std::convert::TryFrom;
 
@@ -989,8 +1037,8 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "decoding")]
+#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
+#[inline]
 pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;

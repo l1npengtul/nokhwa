@@ -1781,7 +1781,7 @@ pub mod wmf {
         }
 
         pub fn stop_stream(&mut self) {
-            self.op.set(true);
+            self.phantom = &Empty();
         }
     }
 

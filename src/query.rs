@@ -8,7 +8,7 @@ use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
-/// Currently, these are `V4L`, `MediaFoundation`, `UVC`, and `GST`. <br>
+/// Currently, these are `V4L`, `MediaFoundation`, `AVFoundation`, `UVC`, and `GST`. <br>
 /// Usually the order goes Native -> UVC -> Gstreamer.
 /// # Quirks
 /// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
@@ -23,12 +23,14 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
             // determine platform
             match std::env::consts::OS {
                 "linux" => {
-                    if cfg!(feature = "input-v4l") {
+                    if cfg!(feature = "input-v4l") && cfg!(target_os = "linux") {
                         query_devices(CaptureAPIBackend::Video4Linux)
                     } else if cfg!(feature = "input-uvc") {
                         query_devices(CaptureAPIBackend::UniversalVideoClass)
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
+                    } else if cfg!(feature = "input-opencv") {
+                        query_devices(CaptureAPIBackend::OpenCv)
                     } else {
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
@@ -36,12 +38,14 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     }
                 }
                 "windows" => {
-                    if cfg!(feature = "input-msmf") {
+                    if cfg!(feature = "input-msmf") && cfg!(target_os = "windows") {
                         query_devices(CaptureAPIBackend::MediaFoundation)
                     } else if cfg!(feature = "input-uvc") {
                         query_devices(CaptureAPIBackend::UniversalVideoClass)
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
+                    } else if cfg!(feature = "input-opencv") {
+                        query_devices(CaptureAPIBackend::OpenCv)
                     } else {
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
@@ -49,12 +53,23 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     }
                 }
                 "macos" => {
-                    if cfg!(feature = "input-avfoundation") {
+                    if cfg!(feature = "input-avfoundation") && cfg!(target_os = "macos") {
                         query_devices(CaptureAPIBackend::AVFoundation)
                     } else if cfg!(feature = "input-uvc") {
                         query_devices(CaptureAPIBackend::UniversalVideoClass)
                     } else if cfg!(feature = "input-gstreamer") {
                         query_devices(CaptureAPIBackend::GStreamer)
+                    } else if cfg!(feature = "input-opencv") {
+                        query_devices(CaptureAPIBackend::OpenCv)
+                    } else {
+                        Err(NokhwaError::UnsupportedOperationError(
+                            CaptureAPIBackend::Auto,
+                        ))
+                    }
+                }
+                "ios" => {
+                    if cfg!(feature = "input-avfoundation") && cfg!(target_os = "ios") {
+                        query_devices(CaptureAPIBackend::AVFoundation)
                     } else {
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
@@ -66,6 +81,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                 )),
             }
         }
+        CaptureAPIBackend::AVFoundation => query_avfoundation(),
         CaptureAPIBackend::Video4Linux => query_v4l(),
         CaptureAPIBackend::UniversalVideoClass => query_uvc(),
         CaptureAPIBackend::MediaFoundation => query_msmf(),
@@ -76,7 +92,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
 
 // TODO: More
 
-#[cfg(feature = "input-v4l")]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 #[allow(clippy::unnecessary_wraps)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
     Ok({
@@ -96,7 +112,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
     })
 }
 
-#[cfg(not(feature = "input-v4l"))]
+#[cfg(any(not(feature = "input-v4l"), not(target_os = "linux")))]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::Video4Linux,
@@ -247,7 +263,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 }
 
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     let list: Vec<CameraInfo> =
         match nokhwa_bindings_windows::wmf::query_media_foundation_descriptors() {
@@ -263,9 +279,33 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     Ok(list)
 }
 
-#[cfg(not(feature = "input-msmf"))]
+#[cfg(any(not(feature = "input-msmf"), not(target_os = "windows")))]
 fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::MediaFoundation,
     ))
+}
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use nokhwa_bindings_macos::avfoundation::AVCaptureDeviceDiscoverySession;
+
+    Ok(
+        AVCaptureDeviceDiscoverySession::default()?
+            .devices()
+            .into_iter()
+            .map(|device| CameraInfo::from(device))
+            .collect()
+    )
+}
+
+#[cfg(not(all(
+feature = "input-avfoundation",
+any(target_os = "macos", target_os = "ios")
+)))]
+fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
+    Err(NokhwaError::UnsupportedOperationError(CaptureAPIBackend::AVFoundation))
 }

@@ -63,8 +63,8 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         CaptureAPIBackend::MediaFoundation
     }
 
-    fn camera_info(&self) -> CameraInfo {
-        CameraInfo::new(
+    fn camera_info(&self) -> &CameraInfo {
+        &CameraInfo::new(
             self.inner.name(),
             "".to_string(),
             self.inner.symlink(),

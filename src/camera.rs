@@ -98,7 +98,7 @@ impl Camera {
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     #[must_use]
-    pub fn info(&self) -> CameraInfo {
+    pub fn info(&self) -> &CameraInfo {
         self.backend.camera_info()
     }
     /// Gets the current [`CameraFormat`].
@@ -332,11 +332,11 @@ fn figure_out_auto() -> Option<CaptureAPIBackend> {
 
 macro_rules! cap_impl_fn {
     {
-        $( ($backend:ty, $init_fn:ident, $feature:expr, $backend_name:ident) ),+
+        $( ($backend:expr, $init_fn:ident, $cfg:meta, $backend_name:ident) ),+
     } => {
         $(
             paste::paste! {
-                #[cfg(feature = $feature)]
+                #[cfg ($cfg) ]
                 fn [< init_ $backend_name>](idx: usize, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
@@ -344,7 +344,7 @@ macro_rules! cap_impl_fn {
                         Err(why) => Some(Err(why)),
                     }
                 }
-                #[cfg(not(feature = $feature))]
+                #[cfg(not( $cfg ))]
                 fn [< init_ $backend_name>](_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     None
                 }
@@ -424,22 +424,18 @@ macro_rules! cap_impl_matches {
                         }
                     }
                 )+
-                _ => {
-                    return Err(NokhwaError::NotImplementedError(
-                        "Platform requirements not satisfied.".to_string(),
-                    ));
-                }
             }
         }
     }
 }
 
 cap_impl_fn! {
-    (GStreamerCaptureDevice, new, "input-gst", gst),
-    (OpenCvCaptureDevice, new_autopref, "input-opencv", opencv),
-    (V4LCaptureDevice, new, "input-v4l", v4l),
-    // (UVCCaptureDevice, create, "input-uvc", uvc),
-    (MediaFoundationCaptureDevice, new, "input-msmf", msmf)
+    (GStreamerCaptureDevice, new, feature = "input-gst", gst),
+    (OpenCvCaptureDevice, new_autopref, feature = "input-opencv", opencv),
+    (UVCCaptureDevice, create, feature = "input-uvc", uvc),
+    (V4LCaptureDevice, new, all(feature = "input-v4l", target_os = "linux"), v4l),
+    (MediaFoundationCaptureDevice, new, all(feature = "input-msmf", target_os = "windows"), msmf),
+    (AVFoundationCaptureDevice, new, all(feature = "input-avfoundation", any(target_os = "macos", target_os = "ios")), avfoundation)
 }
 
 fn init_camera(
@@ -450,10 +446,11 @@ fn init_camera(
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
-            // ("input-uvc", UniversalVideoClass, init_uvc),
+            ("input-uvc", UniversalVideoClass, init_uvc),
             ("input-gst", GStreamer, init_gst),
             ("input-opencv", OpenCv, init_opencv),
-            ("input-msmf", MediaFoundation, init_msmf)
+            ("input-msmf", MediaFoundation, init_msmf),
+            ("input-avfoundation", AVFoundation, init_avfoundation)
     };
     Ok(camera_backend)
 }

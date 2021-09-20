@@ -53,13 +53,11 @@ pub enum NokhwaError {
     NotImplementedError(String),
 }
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 use nokhwa_bindings_windows::BindingError;
 
-#[cfg(not(feature = "small-wasm"))]
-#[cfg(feature = "input-msmf")]
-impl From<nokhwa_bindings_windows::BindingError> for NokhwaError {
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+impl From<BindingError> for NokhwaError {
     fn from(err: BindingError) -> Self {
         match err {
             BindingError::InitializeError(error) => NokhwaError::InitializeError {
@@ -93,6 +91,53 @@ impl From<nokhwa_bindings_windows::BindingError> for NokhwaError {
             BindingError::NotImplementedError => {
                 NokhwaError::NotImplementedError("Docs-Only MediaFoundation".to_string())
             }
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+use nokhwa_bindings_macos::AVFError;
+
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+impl From<AVFError> for NokhwaError {
+    fn from(avf_error: AVFError) -> Self {
+        match avf_error {
+            AVFError::InvalidType { expected, found } => NokhwaError::GetPropertyError {
+                property: format!("type of {}", expected),
+                error: format!("Invalid type, found {}", found),
+            },
+            AVFError::InvalidValue { found } => NokhwaError::GetPropertyError {
+                property: found,
+                error: "Invalid Value".to_string(),
+            },
+            AVFError::AlreadyBusy(why) => {
+                NokhwaError::GeneralError(format!("Already Busy: {}", why))
+            }
+            AVFError::FailedToOpenDevice { index, why } => {
+                NokhwaError::OpenDeviceError(index.to_string(), why)
+            }
+            AVFError::ConfigNotAccepted => NokhwaError::SetPropertyError {
+                property: "Configuration".to_string(),
+                value: "Invalid".to_string(),
+                error: "Rejected by AVFoundation".to_string(),
+            },
+            AVFError::General(why) => {
+                NokhwaError::GeneralError(format!("AVFoundation Error: {}", why))
+            }
+            AVFError::RejectedInput => {
+                NokhwaError::OpenStreamError("AVFoundation Input Rejection".to_string())
+            }
+            AVFError::RejectedOutput => {
+                NokhwaError::OpenStreamError("AVFoundation Output Rejection".to_string())
+            }
+            AVFError::StreamOpen(why) => NokhwaError::OpenStreamError(why),
+            AVFError::ReadFrame(why) => NokhwaError::ReadFrameError(why),
         }
     }
 }

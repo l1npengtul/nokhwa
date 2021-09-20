@@ -13,28 +13,23 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 /// Raw access to each of Nokhwa's backends.
-#[cfg(not(feature = "small-wasm"))]
 pub mod backends;
-#[cfg(not(feature = "small-wasm"))]
 mod camera;
-#[cfg(not(feature = "small-wasm"))]
 mod camera_traits;
 mod error;
-#[cfg(feature = "input-jscam")]
+mod init;
 /// A camera that uses native browser APIs meant for WASM applications.
+#[cfg(feature = "input-jscam")]
 pub mod js_camera;
-#[cfg(feature = "input-ipcam")]
 /// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
+#[cfg(feature = "input-ipcam")]
 pub mod network_camera;
-#[cfg(not(feature = "small-wasm"))]
 mod query;
 mod utils;
 
-#[cfg(not(feature = "small-wasm"))]
 pub use camera::Camera;
-#[cfg(not(feature = "small-wasm"))]
 pub use camera_traits::*;
 pub use error::NokhwaError;
-#[cfg(not(feature = "small-wasm"))]
+pub use init::*;
 pub use query::query_devices;
 pub use utils::*;

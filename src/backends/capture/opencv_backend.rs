@@ -349,8 +349,8 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         CaptureAPIBackend::OpenCv
     }
 
-    fn camera_info(&self) -> CameraInfo {
-        self.camera_info.clone()
+    fn camera_info(&self) -> &CameraInfo {
+        &self.camera_info
     }
 
     fn camera_format(&self) -> CameraFormat {

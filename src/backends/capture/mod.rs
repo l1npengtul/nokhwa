@@ -4,18 +4,28 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#[cfg(feature = "input-v4l")]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 mod v4l2;
-#[cfg(feature = "input-v4l")]
+#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 pub use v4l2::V4LCaptureDevice;
-// #[cfg(feature = "input-uvc")]
-// mod uvc_backend;
-// #[cfg(feature = "input-uvc")]
-// pub use uvc_backend::UVCCaptureDevice;
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 mod msmf;
-#[cfg(feature = "input-msmf")]
+#[cfg(all(feature = "input-msmf", target_os = "windows"))]
 pub use msmf::MediaFoundationCaptureDevice;
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+mod avfoundation;
+#[cfg(all(
+    feature = "input-avfoundation",
+    any(target_os = "macos", target_os = "ios")
+))]
+pub use avfoundation::AVFoundationCaptureDevice;
+#[cfg(feature = "input-uvc")]
+mod uvc_backend;
+#[cfg(feature = "input-uvc")]
+pub use uvc_backend::UVCCaptureDevice;
 #[cfg(feature = "input-gst")]
 mod gst_backend;
 #[cfg(feature = "input-gst")]

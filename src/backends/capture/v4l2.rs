@@ -315,8 +315,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         CaptureAPIBackend::Video4Linux
     }
 
-    fn camera_info(&self) -> CameraInfo {
-        self.camera_info.clone()
+    fn camera_info(&self) -> &CameraInfo {
+        &self.camera_info
     }
 
     fn camera_format(&self) -> CameraFormat {

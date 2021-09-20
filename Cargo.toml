@@ -17,12 +17,13 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["decoding", "flume"]
 decoding = ["mozjpeg"]
-input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
+input-msmf = ["nokhwa-bindings-windows"]
+input-avfoundation = ["nokhwa-bindings-macos"]
+input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex"]
-input-msmf = ["nokhwa-bindings-windows"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen"]
 output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
@@ -39,7 +40,7 @@ paste = "1.0.5"
 version = "0.10.8"
 optional = true
 
-[dependencies.mozjpeg]
+[target.'cfg(not(target_family = "wasm"))'.dependencies.mozjpeg]
 version = "0.8.24"
 optional = true
 
@@ -47,11 +48,11 @@ optional = true
 version = "0.23.14"
 default-features = false
 
-[dependencies.v4l]
+[target.'cfg(target_os = "linux")'.dependencies.v4l]
 version = "0.12.1"
 optional = true
 
-[dependencies.v4l2-sys-mit]
+[target.'cfg(target_os = "linux")'.dependencies.v4l2-sys-mit]
 version = "0.2.0"
 optional = true
 
@@ -72,12 +73,16 @@ version = "0.10.1"
 optional = true
 
 [dependencies.opencv]
-version = "0.53.1"
+version = "0.54.0"
 features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
 path = "nokhwa-bindings-windows/"
+optional = true
+
+[dependencies.nokhwa-bindings-macos]
+path = "nokhwa-bindings-macos/"
 optional = true
 
 [dependencies.gstreamer]

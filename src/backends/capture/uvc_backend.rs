@@ -11,17 +11,16 @@ use crate::{
 use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
 use ouroboros::self_referencing;
-use std::any::Any;
-use std::borrow::Cow;
 use std::{
+    any::Any,
+    borrow::Cow,
     cell::{Cell, RefCell},
     collections::HashMap,
     mem::MaybeUninit,
     sync::{atomic::AtomicUsize, Arc},
 };
 use uvc::{
-    ActiveStream, Context, DescriptionSubtype, Device, DeviceHandle, FrameFormat as UVCFrameFormat,
-    StreamFormat, StreamHandle,
+    ActiveStream, Context, DescriptionSubtype, Device, DeviceHandle, StreamFormat, StreamHandle,
 };
 
 // ignore the IDE, this compiles
@@ -45,8 +44,8 @@ use uvc::{
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
-    frame_receiver: Receiver<Cow<'a, [u8]>>,
-    frame_sender: Sender<Cow<'a, [u8]>>,
+    frame_receiver: Receiver<Vec<u8>>,
+    frame_sender: Sender<Vec<u8>>,
     stream_handle_init: Cell<bool>,
     active_stream_init: Cell<bool>,
     context: Context<'a>,
@@ -137,7 +136,7 @@ impl<'a> UVCCaptureDevice<'a> {
             );
 
             let (frame_sender, frame_receiver) = {
-                let (a, b) = flume::unbounded::<Cow<[u8]>>();
+                let (a, b) = flume::unbounded::<Vec<u8>>();
                 (a, b)
             };
             (camera_info, frame_receiver, frame_sender)
@@ -195,8 +194,8 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         CaptureAPIBackend::UniversalVideoClass
     }
 
-    fn camera_info(&self) -> CameraInfo {
-        self.borrow_camera_info().clone()
+    fn camera_info(&self) -> &CameraInfo {
+        self.borrow_camera_info()
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -233,7 +232,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
     #[allow(clippy::cast_possible_truncation)]
     fn compatible_list_by_resolution(
-        &self,
+        &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         let mut resolution_fps_map: HashMap<Resolution, Vec<u32>> = HashMap::new();
@@ -298,12 +297,12 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn frame_rate(&self) -> u32 {
-        self.borrow_camera_format().framerate()
+        self.borrow_camera_format().frame_rate()
     }
 
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         let mut current_format = *self.borrow_camera_format();
-        current_format.set_framerate(new_fps);
+        current_format.set_frame_rate(new_fps);
         self.set_camera_format(current_format)
     }
 
@@ -326,7 +325,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
     fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
         match control {
-            KnownCameraControls::Focus => match self.borrow_device_handle().exposure_rel() {
+            KnownCameraControls::Focus => match self.with_device_handle(|x| x).exposure_rel() {
                 Ok(v) => {
                     let v: i8 = v;
                     match CameraControl::new(
@@ -346,6 +345,10 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                         }),
                     }
                 }
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: control.to_string(),
+                    error: why.to_string(),
+                }),
             },
             _ => Err(NokhwaError::GetPropertyError {
                 property: control.to_string(),
@@ -384,7 +387,12 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         let ret: Result<(), NokhwaError> = self.with_mut(|fields| {
-            let stream_format: StreamFormat = CameraFormat::into(*fields.camera_format);
+            let stream_format: StreamFormat = StreamFormat {
+                width: (*fields.camera_format).width(),
+                height: (*fields.camera_format).height(),
+                fps: (*fields.camera_format).frame_rate(),
+                format: (*fields.camera_format).format().into(),
+            };
 
             // first, drop the existing stream by setting it to None
             {
@@ -424,7 +432,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let ret_2: Result<(), NokhwaError> = self.with(|fields| {
             // finally, get the active stream
             let counter = Arc::new(AtomicUsize::new(0));
-            let frame_sender: Sender<Cow<[u8]>> = (self.with_frame_sender(|send| send)).clone();
+            let frame_sender: Sender<Vec<u8>> = self.with_frame_sender(|x| x.clone());
             let streamh = unsafe {
                 let raw_ptr =
                     (*fields.stream_handle.borrow_mut()).as_ptr() as *mut MaybeUninit<StreamHandle>;
@@ -445,7 +453,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
             let active_stream = match streamh_init.start_stream(
                 move |frame, _count| {
-                    let vec_frame = Cow::from(frame.to_rgb().unwrap().to_bytes());
+                    let vec_frame = frame.to_rgb().unwrap().to_bytes().to_vec();
                     if frame_sender.send(vec_frame).is_err() {
                         // do nothing
                     }
@@ -472,12 +480,12 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
     }
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        let resolution: Resolution = self.borrow_camera_format().resolution();
+
         let data = match self.frame_raw() {
             Ok(d) => d,
             Err(why) => return Err(why),
         };
-
-        let resolution: Resolution = self.borrow_camera_format().resolution();
 
         let imagebuf: ImageBuffer<Rgb<u8>, Vec<u8>> =
             match ImageBuffer::from_vec(resolution.width(), resolution.height(), data.to_vec()) {
@@ -504,9 +512,9 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let f_recv = self.borrow_frame_receiver();
         let messages_iter = f_recv.drain();
         match messages_iter.last() {
-            Some(msg) => Ok(msg),
+            Some(msg) => Ok(Cow::from(msg)),
             None => match f_recv.recv() {
-                Ok(msg) => Ok(msg),
+                Ok(msg) => Ok(Cow::from(msg)),
                 Err(why) => {
                     return Err(NokhwaError::ReadFrameError(format!(
                         "All sender dropped: {}",
