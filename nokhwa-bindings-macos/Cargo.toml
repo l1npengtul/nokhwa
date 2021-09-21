@@ -12,4 +12,5 @@ lazy_static = "1.4.0"
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 core-media-sys = "0.1.2"
 cocoa-foundation = "0.1.0"
-objc = "0.2.7"
+objc = { version = "0.2.7", features = ["exception"] }
+block = "0.1.6"

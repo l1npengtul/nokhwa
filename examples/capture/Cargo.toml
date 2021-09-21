@@ -13,6 +13,7 @@ input-v4l = ["nokhwa/input-v4l"]
 input-uvc = ["nokhwa/input-uvc"]
 input-opencv = ["nokhwa/input-opencv"]
 input-gst = ["nokhwa/input-gst"]
+input-avfoundation = ["nokhwa/input-avfoundation"]
 
 [dependencies]
 clap = "2.33.3"
@@ -23,5 +24,3 @@ flume = "0.10.7"
 # Use these as you need
 [dependencies.nokhwa]
 path = "../../../nokhwa"
-
-

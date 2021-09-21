@@ -1,10 +1,16 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 use clap::{App, Arg};
 use glium::{
     implement_vertex, index::PrimitiveType, program, texture::RawImage2d, uniform, Display,
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{query_devices, Camera, CaptureAPIBackend, FrameFormat};
+use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -94,6 +100,11 @@ fn main() {
             use_backend = CaptureAPIBackend::Video4Linux;
         } else if backend_value == "MSMF" {
             use_backend = CaptureAPIBackend::MediaFoundation;
+        } else if backend_value == "AVF" {
+            nokhwa_initialize(|x| {
+                println!("{}", x);
+            });
+            use_backend = CaptureAPIBackend::AVFoundation;
         }
 
         match query_devices(use_backend) {
@@ -108,6 +119,8 @@ fn main() {
         }
     }
 
+    println!("a");
+
     if matches.is_present("capture") {
         let backend_value = {
             match matches.value_of("capture-backend").unwrap() {
@@ -116,6 +129,7 @@ fn main() {
                 "V4L" => CaptureAPIBackend::Video4Linux,
                 "OPENCV" => CaptureAPIBackend::OpenCv,
                 "MSMF" => CaptureAPIBackend::MediaFoundation,
+                "AVF" => CaptureAPIBackend::AVFoundation,
                 _ => CaptureAPIBackend::Auto,
             }
         };
@@ -185,15 +199,16 @@ fn main() {
                 // open stream
                 camera.open_stream().unwrap();
                 loop {
-                    let frame = camera.frame().unwrap();
-                    println!(
-                        "Captured frame {}x{} @ {}FPS size {}",
-                        frame.width(),
-                        frame.height(),
-                        fps,
-                        frame.len()
-                    );
-                    send.send(frame).unwrap()
+                    if let Ok(frame) = camera.frame() {
+                        println!(
+                            "Captured frame {}x{} @ {}FPS size {}",
+                            frame.width(),
+                            frame.height(),
+                            fps,
+                            frame.len()
+                        );
+                        send.send(frame).unwrap()
+                    }
                 }
             }
         });

@@ -315,7 +315,7 @@ fn figure_out_auto() -> Option<CaptureAPIBackend> {
         cap = CaptureAPIBackend::Video4Linux;
     } else if cfg!(feature = "input-msmf") && platform == "windows" {
         cap = CaptureAPIBackend::MediaFoundation;
-    } else if cfg!(feature = "input-avfoundationn") && platform == "mac" {
+    } else if cfg!(feature = "input-avfoundation") && (platform == "macos" || platform == "ios") {
         cap = CaptureAPIBackend::AVFoundation;
     } else if cfg!(feature = "input-uvc") {
         cap = CaptureAPIBackend::UniversalVideoClass;
@@ -375,14 +375,14 @@ macro_rules! cap_impl_matches {
                                             }
                                             None => {
                                                 return Err(NokhwaError::NotImplementedError(
-                                                    "Platform requirements not satisfied.".to_string(),
+                                                    "Platform requirements not satisfied (Wrong Platform - Not Implemented).".to_string(),
                                                 ));
                                             }
                                         }
                                     }
                                     false => {
                                         return Err(NokhwaError::NotImplementedError(
-                                            "Platform requirements not satisfied.".to_string(),
+                                            "Platform requirements not satisfied. (Wrong Platform - Not Selected)".to_string(),
                                         ));
                                     }
                                 }
@@ -390,13 +390,13 @@ macro_rules! cap_impl_matches {
                         )+
                         _ => {
                             return Err(NokhwaError::NotImplementedError(
-                                "Platform requirements not satisfied.".to_string(),
+                                "Platform requirements not satisfied. (Invalid Backend)".to_string(),
                             ));
                         }
                     }
                     None => {
                         return Err(NokhwaError::NotImplementedError(
-                            "Platform requirements not satisfied.".to_string(),
+                            "Platform requirements not satisfied. (No Selection)".to_string(),
                         ));
                     }
                 }
@@ -411,14 +411,14 @@ macro_rules! cap_impl_matches {
                                     }
                                     None => {
                                         return Err(NokhwaError::NotImplementedError(
-                                            "Platform requirements not satisfied.".to_string(),
+                                            "Platform requirements not satisfied (Wrong Platform - Not Implemented).".to_string(),
                                         ));
                                     }
                                 }
                             }
                             false => {
                                 return Err(NokhwaError::NotImplementedError(
-                                    "Platform requirements not satisfied.".to_string(),
+                                    "Platform requirements not satisfied. (Wrong Platform - Not Selected)".to_string(),
                                 ));
                             }
                         }
@@ -446,11 +446,11 @@ fn init_camera(
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
+            ("input-msmf", MediaFoundation, init_msmf),
+            ("input-avfoundation", AVFoundation, init_avfoundation),
             ("input-uvc", UniversalVideoClass, init_uvc),
             ("input-gst", GStreamer, init_gst),
-            ("input-opencv", OpenCv, init_opencv),
-            ("input-msmf", MediaFoundation, init_msmf),
-            ("input-avfoundation", AVFoundation, init_avfoundation)
+            ("input-opencv", OpenCv, init_opencv)
     };
     Ok(camera_backend)
 }

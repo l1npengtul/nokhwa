@@ -53,7 +53,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     }
                 }
                 "macos" => {
-                    if cfg!(feature = "input-avfoundation") && cfg!(target_os = "macos") {
+                    if cfg!(feature = "input-avfoundation") {
                         query_devices(CaptureAPIBackend::AVFoundation)
                     } else if cfg!(feature = "input-uvc") {
                         query_devices(CaptureAPIBackend::UniversalVideoClass)
@@ -68,7 +68,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     }
                 }
                 "ios" => {
-                    if cfg!(feature = "input-avfoundation") && cfg!(target_os = "ios") {
+                    if cfg!(feature = "input-avfoundation") {
                         query_devices(CaptureAPIBackend::AVFoundation)
                     } else {
                         Err(NokhwaError::UnsupportedOperationError(
@@ -291,13 +291,12 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     any(target_os = "macos", target_os = "ios")
 ))]
 fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use nokhwa_bindings_macos::avfoundation::AVCaptureDeviceDiscoverySession;
+    use nokhwa_bindings_macos::avfoundation::query_avfoundation as q_avf;
 
-    Ok(AVCaptureDeviceDiscoverySession::default()?
-        .devices()
+    Ok(q_avf()?
         .into_iter()
         .map(CameraInfo::from)
-        .collect())
+        .collect::<Vec<CameraInfo>>())
 }
 
 #[cfg(not(all(

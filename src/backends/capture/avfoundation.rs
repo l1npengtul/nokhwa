@@ -54,8 +54,6 @@ impl AVFoundationCaptureDevice {
 
         let device = AVCaptureDevice::from_id(&device_descriptor.misc())?;
 
-        device.lock()?;
-
         Ok(AVFoundationCaptureDevice {
             device,
             dev_input: None,
@@ -97,8 +95,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
+        self.device.lock()?;
         self.device.set_all(new_fmt.into())?;
         self.format = new_fmt;
+        self.device.unlock();
         Ok(())
     }
 
@@ -208,13 +208,12 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         let input = AVCaptureDeviceInput::new(&self.device)?;
         let session = AVCaptureSession::new();
-        if !session.can_add_input(&input) {
-            return Err(NokhwaError::OpenStreamError("Cannot Add Input".to_string()));
-        }
         session.add_input(&input)?;
         let callback = AVCaptureVideoCallback::new();
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&callback)?;
+        session.add_output(&output)?;
+        session.start()?;
 
         self.dev_input = Some(input);
         self.session = Some(session);
@@ -231,7 +230,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         {
             return true;
         }
-        false
+        match &self.session {
+            Some(session) => (!session.is_interrupted()) && session.is_running(),
+            None => false,
+        }
     }
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
@@ -289,6 +291,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
         session.remove_output(output);
         session.remove_input(input);
+        session.stop();
         Ok(())
     }
 }
