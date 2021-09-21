@@ -356,10 +356,20 @@ pub mod wmf {
         BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
         MediaFoundationControls, MediaFoundationDeviceDescriptor,
     };
-    use std::{borrow::Cow, cell::Cell, mem::MaybeUninit, slice::from_raw_parts};
+    use std::ffi::c_void;
+    use std::{
+        borrow::Cow,
+        cell::Cell,
+        mem::MaybeUninit,
+        slice::from_raw_parts,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+    };
     use windows::{Guid, Interface};
 
-    static mut INITIALIZED: bool = false;
+    static mut INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
     // See: https://stackoverflow.com/questions/80160/what-does-coinit-speed-over-memory-do
     const CO_INIT_APARTMENT_THREADED: COINIT = COINIT(0x2);
@@ -385,7 +395,7 @@ pub mod wmf {
     const CAM_CTRL_MANUAL: i32 = 0x0002;
 
     pub fn initialize_mf() -> Result<(), BindingError> {
-        if !(unsafe { INITIALIZED }) {
+        if !(unsafe { INITIALIZED.load(Ordering::SeqCst) }) {
             let a = std::ptr::null_mut();
             if let Err(why) =
                 unsafe { CoInitializeEx(a, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE) }
@@ -401,20 +411,20 @@ pub mod wmf {
             }
 
             unsafe {
-                INITIALIZED = true;
+                INITIALIZED.store(true, Ordering::SeqCst);
             }
         }
         Ok(())
     }
 
     pub fn de_initialize_mf() -> Result<(), BindingError> {
-        if unsafe { INITIALIZED } {
+        if unsafe { INITIALIZED.load(Ordering::SeqCst) } {
             unsafe {
                 if let Err(why) = MFShutdown() {
                     return Err(BindingError::DeInitializeError(why.to_string()));
                 }
                 CoUninitialize();
-                INITIALIZED = false;
+                INITIALIZED.store(false, Ordering::SeqCst);
             }
         }
         Ok(())
@@ -770,19 +780,16 @@ pub mod wmf {
         }
 
         pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
-            let media_source = match unsafe {
-                self.source_reader.GetServiceForStream::<IMFMediaSource>(
+            let media_source = unsafe {
+                let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
+                let mut ptr_receiver = receiver.as_mut_ptr();
+                self.source_reader.GetServiceForStream(
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
-                )
-            } {
-                Ok(media_source) => media_source,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
-                        "IMFMediaSource".to_string(),
-                        why.to_string(),
-                    ))
-                }
+                    &IMFMediaSource::IID,
+                    &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
+                );
+                receiver.assume_init()
             };
 
             let camera_control = match media_source.cast::<IAMCameraControl>() {
@@ -1272,19 +1279,16 @@ pub mod wmf {
         }
 
         pub fn set_control(&mut self, control: MFControl) -> Result<(), BindingError> {
-            let media_source = match unsafe {
-                self.source_reader.GetServiceForStream::<IMFMediaSource>(
+            let media_source = unsafe {
+                let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
+                let mut ptr_receiver = receiver.as_mut_ptr();
+                self.source_reader.GetServiceForStream(
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
-                )
-            } {
-                Ok(media_source) => media_source,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
-                        "IMFMediaSource".to_string(),
-                        why.to_string(),
-                    ))
-                }
+                    &IMFMediaSource::IID,
+                    &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
+                );
+                receiver.assume_init()
             };
 
             let camera_control = match media_source.cast::<IAMCameraControl>() {
@@ -1612,22 +1616,17 @@ pub mod wmf {
             let mut flags: u32 = 0;
             let mut imf_sample: Option<IMFSample> = None;
 
-            // Cursed IMFSourceReader.ReadSample
             {
-                let sample_pointer =
-                    (&mut imf_sample as *mut Option<IMFSample>) as *mut windows::RawPtr;
                 loop {
                     if let Err(why) = unsafe {
-                        (::windows::Interface::vtable(&self.source_reader).9)(
-                            ::windows::Abi::abi(&self.source_reader),
+                        self.source_reader.ReadSample(
                             MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                             0,
                             std::ptr::null_mut(),
                             &mut flags,
                             std::ptr::null_mut(),
-                            sample_pointer,
+                            &mut imf_sample,
                         )
-                        .ok()
                     } {
                         return Err(BindingError::ReadFrameError(why.to_string()));
                     }
