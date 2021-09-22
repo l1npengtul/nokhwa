@@ -40,6 +40,7 @@ use uvc::{
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
 /// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this may crash the entire program.
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
+#[allow(clippy::too_many_arguments)]
 #[self_referencing]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
@@ -272,7 +273,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                 // FIXME: Verify that this is correct way to interpret DescriptionSubtype!
                 match frame_desc.subtype() {
                     DescriptionSubtype::FormatMJPEG | DescriptionSubtype::FrameMJPEG => {
-                        frameformats.push(FrameFormat::MJPEG)
+                        frameformats.push(FrameFormat::MJPEG);
                     }
                     DescriptionSubtype::FormatUncompressed
                     | DescriptionSubtype::FrameUncompressed => frameformats.push(FrameFormat::YUYV),
@@ -330,11 +331,11 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
                     let v: i8 = v;
                     match CameraControl::new(
                         control,
-                        i8::MIN as i32,
-                        i8::MAX as i32,
-                        v as i32,
+                        i32::from(i8::MIN),
+                        i32::from(i8::MAX),
+                        i32::from(v),
                         1_i32,
-                        v as i32,
+                        i32::from(v),
                         KnownCameraControlFlag::Automatic,
                         true,
                     ) {

@@ -10,10 +10,10 @@ use crate::{
 };
 use image::{ImageBuffer, Rgb};
 use opencv::{
-    core::{Mat, MatTrait, MatTraitManual, Vec3b},
+    core::{Mat, MatTrait, MatTraitConst, MatTraitConstManual, Vec3b},
     videoio::{
-        VideoCapture, VideoCaptureTrait, CAP_ANY, CAP_AVFOUNDATION, CAP_MSMF, CAP_PROP_FPS,
-        CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
+        VideoCapture, VideoCaptureTrait, VideoCaptureTraitConst, CAP_ANY, CAP_AVFOUNDATION,
+        CAP_MSMF, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
     },
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
