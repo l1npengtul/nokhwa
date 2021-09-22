@@ -4,6 +4,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+#![allow(clippy::too_many_arguments)]
+
 use crate::{
     CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
     KnownCameraControlFlag, KnownCameraControls, NokhwaError, Resolution,
@@ -40,7 +42,6 @@ use uvc::{
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
 /// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this may crash the entire program.
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
-#[allow(clippy::too_many_arguments)]
 #[self_referencing]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
@@ -399,13 +400,17 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
             {
                 if fields.active_stream_init.get() {
                     let innard_value = fields.active_stream.replace(MaybeUninit::uninit());
-                    unsafe { std::mem::drop(innard_value.assume_init()) };
+                    unsafe {
+                        std::mem::drop(innard_value.assume_init());
+                    };
                     fields.active_stream_init.set(false);
                 }
 
                 if fields.stream_handle_init.get() {
                     let innard_value = fields.stream_handle.replace(MaybeUninit::uninit());
-                    unsafe { std::mem::drop(innard_value.assume_init()) };
+                    unsafe {
+                        std::mem::drop(innard_value.assume_init());
+                    };
                     fields.stream_handle_init.set(false);
                 }
             }
@@ -433,7 +438,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         let ret_2: Result<(), NokhwaError> = self.with(|fields| {
             // finally, get the active stream
             let counter = Arc::new(AtomicUsize::new(0));
-            let frame_sender: Sender<Vec<u8>> = self.with_frame_sender(|x| x.clone());
+            let frame_sender: Sender<Vec<u8>> = self.with_frame_sender(Clone::clone);
             let streamh = unsafe {
                 let raw_ptr =
                     (*fields.stream_handle.borrow_mut()).as_ptr() as *mut MaybeUninit<StreamHandle>;
@@ -530,13 +535,17 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.with(|fields| {
             if fields.active_stream_init.get() {
                 let innard_value = fields.active_stream.replace(MaybeUninit::uninit());
-                unsafe { std::mem::drop(innard_value.assume_init()) };
+                unsafe {
+                    std::mem::drop(innard_value.assume_init());
+                };
                 fields.active_stream_init.set(false);
             }
 
             if fields.stream_handle_init.get() {
                 let innard_value = fields.stream_handle.replace(MaybeUninit::uninit());
-                unsafe { std::mem::drop(innard_value.assume_init()) };
+                unsafe {
+                    std::mem::drop(innard_value.assume_init());
+                };
                 fields.stream_handle_init.set(false);
             }
         });
