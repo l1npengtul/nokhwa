@@ -11,7 +11,7 @@ use crate::{
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
-    AVCaptureVideoCallback, AVCaptureVideoDataOutput,
+    AVCaptureVideoCallback, AVCaptureVideoDataOutput, AVFourCC,
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
@@ -20,6 +20,8 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// # Quirks
 /// - While working with `iOS` is allowed, it is not officially supported and may not work.
 /// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
+/// - This only works on 64 bit platforms.
+/// - FPS adjustment does not work.
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,
@@ -52,7 +54,9 @@ impl AVFoundationCaptureDevice {
             }
         };
 
-        let device = AVCaptureDevice::from_id(&device_descriptor.misc())?;
+        let mut device = AVCaptureDevice::from_id(&device_descriptor.misc())?;
+        device.lock()?;
+        device.set_all(camera_format.into())?;
 
         Ok(AVFoundationCaptureDevice {
             device,
@@ -95,10 +99,8 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        self.device.lock()?;
         self.device.set_all(new_fmt.into())?;
         self.format = new_fmt;
-        self.device.unlock();
         Ok(())
     }
 
@@ -208,11 +210,13 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         let input = AVCaptureDeviceInput::new(&self.device)?;
         let session = AVCaptureSession::new();
+        session.begin_configuration();
         session.add_input(&input)?;
-        let callback = AVCaptureVideoCallback::new();
+        let callback = AVCaptureVideoCallback::new(self.info.index());
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&callback)?;
         session.add_output(&output)?;
+        session.commit_configuration();
         session.start()?;
 
         self.dev_input = Some(input);
@@ -238,11 +242,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
     fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         let cam_fmt = self.camera_format();
-        let raw_frame = self.frame_raw()?;
-        let conv = match cam_fmt.format() {
-            FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
-            FrameFormat::YUYV => yuyv422_to_rgb888(&raw_frame)?,
-        };
+        let conv = self.frame_raw()?.to_vec();
         let image_buf =
             match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {
                 Some(buf) => {
@@ -258,9 +258,33 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        match &self.session {
+            Some(session) => {
+                if !session.is_running() {
+                    return Err(NokhwaError::ReadFrameError(
+                        "Stream Not Started".to_string(),
+                    ));
+                }
+                if session.is_interrupted() {
+                    return Err(NokhwaError::ReadFrameError(
+                        "Stream Interrupted".to_string(),
+                    ));
+                }
+            }
+            None => {
+                return Err(NokhwaError::ReadFrameError(
+                    "Stream Not Started".to_string(),
+                ))
+            }
+        }
+
         match &self.data_collect {
             Some(collector) => {
                 let data = collector.frame_to_slice()?;
+                let data = match data.1 {
+                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb888(&data.0)?),
+                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb888(&data.0)?),
+                };
                 Ok(data)
             }
             None => Err(NokhwaError::ReadFrameError(

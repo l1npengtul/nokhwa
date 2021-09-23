@@ -6,8 +6,6 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIconFile</key>
-	<string></string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -20,17 +18,23 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>we *notices buldge* wiww s-s-steaw aww youw webcam and pewsonyaw infowmation undew the x3 guise of b-being a &amp;quot;nyokhwa exampwe c-captuwe app&amp;quot; and a &amp;quot;devewopew toow&amp;quot; &amp;lt;3 :3 *nyuzzwes yuwu*</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>steawing yuwu dawta uwu owo</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copywight © :3 2021 w1npengtuw, the x3 Nyokhwa Contwibutews. Wicensed undew the x3 MPL-2.0. *looks at you* You shouwd have weceived a copy with this softwawe, but if nyot i-it c-can be found at You c-can obtain onye at https://mozilla.org/MPL/2.0/. *huggles tightly*</string>
-	<key>NSCameraUsageDescription</key>
-	<string>we *notices buldge* wiww s-s-steaw aww youw webcam and pewsonyaw infowmation undew the x3 guise of b-being a &quot;nyokhwa exampwe c-captuwe app&quot; and a &quot;devewopew toow&quot; &lt;3 :3 *nyuzzwes yuwu*</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>RustBinName</key>
+	<string>capture</string>
 </dict>
 </plist>

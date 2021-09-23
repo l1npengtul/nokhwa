@@ -54,24 +54,29 @@ pub enum AVFError {
     any(target_os = "macos", target_os = "ios"),
     link(name = "AVFoundation", kind = "framework")
 )]
+#[allow(non_snake_case)]
 pub mod core_media {
+    // all of this is stolen from bindgen
+    // steal it idc
     use core_media_sys::{
         CMBlockBufferRef, CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,
+        FourCharCode,
     };
-    use objc::runtime::Object;
+    use objc::{runtime::Object, Message};
+    use std::ops::Deref;
 
-    pub type id = *mut Object;
+    pub type Id = *mut Object;
 
     #[repr(transparent)]
     #[derive(Clone)]
-    pub struct NSObject(pub id);
-    impl std::ops::Deref for NSObject {
+    pub struct NSObject(pub Id);
+    impl Deref for NSObject {
         type Target = objc::runtime::Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
     }
-    unsafe impl objc::Message for NSObject {}
+    unsafe impl Message for NSObject {}
     impl NSObject {
         pub fn alloc() -> Self {
             Self(unsafe { msg_send!(objc::class!(NSObject), alloc) })
@@ -80,14 +85,14 @@ pub mod core_media {
 
     #[repr(transparent)]
     #[derive(Clone)]
-    pub struct NSString(pub id);
-    impl std::ops::Deref for NSString {
+    pub struct NSString(pub Id);
+    impl Deref for NSString {
         type Target = objc::runtime::Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
     }
-    unsafe impl objc::Message for NSString {}
+    unsafe impl Message for NSString {}
     impl NSString {
         pub fn alloc() -> Self {
             Self(unsafe { msg_send!(objc::class!(NSString), alloc) })
@@ -95,34 +100,17 @@ pub mod core_media {
     }
 
     pub type AVMediaType = NSString;
+
     extern "C" {
         pub static AVMediaTypeVideo: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeAudio: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeText: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeClosedCaption: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeSubtitle: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeTimecode: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeMetadata: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeMuxed: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeMetadataObject: AVMediaType;
-    }
-    extern "C" {
         pub static AVMediaTypeDepthData: AVMediaType;
     }
 
@@ -146,49 +134,116 @@ pub mod core_media {
         pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
     }
 
-    pub type dispatch_queue_t = NSObject;
-
     extern "C" {
         pub fn dispatch_queue_create(
             label: *const ::std::os::raw::c_char,
             attr: NSObject,
-        ) -> dispatch_queue_t;
+        ) -> NSObject;
     }
 
     extern "C" {
         pub fn dispatch_release(object: NSObject);
     }
+
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone)]
+    pub struct __CVBuffer {
+        _unused: [u8; 0],
+    }
+    pub type CVBufferRef = *mut __CVBuffer;
+
+    #[allow(non_snake_case)]
+    extern "C" {
+        pub fn CMSampleBufferGetImageBuffer(sbuf: CMSampleBufferRef) -> CVImageBufferRef;
+    }
+
+    pub type CVImageBufferRef = CVBufferRef;
+    pub type CVPixelBufferRef = CVImageBufferRef;
+    pub type CVPixelBufferLockFlags = u64;
+    pub type CVReturn = i32;
+
+    #[allow(non_snake_case)]
+    extern "C" {
+        pub fn CVPixelBufferLockBaseAddress(
+            pixelBuffer: CVPixelBufferRef,
+            lockFlags: CVPixelBufferLockFlags,
+        ) -> CVReturn;
+
+        pub fn CVPixelBufferUnlockBaseAddress(
+            pixelBuffer: CVPixelBufferRef,
+            unlockFlags: CVPixelBufferLockFlags,
+        ) -> CVReturn;
+
+        pub fn CVPixelBufferGetDataSize(pixelBuffer: CVPixelBufferRef) -> std::os::raw::c_ulong;
+
+        pub fn CVPixelBufferGetBaseAddress(
+            pixelBuffer: CVPixelBufferRef,
+        ) -> *mut ::std::os::raw::c_void;
+    }
+
+    extern "C" {
+        pub static AVVideoCodecKey: NSString;
+    }
+    pub type OSType = FourCharCode;
+    pub type AVVideoCodecType = NSString;
+    extern "C" {
+        pub static AVVideoCodecTypeHEVC: AVVideoCodecType;
+        pub static AVVideoCodecTypeH264: AVVideoCodecType;
+        pub static AVVideoCodecTypeJPEG: AVVideoCodecType;
+        pub static AVVideoCodecTypeAppleProRes4444: AVVideoCodecType;
+        pub static AVVideoCodecTypeAppleProRes422: AVVideoCodecType;
+        pub static AVVideoCodecTypeAppleProRes422HQ: AVVideoCodecType;
+        pub static AVVideoCodecTypeAppleProRes422LT: AVVideoCodecType;
+        pub static AVVideoCodecTypeAppleProRes422Proxy: AVVideoCodecType;
+        pub static AVVideoCodecTypeHEVCWithAlpha: AVVideoCodecType;
+        pub static AVVideoCodecHEVC: NSString;
+        pub static AVVideoCodecH264: NSString;
+        pub static AVVideoCodecJPEG: NSString;
+        pub static AVVideoCodecAppleProRes4444: NSString;
+        pub static AVVideoCodecAppleProRes422: NSString;
+        pub static AVVideoWidthKey: NSString;
+        pub static AVVideoHeightKey: NSString;
+        pub static AVVideoExpectedSourceFrameRateKey: NSString;
+        pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
+
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub mod avfoundation {
-    use crate::core_media::{dispatch_queue_create, dispatch_release, AVMediaTypeVideo, NSObject};
+    use crate::core_media::{
+        AVMediaTypeAudio, AVMediaTypeClosedCaption, AVMediaTypeDepthData, AVMediaTypeMetadata,
+        AVMediaTypeMetadataObject, AVMediaTypeMuxed, AVMediaTypeSubtitle, AVMediaTypeText,
+        AVMediaTypeTimecode, CVPixelBufferGetPixelFormatType,
+    };
     use crate::{
         core_media::{
-            CMBlockBufferCopyDataBytes, CMBlockBufferGetDataLength, CMSampleBufferGetDataBuffer,
-            CMTimeMake, CMVideoFormatDescriptionGetDimensions,
+            dispatch_queue_create, AVMediaTypeVideo, CMSampleBufferGetImageBuffer,
+            CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
+            CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
+            NSObject,
         },
         AVFError,
     };
     use block::ConcreteBlock;
     use cocoa_foundation::foundation::{NSArray, NSInteger, NSString, NSUInteger};
     use core_media_sys::{
-        kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, CMBlockBufferRef,
-        CMFormatDescriptionGetMediaSubType, CMSampleBufferRef, CMTime, CMVideoDimensions,
+        kCMPixelFormat_422YpCbCr8_yuvs, kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG,
+        kCMVideoCodecType_JPEG_OpenDML, CMFormatDescriptionGetMediaSubType, CMSampleBufferRef,
+        CMVideoDimensions,
     };
+    use dashmap::DashMap;
+    use flume::{Receiver, Sender};
     use objc::{
         declare::ClassDecl,
         runtime::{Class, Object, Protocol, Sel, BOOL, YES},
     };
-    use std::ffi::CString;
-    use std::os::raw::c_char;
     use std::{
-        borrow::{Borrow, Cow},
+        borrow::Cow,
         cmp::Ordering,
         convert::TryFrom,
         error::Error,
-        ffi::{c_void, CStr},
-        os::raw::c_int,
+        ffi::{c_void, CStr, CString},
         sync::{
             atomic::{AtomicBool, Ordering as MemOrdering},
             Arc, Mutex, TryLockError,
@@ -306,81 +361,90 @@ pub mod avfoundation {
         Ok(out_vec)
     }
 
+    fn compare_ns_string(this: *mut Object, other: crate::core_media::NSString) -> bool {
+        unsafe {
+            let equal: BOOL = msg_send![this, isEqualToString: other];
+            equal == YES
+        }
+    }
+
     fn default_callback(_: bool) {}
+
+    pub type CompressionData<'a> = (Cow<'a, [u8]>, AVFourCC);
+    pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
     lazy_static! {
         static ref CAMERA_AUTHORIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         static ref USER_CALLBACK_FN: Arc<Mutex<fn(bool)>> = Arc::new(Mutex::new(default_callback));
+        static ref PIPE_MAP: Arc<DashMap<usize, DataPipe<'static>>> = Arc::new(DashMap::new());
         static ref CALLBACK_CLASS: &'static Class = {
             let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
 
             // frame stack
-            decl.add_ivar::<*mut c_void>("_frame_data");
-            decl.add_ivar::<usize>("_frame_length");
+            decl.add_ivar::<usize>("_index");
 
-            extern "C" fn my_callback_get_data_ptr(this: &mut Object, _: Sel) -> *mut c_void {
+            extern "C" fn my_callback_get_index(this: &Object, _: Sel) -> usize {
                 unsafe {
-                    *this.get_ivar("_frame_data")
+                    *this.get_ivar("_index")
                 }
             }
 
-            extern "C" fn my_callback_set_data_ptr(this: &mut Object, _: Sel, ptr: *mut c_void) {
-                unsafe  {
-                    this.set_ivar("_frame_data", ptr);
-                }
-            }
-
-            extern "C" fn my_callback_get_data_length(this: &Object, _: Sel) -> usize {
+            extern "C" fn my_callback_set_index(this: &mut Object, _: Sel, new_index: usize) {
                 unsafe {
-                    *this.get_ivar("_frame_length")
-                }
-            }
-
-            extern "C" fn my_callback_set_data_length(this: &mut Object, _: Sel, new_length: usize) {
-                unsafe {
-                    this.set_ivar("_frame_length", new_length);
+                    this.set_ivar("_index", new_index);
                 }
             }
 
             // Delegate compliance method
+            // SAFETY: This assumes that the buffer byte size is a u8. Any other size will cause unsafety.
             #[allow(non_snake_case)]
+            #[allow(non_upper_case_globals)]
             extern fn capture_out_callback(this: &mut Object, _: Sel, _: *mut Object, didOutputSampleBuffer: CMSampleBufferRef, _: *mut Object) {
-                println!("aaa");
-                let data_buffer: CMBlockBufferRef = unsafe { CMSampleBufferGetDataBuffer(didOutputSampleBuffer) };
-                let length = unsafe { CMBlockBufferGetDataLength(data_buffer) } as usize;
-                let ptr: *mut c_void = unsafe { msg_send![this, dataPointer] };
-                let _: c_int = unsafe { CMBlockBufferCopyDataBytes(data_buffer, 0, length, ptr) };
-                let _: () = unsafe { msg_send![this, setDataLength:length] };
+                let image_buffer: CVImageBufferRef = unsafe { CMSampleBufferGetImageBuffer(didOutputSampleBuffer) };
+                unsafe { CVPixelBufferLockBaseAddress(image_buffer, 0); };
+
+                let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
+
+                let fourcc = match buffer_codec {
+                    kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => AVFourCC::YUV2,
+                    kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => AVFourCC::MJPEG,
+                    _ => {
+                        return;
+                    }
+                };
+
+                let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
+                let buffer_ptr = unsafe { CVPixelBufferGetBaseAddress(image_buffer) };
+                let buffer_as_vec = unsafe { std::slice::from_raw_parts_mut(buffer_ptr as *mut u8, buffer_length as usize).to_vec() };
+
+                unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
+                let index: usize = unsafe { msg_send![this, index] };
+                let pipes = &PIPE_MAP.get(&index);
+                if let Some(pipe) = pipes {
+                    let _ = pipe.value().0.send((Cow::from(buffer_as_vec), fourcc));
+                }
+            }
+
+            #[allow(non_snake_case)]
+            extern fn capture_drop_callback(_: &mut Object, _: Sel, _: *mut Object, _: *mut Object, _: *mut Object) {
             }
 
             unsafe {
-                decl.add_protocol(Protocol::get("AVCaptureVideoDataOutputSampleBufferDelegate").unwrap());
-
                 decl.add_method(
-                    sel!(dataPointer), my_callback_get_data_ptr as extern "C" fn(&mut Object, Sel) -> *mut c_void
+                    sel!(index), my_callback_get_index as extern "C" fn(&Object, Sel) -> usize
                 );
                 decl.add_method(
-                    sel!(setDataPointer:), my_callback_set_data_ptr as extern "C" fn(&mut Object, Sel, *mut c_void)
-                );
-                decl.add_method(
-                    sel!(dataLength), my_callback_get_data_length as extern "C" fn(&Object, Sel) -> usize
-                );
-                decl.add_method(
-                    sel!(setDataLength:), my_callback_set_data_length as extern "C" fn(&mut Object, Sel, usize)
+                    sel!(setIndex:), my_callback_set_index as extern "C" fn(&mut Object, Sel, usize)
                 );
                 decl.add_method(
                     sel!(captureOutput:didOutputSampleBuffer:fromConnection:), capture_out_callback as extern "C" fn(&mut Object, Sel, *mut Object, CMSampleBufferRef, *mut Object)
                 );
+                decl.add_method(
+                    sel!(captureOutput:didDropSampleBuffer:fromConnection:), capture_drop_callback as extern "C" fn(&mut Object, Sel, *mut Object, *mut Object, *mut Object)
+                );
+
+                decl.add_protocol(Protocol::get("AVCaptureVideoDataOutputSampleBufferDelegate").unwrap());
             }
-
-            decl.register()
-        };
-        static ref OS_DISPATCH_CLASS: &'static Class = {
-            let mut decl = ClassDecl::new("MyDispatchQueueSerial", class!(NSObject)).unwrap();
-
-            // decl.add_protocol(Protocol::get("OS_dispatch_object").unwrap());
-            // decl.add_protocol(Protocol::get("OS_dispatch_queue").unwrap());
-            decl.add_protocol(Protocol::get("OS_dispatch_queue_serial").unwrap());
 
             decl.register()
         };
@@ -526,16 +590,16 @@ pub mod avfoundation {
     impl From<AVMediaType> for *mut Object {
         fn from(media_type: AVMediaType) -> Self {
             match media_type {
-                AVMediaType::Audio => str_to_nsstr("AVMediaTypeAudio"),
-                AVMediaType::ClosedCaption => str_to_nsstr("AVMediaTypeClosedCaption"),
-                AVMediaType::DepthData => str_to_nsstr("AVMediaTypeDepthData"),
-                AVMediaType::Metadata => str_to_nsstr("AVMediaTypeMetadata"),
-                AVMediaType::MetadataObject => str_to_nsstr("AVMediaTypeMetadataObject"),
-                AVMediaType::Muxed => str_to_nsstr("AVMediaTypeMuxed"),
-                AVMediaType::Subtitle => str_to_nsstr("AVMediaTypeSubtitle"),
-                AVMediaType::Text => str_to_nsstr("AVMediaTypeText"),
-                AVMediaType::Timecode => str_to_nsstr("AVMediaTypeTimecode"),
-                AVMediaType::Video => str_to_nsstr("AVMediaTypeVideo"),
+                AVMediaType::Audio => unsafe { AVMediaTypeAudio.0 },
+                AVMediaType::ClosedCaption => unsafe { AVMediaTypeClosedCaption.0 },
+                AVMediaType::DepthData => unsafe { AVMediaTypeDepthData.0 },
+                AVMediaType::Metadata => unsafe { AVMediaTypeMetadata.0 },
+                AVMediaType::MetadataObject => unsafe { AVMediaTypeMetadataObject.0 },
+                AVMediaType::Muxed => unsafe { AVMediaTypeMuxed.0 },
+                AVMediaType::Subtitle => unsafe { AVMediaTypeSubtitle.0 },
+                AVMediaType::Text => unsafe { AVMediaTypeText.0 },
+                AVMediaType::Timecode => unsafe { AVMediaTypeTimecode.0 },
+                AVMediaType::Video => unsafe { AVMediaTypeVideo.0 },
             }
         }
     }
@@ -544,28 +608,34 @@ pub mod avfoundation {
         type Error = AVFError;
 
         fn try_from(value: *mut Object) -> Result<Self, Self::Error> {
-            let borrow_str = nsstr_to_str(value);
-            let value_str: &str = borrow_str.borrow();
-            let v = match value_str {
-                "AVMediaTypeAudio" => Ok(AVMediaType::Audio),
-                "AVMediaTypeClosedCaption" => Ok(AVMediaType::ClosedCaption),
-                "AVMediaTypeDepthData" => Ok(AVMediaType::DepthData),
-                "AVMediaTypeMetadata" => Ok(AVMediaType::Metadata),
-                "AVMediaTypeMetadataObject" => Ok(AVMediaType::MetadataObject),
-                "AVMediaTypeMuxed" => Ok(AVMediaType::Muxed),
-                "AVMediaTypeSubtitle" => Ok(AVMediaType::Subtitle),
-                "AVMediaTypeText" => Ok(AVMediaType::Text),
-                "AVMediaTypeTimecode" => Ok(AVMediaType::Timecode),
-                "AVMediaTypeVideo" => Ok(AVMediaType::Video),
-                _ => {
-                    return Err(AVFError::InvalidValue {
-                        found: value_str.to_string(),
+            unsafe {
+                if compare_ns_string(value, (AVMediaTypeAudio).clone()) {
+                    Ok(AVMediaType::Audio)
+                } else if compare_ns_string(value, (AVMediaTypeClosedCaption).clone()) {
+                    Ok(AVMediaType::ClosedCaption)
+                } else if compare_ns_string(value, (AVMediaTypeDepthData).clone()) {
+                    Ok(AVMediaType::DepthData)
+                } else if compare_ns_string(value, (AVMediaTypeMetadata).clone()) {
+                    Ok(AVMediaType::Metadata)
+                } else if compare_ns_string(value, (AVMediaTypeMetadataObject).clone()) {
+                    Ok(AVMediaType::MetadataObject)
+                } else if compare_ns_string(value, (AVMediaTypeMuxed).clone()) {
+                    Ok(AVMediaType::Muxed)
+                } else if compare_ns_string(value, (AVMediaTypeSubtitle).clone()) {
+                    Ok(AVMediaType::Subtitle)
+                } else if compare_ns_string(value, (AVMediaTypeText).clone()) {
+                    Ok(AVMediaType::Text)
+                } else if compare_ns_string(value, (AVMediaTypeTimecode).clone()) {
+                    Ok(AVMediaType::Timecode)
+                } else if compare_ns_string(value, (AVMediaTypeVideo).clone()) {
+                    Ok(AVMediaType::Video)
+                } else {
+                    let name = nsstr_to_str(value);
+                    Err(AVFError::InvalidValue {
+                        found: name.to_string(),
                     })
                 }
-            };
-
-            let _: *mut std::ffi::c_void = unsafe { msg_send![value, autorelease] };
-            v
+            }
         }
     }
 
@@ -595,8 +665,8 @@ pub mod avfoundation {
     #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
     #[repr(u32)]
     pub enum AVFourCC {
-        YUV2 = kCMVideoCodecType_JPEG,
-        MJPEG = kCMVideoCodecType_422YpCbCr8,
+        YUV2,
+        MJPEG,
     }
 
     // Localized Name
@@ -636,63 +706,70 @@ pub mod avfoundation {
     }
 
     pub struct AVCaptureVideoCallback {
+        index: usize,
         delegate: *mut Object,
-        queue: *mut Object,
     }
 
     impl AVCaptureVideoCallback {
-        pub fn new() -> Self {
-            AVCaptureVideoCallback::default()
+        pub fn new(index: usize) -> Self {
+            let cls = &CALLBACK_CLASS as &Class;
+            let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
+            let delegate: *mut Object = unsafe { msg_send![delegate, init] };
+
+            let data_pipe: DataPipe = flume::unbounded();
+            let _ = &PIPE_MAP.insert(index, data_pipe);
+
+            AVCaptureVideoCallback { index, delegate }
+        }
+
+        pub fn index(&self) -> usize {
+            self.index
         }
 
         pub fn data_len(&self) -> usize {
             unsafe { msg_send![self.delegate, dataLength] }
         }
 
-        pub fn frame_to_slice<'a>(&self) -> Result<Cow<'a, [u8]>, AVFError> {
-            let data_ptr: *mut c_void = unsafe { msg_send![self.delegate, dataPointer] };
-            println!("tp1");
-            let data_ptr = data_ptr as *mut u8 as *const u8;
-            let data_length = self.data_len();
-            println!("tp2");
-            if data_ptr.is_null() {
-                return Err(AVFError::ReadFrame("Nullptr".to_string()));
-            }
-            println!("tp3");
-            if data_length == 0 {
-                return Err(AVFError::ReadFrame("Zero Size Len".to_string()));
-            }
-            println!("tp4");
-            let cow_slice = Cow::from(unsafe { std::slice::from_raw_parts(data_ptr, data_length) });
-            println!("tp5");
-            Ok(cow_slice)
+        pub fn frame_to_slice<'a>(&self) -> Result<CompressionData<'a>, AVFError> {
+            let pipe_map = &PIPE_MAP.get(&self.index); // why rust
+            let pipe_recv = match pipe_map {
+                Some(pipe) => &pipe.value().1,
+                None => return Err(AVFError::ReadFrame("Data Pipe None".to_string())),
+            };
+            let data = match pipe_recv.drain().last() {
+                Some(frame) => frame,
+                None => match pipe_recv.recv() {
+                    Ok(f) => f,
+                    Err(why) => {
+                        return Err(AVFError::ReadFrame(format!(
+                            "Failed to read frame from pipe: {}",
+                            why.to_string()
+                        )))
+                    }
+                },
+            };
+            Ok(data)
+        }
+
+        pub fn frame_to_slice_no_block<'a>(&self) -> Result<CompressionData<'a>, AVFError> {
+            let pipe_map = &PIPE_MAP.get(&self.index); // why rust
+            let pipe_recv = match pipe_map {
+                Some(pipe) => &pipe.value().1,
+                None => return Err(AVFError::ReadFrame("Data Pipe None".to_string())),
+            };
+            let data = match pipe_recv.drain().last() {
+                Some(frame) => frame,
+                None => {
+                    return Err(AVFError::ReadFrame(
+                        "Failed to read frame from pipe: None".to_string(),
+                    ))
+                }
+            };
+            Ok(data)
         }
 
         pub fn inner(&self) -> *mut Object {
             self.delegate
-        }
-    }
-
-    impl Default for AVCaptureVideoCallback {
-        fn default() -> Self {
-            println!("b");
-            let cls = &CALLBACK_CLASS as &Class;
-            let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
-            let delegate: *mut Object = unsafe { msg_send![delegate, init] };
-            println!("c");
-            let ptr: *mut c_void = std::ptr::null_mut();
-            let len = 0_usize;
-
-            let queue_cls = &OS_DISPATCH_CLASS as &Class;
-            let queue: *mut Object = unsafe { msg_send![queue_cls, new] };
-
-            unsafe {
-                let _: () = msg_send![delegate, setDataPointer: ptr];
-                let _: () = msg_send![delegate, setDataLength: len];
-            }
-            println!("c");
-
-            AVCaptureVideoCallback { delegate, queue }
         }
     }
 
@@ -727,29 +804,20 @@ pub mod avfoundation {
     #[derive(Copy, Clone, Debug)]
     pub struct CaptureDeviceFormatDescriptor {
         pub resolution: AVVideoResolution,
-        pub fps: f64,
+        pub fps: u32,
         pub fourcc: AVFourCC,
     }
 
     impl CaptureDeviceFormatDescriptor {
         pub fn compatible_with_capture_format(&self, other: &AVCaptureDeviceFormat) -> bool {
-            let lower_fps = match other.fps_list.get(0) {
-                Some(fps) => fps,
-                None => return false,
-            };
-
-            let higher_fps = match other.fps_list.get(1) {
-                Some(fps) => fps,
-                None => return false,
-            };
-
-            if self.resolution.height == other.resolution.height
-                && self.resolution.width == other.resolution.width
-                && self.fourcc == other.fourcc
-                && ((self.fps - *lower_fps).abs() < f64::EPSILON
-                    || (self.fps - *higher_fps).abs() < f64::EPSILON)
-            {
-                return true;
+            for fps in &other.fps_list {
+                if self.resolution.height == other.resolution.height
+                    && self.resolution.width == other.resolution.width
+                    && self.fourcc == other.fourcc
+                    && (*fps as u32) == self.fps
+                {
+                    return true;
+                }
             }
             false
         }
@@ -791,8 +859,8 @@ pub mod avfoundation {
                 unsafe { CMFormatDescriptionGetMediaSubType(description_obj as *mut c_void) };
             #[allow(non_upper_case_globals)]
             let fourcc = match fcc_raw {
-                kCMVideoCodecType_422YpCbCr8 => AVFourCC::YUV2,
-                kCMVideoCodecType_JPEG => AVFourCC::MJPEG,
+                kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => AVFourCC::YUV2,
+                kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => AVFourCC::MJPEG,
                 _ => {
                     return Err(AVFError::InvalidValue {
                         found: fcc_raw.to_string(),
@@ -851,7 +919,7 @@ pub mod avfoundation {
 
         pub fn devices(&self) -> Vec<AVCaptureDeviceDescriptor> {
             let device_ns_array: *mut Object = unsafe { msg_send![self.inner, devices] };
-            let objects_len: NSUInteger = unsafe { device_ns_array.count() };
+            let objects_len: NSUInteger = unsafe { NSArray::count(device_ns_array) };
             let mut devices = vec![AVCaptureDeviceDescriptor::default(); objects_len as usize];
             for index in 0..objects_len {
                 let device = unsafe { device_ns_array.objectAtIndex(index) };
@@ -958,14 +1026,7 @@ pub mod avfoundation {
             unsafe { msg_send![self.inner, unlockForConfiguration] }
         }
 
-        pub fn set_frame_rate(&mut self, fps: u32) {
-            let mut time = unsafe { CMTimeMake(1, fps as i32) };
-            let time_ptr: *mut CMTime = &mut time;
-            unsafe {
-                let _: () = msg_send![self.inner, activeVideoMinFrameDuration: time_ptr];
-                let _: () = msg_send![self.inner, activeVideoMaxFrameDuration: time_ptr];
-            }
-        }
+        pub fn set_frame_rate(&mut self, _: u32) {}
 
         pub fn set_all(
             &mut self,
@@ -1031,24 +1092,30 @@ pub mod avfoundation {
 
         pub fn add_delegate(&self, delegate: &AVCaptureVideoCallback) -> Result<(), AVFError> {
             unsafe {
+                let avf_queue_str = match CString::new("avf_queue") {
+                    Ok(avf) => avf.into_raw(),
+                    Err(_) => {
+                        // should not happen
+                        return Err(AVFError::StreamOpen("String contains null? This is a bug, please report it https://github.com/l1npengtul/nokhwa".to_string()));
+                    }
+                };
+                let queue = dispatch_queue_create(avf_queue_str, NSObject(std::ptr::null_mut()));
+
                 let _: () = msg_send![
                     self.inner,
                     setSampleBufferDelegate: delegate.delegate
-                    queue: delegate.queue
+                    queue: queue
                 ];
-            }
-            println!("e");
+            };
             Ok(())
         }
     }
 
     impl Default for AVCaptureVideoDataOutput {
         fn default() -> Self {
-            println!("d");
             let cls = class!(AVCaptureVideoDataOutput);
-            let inner: *mut Object = unsafe { msg_send![cls, alloc] };
-            let inner: *mut Object = unsafe { msg_send![inner, init] };
-            println!("d");
+            let inner: *mut Object = unsafe { msg_send![cls, new] };
+
             AVCaptureVideoDataOutput { inner }
         }
     }
@@ -1064,8 +1131,15 @@ pub mod avfoundation {
             AVCaptureSession::default()
         }
 
+        pub fn begin_configuration(&self) {
+            unsafe { msg_send![self.inner, beginConfiguration] }
+        }
+
+        pub fn commit_configuration(&self) {
+            unsafe { msg_send![self.inner, commitConfiguration] }
+        }
+
         pub fn can_add_input(&self, input: &AVCaptureDeviceInput) -> bool {
-            println!("{:?}", unsafe { self.inner.as_ref() }.unwrap().class());
             let result: BOOL = unsafe { msg_send![self.inner, canAddInput:input.inner] };
             result == YES
         }

@@ -14,8 +14,8 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "D8F9800C26FA41F6001C02B4"
-               BuildableName = "example-capture"
+               BlueprintIdentifier = "D8C007BF26FAE25E00FFB741"
+               BuildableName = "example-capture.app"
                BlueprintName = "example-capture"
                ReferencedContainer = "container:example-capture.xcodeproj">
             </BuildableReference>
@@ -44,12 +44,22 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D8F9800C26FA41F6001C02B4"
-            BuildableName = "example-capture"
+            BlueprintIdentifier = "D8C007BF26FAE25E00FFB741"
+            BuildableName = "example-capture.app"
             BlueprintName = "example-capture"
             ReferencedContainer = "container:example-capture.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "-q AVF"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-d"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -61,8 +71,8 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D8F9800C26FA41F6001C02B4"
-            BuildableName = "example-capture"
+            BlueprintIdentifier = "D8C007BF26FAE25E00FFB741"
+            BuildableName = "example-capture.app"
             BlueprintName = "example-capture"
             ReferencedContainer = "container:example-capture.xcodeproj">
          </BuildableReference>

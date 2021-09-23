@@ -107,6 +107,8 @@ fn main() {
             use_backend = CaptureAPIBackend::AVFoundation;
         }
 
+        println!("www");
+
         match query_devices(use_backend) {
             Ok(devs) => {
                 for (idx, camera) in devs.iter().enumerate() {
@@ -118,8 +120,6 @@ fn main() {
             }
         }
     }
-
-    println!("a");
 
     if matches.is_present("capture") {
         let backend_value = {
@@ -196,8 +196,11 @@ fn main() {
                     }
                 }
 
+                println!("www");
+
                 // open stream
                 camera.open_stream().unwrap();
+                println!("wwww");
                 loop {
                     if let Ok(frame) = camera.frame() {
                         println!(

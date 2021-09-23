@@ -372,7 +372,7 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
                 width: cf.width() as i32,
                 height: cf.height() as i32,
             },
-            fps: cf.frame_rate() as f64,
+            fps: cf.frame_rate(),
             fourcc: cf.format().into(),
         }
     }
