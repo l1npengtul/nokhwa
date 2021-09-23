@@ -138,6 +138,9 @@ impl From<AVFError> for NokhwaError {
             }
             AVFError::StreamOpen(why) => NokhwaError::OpenStreamError(why),
             AVFError::ReadFrame(why) => NokhwaError::ReadFrameError(why),
+            AVFError::NotSupported => {
+                NokhwaError::UnsupportedOperationError(CaptureAPIBackend::AVFoundation)
+            }
         }
     }
 }

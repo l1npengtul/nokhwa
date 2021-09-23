@@ -43,6 +43,8 @@ pub enum AVFError {
     StreamOpen(String),
     #[error("Failed to read frame: {0}")]
     ReadFrame(String),
+    #[error("Unsupported")]
+    NotSupported,
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -1216,6 +1218,303 @@ pub mod avfoundation {
                 unsafe { msg_send![alloc, init] }
             };
             AVCaptureSession { inner: session }
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+pub mod avfoundation {
+    use crate::AVFError;
+
+    pub type CompressionData<'a> = (Cow<'a, [u8]>, AVFourCC);
+    pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
+
+    pub fn request_permission_with_callback(_: fn(bool)) {}
+
+    pub fn current_authorization_status() -> AVAuthorizationStatus {
+        AVAuthorizationStatus::NotDetermined
+    }
+
+    // fuck it, use deprecated APIs
+    pub fn query_avfoundation() -> Result<Vec<AVCaptureDeviceDescriptor>, AVFError> {
+        Err(AVFError::NotSupported)
+    }
+
+    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    pub enum AVCaptureDeviceType {
+        Dual,
+        DualWide,
+        Triple,
+        WideAngle,
+        UltraWide,
+        Telephoto,
+        TrueDepth,
+        ExternalUnknown,
+    }
+
+    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    pub enum AVMediaType {
+        Audio,
+        ClosedCaption,
+        DepthData,
+        Metadata,
+        MetadataObject,
+        Muxed,
+        Subtitle,
+        Text,
+        Timecode,
+        Video,
+    }
+
+    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    #[repr(isize)]
+    pub enum AVCaptureDevicePosition {
+        Unspecified = 0,
+        Back = 1,
+        Front = 2,
+    }
+
+    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    #[repr(isize)]
+    pub enum AVAuthorizationStatus {
+        NotDetermined = 0,
+        Restricted = 1,
+        Denied = 2,
+        Authorized = 3,
+    }
+
+    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    #[repr(u32)]
+    pub enum AVFourCC {
+        YUV2,
+        MJPEG,
+    }
+
+    // Localized Name
+    //
+    #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
+    pub struct AVCaptureDeviceDescriptor {
+        pub name: String,
+        pub description: String,
+        pub misc: String,
+        pub index: u64,
+    }
+
+    pub struct AVCaptureVideoCallback {}
+
+    impl AVCaptureVideoCallback {
+        pub fn new(_: usize) -> Self {
+            AVCaptureVideoCallback {}
+        }
+
+        pub fn index(&self) -> usize {
+            0
+        }
+
+        pub fn data_len(&self) -> usize {
+            0
+        }
+
+        pub fn frame_to_slice<'a>(&self) -> Result<CompressionData<'a>, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn frame_to_slice_no_block<'a>(&self) -> Result<CompressionData<'a>, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+    }
+
+    pub struct AVFrameRateRange {}
+    pub struct AVCaptureDeviceDiscoverySession {}
+    pub struct AVCaptureDevice {}
+    pub struct AVCaptureDeviceInput {}
+    pub struct AVCaptureSession {}
+
+    impl AVFrameRateRange {
+        pub fn max(&self) -> f64 {
+            0_f64
+        }
+
+        pub fn min(&self) -> f64 {
+            0_f64
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct CMVideoDimensions {
+        pub width: i32,
+        pub height: i32,
+    }
+
+    pub type AVVideoResolution = CMVideoDimensions;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct CaptureDeviceFormatDescriptor {
+        pub resolution: AVVideoResolution,
+        pub fps: u32,
+        pub fourcc: AVFourCC,
+    }
+
+    impl CaptureDeviceFormatDescriptor {
+        pub fn compatible_with_capture_format(&self, other: &AVCaptureDeviceFormat) -> bool {
+            for fps in &other.fps_list {
+                if self.resolution.height == other.resolution.height
+                    && self.resolution.width == other.resolution.width
+                    && self.fourcc == other.fourcc
+                    && (*fps as u32) == self.fps
+                {
+                    return true;
+                }
+            }
+            false
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct AVCaptureDeviceFormat {
+        pub resolution: CMVideoDimensions,
+        pub fps_list: Vec<f64>,
+        pub fourcc: AVFourCC,
+    }
+
+    impl AVCaptureDeviceDiscoverySession {
+        pub fn new(
+            _: Vec<AVCaptureDeviceType>,
+            _: AVMediaType,
+            _: AVCaptureDevicePosition,
+        ) -> Result<Self, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn default() -> Result<Self, AVFError> {
+            AVCaptureDeviceDiscoverySession::new(
+                vec![
+                    AVCaptureDeviceType::UltraWide,
+                    AVCaptureDeviceType::Telephoto,
+                    AVCaptureDeviceType::ExternalUnknown,
+                    AVCaptureDeviceType::Dual,
+                    AVCaptureDeviceType::DualWide,
+                    AVCaptureDeviceType::Triple,
+                ],
+                AVMediaType::Video,
+                AVCaptureDevicePosition::Unspecified,
+            )
+        }
+
+        pub fn devices(&self) -> Vec<AVCaptureDeviceDescriptor> {
+            vec![]
+        }
+    }
+
+    impl AVCaptureDevice {
+        pub fn devices_with_type(_: AVMediaType) -> Vec<AVCaptureDevice> {
+            vec![]
+        }
+
+        pub fn new(index: usize) -> Result<Self, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn from_id(id: &str) -> Result<Self, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn supported_formats(&self) -> Result<Vec<AVCaptureDeviceFormat>, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn already_in_use(&self) -> bool {
+            false
+        }
+
+        pub fn is_suspended(&self) -> bool {
+            false
+        }
+
+        pub fn lock(&self) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn unlock(&self) {}
+
+        pub fn set_frame_rate(&mut self, _: u32) {}
+
+        pub fn set_all(&mut self, _: CaptureDeviceFormatDescriptor) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+    }
+
+    impl AVCaptureDeviceInput {
+        pub fn new(_: &AVCaptureDevice) -> Result<Self, AVFError> {
+            Err(AVFError::NotSupported)
+        }
+    }
+
+    pub struct AVCaptureVideoDataOutput {}
+
+    impl AVCaptureVideoDataOutput {
+        pub fn new() -> Self {
+            AVCaptureVideoDataOutput::default()
+        }
+
+        pub fn add_delegate(&self, _: &AVCaptureVideoCallback) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+    }
+
+    impl Default for AVCaptureVideoDataOutput {
+        fn default() -> Self {
+            AVCaptureVideoDataOutput {}
+        }
+    }
+
+    impl AVCaptureSession {
+        pub fn new() -> Self {
+            AVCaptureSession::default()
+        }
+
+        pub fn begin_configuration(&self) {}
+
+        pub fn commit_configuration(&self) {}
+
+        pub fn can_add_input(&self, _: &AVCaptureDeviceInput) -> bool {
+            false
+        }
+
+        pub fn add_input(&self, _: &AVCaptureDeviceInput) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn remove_input(&self, _: &AVCaptureDeviceInput) {}
+
+        pub fn can_add_output(&self, _: &AVCaptureVideoDataOutput) -> bool {
+            false
+        }
+
+        pub fn add_output(&self, _: &AVCaptureVideoDataOutput) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn remove_output(&self, _: &AVCaptureVideoDataOutput) {}
+
+        pub fn is_running(&self) -> bool {
+            false
+        }
+
+        pub fn start(&self) -> Result<(), AVFError> {
+            Err(AVFError::NotSupported)
+        }
+
+        pub fn stop(&self) {}
+
+        pub fn is_interrupted(&self) -> bool {
+            false
+        }
+    }
+
+    impl Default for AVCaptureSession {
+        fn default() -> Self {
+            AVCaptureSession {}
         }
     }
 }
