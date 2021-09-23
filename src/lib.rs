@@ -25,6 +25,9 @@ pub mod js_camera;
 #[cfg(feature = "input-ipcam")]
 pub mod network_camera;
 mod query;
+/// A camera that runs in a different thread and can call your code based on callbacks.
+#[cfg(feature = "output-threaded")]
+mod threaded_camera;
 mod utils;
 
 pub use camera::Camera;
@@ -32,4 +35,6 @@ pub use camera_traits::*;
 pub use error::NokhwaError;
 pub use init::*;
 pub use query::query_devices;
+#[cfg(feature = "output-threaded")]
+pub use threaded_camera::ThreadedCamera;
 pub use utils::*;

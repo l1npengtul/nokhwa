@@ -27,6 +27,7 @@ input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen"]
 output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
+output-threaded = ["parking_lot"]
 small-wasm = ["wee_alloc"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-jscam","output-wgpu", "output-wasm"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
@@ -140,6 +141,10 @@ optional = true
 
 [dependencies.wee_alloc]
 version = "0.4.5"
+optional = true
+
+[dependencies.parking_lot]
+version = "0.11.2"
 optional = true
 
 [profile.release]

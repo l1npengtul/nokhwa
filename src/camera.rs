@@ -454,3 +454,6 @@ fn init_camera(
     };
     Ok(camera_backend)
 }
+
+#[cfg(feature = "output-threaded")]
+unsafe impl Send for Camera {}
