@@ -1,3 +1,12 @@
+# 0.4.0
+- Added AVFoundation, MSMF, WASM
+- `.get_info()` returns a `&CameraInfo`
+- Added Threaded Camera
+- Added JSCamera
+- Changed `new` to use `CaptureAPIBackend::Auto` by default. Old functionally still possible with `with_backend()`
+- Added `query()`, which uses `CaptureAPIBackend::Auto` by default.
+- Fixed/Added examples
+
 # 0.3.2
 - Bumped `ouroboros` to avoid potential UB
 - [INTERNAL] Removed `Box<T>` from many internal struct fields of `UVCCaptureDevice`
