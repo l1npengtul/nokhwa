@@ -6,7 +6,13 @@
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
 
 //! # nokhwa
-//! A
+//! A Simple-to-use, cross-platform Rust Webcam Capture Library
+//!
+//! The raw backends can be found in [`backends`](crate::backends)
+//!
+//! The [`Camera`] struct is what you will likely use.
+//!
+//! Please read the README for more.
 
 #[cfg(feature = "small-wasm")]
 #[global_allocator]
