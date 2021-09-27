@@ -79,11 +79,11 @@ features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-path = "nokhwa-bindings-windows/"
+version = "0.2.4"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
-path = "nokhwa-bindings-macos/"
+version = "0.1.0"
 optional = true
 
 [dependencies.gstreamer]
