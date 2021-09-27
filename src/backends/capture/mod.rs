@@ -5,21 +5,42 @@
  */
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
+// I'm too lazy to set up a skeleton facade for V4L so here it will stay
 mod v4l2;
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
 pub use v4l2::V4LCaptureDevice;
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 mod msmf;
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 pub use msmf::MediaFoundationCaptureDevice;
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 mod avfoundation;
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 pub use avfoundation::AVFoundationCaptureDevice;
 #[cfg(feature = "input-uvc")]

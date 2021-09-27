@@ -22,7 +22,6 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 let mut camera = Camera::new(
     0, // index
     Some(CameraFormat::new_from(640, 480, FrameFormat::MJPEG, 30)), // format
-    CaptureAPIBackend::AUTO, // what backend to use (let nokhwa decide for itself)
 )
 .unwrap();
 // open stream

@@ -26,10 +26,20 @@ pub struct Camera {
 
 #[allow(clippy::nonminimal_bool)]
 impl Camera {
-    /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
+    /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(
+        index: usize,
+        format: Option<CameraFormat>,
+    ) -> Result<Self, NokhwaError> {
+        Camera::with_backend(index, format, CaptureAPIBackend::Auto)
+    }
+    
+    /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    pub fn with_backend(
         index: usize,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
@@ -55,7 +65,7 @@ impl Camera {
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        Camera::new(index, Some(camera_format), backend)
+        Camera::with_backend(index, Some(camera_format), backend)
     }
 
     /// Gets the current Camera's index.

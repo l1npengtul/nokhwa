@@ -4,6 +4,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+// Some assembly required. For developers 7 and up.
+
 use clap::{App, Arg};
 use glium::{
     implement_vertex, index::PrimitiveType, program, texture::RawImage2d, uniform, Display,

@@ -9,33 +9,68 @@ use crate::{
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::FairMutex;
-use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
+use std::{
+    collections::HashMap,
+    ops::Deref,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
+/// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
+/// It uses a `Arc` and a `FairMutex` to ensure that this feels like a normal camera, but callback based.
+/// See [`Camera`] for more details on the camera itself.
+///
+/// Your function is called every time there is a new frame. In order to avoid frame loss, it should
+/// complete before a new frame is available. If you need to do heavy image processing, it may be
+/// beneficial to directly pipe the data to a new thread to process it there.
+///
+/// Note that this does not have `WGPU` capabilities. However, it should be easy to implement.
+/// # SAFETY
+/// The `Mutex` guarantees exclusive access to the underlying camera struct. They should be safe to
+/// impl `Send` on.
+#[derive(Clone)]
 pub struct ThreadedCamera {
     camera: Arc<FairMutex<Camera>>,
-    thread_handle: JoinHandle<()>,
     frame_callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    die_bool: Arc<AtomicBool>,
 }
 
 impl ThreadedCamera {
-    /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
+    /// Create a new camera from an `index` and `format`. `format` can be `None`.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(
         index: usize,
         format: Option<CameraFormat>,
+    ) -> Result<Self, NokhwaError> {
+        ThreadedCamera::with_backend(index, format, CaptureAPIBackend::Auto)
+    }
+    
+    /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    pub fn with_backend(
+        index: usize,
+        format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
-        let camera = Arc::new(FairMutex::new(Camera::new(index, format, backend)?));
+        let camera = Arc::new(FairMutex::new(Camera::with_backend(index, format, backend)?));
         let frame_callback = Arc::new(FairMutex::new(None));
+        let die_bool = Arc::new(AtomicBool::new(false));
 
-        let thread_handle =
-            std::thread::spawn(|| camera_frame_thread_loop(camera.clone(), frame_callback.clone()));
+        let die_clone = die_bool.clone();
+        let camera_clone = camera.clone();
+        let callback_clone = frame_callback.clone();
+        std::thread::spawn(move || {
+            camera_frame_thread_loop(camera_clone, callback_clone, die_clone)
+        });
 
         Ok(ThreadedCamera {
             camera,
-            thread_handle,
             frame_callback,
+            die_bool,
         })
     }
 
@@ -51,7 +86,7 @@ impl ThreadedCamera {
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        ThreadedCamera::new(index, Some(camera_format), backend)
+        ThreadedCamera::with_backend(index, Some(camera_format), backend)
     }
 
     /// Gets the current Camera's index.
@@ -82,8 +117,8 @@ impl ThreadedCamera {
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     #[must_use]
-    pub fn info(&self) -> &CameraInfo {
-        self.camera.lock().info()
+    pub fn info(&self) -> CameraInfo {
+        self.camera.lock().info().clone()
     }
 
     /// Gets the current [`CameraFormat`].
@@ -188,15 +223,26 @@ impl ThreadedCamera {
     }
 }
 
+impl Drop for ThreadedCamera {
+    fn drop(&mut self) {
+        let _ = self.stop_stream();
+        self.die_bool.store(true, Ordering::SeqCst);
+    }
+}
+
 fn camera_frame_thread_loop(
     camera: Arc<FairMutex<Camera>>,
     callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    die_bool: Arc<AtomicBool>,
 ) {
     loop {
         if let Ok(img) = camera.lock().frame() {
-            if let Some(cb) = callback.lock() {
+            if let Some(cb) = callback.lock().deref() {
                 cb(img)
             }
+        }
+        if die_bool.load(Ordering::SeqCst) {
+            break;
         }
     }
 }

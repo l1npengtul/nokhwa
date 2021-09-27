@@ -6,6 +6,20 @@
 
 use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 
+/// Query the system for a list of available devices. 
+/// Usually the order goes Native -> UVC -> Gstreamer.
+/// # Quirks
+/// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
+/// - Media Foundation: The names may contain invalid characters since they were converted from UTF16.
+/// - AVFoundation: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
+/// - AVFoundation: There is lots of miscellaneous info in the `desc` attribute.
+/// # Errors
+/// If you use an unsupported API (check the README or crate root for more info), incompatible backend for current platform, incompatible platform, or insufficient permissions, etc
+/// this will error.
+pub fn query() -> Result<Vec<CameraInfo>, NokhwaError> {
+    query_devices(CaptureAPIBackend::Auto)
+}
+
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
 /// Currently, these are `V4L`, `MediaFoundation`, `AVFoundation`, `UVC`, and `GST`. <br>
@@ -13,6 +27,8 @@ use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 /// # Quirks
 /// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - Media Foundation: The names may contain invalid characters since they were converted from UTF16.
+/// - AVFoundation: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
+/// - AVFoundation: There is lots of miscellaneous info in the `desc` attribute.
 /// # Errors
 /// If you use an unsupported API (check the README or crate root for more info), incompatible backend for current platform, incompatible platform, or insufficient permissions, etc
 /// this will error.

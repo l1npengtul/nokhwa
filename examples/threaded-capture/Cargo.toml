@@ -1,0 +1,17 @@
+[package]
+name = "threaded-capture"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[dependencies.image]
+version = "0.23.14"
+no-default-features = true
+
+[dependencies.nokhwa]
+path = "../../../nokhwa"
+# EDIT THIS!
+features = ["input-v4l", "output-threaded"]

@@ -6,14 +6,24 @@ use std::{
 #[cfg(feature = "output-wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 use nokhwa_bindings_macos::avfoundation::{
     AVCaptureDeviceDescriptor, AVFourCC, AVVideoResolution, CaptureDeviceFormatDescriptor,
 };
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
@@ -57,7 +67,10 @@ impl From<FrameFormat> for uvc::FrameFormat {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MFFrameFormat> for FrameFormat {
     fn from(mf_ff: MFFrameFormat) -> Self {
         match mf_ff {
@@ -67,7 +80,10 @@ impl From<MFFrameFormat> for FrameFormat {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<FrameFormat> for MFFrameFormat {
     fn from(ff: FrameFormat) -> Self {
         match ff {
@@ -77,9 +93,16 @@ impl From<FrameFormat> for MFFrameFormat {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 impl From<AVFourCC> for FrameFormat {
     fn from(av_fcc: AVFourCC) -> Self {
@@ -90,9 +113,16 @@ impl From<AVFourCC> for FrameFormat {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 impl From<FrameFormat> for AVFourCC {
     fn from(ff: FrameFormat) -> Self {
@@ -184,7 +214,10 @@ impl Ord for Resolution {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MFResolution> for Resolution {
     fn from(mf_res: MFResolution) -> Self {
         Resolution {
@@ -194,7 +227,10 @@ impl From<MFResolution> for Resolution {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<Resolution> for MFResolution {
     fn from(res: Resolution) -> Self {
         MFResolution {
@@ -204,9 +240,16 @@ impl From<Resolution> for MFResolution {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 #[allow(clippy::cast_sign_loss)]
 impl From<AVVideoResolution> for Resolution {
@@ -329,7 +372,10 @@ impl Display for CameraFormat {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MFCameraFormat> for CameraFormat {
     fn from(mf_cam_fmt: MFCameraFormat) -> Self {
         CameraFormat {
@@ -340,7 +386,10 @@ impl From<MFCameraFormat> for CameraFormat {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<CameraFormat> for MFCameraFormat {
     fn from(cf: CameraFormat) -> Self {
         MFCameraFormat::new(cf.resolution.into(), cf.format.into(), cf.frame_rate)
@@ -359,9 +408,16 @@ impl From<CameraFormat> for Format {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 #[allow(clippy::cast_possible_wrap)]
 #[allow(clippy::cast_lossless)]
@@ -505,7 +561,10 @@ impl Display for CameraInfo {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
@@ -517,9 +576,16 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 #[allow(clippy::cast_possible_truncation)]
 impl From<AVCaptureDeviceDescriptor> for CameraInfo {
@@ -586,7 +652,10 @@ impl Display for KnownCameraControls {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MediaFoundationControls> for KnownCameraControls {
     fn from(mf_c: MediaFoundationControls) -> Self {
         match mf_c {
@@ -611,7 +680,10 @@ impl From<MediaFoundationControls> for KnownCameraControls {
     }
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<MFControl> for KnownCameraControls {
     fn from(mf_cc: MFControl) -> Self {
         mf_cc.control().into()

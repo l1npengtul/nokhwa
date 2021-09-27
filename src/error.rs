@@ -53,10 +53,16 @@ pub enum NokhwaError {
     NotImplementedError(String),
 }
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 use nokhwa_bindings_windows::BindingError;
 
-#[cfg(all(feature = "input-msmf", target_os = "windows"))]
+#[cfg(any(
+    all(feature = "input-msmf", target_os = "windows"),
+    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
+))]
 impl From<BindingError> for NokhwaError {
     fn from(err: BindingError) -> Self {
         match err {
@@ -95,15 +101,29 @@ impl From<BindingError> for NokhwaError {
     }
 }
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 use nokhwa_bindings_macos::AVFError;
 
-#[cfg(all(
-    feature = "input-avfoundation",
-    any(target_os = "macos", target_os = "ios")
+#[cfg(any(
+    all(
+        feature = "input-avfoundation",
+        any(target_os = "macos", target_os = "ios")
+    ),
+    all(
+        feature = "docs-only",
+        feature = "docs-nolink",
+        feature = "input-avfoundation"
+    )
 ))]
 impl From<AVFError> for NokhwaError {
     fn from(avf_error: AVFError) -> Self {

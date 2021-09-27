@@ -6,13 +6,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1.0.29"
-lazy_static = "1.4.0"
+thiserror = "1.0.26"
+flume = "0.10.9"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 core-media-sys = "0.1.2"
 cocoa-foundation = "0.1.0"
 objc = { version = "0.2.7", features = ["exception"] }
 block = "0.1.6"
-flume = "0.10.9"
 dashmap = "4.0.2"
+lazy_static = "1.4.0"

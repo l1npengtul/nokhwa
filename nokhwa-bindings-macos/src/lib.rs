@@ -14,8 +14,10 @@
 )]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-#[cfg_attr(any(target_os = "macos", target_os = "ios"), macro_use)]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[macro_use]
 extern crate objc;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate lazy_static;
 
@@ -1225,6 +1227,8 @@ pub mod avfoundation {
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
 pub mod avfoundation {
     use crate::AVFError;
+    use flume::{Receiver, Sender};
+    use std::borrow::Cow;
 
     pub type CompressionData<'a> = (Cow<'a, [u8]>, AVFourCC);
     pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
@@ -1411,11 +1415,11 @@ pub mod avfoundation {
             vec![]
         }
 
-        pub fn new(index: usize) -> Result<Self, AVFError> {
+        pub fn new(_: usize) -> Result<Self, AVFError> {
             Err(AVFError::NotSupported)
         }
 
-        pub fn from_id(id: &str) -> Result<Self, AVFError> {
+        pub fn from_id(_: &str) -> Result<Self, AVFError> {
             Err(AVFError::NotSupported)
         }
 

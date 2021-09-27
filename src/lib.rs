@@ -4,9 +4,9 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
-#![doc = include_str!("../README.md")]
-#![deny(clippy::pedantic)]
-#![warn(clippy::all)]
+
+//! # nokhwa
+//! A
 
 #[cfg(feature = "small-wasm")]
 #[global_allocator]
@@ -27,14 +27,14 @@ pub mod network_camera;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
-mod threaded_camera;
+mod threaded;
 mod utils;
 
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
 pub use init::*;
-pub use query::query_devices;
+pub use query::*;
 #[cfg(feature = "output-threaded")]
-pub use threaded_camera::ThreadedCamera;
+pub use threaded::ThreadedCamera;
 pub use utils::*;

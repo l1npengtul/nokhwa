@@ -19,7 +19,7 @@ input-avfoundation = ["nokhwa/input-avfoundation"]
 clap = "2.33.3"
 glium = "0.30.0"
 glutin = "0.27.0"
-flume = "0.10.7"
+flume = "0.10.9"
 
 # Use these as you need
 [dependencies.nokhwa]
