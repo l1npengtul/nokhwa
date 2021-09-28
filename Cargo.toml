@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -29,7 +29,7 @@ output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
 output-threaded = ["parking_lot"]
 small-wasm = ["wee_alloc"]
-docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm"]
+docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
 test-fail-warning = []
 
