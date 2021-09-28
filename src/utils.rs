@@ -926,9 +926,8 @@ impl Ord for CameraControl {
 }
 
 /// The list of known capture backends to the library. <br>
-/// **Note: Only V4L2 and UVC (and by extension AUTO) is implemented so far.**
 /// - `AUTO` is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
-/// - `AVFoundation` - Uses `AVFoundation` on Mac **Not Implemted**
+/// - `AVFoundation` - Uses `AVFoundation` on MacOSX
 /// - `V4L2` - `Video4Linux2`, a linux specific backend.
 /// - `UVC` - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
