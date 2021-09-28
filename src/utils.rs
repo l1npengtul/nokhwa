@@ -623,6 +623,7 @@ pub enum KnownCameraControls {
     Focus,
 }
 
+/// All camera controls in an array.
 #[must_use]
 pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
     [
