@@ -47,6 +47,26 @@ function takeObject(idx) {
     return ret;
 }
 
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
+let cachegetFloat64Memory0 = null;
+function getFloat64Memory0() {
+    if (cachegetFloat64Memory0 === null || cachegetFloat64Memory0.buffer !== wasm.memory.buffer) {
+        cachegetFloat64Memory0 = new Float64Array(wasm.memory.buffer);
+    }
+    return cachegetFloat64Memory0;
+}
+
+let cachegetInt32Memory0 = null;
+function getInt32Memory0() {
+    if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
+        cachegetInt32Memory0 = new Int32Array(wasm.memory.buffer);
+    }
+    return cachegetInt32Memory0;
+}
+
 let WASM_VECTOR_LEN = 0;
 
 const lTextEncoder = typeof TextEncoder === 'undefined' ? (0, module.require)('util').TextEncoder : TextEncoder;
@@ -102,18 +122,6 @@ function passStringToWasm0(arg, malloc, realloc) {
 
     WASM_VECTOR_LEN = offset;
     return ptr;
-}
-
-function isLikeNone(x) {
-    return x === undefined || x === null;
-}
-
-let cachegetInt32Memory0 = null;
-function getInt32Memory0() {
-    if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
-        cachegetInt32Memory0 = new Int32Array(wasm.memory.buffer);
-    }
-    return cachegetInt32Memory0;
 }
 
 function debugString(val) {
@@ -205,8 +213,8 @@ function makeMutClosure(arg0, arg1, dtor, f) {
 
     return real;
 }
-function __wbg_adapter_24(arg0, arg1, arg2) {
-    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hcf34bb914ec8dc3e(arg0, arg1, addHeapObject(arg2));
+function __wbg_adapter_26(arg0, arg1, arg2) {
+    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__ha79fab5af65c7d0b(arg0, arg1, addHeapObject(arg2));
 }
 
 /**
@@ -215,7 +223,7 @@ function __wbg_adapter_24(arg0, arg1, arg2) {
 * This will error if there is no valid web context or the web API is not supported
 * # JS-WASM
 * In exported JS bindings, the name of the function is `requestPermissions`. It may throw an exception.
-* @returns {Promise<any>}
+* @returns {any}
 */
 export function requestPermissions() {
     var ret = wasm.requestPermissions();
@@ -255,14 +263,6 @@ function _assertClass(instance, klass) {
     return instance.ptr;
 }
 
-let cachegetFloat64Memory0 = null;
-function getFloat64Memory0() {
-    if (cachegetFloat64Memory0 === null || cachegetFloat64Memory0.buffer !== wasm.memory.buffer) {
-        cachegetFloat64Memory0 = new Float64Array(wasm.memory.buffer);
-    }
-    return cachegetFloat64Memory0;
-}
-
 function getArrayU8FromWasm0(ptr, len) {
     return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
 }
@@ -281,8 +281,8 @@ function passArray8ToWasm0(arg, malloc) {
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
-function __wbg_adapter_204(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__h2c139c16959e39a8(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wbg_adapter_240(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__hf03b20e2f7b10743(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 /**
@@ -349,6 +349,495 @@ export class CameraConstraints {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_cameraconstraints_free(ptr);
     }
+    /**
+    * Gets the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
+    * # JS-WASM
+    * This is exported as `get_MediaStreamConstraints`.
+    * @returns {any}
+    */
+    get MediaStreamConstraints() {
+        var ret = wasm.cameraconstraints_media_constraints(this.ptr);
+        return takeObject(ret);
+    }
+    /**
+    * Gets the minimum [`Resolution`].
+    * # JS-WASM
+    * This is exported as `get_MinResolution`.
+    * @returns {Resolution | undefined}
+    */
+    get MinResolution() {
+        var ret = wasm.cameraconstraints_min_resolution(this.ptr);
+        return ret === 0 ? undefined : Resolution.__wrap(ret);
+    }
+    /**
+    * Gets the minimum [`Resolution`].
+    * # JS-WASM
+    * This is exported as `set_MinResolution`.
+    * @param {Resolution} min_resolution
+    */
+    set MinResolution(min_resolution) {
+        _assertClass(min_resolution, Resolution);
+        var ptr0 = min_resolution.ptr;
+        min_resolution.ptr = 0;
+        wasm.cameraconstraints_set_min_resolution(this.ptr, ptr0);
+    }
+    /**
+    * Gets the internal [`Resolution`]
+    * # JS-WASM
+    * This is exported as `get_Resolution`.
+    * @returns {Resolution}
+    */
+    get Resolution() {
+        var ret = wasm.cameraconstraints_resolution(this.ptr);
+        return Resolution.__wrap(ret);
+    }
+    /**
+    * Sets the internal [`Resolution`]
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_Resolution`.
+    * @param {Resolution} preferred_resolution
+    */
+    set Resolution(preferred_resolution) {
+        _assertClass(preferred_resolution, Resolution);
+        var ptr0 = preferred_resolution.ptr;
+        preferred_resolution.ptr = 0;
+        wasm.cameraconstraints_set_resolution(this.ptr, ptr0);
+    }
+    /**
+    * Gets the maximum [`Resolution`].
+    * # JS-WASM
+    * This is exported as `get_MaxResolution`.
+    * @returns {Resolution | undefined}
+    */
+    get MaxResolution() {
+        var ret = wasm.cameraconstraints_max_resolution(this.ptr);
+        return ret === 0 ? undefined : Resolution.__wrap(ret);
+    }
+    /**
+    * Gets the maximum [`Resolution`].
+    * # JS-WASM
+    * This is exported as `set_MaxResolution`.
+    * @param {Resolution} max_resolution
+    */
+    set MaxResolution(max_resolution) {
+        _assertClass(max_resolution, Resolution);
+        var ptr0 = max_resolution.ptr;
+        max_resolution.ptr = 0;
+        wasm.cameraconstraints_set_max_resolution(this.ptr, ptr0);
+    }
+    /**
+    * Gets the internal resolution exact.
+    * # JS-WASM
+    * This is exported as `get_ResolutionExact`.
+    * @returns {boolean}
+    */
+    get ResolutionExact() {
+        var ret = wasm.cameraconstraints_resolution_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal resolution exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_ResolutionExact`.
+    * @param {boolean} resolution_exact
+    */
+    set ResolutionExact(resolution_exact) {
+        wasm.cameraconstraints_set_resolution_exact(this.ptr, resolution_exact);
+    }
+    /**
+    * Gets the minimum aspect ratio of the [`JSCameraConstraints`].
+    * # JS-WASM
+    * This is exported as `get_MinAspectRatio`.
+    * @returns {number | undefined}
+    */
+    get MinAspectRatio() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_min_aspect_ratio(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getFloat64Memory0()[retptr / 8 + 1];
+            return r0 === 0 ? undefined : r1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * Sets the minimum aspect ratio of the [`JSCameraConstraints`].
+    * # JS-WASM
+    * This is exported as `set_MinAspectRatio`.
+    * @param {number} min_aspect_ratio
+    */
+    set MinAspectRatio(min_aspect_ratio) {
+        wasm.cameraconstraints_set_min_aspect_ratio(this.ptr, min_aspect_ratio);
+    }
+    /**
+    * Gets the internal aspect ratio.
+    * # JS-WASM
+    * This is exported as `get_AspectRatio`.
+    * @returns {number}
+    */
+    get AspectRatio() {
+        var ret = wasm.cameraconstraints_aspect_ratio(this.ptr);
+        return ret;
+    }
+    /**
+    * Sets the internal aspect ratio.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_AspectRatio`.
+    * @param {number} aspect_ratio
+    */
+    set AspectRatio(aspect_ratio) {
+        wasm.cameraconstraints_set_aspect_ratio(this.ptr, aspect_ratio);
+    }
+    /**
+    * Gets the maximum aspect ratio.
+    * # JS-WASM
+    * This is exported as `get_MaxAspectRatio`.
+    * @returns {number | undefined}
+    */
+    get MaxAspectRatio() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_max_aspect_ratio(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getFloat64Memory0()[retptr / 8 + 1];
+            return r0 === 0 ? undefined : r1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * Sets the maximum internal aspect ratio.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_MaxAspectRatio`.
+    * @param {number} max_aspect_ratio
+    */
+    set MaxAspectRatio(max_aspect_ratio) {
+        wasm.cameraconstraints_set_max_aspect_ratio(this.ptr, max_aspect_ratio);
+    }
+    /**
+    * Gets the internal aspect ratio exact.
+    * # JS-WASM
+    * This is exported as `get_AspectRatioExact`.
+    * @returns {boolean}
+    */
+    get AspectRatioExact() {
+        var ret = wasm.cameraconstraints_aspect_ratio_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal aspect ratio exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_AspectRatioExact`.
+    * @param {boolean} aspect_ratio_exact
+    */
+    set AspectRatioExact(aspect_ratio_exact) {
+        wasm.cameraconstraints_set_aspect_ratio_exact(this.ptr, aspect_ratio_exact);
+    }
+    /**
+    * Gets the internal [`JSCameraFacingMode`].
+    * # JS-WASM
+    * This is exported as `get_FacingMode`.
+    * @returns {number}
+    */
+    get FacingMode() {
+        var ret = wasm.cameraconstraints_facing_mode(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Sets the internal [`JSCameraFacingMode`]
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_FacingMode`.
+    * @param {number} facing_mode
+    */
+    set FacingMode(facing_mode) {
+        wasm.cameraconstraints_set_facing_mode(this.ptr, facing_mode);
+    }
+    /**
+    * Gets the internal facing mode exact.
+    * # JS-WASM
+    * This is exported as `get_FacingModeExact`.
+    * @returns {boolean}
+    */
+    get FacingModeExact() {
+        var ret = wasm.cameraconstraints_facing_mode_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal facing mode exact
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_FacingModeExact`.
+    * @param {boolean} facing_mode_exact
+    */
+    set FacingModeExact(facing_mode_exact) {
+        wasm.cameraconstraints_set_facing_mode_exact(this.ptr, facing_mode_exact);
+    }
+    /**
+    * Gets the minimum internal frame rate.
+    * # JS-WASM
+    * This is exported as `get_MinFrameRate`.
+    * @returns {number | undefined}
+    */
+    get MinFrameRate() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_min_frame_rate(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return r0 === 0 ? undefined : r1 >>> 0;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * Sets the minimum internal frame rate
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_MinFrameRate`.
+    * @param {number} min_frame_rate
+    */
+    set MinFrameRate(min_frame_rate) {
+        wasm.cameraconstraints_set_min_frame_rate(this.ptr, min_frame_rate);
+    }
+    /**
+    * Gets the internal frame rate.
+    * # JS-WASM
+    * This is exported as `get_FrameRate`.
+    * @returns {number}
+    */
+    get FrameRate() {
+        var ret = wasm.cameraconstraints_frame_rate(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Sets the internal frame rate
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_FrameRate`.
+    * @param {number} frame_rate
+    */
+    set FrameRate(frame_rate) {
+        wasm.cameraconstraints_set_frame_rate(this.ptr, frame_rate);
+    }
+    /**
+    * Gets the maximum internal frame rate.
+    * # JS-WASM
+    * This is exported as `get_MaxFrameRate`.
+    * @returns {number | undefined}
+    */
+    get MaxFrameRate() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_max_frame_rate(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return r0 === 0 ? undefined : r1 >>> 0;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * Sets the maximum internal frame rate
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_MaxFrameRate`.
+    * @param {number} max_frame_rate
+    */
+    set MaxFrameRate(max_frame_rate) {
+        wasm.cameraconstraints_set_max_frame_rate(this.ptr, max_frame_rate);
+    }
+    /**
+    * Gets the internal frame rate exact.
+    * # JS-WASM
+    * This is exported as `get_FrameRateExact`.
+    * @returns {boolean}
+    */
+    get FrameRateExact() {
+        var ret = wasm.cameraconstraints_frame_rate_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal frame rate exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_FrameRateExact`.
+    * @param {boolean} frame_rate_exact
+    */
+    set FrameRateExact(frame_rate_exact) {
+        wasm.cameraconstraints_set_frame_rate_exact(this.ptr, frame_rate_exact);
+    }
+    /**
+    * Gets the internal [`JSCameraResizeMode`].
+    * # JS-WASM
+    * This is exported as `get_ResizeMode`.
+    * @returns {number}
+    */
+    get ResizeMode() {
+        var ret = wasm.cameraconstraints_resize_mode(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Sets the internal [`JSCameraResizeMode`]
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_ResizeMode`.
+    * @param {number} resize_mode
+    */
+    set ResizeMode(resize_mode) {
+        wasm.cameraconstraints_set_resize_mode(this.ptr, resize_mode);
+    }
+    /**
+    * Gets the internal resize mode exact.
+    * # JS-WASM
+    * This is exported as `get_ResizeModeExact`.
+    * @returns {boolean}
+    */
+    get ResizeModeExact() {
+        var ret = wasm.cameraconstraints_resize_mode_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal resize mode exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_ResizeModeExact`.
+    * @param {boolean} resize_mode_exact
+    */
+    set ResizeModeExact(resize_mode_exact) {
+        wasm.cameraconstraints_set_resize_mode_exact(this.ptr, resize_mode_exact);
+    }
+    /**
+    * Gets the internal device id.
+    * # JS-WASM
+    * This is exported as `get_DeviceId`.
+    * @returns {string}
+    */
+    get DeviceId() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_device_id(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
+    /**
+    * Sets the internal device ID.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_DeviceId`.
+    * @param {string} device_id
+    */
+    set DeviceId(device_id) {
+        var ptr0 = passStringToWasm0(device_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.cameraconstraints_set_device_id(this.ptr, ptr0, len0);
+    }
+    /**
+    * Gets the internal device id exact.
+    * # JS-WASM
+    * This is exported as `get_DeviceIdExact`.
+    * @returns {boolean}
+    */
+    get DeviceIdExact() {
+        var ret = wasm.cameraconstraints_device_id_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal device ID exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_DeviceIdExact`.
+    * @param {boolean} device_id_exact
+    */
+    set DeviceIdExact(device_id_exact) {
+        wasm.cameraconstraints_set_device_id_exact(this.ptr, device_id_exact);
+    }
+    /**
+    * Gets the internal group id.
+    * # JS-WASM
+    * This is exported as `get_GroupId`.
+    * @returns {string}
+    */
+    get GroupId() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.cameraconstraints_group_id(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
+    /**
+    * Sets the internal group ID.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_GroupId`.
+    * @param {string} group_id
+    */
+    set GroupId(group_id) {
+        var ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.cameraconstraints_set_group_id(this.ptr, ptr0, len0);
+    }
+    /**
+    * Gets the internal group id exact.
+    * # JS-WASM
+    * This is exported as `get_GroupIdExact`.
+    * @returns {boolean}
+    */
+    get GroupIdExact() {
+        var ret = wasm.cameraconstraints_group_id_exact(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Sets the internal group ID exact.
+    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
+    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
+    * # JS-WASM
+    * This is exported as `set_GroupIdExact`.
+    * @param {boolean} group_id_exact
+    */
+    set GroupIdExact(group_id_exact) {
+        wasm.cameraconstraints_set_group_id_exact(this.ptr, group_id_exact);
+    }
+    /**
+    * Applies any modified constraints.
+    * # JS-WASM
+    * This is exported as `applyConstraints`.
+    */
+    applyConstraints() {
+        wasm.cameraconstraints_applyConstraints(this.ptr);
+    }
 }
 /**
 * A builder that builds a [`JSCameraConstraints`] that is used to construct a [`JSCamera`].
@@ -375,6 +864,316 @@ export class CameraConstraintsBuilder {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_cameraconstraintsbuilder_free(ptr);
+    }
+    /**
+    * Constructs a default [`JSCameraConstraintsBuilder`].
+    * The constructed default [`JSCameraConstraintsBuilder`] has these settings:
+    * - 480x234 min, 640x360 ideal, 1920x1080 max
+    * - 10 FPS min, 15 FPS ideal, 30 FPS max
+    * - 1.0 aspect ratio min, 1.77777777778 aspect ratio ideal, 2.0 aspect ratio max
+    * - No `exact`s
+    * # JS-WASM
+    * This is exported as a constructor.
+    */
+    constructor() {
+        var ret = wasm.cameraconstraintsbuilder_new();
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the minimum resolution for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    * # JS-WASM
+    * This is exported as `set_MinResolution`.
+    * @param {Resolution} min_resolution
+    * @returns {CameraConstraintsBuilder}
+    */
+    MinResolution(min_resolution) {
+        const ptr = this.__destroy_into_raw();
+        _assertClass(min_resolution, Resolution);
+        var ptr0 = min_resolution.ptr;
+        min_resolution.ptr = 0;
+        var ret = wasm.cameraconstraintsbuilder_MaxResolution(ptr, ptr0);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the preferred resolution for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    * # JS-WASM
+    * This is exported as `set_Resolution`.
+    * @param {Resolution} new_resolution
+    * @returns {CameraConstraintsBuilder}
+    */
+    Resolution(new_resolution) {
+        const ptr = this.__destroy_into_raw();
+        _assertClass(new_resolution, Resolution);
+        var ptr0 = new_resolution.ptr;
+        new_resolution.ptr = 0;
+        var ret = wasm.cameraconstraintsbuilder_Resolution(ptr, ptr0);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
+    * # JS-WASM
+    * This is exported as `set_MaxResolution`.
+    * @param {Resolution} max_resolution
+    * @returns {CameraConstraintsBuilder}
+    */
+    MaxResolution(max_resolution) {
+        const ptr = this.__destroy_into_raw();
+        _assertClass(max_resolution, Resolution);
+        var ptr0 = max_resolution.ptr;
+        max_resolution.ptr = 0;
+        var ret = wasm.cameraconstraintsbuilder_MaxResolution(ptr, ptr0);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the resolution fields ([`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width), [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height)/[`resolution`](crate::js_camera::JSCameraConstraintsBuilder::resolution))
+    * should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * Note that this will make the builder ignore [`min_resolution`](crate::js_camera::JSCameraConstraintsBuilder::min_resolution) and [`max_resolution`](crate::js_camera::JSCameraConstraintsBuilder::max_resolution).
+    * # JS-WASM
+    * This is exported as `set_ResolutionExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    ResolutionExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_ResolutionExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the minimum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    * # JS-WASM
+    * This is exported as `set_MinAspectRatio`.
+    * @param {number} ratio
+    * @returns {CameraConstraintsBuilder}
+    */
+    MinAspectRatio(ratio) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_MinAspectRatio(ptr, ratio);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    * # JS-WASM
+    * This is exported as `set_AspectRatio`.
+    * @param {number} ratio
+    * @returns {CameraConstraintsBuilder}
+    */
+    AspectRatio(ratio) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_AspectRatio(ptr, ratio);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the maximum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
+    * # JS-WASM
+    * This is exported as `set_MaxAspectRatio`.
+    * @param {number} ratio
+    * @returns {CameraConstraintsBuilder}
+    */
+    MaxAspectRatio(ratio) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_MaxAspectRatio(ptr, ratio);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * Note that this will make the builder ignore [`min_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::min_aspect_ratio) and [`max_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::max_aspect_ratio).
+    * # JS-WASM
+    * This is exported as `set_AspectRatioExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    AspectRatioExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_AspectRatioExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the facing mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode).
+    * # JS-WASM
+    * This is exported as `set_FacingMode`.
+    * @param {number} facing_mode
+    * @returns {CameraConstraintsBuilder}
+    */
+    FacingMode(facing_mode) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_FacingMode(ptr, facing_mode);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`facing_mode`](crate::js_camera::JSCameraConstraintsBuilder::facing_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * # JS-WASM
+    * This is exported as `set_FacingModeExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    FacingModeExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_FacingModeExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the minimum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    * # JS-WASM
+    * This is exported as `set_MinFrameRate`.
+    * @param {number} fps
+    * @returns {CameraConstraintsBuilder}
+    */
+    MinFrameRate(fps) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_MinFrameRate(ptr, fps);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    * # JS-WASM
+    * This is exported as `set_FrameRate`.
+    * @param {number} fps
+    * @returns {CameraConstraintsBuilder}
+    */
+    FrameRate(fps) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_FrameRate(ptr, fps);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the maximum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
+    * # JS-WASM
+    * This is exported as `set_MaxFrameRate`.
+    * @param {number} fps
+    * @returns {CameraConstraintsBuilder}
+    */
+    MaxFrameRate(fps) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_MaxFrameRate(ptr, fps);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * Note that this will make the builder ignore [`min_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::min_frame_rate) and [`max_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::max_frame_rate).
+    * # JS-WASM
+    * This is exported as `set_FrameRateExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    FrameRateExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_FrameRateExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the resize mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode).
+    * # JS-WASM
+    * This is exported as `set_ResizeMode`.
+    * @param {number} resize_mode
+    * @returns {CameraConstraintsBuilder}
+    */
+    ResizeMode(resize_mode) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_ResizeMode(ptr, resize_mode);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`resize_mode`](crate::js_camera::JSCameraConstraintsBuilder::resize_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * # JS-WASM
+    * This is exported as `set_ResizeModeExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    ResizeModeExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_ResizeModeExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the device ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`deviceId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
+    * # JS-WASM
+    * This is exported as `set_DeviceId`.
+    * @param {string} id
+    * @returns {CameraConstraintsBuilder}
+    */
+    DeviceId(id) {
+        const ptr = this.__destroy_into_raw();
+        var ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ret = wasm.cameraconstraintsbuilder_DeviceId(ptr, ptr0, len0);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * # JS-WASM
+    * This is exported as `set_DeviceIdExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    DeviceIdExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_DeviceIdExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets the group ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
+    *
+    * Sets [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId).
+    * # JS-WASM
+    * This is exported as `set_GroupId`.
+    * @param {string} id
+    * @returns {CameraConstraintsBuilder}
+    */
+    GroupId(id) {
+        const ptr = this.__destroy_into_raw();
+        var ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ret = wasm.cameraconstraintsbuilder_GroupId(ptr, ptr0, len0);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Sets whether the [`group_id`](crate::js_camera::JSCameraConstraintsBuilder::group_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
+    * # JS-WASM
+    * This is exported as `set_GroupIdExact`.
+    * @param {boolean} value
+    * @returns {CameraConstraintsBuilder}
+    */
+    GroupIdExact(value) {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_GroupIdExact(ptr, value);
+        return CameraConstraintsBuilder.__wrap(ret);
+    }
+    /**
+    * Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
+    *
+    * Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
+    * # JS-WASM
+    * This is exported as `buildCameraConstraints`.
+    * @returns {CameraConstraints}
+    */
+    buildCameraConstraints() {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.cameraconstraintsbuilder_buildCameraConstraints(ptr);
+        return CameraConstraints.__wrap(ret);
     }
 }
 /**
@@ -432,7 +1231,7 @@ export class CameraInfo {
     get HumanReadableName() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_HumanReadableName(retptr, this.ptr);
+            wasm.camerainfo_human_name(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -450,7 +1249,7 @@ export class CameraInfo {
     set HumanReadableName(human_name) {
         var ptr0 = passStringToWasm0(human_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_HumanReadableName(this.ptr, ptr0, len0);
+        wasm.camerainfo_set_human_name(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's description.
@@ -461,7 +1260,7 @@ export class CameraInfo {
     get Description() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_Description(retptr, this.ptr);
+            wasm.camerainfo_description(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -479,7 +1278,7 @@ export class CameraInfo {
     set Description(description) {
         var ptr0 = passStringToWasm0(description, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_Description(this.ptr, ptr0, len0);
+        wasm.camerainfo_set_description(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's misc.
@@ -490,7 +1289,7 @@ export class CameraInfo {
     get MiscString() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_MiscString(retptr, this.ptr);
+            wasm.camerainfo_misc(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -508,7 +1307,7 @@ export class CameraInfo {
     set MiscString(misc) {
         var ptr0 = passStringToWasm0(misc, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_MiscString(this.ptr, ptr0, len0);
+        wasm.camerainfo_set_misc(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's index.
@@ -517,7 +1316,7 @@ export class CameraInfo {
     * @returns {number}
     */
     get Index() {
-        var ret = wasm.camerainfo_Index(this.ptr);
+        var ret = wasm.camerainfo_index(this.ptr);
         return ret >>> 0;
     }
     /**
@@ -527,11 +1326,22 @@ export class CameraInfo {
     * @param {number} index
     */
     set Index(index) {
-        wasm.camerainfo_set_Index(this.ptr, index);
+        wasm.camerainfo_set_index(this.ptr, index);
     }
 }
+/**
+* A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
+* # JS-WASM
+* This is exported as `NokhwaCamera`.
+*/
+export class NokhwaCamera {
 
-export class JSCamera {
+    static __wrap(ptr) {
+        const obj = Object.create(NokhwaCamera.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
 
     __destroy_into_raw() {
         const ptr = this.ptr;
@@ -542,7 +1352,7 @@ export class JSCamera {
 
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_jscamera_free(ptr);
+        wasm.__wbg_nokhwacamera_free(ptr);
     }
     /**
     * Creates a new [`JSCamera`] using [`JSCameraConstraints`].
@@ -550,14 +1360,14 @@ export class JSCamera {
     * # Errors
     * This may error if permission is not granted, or the constraints are invalid.
     * # JS-WASM
-    * This is the constructor for `NOKCamera`. It returns a promise and may throw an error.
+    * This is the constructor for `NokhwaCamera`. It returns a promise and may throw an error.
     * @param {CameraConstraints} constraints
     */
     constructor(constraints) {
         _assertClass(constraints, CameraConstraints);
         var ptr0 = constraints.ptr;
         constraints.ptr = 0;
-        var ret = wasm.jscamera_js_new(ptr0);
+        var ret = wasm.nokhwacamera_js_new(ptr0);
         return takeObject(ret);
     }
     /**
@@ -568,11 +1378,11 @@ export class JSCamera {
     * @returns {CameraConstraints}
     */
     get Constraints() {
-        var ret = wasm.jscamera_Constraints(this.ptr);
+        var ret = wasm.nokhwacamera_constraints(this.ptr);
         return CameraConstraints.__wrap(ret);
     }
     /**
-    * Sets the JSCameraConstraints. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
+    * Sets the [`JSCameraConstraints`]. This calls [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints) internally.
     *
     * # Errors
     * See [`apply_constraints`](crate::js_camera::JSCamera::apply_constraints).
@@ -584,7 +1394,7 @@ export class JSCamera {
         _assertClass(constraints, CameraConstraints);
         var ptr0 = constraints.ptr;
         constraints.ptr = 0;
-        wasm.jscamera_set_Constraints(this.ptr, ptr0);
+        wasm.nokhwacamera_js_set_constraints(this.ptr, ptr0);
     }
     /**
     * Gets the internal [`Resolution`].
@@ -595,7 +1405,7 @@ export class JSCamera {
     * @returns {Resolution}
     */
     get Resolution() {
-        var ret = wasm.jscamera_Resolution(this.ptr);
+        var ret = wasm.nokhwacamera_resolution(this.ptr);
         return Resolution.__wrap(ret);
     }
     /**
@@ -608,23 +1418,17 @@ export class JSCamera {
     * This is exported as `measureResolution`. It may throw an error.
     */
     measureResolution() {
-        wasm.jscamera_measureResolution(this.ptr);
+        wasm.nokhwacamera_measureResolution(this.ptr);
     }
     /**
     * Applies any modified constraints.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly)
-    *
     * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
+    * This function may return an error on failing to measure the resolution. Please check [`measure_resolution()`](crate::js_camera::JSCamera::measure_resolution) for details.
     * # JS-WASM
     * This is exported as `applyConstraints`. It may throw an error.
     */
     applyConstraints() {
-        wasm.jscamera_applyConstraints(this.ptr);
+        wasm.nokhwacamera_applyConstraints(this.ptr);
     }
     /**
     * Gets the internal [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html) [`MDN`](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
@@ -633,7 +1437,7 @@ export class JSCamera {
     * @returns {MediaStream}
     */
     get MediaStream() {
-        var ret = wasm.jscamera_MediaStream(this.ptr);
+        var ret = wasm.nokhwacamera_media_stream(this.ptr);
         return takeObject(ret);
     }
     /**
@@ -646,7 +1450,7 @@ export class JSCamera {
     * @returns {ImageData}
     */
     captureImageData() {
-        var ret = wasm.jscamera_captureImageData(this.ptr);
+        var ret = wasm.nokhwacamera_captureImageData(this.ptr);
         return takeObject(ret);
     }
     /**
@@ -667,7 +1471,7 @@ export class JSCamera {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             var ptr0 = passStringToWasm0(mime_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             var len0 = WASM_VECTOR_LEN;
-            wasm.jscamera_captureImageURI(retptr, this.ptr, ptr0, len0, image_quality);
+            wasm.nokhwacamera_captureImageURI(retptr, this.ptr, ptr0, len0, image_quality);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -687,7 +1491,7 @@ export class JSCamera {
     captureFrameRawData() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscamera_captureFrameRawData(retptr, this.ptr);
+            wasm.nokhwacamera_captureFrameRawData(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             var v0 = getArrayU8FromWasm0(r0, r1).slice();
@@ -698,19 +1502,36 @@ export class JSCamera {
         }
     }
     /**
-    * Attaches camera to a `element`(by-id).
-    * - `generate_new`: Whether to add a video element to provided element to attach to. Set this to `false` if the `element` ID you are passing is already a `<video>` element.
+    * Copies camera frame to a `html_id`(by-id, canvas).
+    *
+    * If `generate_new` is true, the generated element will have an Id of `html_id`+`-canvas`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<canvas>`'s ID will be "nokhwaisbest-canvas".
+    * # Errors
+    * If the internal canvas is not here, drawing fails, or a cast fails, this will error.
+    * # JS-WASM
+    * This is exported as `copyToCanvas`. It may error.
+    * @param {string} html_id
+    * @param {boolean} generate_new
+    */
+    copyToCanvas(html_id, generate_new) {
+        var ptr0 = passStringToWasm0(html_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.nokhwacamera_copyToCanvas(this.ptr, ptr0, len0, generate_new);
+    }
+    /**
+    * Attaches camera to a `html_id`(by-id).
+    *
+    * If `generate_new` is true, the generated element will have an Id of `html_id`+`-video`. For example, if you pass "nokhwaisbest" for `html_id`, the new `<video>`'s ID will be "nokhwaisbest-video".
     * # Errors
     * If the camera fails to attach, fails to generate the video element, or a cast fails, this will error.
     * # JS-WASM
     * This is exported as `attachToElement`. It may throw an error.
-    * @param {string} element
+    * @param {string} html_id
     * @param {boolean} generate_new
     */
-    attachToElement(element, generate_new) {
-        var ptr0 = passStringToWasm0(element, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    attachToElement(html_id, generate_new) {
+        var ptr0 = passStringToWasm0(html_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.jscamera_attachToElement(this.ptr, ptr0, len0, generate_new);
+        wasm.nokhwacamera_attachToElement(this.ptr, ptr0, len0, generate_new);
     }
     /**
     * Detaches the camera from the `<video>` node.
@@ -720,878 +1541,15 @@ export class JSCamera {
     * This is exported as `detachCamera`. This may throw an error.
     */
     detachCamera() {
-        wasm.jscamera_detachCamera(this.ptr);
-    }
-}
-
-export class JSCameraConstraints {
-
-    __destroy_into_raw() {
-        const ptr = this.ptr;
-        this.ptr = 0;
-
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_jscameraconstraints_free(ptr);
+        wasm.nokhwacamera_detachCamera(this.ptr);
     }
     /**
-    * Gets the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
-    * # JS-WASM
-    * This is exported as `get_MediaStreamConstraints`.
-    * @returns {any}
-    */
-    get MediaStreamConstraints() {
-        var ret = wasm.jscameraconstraints_MediaStreamConstraints(this.ptr);
-        return takeObject(ret);
-    }
-    /**
-    * Gets the minimum [`Resolution`].
-    * # JS-WASM
-    * This is exported as `get_MinResolution`.
-    * @returns {Resolution | undefined}
-    */
-    get MinResolution() {
-        var ret = wasm.jscameraconstraints_MinResolution(this.ptr);
-        return ret === 0 ? undefined : Resolution.__wrap(ret);
-    }
-    /**
-    * Gets the minimum [`Resolution`].
-    * # JS-WASM
-    * This is exported as `set_MinResolution`.
-    * @param {Resolution} min_resolution
-    */
-    set MinResolution(min_resolution) {
-        _assertClass(min_resolution, Resolution);
-        var ptr0 = min_resolution.ptr;
-        min_resolution.ptr = 0;
-        wasm.jscameraconstraints_set_MinResolution(this.ptr, ptr0);
-    }
-    /**
-    * Gets the internal [`Resolution`]
-    * # JS-WASM
-    * This is exported as `get_Resolution`.
-    * @returns {Resolution}
-    */
-    get Resolution() {
-        var ret = wasm.jscameraconstraints_Resolution(this.ptr);
-        return Resolution.__wrap(ret);
-    }
-    /**
-    * Sets the internal [`Resolution`]
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_Resolution`.
-    * @param {Resolution} preferred_resolution
-    */
-    set Resolution(preferred_resolution) {
-        _assertClass(preferred_resolution, Resolution);
-        var ptr0 = preferred_resolution.ptr;
-        preferred_resolution.ptr = 0;
-        wasm.jscameraconstraints_set_Resolution(this.ptr, ptr0);
-    }
-    /**
-    * Gets the maximum [`Resolution`].
-    * # JS-WASM
-    * This is exported as `get_MaxResolution`.
-    * @returns {Resolution | undefined}
-    */
-    get MaxResolution() {
-        var ret = wasm.jscameraconstraints_MaxResolution(this.ptr);
-        return ret === 0 ? undefined : Resolution.__wrap(ret);
-    }
-    /**
-    * Gets the maximum [`Resolution`].
-    * # JS-WASM
-    * This is exported as `set_MaxResolution`.
-    * @param {Resolution} max_resolution
-    */
-    set MaxResolution(max_resolution) {
-        _assertClass(max_resolution, Resolution);
-        var ptr0 = max_resolution.ptr;
-        max_resolution.ptr = 0;
-        wasm.jscameraconstraints_set_MaxResolution(this.ptr, ptr0);
-    }
-    /**
-    * Gets the internal resolution exact.
-    * # JS-WASM
-    * This is exported as `get_ResolutionExact`.
-    * @returns {boolean}
-    */
-    get ResolutionExact() {
-        var ret = wasm.jscameraconstraints_ResolutionExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal resolution exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_ResolutionExact`.
-    * @param {boolean} resolution_exact
-    */
-    set ResolutionExact(resolution_exact) {
-        wasm.jscameraconstraints_set_ResolutionExact(this.ptr, resolution_exact);
-    }
-    /**
-    * Gets the minimum aspect ratio of the [`JSCameraConstraints`].
-    * # JS-WASM
-    * This is exported as `get_MinAspectRatio`.
-    * @returns {number | undefined}
-    */
-    get MinAspectRatio() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_MinAspectRatio(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getFloat64Memory0()[retptr / 8 + 1];
-            return r0 === 0 ? undefined : r1;
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-        }
-    }
-    /**
-    * Sets the minimum aspect ratio of the [`JSCameraConstraints`].
-    * # JS-WASM
-    * This is exported as `set_MinAspectRatio`.
-    * @param {number} min_aspect_ratio
-    */
-    set MinAspectRatio(min_aspect_ratio) {
-        wasm.jscameraconstraints_set_MinAspectRatio(this.ptr, min_aspect_ratio);
-    }
-    /**
-    * Gets the internal aspect ratio.
-    * # JS-WASM
-    * This is exported as `get_AspectRatio`.
-    * @returns {number}
-    */
-    get AspectRatio() {
-        var ret = wasm.jscameraconstraints_AspectRatio(this.ptr);
-        return ret;
-    }
-    /**
-    * Sets the internal aspect ratio.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_AspectRatio`.
-    * @param {number} aspect_ratio
-    */
-    set AspectRatio(aspect_ratio) {
-        wasm.jscameraconstraints_set_AspectRatio(this.ptr, aspect_ratio);
-    }
-    /**
-    * Gets the maximum aspect ratio.
-    * # JS-WASM
-    * This is exported as `get_MaxAspectRatio`.
-    * @returns {number | undefined}
-    */
-    get MaxAspectRatio() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_MaxAspectRatio(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getFloat64Memory0()[retptr / 8 + 1];
-            return r0 === 0 ? undefined : r1;
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-        }
-    }
-    /**
-    * Sets the maximum internal aspect ratio.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_MaxAspectRatio`.
-    * @param {number} max_aspect_ratio
-    */
-    set MaxAspectRatio(max_aspect_ratio) {
-        wasm.jscameraconstraints_set_MaxAspectRatio(this.ptr, max_aspect_ratio);
-    }
-    /**
-    * Gets the internal aspect ratio exact.
-    * # JS-WASM
-    * This is exported as `get_AspectRatioExact`.
-    * @returns {boolean}
-    */
-    get AspectRatioExact() {
-        var ret = wasm.jscameraconstraints_AspectRatioExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal aspect ratio exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_AspectRatioExact`.
-    * @param {boolean} aspect_ratio_exact
-    */
-    set AspectRatioExact(aspect_ratio_exact) {
-        wasm.jscameraconstraints_set_AspectRatioExact(this.ptr, aspect_ratio_exact);
-    }
-    /**
-    * Gets the internal [`JSCameraFacingMode`].
-    * # JS-WASM
-    * This is exported as `get_FacingMode`.
-    * @returns {number}
-    */
-    get FacingMode() {
-        var ret = wasm.jscameraconstraints_FacingMode(this.ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Sets the internal [`JSCameraFacingMode`]
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_FacingMode`.
-    * @param {number} facing_mode
-    */
-    set FacingMode(facing_mode) {
-        wasm.jscameraconstraints_set_FacingMode(this.ptr, facing_mode);
-    }
-    /**
-    * Gets the internal facing mode exact.
-    * # JS-WASM
-    * This is exported as `get_FacingModeExact`.
-    * @returns {boolean}
-    */
-    get FacingModeExact() {
-        var ret = wasm.jscameraconstraints_FacingModeExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal facing mode exact
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_FacingModeExact`.
-    * @param {boolean} facing_mode_exact
-    */
-    set FacingModeExact(facing_mode_exact) {
-        wasm.jscameraconstraints_set_FacingModeExact(this.ptr, facing_mode_exact);
-    }
-    /**
-    * Gets the minimum internal frame rate.
-    * # JS-WASM
-    * This is exported as `get_MinFrameRate`.
-    * @returns {number | undefined}
-    */
-    get MinFrameRate() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_MinFrameRate(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return r0 === 0 ? undefined : r1 >>> 0;
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-        }
-    }
-    /**
-    * Sets the minimum internal frame rate
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_MinFrameRate`.
-    * @param {number} min_frame_rate
-    */
-    set MinFrameRate(min_frame_rate) {
-        wasm.jscameraconstraints_set_MinFrameRate(this.ptr, min_frame_rate);
-    }
-    /**
-    * Gets the internal frame rate.
-    * # JS-WASM
-    * This is exported as `get_FrameRate`.
-    * @returns {number}
-    */
-    get FrameRate() {
-        var ret = wasm.jscameraconstraints_FrameRate(this.ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Sets the internal frame rate
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_FrameRate`.
-    * @param {number} frame_rate
-    */
-    set FrameRate(frame_rate) {
-        wasm.jscameraconstraints_set_FrameRate(this.ptr, frame_rate);
-    }
-    /**
-    * Gets the maximum internal frame rate.
-    * # JS-WASM
-    * This is exported as `get_MaxFrameRate`.
-    * @returns {number | undefined}
-    */
-    get MaxFrameRate() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_MaxFrameRate(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return r0 === 0 ? undefined : r1 >>> 0;
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-        }
-    }
-    /**
-    * Sets the maximum internal frame rate
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_MaxFrameRate`.
-    * @param {number} max_frame_rate
-    */
-    set MaxFrameRate(max_frame_rate) {
-        wasm.jscameraconstraints_set_MaxFrameRate(this.ptr, max_frame_rate);
-    }
-    /**
-    * Gets the internal frame rate exact.
-    * # JS-WASM
-    * This is exported as `get_FrameRateExact`.
-    * @returns {boolean}
-    */
-    get FrameRateExact() {
-        var ret = wasm.jscameraconstraints_FrameRateExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal frame rate exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_FrameRateExact`.
-    * @param {boolean} frame_rate_exact
-    */
-    set FrameRateExact(frame_rate_exact) {
-        wasm.jscameraconstraints_set_FrameRateExact(this.ptr, frame_rate_exact);
-    }
-    /**
-    * Gets the internal [`JSCameraResizeMode`].
-    * # JS-WASM
-    * This is exported as `get_ResizeMode`.
-    * @returns {number}
-    */
-    get ResizeMode() {
-        var ret = wasm.jscameraconstraints_ResizeMode(this.ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Sets the internal [`JSCameraResizeMode`]
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_ResizeMode`.
-    * @param {number} resize_mode
-    */
-    set ResizeMode(resize_mode) {
-        wasm.jscameraconstraints_set_ResizeMode(this.ptr, resize_mode);
-    }
-    /**
-    * Gets the internal resize mode exact.
-    * # JS-WASM
-    * This is exported as `get_ResizeModeExact`.
-    * @returns {boolean}
-    */
-    get ResizeModeExact() {
-        var ret = wasm.jscameraconstraints_ResizeModeExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal resize mode exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_ResizeModeExact`.
-    * @param {boolean} resize_mode_exact
-    */
-    set ResizeModeExact(resize_mode_exact) {
-        wasm.jscameraconstraints_set_ResizeModeExact(this.ptr, resize_mode_exact);
-    }
-    /**
-    * Gets the internal device id.
-    * # JS-WASM
-    * This is exported as `get_DeviceId`.
-    * @returns {string}
-    */
-    get DeviceId() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_DeviceId(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return getStringFromWasm0(r0, r1);
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_free(r0, r1);
-        }
-    }
-    /**
-    * Sets the internal device ID.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_DeviceId`.
-    * @param {string} device_id
-    */
-    set DeviceId(device_id) {
-        var ptr0 = passStringToWasm0(device_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        wasm.jscameraconstraints_set_DeviceId(this.ptr, ptr0, len0);
-    }
-    /**
-    * Gets the internal device id exact.
-    * # JS-WASM
-    * This is exported as `get_DeviceIdExact`.
-    * @returns {boolean}
-    */
-    get DeviceIdExact() {
-        var ret = wasm.jscameraconstraints_DeviceIdExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal device ID exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_DeviceIdExact`.
-    * @param {boolean} device_id_exact
-    */
-    set DeviceIdExact(device_id_exact) {
-        wasm.jscameraconstraints_set_DeviceIdExact(this.ptr, device_id_exact);
-    }
-    /**
-    * Gets the internal group id.
-    * # JS-WASM
-    * This is exported as `get_GroupId`.
-    * @returns {string}
-    */
-    get GroupId() {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.jscameraconstraints_GroupId(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return getStringFromWasm0(r0, r1);
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_free(r0, r1);
-        }
-    }
-    /**
-    * Sets the internal group ID.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_GroupId`.
-    * @param {string} group_id
-    */
-    set GroupId(group_id) {
-        var ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        wasm.jscameraconstraints_set_GroupId(this.ptr, ptr0, len0);
-    }
-    /**
-    * Gets the internal group id exact.
-    * # JS-WASM
-    * This is exported as `get_GroupIdExact`.
-    * @returns {boolean}
-    */
-    get GroupIdExact() {
-        var ret = wasm.jscameraconstraints_GroupIdExact(this.ptr);
-        return ret !== 0;
-    }
-    /**
-    * Sets the internal group ID exact.
-    * Note that this doesn't affect the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html) until you call
-    * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
-    * # JS-WASM
-    * This is exported as `set_GroupIdExact`.
-    * @param {boolean} group_id_exact
-    */
-    set GroupIdExact(group_id_exact) {
-        wasm.jscameraconstraints_set_GroupIdExact(this.ptr, group_id_exact);
-    }
-    /**
-    * Applies any modified constraints.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly)
-    *
+    * Stops all streams and detaches the camera.
     * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
-    * # JS-WASM
-    * This is exported as `applyConstraints`. This may throw an error.
+    * There may be an error while detaching the camera. Please see [`detach()`](crate::js_camera::JSCamera::detach) for more details.
     */
-    applyConstraints() {
-        wasm.jscameraconstraints_applyConstraints(this.ptr);
-    }
-}
-
-export class JSCameraConstraintsBuilder {
-
-    __destroy_into_raw() {
-        const ptr = this.ptr;
-        this.ptr = 0;
-
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_jscameraconstraintsbuilder_free(ptr);
-    }
-    /**
-    * Constructs a default [`JSCameraConstraintsBuilder`].
-    * The constructed default [`JSCameraConstraintsBuilder`] has these settings:
-    * - 480x234 min, 640x360 ideal, 1920x1080 max
-    * - 10 FPS min, 15 FPS ideal, 30 FPS max
-    * - 1.0 aspect ratio min, 1.77777777778 aspect ratio ideal, 2.0 aspect ratio max
-    * - No `exact`s
-    * # JS-WASM
-    * This is exported as a constructor.
-    */
-    constructor() {
-        var ret = wasm.jscameraconstraintsbuilder_new();
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the minimum resolution for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
-    * # JS-WASM
-    * This is exported as `set_MinResolution`.
-    * @param {Resolution} min_resolution
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MinResolution(min_resolution) {
-        const ptr = this.__destroy_into_raw();
-        _assertClass(min_resolution, Resolution);
-        var ptr0 = min_resolution.ptr;
-        min_resolution.ptr = 0;
-        var ret = wasm.jscameraconstraintsbuilder_set_MaxResolution(ptr, ptr0);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the preferred resolution for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
-    * # JS-WASM
-    * This is exported as `set_Resolution`.
-    * @param {Resolution} new_resolution
-    * @returns {CameraConstraintsBuilder}
-    */
-    set Resolution(new_resolution) {
-        const ptr = this.__destroy_into_raw();
-        _assertClass(new_resolution, Resolution);
-        var ptr0 = new_resolution.ptr;
-        new_resolution.ptr = 0;
-        var ret = wasm.jscameraconstraintsbuilder_set_Resolution(ptr, ptr0);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
-    * # JS-WASM
-    * This is exported as `set_MaxResolution`.
-    * @param {Resolution} max_resolution
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MaxResolution(max_resolution) {
-        const ptr = this.__destroy_into_raw();
-        _assertClass(max_resolution, Resolution);
-        var ptr0 = max_resolution.ptr;
-        max_resolution.ptr = 0;
-        var ret = wasm.jscameraconstraintsbuilder_set_MaxResolution(ptr, ptr0);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the resolution fields ([`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width), [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height)/[`resolution`](crate::js_camera::JSCameraConstraintsBuilder::resolution))
-    * should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * Note that this will make the builder ignore [`min_resolution`](crate::js_camera::JSCameraConstraintsBuilder::min_resolution) and [`max_resolution`](crate::js_camera::JSCameraConstraintsBuilder::max_resolution).
-    * # JS-WASM
-    * This is exported as `set_ResolutionExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set ResolutionExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_ResolutionExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the minimum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-    * # JS-WASM
-    * This is exported as `set_MinAspectRatio`.
-    * @param {number} ratio
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MinAspectRatio(ratio) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_MinAspectRatio(ptr, ratio);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-    * # JS-WASM
-    * This is exported as `set_AspectRatio`.
-    * @param {number} ratio
-    * @returns {CameraConstraintsBuilder}
-    */
-    set AspectRatio(ratio) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_AspectRatio(ptr, ratio);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the maximum aspect ratio of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`aspectRatio`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/aspectRatio).
-    * # JS-WASM
-    * This is exported as `set_MaxAspectRatio`.
-    * @param {number} ratio
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MaxAspectRatio(ratio) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_MaxAspectRatio(ptr, ratio);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::aspect_ratio) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * Note that this will make the builder ignore [`min_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::min_aspect_ratio) and [`max_aspect_ratio`](crate::js_camera::JSCameraConstraintsBuilder::max_aspect_ratio).
-    * # JS-WASM
-    * This is exported as `set_AspectRatioExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set AspectRatioExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_AspectRatioExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the facing mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`facingMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode).
-    * # JS-WASM
-    * This is exported as `set_FacingMode`.
-    * @param {number} facing_mode
-    * @returns {CameraConstraintsBuilder}
-    */
-    set FacingMode(facing_mode) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_FacingMode(ptr, facing_mode);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`facing_mode`](crate::js_camera::JSCameraConstraintsBuilder::facing_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * # JS-WASM
-    * This is exported as `set_FacingModeExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set FacingModeExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_FacingModeExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the minimum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-    * # JS-WASM
-    * This is exported as `set_MinFrameRate`.
-    * @param {number} fps
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MinFrameRate(fps) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_MinFrameRate(ptr, fps);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-    * # JS-WASM
-    * This is exported as `set_FrameRate`.
-    * @param {number} fps
-    * @returns {CameraConstraintsBuilder}
-    */
-    set FrameRate(fps) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_FrameRate(ptr, fps);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the maximum frame rate of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`frameRate`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/frameRate).
-    * # JS-WASM
-    * This is exported as `set_MaxFrameRate`.
-    * @param {number} fps
-    * @returns {CameraConstraintsBuilder}
-    */
-    set MaxFrameRate(fps) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_MaxFrameRate(ptr, fps);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::frame_rate) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * Note that this will make the builder ignore [`min_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::min_frame_rate) and [`max_frame_rate`](crate::js_camera::JSCameraConstraintsBuilder::max_frame_rate).
-    * # JS-WASM
-    * This is exported as `set_FrameRateExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set FrameRateExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_FrameRateExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the resize mode of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`resizeMode`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#resizemode).
-    * # JS-WASM
-    * This is exported as `set_ResizeMode`.
-    * @param {number} resize_mode
-    * @returns {CameraConstraintsBuilder}
-    */
-    set ResizeMode(resize_mode) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_ResizeMode(ptr, resize_mode);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`resize_mode`](crate::js_camera::JSCameraConstraintsBuilder::resize_mode) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * # JS-WASM
-    * This is exported as `set_ResizeModeExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set ResizeModeExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_ResizeModeExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the device ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`deviceId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
-    * # JS-WASM
-    * This is exported as `set_DeviceId`.
-    * @param {string} id
-    * @returns {CameraConstraintsBuilder}
-    */
-    set DeviceId(id) {
-        const ptr = this.__destroy_into_raw();
-        var ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        var ret = wasm.jscameraconstraintsbuilder_set_DeviceId(ptr, ptr0, len0);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * # JS-WASM
-    * This is exported as `set_DeviceIdExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set DeviceIdExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_DeviceIdExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets the group ID of the resulting constraint for the [`JSCameraConstraintsBuilder`].
-    *
-    * Sets [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId).
-    * # JS-WASM
-    * This is exported as `set_GroupId`.
-    * @param {string} id
-    * @returns {CameraConstraintsBuilder}
-    */
-    set GroupId(id) {
-        const ptr = this.__destroy_into_raw();
-        var ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        var ret = wasm.jscameraconstraintsbuilder_set_GroupId(ptr, ptr0, len0);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Sets whether the [`group_id`](crate::js_camera::JSCameraConstraintsBuilder::group_id) field should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
-    * # JS-WASM
-    * This is exported as `set_GroupIdExact`.
-    * @param {boolean} value
-    * @returns {CameraConstraintsBuilder}
-    */
-    set GroupIdExact(value) {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_set_GroupIdExact(ptr, value);
-        return CameraConstraintsBuilder.__wrap(ret);
-    }
-    /**
-    * Builds the [`JSCameraConstraints`]. Wrapper for [`build`](crate::js_camera::JSCameraConstraintsBuilder::build)
-    *
-    * Fields that use exact are marked `exact`, otherwise are marked with `ideal`. If min-max are involved, they will use `min` and `max` accordingly.
-    * # Security
-    * WARNING: This function uses [`Function`](https://docs.rs/js-sys/0.3.52/js_sys/struct.Function.html) and if the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are invalid/contain malicious JS, it will run without restraint. Please take care as to make sure the [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) and the [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId)
-    * fields are not malicious! (This usually boils down to not letting users input data directly).
-    *
-    * # Errors
-    * This function may return an error on an invalid string in [`device_id`](crate::js_camera::JSCameraConstraintsBuilder::device_id) or [`groupId`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/groupId) or if the
-    * Javascript Function fails to run.
-    * # JS-WASM
-    * This is exported as `build`. It may throw an error.
-    * @returns {CameraConstraints}
-    */
-    buildCameraConstraints() {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.jscameraconstraintsbuilder_buildCameraConstraints(ptr);
-        return CameraConstraints.__wrap(ret);
-    }
-}
-/**
-* A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
-* # JS-WASM
-* This is exported as `NOKCamera`.
-*/
-export class NOKCamera {
-
-    static __wrap(ptr) {
-        const obj = Object.create(NOKCamera.prototype);
-        obj.ptr = ptr;
-
-        return obj;
-    }
-
-    __destroy_into_raw() {
-        const ptr = this.ptr;
-        this.ptr = 0;
-
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_nokcamera_free(ptr);
+    stopAll() {
+        wasm.nokhwacamera_stopAll(this.ptr);
     }
 }
 /**
@@ -1666,7 +1624,7 @@ export class Resolution {
     */
     get Width() {
         const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_Width(ptr);
+        var ret = wasm.resolution_width(ptr);
         return ret >>> 0;
     }
     /**
@@ -1677,7 +1635,7 @@ export class Resolution {
     */
     get Height() {
         const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_Height(ptr);
+        var ret = wasm.resolution_height(ptr);
         return ret >>> 0;
     }
     /**
@@ -1686,7 +1644,7 @@ export class Resolution {
     */
     x() {
         const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_Width(ptr);
+        var ret = wasm.resolution_width(ptr);
         return ret >>> 0;
     }
     /**
@@ -1695,7 +1653,7 @@ export class Resolution {
     */
     y() {
         const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_Height(ptr);
+        var ret = wasm.resolution_height(ptr);
         return ret >>> 0;
     }
 }
@@ -1705,8 +1663,8 @@ export function __wbindgen_string_new(arg0, arg1) {
     return addHeapObject(ret);
 };
 
-export function __wbg_nokcamera_new(arg0) {
-    var ret = NOKCamera.__wrap(arg0);
+export function __wbg_nokhwacamera_new(arg0) {
+    var ret = NokhwaCamera.__wrap(arg0);
     return addHeapObject(ret);
 };
 
@@ -1724,6 +1682,16 @@ export function __wbindgen_object_clone_ref(arg0) {
     return addHeapObject(ret);
 };
 
+export function __wbindgen_is_undefined(arg0) {
+    var ret = getObject(arg0) === undefined;
+    return ret;
+};
+
+export function __wbindgen_jsval_eq(arg0, arg1) {
+    var ret = getObject(arg0) === getObject(arg1);
+    return ret;
+};
+
 export function __wbindgen_cb_drop(arg0) {
     const obj = takeObject(arg0).original;
     if (obj.cnt-- == 1) {
@@ -1739,42 +1707,67 @@ export function __wbg_camerainfo_new(arg0) {
     return addHeapObject(ret);
 };
 
-export function __wbg_instanceof_Window_9c4fd26090e1d029(arg0) {
+export function __wbg_instanceof_Window_11e25482011fc506(arg0) {
     var ret = getObject(arg0) instanceof Window;
     return ret;
 };
 
-export function __wbg_document_249e9cf340780f93(arg0) {
+export function __wbg_document_5aff8cd83ef968f5(arg0) {
     var ret = getObject(arg0).document;
     return isLikeNone(ret) ? 0 : addHeapObject(ret);
 };
 
-export function __wbg_navigator_fdf3521d0e190a9b(arg0) {
+export function __wbg_navigator_5c90643c2a2b6cda(arg0) {
     var ret = getObject(arg0).navigator;
     return addHeapObject(ret);
 };
 
-export function __wbg_createElement_ba61aad8af6be7f4() { return handleError(function (arg0, arg1, arg2) {
+export function __wbg_body_525168d9e773c3f8(arg0) {
+    var ret = getObject(arg0).body;
+    return isLikeNone(ret) ? 0 : addHeapObject(ret);
+};
+
+export function __wbg_createElement_ac65a6ce60c4812c() { return handleError(function (arg0, arg1, arg2) {
     var ret = getObject(arg0).createElement(getStringFromWasm0(arg1, arg2));
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_getElementById_2ee254bbb67b6ae1(arg0, arg1, arg2) {
+export function __wbg_getElementById_b180ea4ada06a837(arg0, arg1, arg2) {
     var ret = getObject(arg0).getElementById(getStringFromWasm0(arg1, arg2));
     return isLikeNone(ret) ? 0 : addHeapObject(ret);
 };
 
-export function __wbg_clone_145f41ee37450a09(arg0) {
+export function __wbg_clone_907d18181dd9fdec(arg0) {
     var ret = getObject(arg0).clone();
     return addHeapObject(ret);
 };
 
-export function __wbg_instanceof_MediaDeviceInfo_c114f21ce814c0c1(arg0) {
+export function __wbg_getTracks_453d59960c6b0998(arg0) {
+    var ret = getObject(arg0).getTracks();
+    return addHeapObject(ret);
+};
+
+export function __wbg_getVideoTracks_c67b7117e61e6768(arg0) {
+    var ret = getObject(arg0).getVideoTracks();
+    return addHeapObject(ret);
+};
+
+export function __wbg_appendChild_6ed236bb79c198df() { return handleError(function (arg0, arg1) {
+    var ret = getObject(arg0).appendChild(getObject(arg1));
+    return addHeapObject(ret);
+}, arguments) };
+
+export function __wbg_removeChild_f633f19eb895b696() { return handleError(function (arg0, arg1) {
+    var ret = getObject(arg0).removeChild(getObject(arg1));
+    return addHeapObject(ret);
+}, arguments) };
+
+export function __wbg_instanceof_MediaDeviceInfo_cdf31c28bb9459ae(arg0) {
     var ret = getObject(arg0) instanceof MediaDeviceInfo;
     return ret;
 };
 
-export function __wbg_deviceId_43087f5284cd4616(arg0, arg1) {
+export function __wbg_deviceId_52909f91167fa503(arg0, arg1) {
     var ret = getObject(arg1).deviceId;
     var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
@@ -1782,20 +1775,12 @@ export function __wbg_deviceId_43087f5284cd4616(arg0, arg1) {
     getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 };
 
-export function __wbg_kind_edfc7c230c6229d4(arg0) {
+export function __wbg_kind_7f46301e232da76a(arg0) {
     var ret = getObject(arg0).kind;
     return addHeapObject(ret);
 };
 
-export function __wbg_label_c9e2693761406b45(arg0, arg1) {
-    var ret = getObject(arg1).label;
-    var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len0 = WASM_VECTOR_LEN;
-    getInt32Memory0()[arg0 / 4 + 1] = len0;
-    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
-};
-
-export function __wbg_groupId_bcd2aac231ef907e(arg0, arg1) {
+export function __wbg_groupId_f6b7aa74f6b78e09(arg0, arg1) {
     var ret = getObject(arg1).groupId;
     var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
@@ -1803,70 +1788,78 @@ export function __wbg_groupId_bcd2aac231ef907e(arg0, arg1) {
     getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 };
 
-export function __wbg_data_7db9e348ce1855fa(arg0, arg1) {
-    var ret = getObject(arg1).data;
-    var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
-    var len0 = WASM_VECTOR_LEN;
-    getInt32Memory0()[arg0 / 4 + 1] = len0;
-    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
-};
-
-export function __wbg_enumerateDevices_d31f8ad01062db66() { return handleError(function (arg0) {
+export function __wbg_enumerateDevices_fe5818b3c5c78822() { return handleError(function (arg0) {
     var ret = getObject(arg0).enumerateDevices();
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_getUserMedia_307474a524d5b8f0() { return handleError(function (arg0) {
-    var ret = getObject(arg0).getUserMedia();
+export function __wbg_getSupportedConstraints_fa3e91cb9dd6da4c(arg0) {
+    var ret = getObject(arg0).getSupportedConstraints();
     return addHeapObject(ret);
-}, arguments) };
+};
 
-export function __wbg_getUserMedia_43dccb6c4bc010a6() { return handleError(function (arg0, arg1) {
+export function __wbg_getUserMedia_c7f57dc542dcd8c6() { return handleError(function (arg0, arg1) {
     var ret = getObject(arg0).getUserMedia(getObject(arg1));
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_setAttribute_0b50656f1ccc45bf() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
+export function __wbg_setid_cea8de140a58c4f1(arg0, arg1, arg2) {
+    getObject(arg0).id = getStringFromWasm0(arg1, arg2);
+};
+
+export function __wbg_setAttribute_27ca65e30a1c3c4a() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
     getObject(arg0).setAttribute(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
 }, arguments) };
 
-export function __wbg_instanceof_CanvasRenderingContext2d_eea9cd931eb496b7(arg0) {
+export function __wbg_log_9a99fb1af846153b(arg0) {
+    console.log(getObject(arg0));
+};
+
+export function __wbg_sethidden_4e6127e185ecf2df(arg0, arg1) {
+    getObject(arg0).hidden = arg1 !== 0;
+};
+
+export function __wbg_instanceof_CanvasRenderingContext2d_779e79c4121aa91b(arg0) {
     var ret = getObject(arg0) instanceof CanvasRenderingContext2D;
     return ret;
 };
 
-export function __wbg_drawImage_932bd490db48b1d4() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
+export function __wbg_drawImage_1edb91863f89d75c() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
     getObject(arg0).drawImage(getObject(arg1), arg2, arg3, arg4, arg5);
 }, arguments) };
 
-export function __wbg_getImageData_6e56dc172cd2ed36() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
+export function __wbg_drawImage_13e48c4e7b9bcf28() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
+    getObject(arg0).drawImage(getObject(arg1), arg2, arg3, arg4, arg5);
+}, arguments) };
+
+export function __wbg_getImageData_b5842f1d6ce40388() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
     var ret = getObject(arg0).getImageData(arg1, arg2, arg3, arg4);
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_setsrcObject_cf10011aa69a6341(arg0, arg1) {
+export function __wbg_setsrcObject_340bcd93145a797b(arg0, arg1) {
     getObject(arg0).srcObject = getObject(arg1);
 };
 
-export function __wbg_instanceof_HtmlCanvasElement_e0e251da2aa0b541(arg0) {
+export function __wbg_instanceof_HtmlCanvasElement_fd3cbbe3906d7792(arg0) {
     var ret = getObject(arg0) instanceof HTMLCanvasElement;
     return ret;
 };
 
-export function __wbg_setwidth_fd251e9da5abcced(arg0, arg1) {
+export function __wbg_setwidth_f3c88eb520ba8d47(arg0, arg1) {
     getObject(arg0).width = arg1 >>> 0;
 };
 
-export function __wbg_setheight_5b882973e84fa13c(arg0, arg1) {
+export function __wbg_setheight_5a1abba41e35c42a(arg0, arg1) {
     getObject(arg0).height = arg1 >>> 0;
 };
 
-export function __wbg_getContext_d778ffc8203f64ae() { return handleError(function (arg0, arg1, arg2) {
+export function __wbg_getContext_813df131fcbd6e91() { return handleError(function (arg0, arg1, arg2) {
     var ret = getObject(arg0).getContext(getStringFromWasm0(arg1, arg2));
     return isLikeNone(ret) ? 0 : addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_toDataURL_b102ad8b69bcfda4() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
+export function __wbg_toDataURL_fa0138af5cf03aa2() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
     var ret = getObject(arg1).toDataURL(getStringFromWasm0(arg2, arg3), getObject(arg4));
     var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
@@ -1874,83 +1867,132 @@ export function __wbg_toDataURL_b102ad8b69bcfda4() { return handleError(function
     getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 }, arguments) };
 
-export function __wbg_mediaDevices_73cffc9c73b5584a() { return handleError(function (arg0) {
+export function __wbg_mediaDevices_b3973ebf40387065() { return handleError(function (arg0) {
     var ret = getObject(arg0).mediaDevices;
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_instanceof_HtmlVideoElement_16b7e72c92542fa4(arg0) {
+export function __wbg_instanceof_HtmlVideoElement_acfaf2202e3e0d29(arg0) {
     var ret = getObject(arg0) instanceof HTMLVideoElement;
     return ret;
 };
 
-export function __wbg_setwidth_f98394ec7accd8f5(arg0, arg1) {
+export function __wbg_setwidth_4006f4b33b15224b(arg0, arg1) {
     getObject(arg0).width = arg1 >>> 0;
 };
 
-export function __wbg_videoWidth_0651aae47a30560a(arg0) {
-    var ret = getObject(arg0).videoWidth;
-    return ret;
+export function __wbg_setheight_6a5930569b122df0(arg0, arg1) {
+    getObject(arg0).height = arg1 >>> 0;
 };
 
-export function __wbg_videoHeight_0cce9c78bfe90582(arg0) {
-    var ret = getObject(arg0).videoHeight;
-    return ret;
+export function __wbg_data_315524ada7b563f4(arg0, arg1) {
+    var ret = getObject(arg1).data;
+    var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
+    var len0 = WASM_VECTOR_LEN;
+    getInt32Memory0()[arg0 / 4 + 1] = len0;
+    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 };
 
-export function __wbg_appendChild_6ae001e6d3556190() { return handleError(function (arg0, arg1) {
-    var ret = getObject(arg0).appendChild(getObject(arg1));
+export function __wbg_label_21de6784a6632e75(arg0, arg1) {
+    var ret = getObject(arg1).label;
+    var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len0 = WASM_VECTOR_LEN;
+    getInt32Memory0()[arg0 / 4 + 1] = len0;
+    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+};
+
+export function __wbg_getSettings_654b758d29aaf3ad(arg0) {
+    var ret = getObject(arg0).getSettings();
     return addHeapObject(ret);
-}, arguments) };
+};
 
-export function __wbg_get_a4f61a2fb16987bc(arg0, arg1) {
+export function __wbg_stop_f96817735e68ad3d(arg0) {
+    getObject(arg0).stop();
+};
+
+export function __wbg_get_73c087db0a496c21(arg0, arg1) {
     var ret = getObject(arg0)[arg1 >>> 0];
     return addHeapObject(ret);
 };
 
-export function __wbg_length_f86925e8c69110ea(arg0) {
+export function __wbg_length_c5fa152b8c3f311f(arg0) {
     var ret = getObject(arg0).length;
     return ret;
 };
 
-export function __wbg_new_fc8ee963685ada41() {
+export function __wbg_new_ec75d0d5815be736() {
     var ret = new Array();
     return addHeapObject(ret);
 };
 
-export function __wbg_newnoargs_68424965d85fcb08(arg0, arg1) {
+export function __wbg_newnoargs_1a11e7e8c906996c(arg0, arg1) {
     var ret = new Function(getStringFromWasm0(arg0, arg1));
     return addHeapObject(ret);
 };
 
-export function __wbg_call_9698e9b9c4668ae0() { return handleError(function (arg0, arg1) {
+export function __wbg_new_193281ce8fd4b1c8() {
+    var ret = new Map();
+    return addHeapObject(ret);
+};
+
+export function __wbg_call_e91f71ddf1f45cff() { return handleError(function (arg0, arg1) {
     var ret = getObject(arg0).call(getObject(arg1));
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_from_cfe9a017acc727a1(arg0) {
+export function __wbg_new_4b48f9f8159fea77() {
+    var ret = new Object();
+    return addHeapObject(ret);
+};
+
+export function __wbg_from_28631399e1e647cb(arg0) {
     var ret = Array.from(getObject(arg0));
     return addHeapObject(ret);
 };
 
-export function __wbg_push_ef0a52724cfe2a05(arg0, arg1) {
+export function __wbg_push_0daae9343162dbe7(arg0, arg1) {
     var ret = getObject(arg0).push(getObject(arg1));
     return ret;
 };
 
-export function __wbg_call_4438b4bab9ab5268() { return handleError(function (arg0, arg1, arg2) {
+export function __wbg_call_e3c72355d091d5d4() { return handleError(function (arg0, arg1, arg2) {
     var ret = getObject(arg0).call(getObject(arg1), getObject(arg2));
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_new_ae366b99da42660b(arg0, arg1) {
+export function __wbg_get_55c6cc12fb6a83f9(arg0, arg1) {
+    var ret = getObject(arg0).get(getObject(arg1));
+    return addHeapObject(ret);
+};
+
+export function __wbg_set_b9dad32fc360b408(arg0, arg1, arg2) {
+    var ret = getObject(arg0).set(getObject(arg1), getObject(arg2));
+    return addHeapObject(ret);
+};
+
+export function __wbg_assign_39a180d12d813399(arg0, arg1) {
+    var ret = Object.assign(getObject(arg0), getObject(arg1));
+    return addHeapObject(ret);
+};
+
+export function __wbg_entries_a3fad9ebd955672b(arg0) {
+    var ret = Object.entries(getObject(arg0));
+    return addHeapObject(ret);
+};
+
+export function __wbg_keys_9f3a5511f779059c(arg0) {
+    var ret = Object.keys(getObject(arg0));
+    return addHeapObject(ret);
+};
+
+export function __wbg_new_119f8177d8717c43(arg0, arg1) {
     try {
         var state0 = {a: arg0, b: arg1};
         var cb0 = (arg0, arg1) => {
             const a = state0.a;
             state0.a = 0;
             try {
-                return __wbg_adapter_204(a, state0.b, arg0, arg1);
+                return __wbg_adapter_240(a, state0.b, arg0, arg1);
             } finally {
                 state0.a = a;
             }
@@ -1962,49 +2004,51 @@ export function __wbg_new_ae366b99da42660b(arg0, arg1) {
     }
 };
 
-export function __wbg_resolve_84f06d050082a771(arg0) {
+export function __wbg_resolve_7161ec6fd5b1cd29(arg0) {
     var ret = Promise.resolve(getObject(arg0));
     return addHeapObject(ret);
 };
 
-export function __wbg_then_fd35af33296a58d7(arg0, arg1) {
+export function __wbg_then_6d5072fec3fdb237(arg0, arg1) {
     var ret = getObject(arg0).then(getObject(arg1));
     return addHeapObject(ret);
 };
 
-export function __wbg_then_c919ca41618a24c2(arg0, arg1, arg2) {
+export function __wbg_then_4f3c7f6f3d36634a(arg0, arg1, arg2) {
     var ret = getObject(arg0).then(getObject(arg1), getObject(arg2));
     return addHeapObject(ret);
 };
 
-export function __wbg_self_3df7c33e222cd53b() { return handleError(function () {
+export function __wbg_self_b4546ea7b590539e() { return handleError(function () {
     var ret = self.self;
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_window_0f90182e6c405ff2() { return handleError(function () {
+export function __wbg_window_c279fea81f426a68() { return handleError(function () {
     var ret = window.window;
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_globalThis_787cfd4f25a35141() { return handleError(function () {
+export function __wbg_globalThis_038a6ea0ff17789f() { return handleError(function () {
     var ret = globalThis.globalThis;
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbg_global_af2eb7b1369372ed() { return handleError(function () {
+export function __wbg_global_4f93ce884bcee597() { return handleError(function () {
     var ret = global.global;
     return addHeapObject(ret);
 }, arguments) };
 
-export function __wbindgen_is_undefined(arg0) {
-    var ret = getObject(arg0) === undefined;
+export function __wbg_set_d29a397c9cc5d746() { return handleError(function (arg0, arg1, arg2) {
+    var ret = Reflect.set(getObject(arg0), getObject(arg1), getObject(arg2));
     return ret;
-};
+}, arguments) };
 
-export function __wbindgen_is_string(arg0) {
-    var ret = typeof(getObject(arg0)) === 'string';
-    return ret;
+export function __wbindgen_number_get(arg0, arg1) {
+    const obj = getObject(arg1);
+    var ret = typeof(obj) === 'number' ? obj : undefined;
+    getFloat64Memory0()[arg0 / 8 + 1] = isLikeNone(ret) ? 0 : ret;
+    getInt32Memory0()[arg0 / 4 + 0] = !isLikeNone(ret);
 };
 
 export function __wbindgen_string_get(arg0, arg1) {
@@ -2032,8 +2076,8 @@ export function __wbindgen_rethrow(arg0) {
     throw takeObject(arg0);
 };
 
-export function __wbindgen_closure_wrapper712(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 65, __wbg_adapter_24);
+export function __wbindgen_closure_wrapper761(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 65, __wbg_adapter_26);
     return addHeapObject(ret);
 };
 
