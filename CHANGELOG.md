@@ -1,3 +1,7 @@
+# 0.5.0
+ - Fixed `msmf`
+ - Relicensed to Apache-2.0
+
 # 0.4.0
 - Added AVFoundation, MSMF, WASM
 - `.get_info()` returns a `&CameraInfo`

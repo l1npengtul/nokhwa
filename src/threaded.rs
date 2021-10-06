@@ -1,7 +1,17 @@
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 use crate::{
@@ -41,13 +51,10 @@ impl ThreadedCamera {
     /// Create a new camera from an `index` and `format`. `format` can be `None`.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new(
-        index: usize,
-        format: Option<CameraFormat>,
-    ) -> Result<Self, NokhwaError> {
+    pub fn new(index: usize, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         ThreadedCamera::with_backend(index, format, CaptureAPIBackend::Auto)
     }
-    
+
     /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
@@ -56,7 +63,9 @@ impl ThreadedCamera {
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
-        let camera = Arc::new(FairMutex::new(Camera::with_backend(index, format, backend)?));
+        let camera = Arc::new(FairMutex::new(Camera::with_backend(
+            index, format, backend,
+        )?));
         let frame_callback = Arc::new(FairMutex::new(None));
         let die_bool = Arc::new(AtomicBool::new(false));
 
@@ -194,7 +203,7 @@ impl ThreadedCamera {
         self.camera.lock().set_frame_format(fourcc)
     }
 
-    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](crate::Camera::frame()) before you call [`open_stream()`](crate::Camera::open_stream()).
     /// The callback will be called every frame.
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.

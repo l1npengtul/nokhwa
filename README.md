@@ -103,7 +103,7 @@ Thank you!
 Contributions are welcome!
  - Please `rustfmt` all your code and adhere to the clippy lints (unless necessary not to do so)
  - Please limit use of `unsafe`
- - All contributions are under the MPL 2.0 license unless otherwise specified
+ - All contributions are under the Apache 2.0 license unless otherwise specified
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
