@@ -15,6 +15,10 @@
 //!
 //! No support or API stability will be given. Subject to change at any time.
 
+#[cfg(all(target_os = "windows", windows))]
+#[macro_use]
+extern crate lazy_static;
+
 use std::{
     borrow::{Borrow, Cow},
     cmp::Ordering,
@@ -356,10 +360,10 @@ pub mod wmf {
         BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
         MediaFoundationControls, MediaFoundationDeviceDescriptor,
     };
-    use std::ffi::c_void;
     use std::{
         borrow::Cow,
         cell::Cell,
+        ffi::c_void,
         mem::MaybeUninit,
         slice::from_raw_parts,
         sync::{
@@ -369,7 +373,9 @@ pub mod wmf {
     };
     use windows::{Guid, Interface};
 
-    static mut INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    lazy_static! {
+        static ref INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    }
 
     // See: https://stackoverflow.com/questions/80160/what-does-coinit-speed-over-memory-do
     const CO_INIT_APARTMENT_THREADED: COINIT = COINIT(0x2);
@@ -395,7 +401,7 @@ pub mod wmf {
     const CAM_CTRL_MANUAL: i32 = 0x0002;
 
     pub fn initialize_mf() -> Result<(), BindingError> {
-        if !(unsafe { INITIALIZED.load(Ordering::SeqCst) }) {
+        if !(INITIALIZED.load(Ordering::SeqCst)) {
             let a = std::ptr::null_mut();
             if let Err(why) =
                 unsafe { CoInitializeEx(a, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE) }
@@ -409,16 +415,13 @@ pub mod wmf {
                 }
                 return Err(BindingError::InitializeError(why.to_string()));
             }
-
-            unsafe {
-                INITIALIZED.store(true, Ordering::SeqCst);
-            }
+            INITIALIZED.store(true, Ordering::SeqCst);
         }
         Ok(())
     }
 
     pub fn de_initialize_mf() -> Result<(), BindingError> {
-        if unsafe { INITIALIZED.load(Ordering::SeqCst) } {
+        if INITIALIZED.load(Ordering::SeqCst) {
             unsafe {
                 if let Err(why) = MFShutdown() {
                     return Err(BindingError::DeInitializeError(why.to_string()));
@@ -783,12 +786,18 @@ pub mod wmf {
             let media_source = unsafe {
                 let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
                 let mut ptr_receiver = receiver.as_mut_ptr();
-                self.source_reader.GetServiceForStream(
+                if let Err(why) = self.source_reader.GetServiceForStream(
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
                     &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
-                );
+                ) {
+                    return Err(BindingError::GUIDSetError(
+                        "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
+                        "MF_MEDIASOURCE_SERVICE".to_string(),
+                        why.to_string(),
+                    ));
+                }
                 receiver.assume_init()
             };
 
@@ -1282,12 +1291,18 @@ pub mod wmf {
             let media_source = unsafe {
                 let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
                 let mut ptr_receiver = receiver.as_mut_ptr();
-                self.source_reader.GetServiceForStream(
+                if let Err(why) = self.source_reader.GetServiceForStream(
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
                     &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
-                );
+                ) {
+                    return Err(BindingError::GUIDSetError(
+                        "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
+                        "MF_MEDIASOURCE_SERVICE".to_string(),
+                        why.to_string(),
+                    ));
+                }
                 receiver.assume_init()
             };
 

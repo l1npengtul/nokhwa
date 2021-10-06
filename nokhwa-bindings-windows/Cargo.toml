@@ -1,9 +1,9 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.2.4"
+version = "0.3.0"
 authors = ["l1npengtul"]
 edition = "2018"
-license = "MPL-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 description = "The Windows Media Foundation bindings crate for `nokhwa`"
 keywords = ["media-foundation", "windows", "capture", "webcam"]
@@ -13,8 +13,9 @@ keywords = ["media-foundation", "windows", "capture", "webcam"]
 [dependencies]
 thiserror = "1.0.26"
 
-[target.'cfg(all(target_os = "windows", windows))'.dependencies.windows]
-version = "0.20.0"
+[target.'cfg(all(target_os = "windows", windows))'.dependencies]
+windows = "0.20.0"
+lazy_static = "1.4.0"
 
 [target.'cfg(all(target_os = "windows", windows))'.build-dependencies.windows]
 version = "0.20.0"
