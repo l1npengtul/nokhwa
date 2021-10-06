@@ -1,9 +1,9 @@
 [package]
 name = "nokhwa-bindings-macos"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = ["l1npengtul"]
-license = "MPL-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 description = "The AVFoundation bindings crate for `nokhwa`"
 keywords = ["avfoundation", "macos", "capture", "webcam"]

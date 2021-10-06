@@ -1,12 +1,12 @@
 [package]
 name = "nokhwa"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2018"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
 keywords = ["camera", "webcam", "capture", "cross-platform"]
 resolver = "2"
-license = "MPL-2.0"
+license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
