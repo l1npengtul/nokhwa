@@ -79,7 +79,7 @@ features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.2.4"
+version = "0.3.0"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
