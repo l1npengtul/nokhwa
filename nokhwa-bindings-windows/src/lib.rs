@@ -377,7 +377,7 @@ pub mod wmf {
         mem::MaybeUninit,
         slice::from_raw_parts,
         sync::{
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
     };
@@ -385,6 +385,7 @@ pub mod wmf {
 
     lazy_static! {
         static ref INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        static ref CAMERA_REFCNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     }
 
     // See: https://stackoverflow.com/questions/80160/what-does-coinit-speed-over-memory-do
@@ -605,6 +606,9 @@ pub mod wmf {
                 Ok(sr) => sr,
                 Err(why) => return Err(BindingError::DeviceOpenFailError(index, why.to_string())),
             };
+
+            // increment refcnt
+            CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) + 1, Ordering::SeqCst);
 
             Ok(MediaFoundationDevice {
                 is_open: Cell::new(false),
@@ -1715,10 +1719,17 @@ pub mod wmf {
         fn drop(&mut self) {
             // swallow errors
             unsafe {
-                if let Err(_) = self
+                let _ = self
                     .source_reader
-                    .Flush(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM)
-                {}
+                    .Flush(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM);
+
+                // decrement refcnt
+                if CAMERA_REFCNT.load(Ordering::SeqCst) > 0 {
+                    CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) - 1, Ordering::SeqCst)
+                }
+                if CAMERA_REFCNT.load(Ordering::SeqCst) == 0 {
+                    let _ = de_initialize_mf();
+                }
             }
         }
     }

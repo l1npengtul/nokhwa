@@ -20,7 +20,6 @@ use crate::{
     KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use nokhwa_bindings_windows::wmf::de_initialize_mf;
 use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
@@ -37,6 +36,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.
 pub struct MediaFoundationCaptureDevice<'a> {
     inner: MediaFoundationDevice<'a>,
+    info: CameraInfo,
 }
 
 impl<'a> MediaFoundationCaptureDevice<'a> {
@@ -50,7 +50,18 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
         if let Some(fmt) = camera_fmt {
             mf_device.set_format(fmt.into())?;
         }
-        Ok(MediaFoundationCaptureDevice { inner: mf_device })
+
+        let info = CameraInfo::new(
+            mf_device.name(),
+            "MediaFoundation Camera Device".to_string(),
+            mf_device.symlink(),
+            mf_device.index(),
+        );
+
+        Ok(MediaFoundationCaptureDevice {
+            inner: mf_device,
+            info,
+        })
     }
 
     /// Create a new Media Foundation Device with desired settings.
@@ -74,12 +85,7 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
     }
 
     fn camera_info(&self) -> &CameraInfo {
-        &CameraInfo::new(
-            self.inner.name(),
-            "".to_string(),
-            self.inner.symlink(),
-            self.inner.index(),
-        )
+        &self.info
     }
 
     fn camera_format(&self) -> CameraFormat {
