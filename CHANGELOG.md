@@ -1,3 +1,6 @@
+# 0.7.0
+- Bumped some dependencies.
+
 # 0.5.0
  - Fixed `msmf`
  - Relicensed to Apache-2.0
