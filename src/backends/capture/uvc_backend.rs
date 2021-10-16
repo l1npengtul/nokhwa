@@ -61,17 +61,17 @@ pub struct UVCCaptureDevice<'a> {
     stream_handle_init: Cell<bool>,
     active_stream_init: Cell<bool>,
     context: Context<'a>,
+    #[not_covariant]
     #[borrows(context)]
-    #[not_covariant]
     device: Device<'this>,
+    #[not_covariant]
     #[borrows(device)]
-    #[not_covariant]
     device_handle: DeviceHandle<'this>,
+    #[not_covariant]
     #[borrows(device_handle)]
-    #[not_covariant]
     stream_handle: RefCell<MaybeUninit<StreamHandle<'this>>>,
-    #[borrows(stream_handle)]
     #[not_covariant]
+    #[borrows(stream_handle)]
     active_stream: RefCell<MaybeUninit<ActiveStream<'this, Arc<AtomicUsize>>>>,
 }
 
