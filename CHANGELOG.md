@@ -1,3 +1,6 @@
+# 0.8.0
+- Media Foundation Access Violation fix (#13)
+
 # 0.7.0
 - Bumped some dependencies.
 
