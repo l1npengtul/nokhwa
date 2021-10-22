@@ -1557,7 +1557,14 @@ pub mod wmf {
             // set relevant things
             let resolution = ((format.resolution.width_x as u64) << 32_u64)
                 + (format.resolution.height_y as u64);
-            let fps = ((format.frame_rate as u64) << 32) + 1_u64;
+            let fps = {
+                let frame_rate_u64 = 0_u64;
+                let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
+                bytes[7] = format.frame_rate as u8;
+                bytes[3] = 0x01;
+                println!("{:?}", bytes);
+                u64::from_le_bytes(bytes)
+            };
             let fourcc = match format.format {
                 MFFrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
                 MFFrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
@@ -1702,12 +1709,23 @@ pub mod wmf {
                 return Err(BindingError::ReadFrameError("No Data Size".to_string()));
             }
 
-            Ok(Cow::from(unsafe {
-                std::slice::from_raw_parts(
-                    buffer_start_ptr as *const u8,
+            let mut data_slice = Vec::with_capacity(buffer_valid_length as usize);
+
+            unsafe {
+                // Copy pointer because we're bout to drop IMFSample
+                data_slice.extend_from_slice(std::slice::from_raw_parts_mut(
+                    buffer_start_ptr,
                     buffer_valid_length as usize,
-                )
-            }))
+                ) as &[u8]);
+                // swallow errors
+                let _ = buffer.Lock(
+                    &mut buffer_start_ptr,
+                    std::ptr::null_mut(),
+                    &mut buffer_valid_length,
+                );
+            }
+
+            Ok(Cow::from(data_slice))
         }
 
         pub fn stop_stream(&mut self) {

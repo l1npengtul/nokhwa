@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["l1npengtul"]
 edition = "2018"
 license = "Apache-2.0"
@@ -14,8 +14,8 @@ keywords = ["media-foundation", "windows", "capture", "webcam"]
 thiserror = "1.0.26"
 
 [target.'cfg(all(target_os = "windows", windows))'.dependencies]
-windows = "0.20.0"
+windows = "0.21.1"
 lazy_static = "1.4.0"
 
 [target.'cfg(all(target_os = "windows", windows))'.build-dependencies.windows]
-version = "0.20.0"
+version = "0.21.1"
