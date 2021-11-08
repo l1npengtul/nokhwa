@@ -123,7 +123,7 @@ pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> 
         KnownCameraControls::Pan => Some(10_094_852),
         KnownCameraControls::Tilt => Some(100_948_530),
         KnownCameraControls::Zoom => Some(10_094_862),
-        KnownCameraControls::Exposure => Some(99_637_930),
+        KnownCameraControls::Exposure => Some(10_094_850),
         KnownCameraControls::Iris => Some(10_094_866),
         KnownCameraControls::Focus => Some(10_094_859),
         _ => None,
@@ -146,7 +146,7 @@ pub fn try_id_to_known_camera_control(id: u32) -> Option<KnownCameraControls> {
         10_094_852 => Some(KnownCameraControls::Pan),
         100_948_530 => Some(KnownCameraControls::Tilt),
         10_094_862 => Some(KnownCameraControls::Zoom),
-        99_637_930 => Some(KnownCameraControls::Exposure),
+        10_094_850 => Some(KnownCameraControls::Exposure),
         10_094_866 => Some(KnownCameraControls::Iris),
         10_094_859 => Some(KnownCameraControls::Focus),
         _ => None,
@@ -542,6 +542,10 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 };
 
                 for ctrl in v4l2_controls {
+                    if ctrl.id != id {
+                        continue;
+                    }
+
                     if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
                         if Some(ctrl.id) == try_known_camera_control_to_id(cam_control.control()) {
                             return Ok(cam_control);

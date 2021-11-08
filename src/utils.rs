@@ -741,7 +741,7 @@ impl std::convert::TryFrom<Description> for KnownCameraControls {
             10_094_852 => KnownCameraControls::Pan,
             10_094_853 => KnownCameraControls::Tilt,
             10_094_862 => KnownCameraControls::Zoom,
-            9_963_793 => KnownCameraControls::Exposure,
+            10_094_850 => KnownCameraControls::Exposure,
             10_094_866 => KnownCameraControls::Iris,
             10_094_859 => KnownCameraControls::Focus,
             _ => {
