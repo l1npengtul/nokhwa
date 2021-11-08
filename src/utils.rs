@@ -761,6 +761,12 @@ pub enum KnownCameraControlFlag {
     Manual,
 }
 
+impl Display for KnownCameraControlFlag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
@@ -904,7 +910,7 @@ impl CameraControl {
             step: self.step(),
             default: self.default(),
             flag: self.flag(),
-            active: self.active(),
+            active: true,
         })
     }
 
@@ -935,6 +941,12 @@ impl CameraControl {
         self.active
     }
 
+    /// Gets `active` of this [`CameraControl`],
+    /// telling you weather this control is currently active(in-use).
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
+    }
+
     /// Returns a list of i32s that are valid to be set.
     #[allow(clippy::cast_sign_loss)]
     #[must_use]
@@ -943,6 +955,23 @@ impl CameraControl {
             .step_by(self.step() as usize)
             .into_iter()
             .collect()
+    }
+}
+
+impl Display for CameraControl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Name: {}, Range: ({}~{}), Current: {}, Step: {}, Default: {}, Flag: {}, Active: {}",
+            self.control,
+            self.min,
+            self.max,
+            self.value,
+            self.step,
+            self.default,
+            self.flag,
+            self.active
+        )
     }
 }
 

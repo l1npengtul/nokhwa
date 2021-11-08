@@ -95,7 +95,18 @@ fn main() {
             .short("d")
             .long("display")
             .help("Pass to open a window and display.")
-            .takes_value(false)).get_matches();
+            .takes_value(false))
+        .arg(Arg::with_name("controls")
+            .short("o")
+            .long("controls")
+            .help("List the camera controls. Does nothing if -c flag is not set.")
+            .takes_value(false))
+        .arg(Arg::with_name("setcontrols")
+            .short("p")
+            .long("setcontrols")
+            .help("Set the camera controls. Takes a comma seperated list of strings (lowercase!) that is \"<KEY>:\"<VALUE>\"\" (e.g.) \"Contrast:10,Brightness:50\". Does nothing if -c flag is not set.").takes_value(true))
+
+        .get_matches();
 
     // Query example
     if matches.is_present("query") {
@@ -203,6 +214,53 @@ fn main() {
                         Err(why) => {
                             println!("Failed to get compatible FourCC: {}", why.to_string())
                         }
+                    }
+                }
+
+                if matches_clone.is_present("controls") {
+                    match camera.camera_controls() {
+                        Ok(controls) => {
+                            println!("Supported Camera Controls: ");
+                            for (index, control) in controls.into_iter().enumerate() {
+                                println!("{}. {}", (index + 1), control)
+                            }
+                        }
+                        Err(why) => {
+                            println!("Failed to get camera controls: {}", why.to_string())
+                        }
+                    }
+                }
+
+                if let Some(s) = matches_clone.value_of("setcontrols") {
+                    let set_ctrls = s.to_string();
+
+                    let supported = match camera.camera_controls_string() {
+                        Ok(cc) => cc,
+                        Err(why) => {
+                            println!("Failed to get camera controls: {}", why.to_string());
+                            return;
+                        }
+                    };
+
+                    for control in set_ctrls.split(',') {
+                        let ctrl = control
+                            .replace(' ', "")
+                            .split(':')
+                            .map(ToString::to_string)
+                            .collect::<Vec<String>>();
+
+                        let value = ctrl[1].parse::<i32>().unwrap();
+
+                        let mut cc = match supported.get(&ctrl[0]) {
+                            Some(camc) => *camc,
+                            None => {
+                                return;
+                            }
+                        };
+
+                        cc.set_value(value).unwrap();
+                        cc.set_active(true);
+                        camera.set_camera_control(cc).unwrap();
                     }
                 }
 

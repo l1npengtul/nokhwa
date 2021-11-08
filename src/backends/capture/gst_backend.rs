@@ -78,7 +78,7 @@ impl GStreamerCaptureDevice {
                 Err(why) => {
                     return Err(NokhwaError::GeneralError(format!(
                         "Failed to generate caps: {}",
-                        why.to_string()
+                        why
                     )))
                 }
             };
@@ -223,7 +223,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                                 property: "Framerates".to_string(),
                                                 error: format!(
                                                     "Failed to make framerates into string: {}",
-                                                    why.to_string()
+                                                    why
                                                 ),
                                             });
                                         }
@@ -260,7 +260,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                                     property: "Framerates".to_string(),
                                                     error: format!(
                                                         "Failed to parse numerator: {}",
-                                                        why.to_string()
+                                                        why
                                                     ),
                                                 });
                                             }
@@ -311,7 +311,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                                 property: "Framerates".to_string(),
                                                 error: format!(
                                                     "Failed to make framerates into string: {}",
-                                                    why.to_string()
+                                                    why
                                                 ),
                                             });
                                         }
@@ -348,7 +348,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                                                     property: "Framerates".to_string(),
                                                     error: format!(
                                                         "Failed to parse numerator: {}",
-                                                        why.to_string()
+                                                        why
                                                     ),
                                                 });
                                             }
@@ -475,7 +475,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         if let Err(why) = self.pipeline.set_state(State::Playing) {
             return Err(NokhwaError::OpenStreamError(format!(
                 "Failed to set appsink to playing: {}",
-                why.to_string()
+                why
             )));
         }
         Ok(())
@@ -544,7 +544,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
             Err(why) => {
                 return Err(NokhwaError::ReadFrameError(format!(
                     "Receiver Error: {}",
-                    why.to_string()
+                    why
                 )));
             }
         }
@@ -554,7 +554,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         if let Err(why) = self.pipeline.set_state(State::Null) {
             return Err(NokhwaError::StreamShutdownError(format!(
                 "Could not change state: {}",
-                why.to_string()
+                why
             )));
         }
         Ok(())
@@ -616,7 +616,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                     format!(
                         "Failed to open pipeline with args {}: {}",
                         webcam_pipeline(format!("{}", index).as_str(), fmt),
-                        why.to_string()
+                        why
                     ),
                 ))
             }
@@ -672,8 +672,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                         element_error!(
                             appsink,
                             ResourceError::Failed,
-                            (format!("Failed to get videoinfo from caps: {}", why.to_string())
-                                .as_str())
+                            (format!("Failed to get videoinfo from caps: {}", why).as_str())
                         );
 
                         return Err(FlowError::Error);
@@ -697,8 +696,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                         element_error!(
                             appsink,
                             ResourceError::Failed,
-                            (format!("Failed to map buffer to readablemap: {}", why.to_string())
-                                .as_str())
+                            (format!("Failed to map buffer to readablemap: {}", why).as_str())
                         );
 
                         return Err(FlowError::Error);
@@ -715,11 +713,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                                 element_error!(
                                     appsink,
                                     ResourceError::Failed,
-                                    (format!(
-                                        "Failed to make yuy2 into rgb888: {}",
-                                        why.to_string()
-                                    )
-                                    .as_str())
+                                    (format!("Failed to make yuy2 into rgb888: {}", why).as_str())
                                 );
 
                                 return Err(FlowError::Error);
@@ -781,11 +775,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                                 element_error!(
                                     appsink,
                                     ResourceError::Failed,
-                                    (format!(
-                                        "Failed to make yuy2 into rgb888: {}",
-                                        why.to_string()
-                                    )
-                                    .as_str())
+                                    (format!("Failed to make yuy2 into rgb888: {}", why).as_str())
                                 );
 
                                 return Err(FlowError::Error);

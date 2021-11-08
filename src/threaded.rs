@@ -15,10 +15,12 @@
  */
 
 use crate::{
-    Camera, CameraFormat, CameraInfo, CaptureAPIBackend, FrameFormat, NokhwaError, Resolution,
+    Camera, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, FrameFormat,
+    KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::FairMutex;
+use std::any::Any;
 use std::{
     collections::HashMap,
     ops::Deref,
@@ -201,6 +203,124 @@ impl ThreadedCamera {
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         self.camera.lock().set_frame_format(fourcc)
+    }
+
+    /// Gets the current supported list of [`KnownCameraControls`]
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+        self.camera.lock().supported_camera_controls()
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| self.camera_control(*x))
+            .filter(Result::is_ok)
+            .map(Result::unwrap)
+            .collect::<Vec<CameraControl>>();
+
+        Ok(maybe_camera_controls)
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls_string(&self) -> Result<HashMap<String, CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| (x.to_string(), self.camera_control(*x)))
+            .filter(|(_, x)| x.is_ok())
+            .map(|(c, x)| (c, Result::unwrap(x)))
+            .collect::<Vec<(String, CameraControl)>>();
+        let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
+
+        for (kc, cc) in maybe_camera_controls.into_iter() {
+            control_map.insert(kc, cc);
+        }
+
+        Ok(control_map)
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls_known_camera_controls(
+        &self,
+    ) -> Result<HashMap<KnownCameraControls, CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| (*x, self.camera_control(*x)))
+            .filter(|(_, x)| x.is_ok())
+            .map(|(c, x)| (c, Result::unwrap(x)))
+            .collect::<Vec<(KnownCameraControls, CameraControl)>>();
+        let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
+
+        for (kc, cc) in maybe_camera_controls.into_iter() {
+            control_map.insert(kc, cc);
+        }
+
+        Ok(control_map)
+    }
+
+    /// Gets the value of [`KnownCameraControls`].
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
+    /// this will error.
+    pub fn camera_control(
+        &self,
+        control: KnownCameraControls,
+    ) -> Result<CameraControl, NokhwaError> {
+        self.camera.lock().camera_control(control)
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
+    /// this will error.
+    pub fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
+        self.camera.lock().set_camera_control(control)
+    }
+
+    /// Gets the current supported list of Controls as an `Any` from the backend.
+    /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
+        self.camera.lock().raw_supported_camera_controls()
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
+    /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
+    /// this will error.
+    pub fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
+        self.camera.lock().raw_camera_control(control)
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
+    /// this will error.
+    pub fn set_raw_camera_control(
+        &mut self,
+        control: &dyn Any,
+        value: &dyn Any,
+    ) -> Result<(), NokhwaError> {
+        self.camera.lock().set_raw_camera_control(control, value)
     }
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](crate::Camera::frame()) before you call [`open_stream()`](crate::Camera::open_stream()).

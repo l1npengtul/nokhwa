@@ -15,10 +15,11 @@
  */
 
 use crate::{
-    CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, NokhwaError,
-    Resolution,
+    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use std::any::Any;
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -118,11 +119,13 @@ impl Camera {
     pub fn info(&self) -> &CameraInfo {
         self.backend.camera_info()
     }
+
     /// Gets the current [`CameraFormat`].
     #[must_use]
     pub fn camera_format(&self) -> CameraFormat {
         self.backend.camera_format()
     }
+
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -130,6 +133,7 @@ impl Camera {
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
         self.backend.set_camera_format(new_fmt)
     }
+
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
@@ -139,17 +143,20 @@ impl Camera {
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         self.backend.compatible_list_by_resolution(fourcc)
     }
+
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         self.backend.compatible_fourcc()
     }
+
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
     #[must_use]
     pub fn resolution(&self) -> Resolution {
         self.backend.resolution()
     }
+
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -157,11 +164,13 @@ impl Camera {
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
         self.backend.set_resolution(new_res)
     }
+
     /// Gets the current camera framerate (See: [`CameraFormat`]).
     #[must_use]
     pub fn frame_rate(&self) -> u32 {
         self.backend.frame_rate()
     }
+
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -169,11 +178,13 @@ impl Camera {
     pub fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
         self.backend.set_frame_rate(new_fps)
     }
+
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
     #[must_use]
     pub fn frame_format(&self) -> FrameFormat {
         self.backend.frame_format()
     }
+
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
@@ -181,17 +192,138 @@ impl Camera {
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
         self.backend.set_frame_format(fourcc)
     }
+
+    /// Gets the current supported list of [`KnownCameraControls`]
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+        self.backend.supported_camera_controls()
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| self.camera_control(*x))
+            .filter(Result::is_ok)
+            .map(Result::unwrap)
+            .collect::<Vec<CameraControl>>();
+
+        Ok(maybe_camera_controls)
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls_string(&self) -> Result<HashMap<String, CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| (x.to_string(), self.camera_control(*x)))
+            .filter(|(_, x)| x.is_ok())
+            .map(|(c, x)| (c, Result::unwrap(x)))
+            .collect::<Vec<(String, CameraControl)>>();
+        let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
+
+        for (kc, cc) in maybe_camera_controls.into_iter() {
+            control_map.insert(kc, cc);
+        }
+
+        Ok(control_map)
+    }
+
+    /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn camera_controls_known_camera_controls(
+        &self,
+    ) -> Result<HashMap<KnownCameraControls, CameraControl>, NokhwaError> {
+        let known_controls = self.supported_camera_controls()?;
+        let maybe_camera_controls = known_controls
+            .iter()
+            .map(|x| (*x, self.camera_control(*x)))
+            .filter(|(_, x)| x.is_ok())
+            .map(|(c, x)| (c, Result::unwrap(x)))
+            .collect::<Vec<(KnownCameraControls, CameraControl)>>();
+        let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
+
+        for (kc, cc) in maybe_camera_controls.into_iter() {
+            control_map.insert(kc, cc);
+        }
+
+        Ok(control_map)
+    }
+
+    /// Gets the value of [`KnownCameraControls`].
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
+    /// this will error.
+    pub fn camera_control(
+        &self,
+        control: KnownCameraControls,
+    ) -> Result<CameraControl, NokhwaError> {
+        self.backend.camera_control(control)
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
+    /// this will error.
+    pub fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
+        self.backend.set_camera_control(control)
+    }
+
+    /// Gets the current supported list of Controls as an `Any` from the backend.
+    /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    pub fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
+        self.backend.raw_supported_camera_controls()
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
+    /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
+    /// this will error.
+    pub fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
+        self.backend.raw_camera_control(control)
+    }
+
+    /// Sets the control to `control` in the camera.
+    /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
+    /// this will error.
+    pub fn set_raw_camera_control(
+        &mut self,
+        control: &dyn Any,
+        value: &dyn Any,
+    ) -> Result<(), NokhwaError> {
+        self.backend.set_raw_camera_control(control, value)
+    }
+
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     pub fn open_stream(&mut self) -> Result<(), NokhwaError> {
         self.backend.open_stream()
     }
+
     /// Checks if stream if open. If it is, it will return true.
     #[must_use]
     pub fn is_stream_open(&self) -> bool {
         self.backend.is_stream_open()
     }
+
     /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
     /// it will either return an error.
     /// # Errors
@@ -200,6 +332,7 @@ impl Camera {
     pub fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         self.backend.frame()
     }
+
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
@@ -219,6 +352,7 @@ impl Camera {
         }
         (resolution.width() * resolution.height() * 3) as usize
     }
+
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
