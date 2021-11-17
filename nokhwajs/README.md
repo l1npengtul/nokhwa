@@ -78,15 +78,11 @@ Conversely, anything that starts with `output-*` controls a feature that control
  - `output-threaded`: Enable the threaded/callback based camera. 
 
 Other features:
- - `decoding`: Enables `mozjpeg` decoding. Enabled by default.  
- - `small-wasm`: Enables size optimizations for WASM targets. Uses `wee_alloc` instead of default, LTO enabled, `opt-level` set to "s" for size. Note that the LTO and `opt-level` are only enabled if:
-   - `--release` is enabled.
-   - The target family is `wasm`
-   - `--no-default-features` is enabled. (disables `mozjpeg` and MJPEG processing)
+ - `decoding`: Enables `mozjpeg` decoding. Enabled by default.
 
  Please use the following command for `wasm-pack` in order to get a functional WASM binary:
  ```.ignore
- wasm-pack build --release -- --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features 
+ wasm-pack build --release -- --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features 
  ```
  - `docs-only`: Documentation feature. Enabled for docs.rs builds.
  - `docs-nolink`: Build documentation **without** linking to any libraries. Enabled for docs.rs builds.

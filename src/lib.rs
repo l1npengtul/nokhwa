@@ -15,6 +15,7 @@
  */
 
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
+#![cfg_attr(feature = "docs-features", feature(doc_cfg))]
 
 //! # nokhwa
 //! A Simple-to-use, cross-platform Rust Webcam Capture Library
@@ -37,13 +38,16 @@ mod error;
 mod init;
 /// A camera that uses native browser APIs meant for WASM applications.
 #[cfg(feature = "input-jscam")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub mod js_camera;
 /// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
 #[cfg(feature = "input-ipcam")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub mod network_camera;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 mod threaded;
 mod utils;
 
@@ -51,7 +55,14 @@ pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
 pub use init::*;
+#[cfg(feature = "input-jscam")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
+pub use js_camera::JSCamera;
+#[cfg(feature = "input-ipcam")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+pub use network_camera::NetworkCamera;
 pub use query::*;
 #[cfg(feature = "output-threaded")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub use threaded::ThreadedCamera;
 pub use utils::*;

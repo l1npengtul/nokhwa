@@ -340,8 +340,8 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         let camera_format = self.camera_format();
         let raw_data = self.frame_raw()?;
         let conv = match camera_format.format() {
-            FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_data)?,
-            FrameFormat::YUYV => yuyv422_to_rgb888(&raw_data)?,
+            FrameFormat::MJPEG => mjpeg_to_rgb888(raw_data.as_ref())?,
+            FrameFormat::YUYV => yuyv422_to_rgb888(raw_data.as_ref())?,
         };
 
         let imagebuf =

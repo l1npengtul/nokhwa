@@ -31,6 +31,7 @@ output-threaded = ["parking_lot"]
 small-wasm = ["wee_alloc"]
 docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
+docs-features = []
 test-fail-warning = []
 
 [dependencies]
@@ -151,4 +152,4 @@ optional = true
 lto = true
 
 [package.metadata.docs.rs]
-features = ["docs-only", "docs-nolink"]
+features = ["docs-only", "docs-nolink", "docs-features"]

@@ -106,8 +106,8 @@ pipeline {
         stage('JSCamera/WASM') {
           steps {
             sh 'rustup update stable'
-            sh 'wasm-pack build --release -- --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features'
-            sh 'cargo clippy --features "input-jscam, output-wasm, small-wasm, test-fail-warning" --no-default-features'
+            sh 'wasm-pack build --release -- --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features'
+            sh 'cargo clippy --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features'
           }
         }
       }

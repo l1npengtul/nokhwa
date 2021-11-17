@@ -25,6 +25,7 @@ use wgpu::{
 };
 
 /// A struct that supports IP Cameras via the `OpenCV` backend.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub struct NetworkCamera {
     ip: String,
     opencv_backend: RefCell<OpenCvCaptureDevice>,

@@ -1667,6 +1667,7 @@ impl Deref for JSCameraConstraints {
 /// # JS-WASM
 /// This is exported as `NokhwaCamera`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub struct JSCamera {
     media_stream: MediaStream,
     constraints: JSCameraConstraints,

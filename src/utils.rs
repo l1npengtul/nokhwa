@@ -1013,6 +1013,32 @@ impl Display for CaptureAPIBackend {
     }
 }
 
+/// The `OpenCV` backend supports both native cameras and IP Cameras, so this is an enum to differentiate them
+/// The `IPCamera`'s string follows the pattern
+/// ```.ignore
+/// <protocol>://<IP>:<port>/
+/// ```
+/// but please consult the manufacturer's specification for more details.
+/// The index is a standard webcam index.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CameraIndexType {
+    Index(u32),
+    IPCamera(String),
+}
+
+impl Display for CameraIndexType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CameraIndexType::Index(idx) => {
+                write!(f, "{}", idx)
+            }
+            CameraIndexType::IPCamera(ip) => {
+                write!(f, "{}", ip)
+            }
+        }
+    }
+}
+
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
 /// If `mozjpeg` fails to read scanlines or setup the decompressor, this will error.
@@ -1020,6 +1046,7 @@ impl Display for CaptureAPIBackend {
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
 #[cfg(feature = "decoding")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1069,6 +1096,7 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 #[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
 pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use std::convert::TryFrom;
@@ -1175,6 +1203,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
 #[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
 pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
@@ -1184,30 +1213,4 @@ pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
     let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
     [r, g, b]
-}
-
-/// The `OpenCV` backend supports both native cameras and IP Cameras, so this is an enum to differentiate them
-/// The `IPCamera`'s string follows the pattern
-/// ```.ignore
-/// <protocol>://<IP>:<port>/
-/// ```
-/// but please consult the manufacturer's specification for more details.
-/// The index is a standard webcam index.
-#[derive(Clone, Debug, PartialEq)]
-pub enum CameraIndexType {
-    Index(u32),
-    IPCamera(String),
-}
-
-impl Display for CameraIndexType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CameraIndexType::Index(idx) => {
-                write!(f, "{}", idx)
-            }
-            CameraIndexType::IPCamera(ip) => {
-                write!(f, "{}", ip)
-            }
-        }
-    }
 }

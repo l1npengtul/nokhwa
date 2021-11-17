@@ -42,6 +42,7 @@ use std::{
 /// # SAFETY
 /// The `Mutex` guarantees exclusive access to the underlying camera struct. They should be safe to
 /// impl `Send` on.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 #[derive(Clone)]
 pub struct ThreadedCamera {
     camera: Arc<FairMutex<Camera>>,
@@ -281,7 +282,7 @@ impl ThreadedCamera {
     }
 
     /// Sets the control to `control` in the camera.
-    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// Usually, the pipeline is calling [`camera_control()`](crate::CaptureBackendTrait::camera_control()), getting a camera control that way
     /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
@@ -310,7 +311,7 @@ impl ThreadedCamera {
 
     /// Sets the control to `control` in the camera.
     /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
-    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// Usually, the pipeline is calling [`camera_control()`](crate::CaptureBackendTrait::camera_control()), getting a camera control that way
     /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
     /// # Errors
     /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
