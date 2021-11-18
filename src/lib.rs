@@ -1,4 +1,3 @@
-#![feature(fmt_internals)]
 /*
  * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
