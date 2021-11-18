@@ -241,7 +241,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
         Err(why) => {
             return Err(NokhwaError::GeneralError(format!(
                 "Failed to generate caps: {}",
-                why.to_string()
+                why
             )))
         }
     };
@@ -258,7 +258,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
     if let Err(why) = device_monitor.start() {
         return Err(NokhwaError::GeneralError(format!(
             "Failed to start device monitor: {}",
-            why.to_string()
+            why
         )));
     }
     let mut counter = 0;

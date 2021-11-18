@@ -32,6 +32,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
 /// - This only works on 64 bit platforms.
 /// - FPS adjustment does not work.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,

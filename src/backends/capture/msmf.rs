@@ -34,6 +34,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - The names may contain invalid characters since they were converted from UTF16.
 /// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-msmf")))]
 pub struct MediaFoundationCaptureDevice<'a> {
     inner: MediaFoundationDevice<'a>,
     info: CameraInfo,

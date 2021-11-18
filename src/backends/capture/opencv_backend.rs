@@ -68,7 +68,7 @@ macro_rules! tryinto_num {
 ///  - The API Preference order is the native OS API (linux => `v4l2`, mac => `AVFoundation`, windows => `MSMF`) than [`CAP_AUTO`](https://docs.opencv.org/4.5.2/d4/d15/group__videoio__flags__base.html#gga023786be1ee68a9105bf2e48c700294da77ab1fe260fd182f8ec7655fab27a31d)
 /// - The `Any` type for [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control) is [`i32`], and its return `Any` is a [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
 /// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`i32`] and [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
-
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
 pub struct OpenCvCaptureDevice {
     camera_format: CameraFormat,
     camera_location: CameraIndexType,
@@ -243,69 +243,53 @@ impl OpenCvCaptureDevice {
             Err(why) => {
                 return Err(NokhwaError::ReadFrameError(format!(
                     "Failed to read frame from videocapture: {}",
-                    why.to_string()
+                    why
                 )))
             }
         }
 
-        let frame_empty = match frame.empty() {
-            Ok(e) => e,
-            Err(why) => {
-                return Err(NokhwaError::ReadFrameError(format!(
-                    "Failed to check for empty OpenCV frame: {}",
-                    why.to_string()
-                )))
-            }
-        };
+        if frame.empty() {
+            return Err(NokhwaError::ReadFrameError("Frame Empty!".to_string()));
+        }
 
         match frame.size() {
             Ok(size) => {
-                if size.width > 0 && !frame_empty {
-                    return match frame.is_continuous() {
-                        Ok(cont) => {
-                            if cont {
-                                println!("{:?}", frame);
-                                let mut raw_vec: Vec<u8> = Vec::new();
+                if size.width > 0 {
+                    return if frame.is_continuous() {
+                        let mut raw_vec: Vec<u8> = Vec::new();
 
-                                let frame_data_vec = match Mat::data_typed::<Vec3b>(&frame) {
-                                    Ok(v) => v,
-                                    Err(why) => {
-                                        return Err(NokhwaError::ReadFrameError(format!(
-                                            "Failed to convert frame into raw Vec3b: {}",
-                                            why.to_string()
-                                        )))
-                                    }
-                                };
-
-                                for pixel in frame_data_vec.iter() {
-                                    let pixel_slice: &[u8; 3] = &**pixel;
-                                    raw_vec.push(pixel_slice[2]);
-                                    raw_vec.push(pixel_slice[1]);
-                                    raw_vec.push(pixel_slice[0]);
-                                }
-
-                                return Ok(Cow::from(raw_vec));
+                        let frame_data_vec = match Mat::data_typed::<Vec3b>(&frame) {
+                            Ok(v) => v,
+                            Err(why) => {
+                                return Err(NokhwaError::ReadFrameError(format!(
+                                    "Failed to convert frame into raw Vec3b: {}",
+                                    why
+                                )))
                             }
-                            Err(NokhwaError::ReadFrameError(
-                                "Failed to read frame from videocapture: not cont".to_string(),
-                            ))
+                        };
+
+                        for pixel in frame_data_vec.iter() {
+                            let pixel_slice: &[u8; 3] = &**pixel;
+                            raw_vec.push(pixel_slice[2]);
+                            raw_vec.push(pixel_slice[1]);
+                            raw_vec.push(pixel_slice[0]);
                         }
-                        Err(why) => Err(NokhwaError::ReadFrameError(format!(
-                            "Failed to read frame from videocapture: failed to read continuous: {}",
-                            why.to_string()
-                        ))),
+
+                        Ok(Cow::from(raw_vec))
+                    } else {
+                        Err(NokhwaError::ReadFrameError(
+                            "Failed to read frame from videocapture: not cont".to_string(),
+                        ))
                     };
                 }
                 Err(NokhwaError::ReadFrameError(
                     "Frame width is less than zero!".to_string(),
                 ))
             }
-            Err(why) => {
-                return Err(NokhwaError::ReadFrameError(format!(
-                    "Failed to read frame from videocapture: failed to read size: {}",
-                    why.to_string()
-                )))
-            }
+            Err(why) => Err(NokhwaError::ReadFrameError(format!(
+                "Failed to read frame from videocapture: failed to read size: {}",
+                why
+            ))),
         }
     }
 
@@ -545,7 +529,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                     Err(why) => {
                         return Err(NokhwaError::OpenDeviceError(
                             idx.to_string(),
-                            format!("Failed to open device: {}", why.to_string()),
+                            format!("Failed to open device: {}", why),
                         ))
                     }
                 }
@@ -559,7 +543,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
                     Err(why) => {
                         return Err(NokhwaError::OpenDeviceError(
                             ip,
-                            format!("Failed to open device: {}", why.to_string()),
+                            format!("Failed to open device: {}", why),
                         ))
                     }
                 }

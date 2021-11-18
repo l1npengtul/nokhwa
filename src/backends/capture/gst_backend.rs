@@ -41,6 +41,7 @@ type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>
 /// # Quirks
 /// - `Drop`-ing this may cause a `panic`.
 /// - Setting controls is not supported.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
 pub struct GStreamerCaptureDevice {
     pipeline: Element,
     app_sink: AppSink,
@@ -532,7 +533,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
                 MessageView::Error(err) => {
                     return Err(NokhwaError::ReadFrameError(format!(
                         "Bus error: {}",
-                        err.error().to_string()
+                        err.error()
                     )));
                 }
                 _ => {}

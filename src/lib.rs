@@ -1,3 +1,4 @@
+#![feature(fmt_internals)]
 /*
  * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
@@ -13,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
 #![cfg_attr(feature = "docs-features", feature(doc_cfg))]
 

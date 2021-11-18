@@ -56,11 +56,12 @@ mod avfoundation;
 ))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
 pub use avfoundation::AVFoundationCaptureDevice;
-#[cfg(feature = "input-uvc")]
-mod uvc_backend;
-#[cfg(feature = "input-uvc")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
-pub use uvc_backend::UVCCaptureDevice;
+// FIXME: Fix Lifetime Issues
+// #[cfg(feature = "input-uvc")]
+// mod uvc_backend;
+// #[cfg(feature = "input-uvc")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
+// pub use uvc_backend::UVCCaptureDevice;
 #[cfg(feature = "input-gst")]
 mod gst_backend;
 #[cfg(feature = "input-gst")]

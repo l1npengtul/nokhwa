@@ -50,9 +50,10 @@ use uvc::{
 /// - This backend, once stream is open, will constantly collect frames. When you call [`frame()`](crate::CaptureBackendTrait::frame()) or one of its variants, it will only give you the latest frame.
 /// # Safety
 /// This backend requires use of `unsafe` due to the self-referencing structs involved.
-/// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this may crash the entire program.
+/// - If [`open_stream()`](crate::CaptureBackendTrait::open_stream()) and [`frame()`](crate::CaptureBackendTrait::frame()) are called in the wrong order this will cause undefined behaviour.
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
 #[self_referencing]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
@@ -67,12 +68,8 @@ pub struct UVCCaptureDevice<'a> {
     #[not_covariant]
     #[borrows(device)]
     device_handle: DeviceHandle<'this>,
-    #[not_covariant]
-    #[borrows(device_handle)]
-    stream_handle: RefCell<MaybeUninit<StreamHandle<'this>>>,
-    #[not_covariant]
-    #[borrows(stream_handle)]
-    active_stream: RefCell<MaybeUninit<ActiveStream<'this, Arc<AtomicUsize>>>>,
+    stream_handle: RefCell<MaybeUninit<StreamHandle<'a>>>,
+    active_stream: RefCell<MaybeUninit<ActiveStream<'a, Arc<AtomicUsize>>>>,
 }
 
 impl<'a> UVCCaptureDevice<'a> {
@@ -176,8 +173,8 @@ impl<'a> UVCCaptureDevice<'a> {
                     .unwrap()
             },
             device_handle_builder: |device_builder| device_builder.open().unwrap(),
-            stream_handle_builder: |_device_handle_builder| RefCell::new(MaybeUninit::uninit()),
-            active_stream_builder: |_stream_handle_builder| RefCell::new(MaybeUninit::uninit()),
+            stream_handle: RefCell::new(MaybeUninit::uninit()),
+            active_stream: RefCell::new(MaybeUninit::uninit()),
         }
         .build())
     }

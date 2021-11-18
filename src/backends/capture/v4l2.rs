@@ -168,6 +168,7 @@ fn clone_control(ctrl: &Control) -> Control {
 /// - The `Any` return type for [`raw_supported_camera_controls()`](CaptureBackendTrait::raw_supported_camera_controls) is [`Description`]
 /// - The `Any` type for [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control) is [`u32`], and its return `Any` is a [`Control`]
 /// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`u32`] and [`Control`]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-v4l")))]
 pub struct V4LCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
