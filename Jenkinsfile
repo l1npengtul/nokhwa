@@ -36,7 +36,6 @@ pipeline {
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-v4l, output-wgpu, test-fail-warning"'
             sh 'cargo clippy --features "input-v4l, output-wgpu, test-fail-warning"'
           }
         }
@@ -50,7 +49,6 @@ pipeline {
           }
           steps {
             pwsh(script: 'rustup update stable', returnStatus: true)
-            pwsh(script: 'cargo build --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
             pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
           }
         }
@@ -70,7 +68,6 @@ pipeline {
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-uvc, output-wgpu, test-fail-warning"'
             sh 'cargo clippy --features "input-uvc, output-wgpu, test-fail-warning"'
           }
         }
@@ -84,8 +81,7 @@ pipeline {
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo build --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
-            sh 'cargo clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
+            sh 'cargo +nightly clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
           }
         }
 
@@ -98,8 +94,7 @@ pipeline {
           }
           steps {
             sh 'rustup update nightly'
-            sh 'cargo +nightly build --features "input-gst, output-wgpu, test-fail-warning"'
-            sh 'cargo +nightly clippy --features "input-gst, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
           }
         }
 
@@ -110,6 +105,7 @@ pipeline {
             sh 'cargo clippy --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features'
           }
         }
+
       }
     }
 
@@ -125,5 +121,6 @@ pipeline {
         sh 'cargo +nightly doc --features "docs-only, docs-nolink, test-fail-warning" --no-deps --release'
       }
     }
+
   }
 }
