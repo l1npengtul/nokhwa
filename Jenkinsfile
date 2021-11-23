@@ -118,7 +118,7 @@ pipeline {
       }
       steps {
         sh 'rustup update nightly'
-        sh 'cargo +nightly doc --features "docs-only, docs-nolink, test-fail-warning" --no-deps --release'
+        sh 'cargo +nightly doc --features "docs-only, docs-nolink, docs-features, test-fail-warning" --no-deps --release'
       }
     }
 
