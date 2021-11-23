@@ -186,9 +186,9 @@ export class CameraConstraints {
 * Gets the maximum [`Resolution`].
 * # JS-WASM
 * This is exported as `get_MaxResolution`.
-* @returns {Resolution | undefined}
+* @returns {JSResolution | undefined}
 */
-  MaxResolution: Resolution;
+  MaxResolution: JSResolution;
 /**
 * Gets the internal [`MediaStreamConstraints`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStreamConstraints.html)
 * # JS-WASM
@@ -214,9 +214,9 @@ export class CameraConstraints {
 * Gets the minimum [`Resolution`].
 * # JS-WASM
 * This is exported as `get_MinResolution`.
-* @returns {Resolution | undefined}
+* @returns {JSResolution | undefined}
 */
-  MinResolution: Resolution;
+  MinResolution: JSResolution;
 /**
 * Gets the internal [`JSCameraResizeMode`].
 * # JS-WASM
@@ -235,9 +235,9 @@ export class CameraConstraints {
 * Gets the internal [`Resolution`]
 * # JS-WASM
 * This is exported as `get_Resolution`.
-* @returns {Resolution}
+* @returns {JSResolution}
 */
-  Resolution: Resolution;
+  Resolution: JSResolution;
 /**
 * Gets the internal resolution exact.
 * # JS-WASM
@@ -271,30 +271,30 @@ export class CameraConstraintsBuilder {
 * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
 * # JS-WASM
 * This is exported as `set_MinResolution`.
-* @param {Resolution} min_resolution
+* @param {JSResolution} min_resolution
 * @returns {CameraConstraintsBuilder}
 */
-  MinResolution(min_resolution: Resolution): CameraConstraintsBuilder;
+  MinResolution(min_resolution: JSResolution): CameraConstraintsBuilder;
 /**
 * Sets the preferred resolution for the [`JSCameraConstraintsBuilder`].
 *
 * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
 * # JS-WASM
 * This is exported as `set_Resolution`.
-* @param {Resolution} new_resolution
+* @param {JSResolution} new_resolution
 * @returns {CameraConstraintsBuilder}
 */
-  Resolution(new_resolution: Resolution): CameraConstraintsBuilder;
+  Resolution(new_resolution: JSResolution): CameraConstraintsBuilder;
 /**
 * Sets the maximum resolution for the [`JSCameraConstraintsBuilder`].
 *
 * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
 * # JS-WASM
 * This is exported as `set_MaxResolution`.
-* @param {Resolution} max_resolution
+* @param {JSResolution} max_resolution
 * @returns {CameraConstraintsBuilder}
 */
-  MaxResolution(max_resolution: Resolution): CameraConstraintsBuilder;
+  MaxResolution(max_resolution: JSResolution): CameraConstraintsBuilder;
 /**
 * Sets whether the resolution fields ([`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width), [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height)/[`resolution`](crate::js_camera::JSCameraConstraintsBuilder::resolution))
 * should use [`exact`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#constraints).
@@ -470,9 +470,9 @@ export class CameraConstraintsBuilder {
 * `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 * `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 * # JS-WASM
-* This is exported as a `CameraInfo`.
+* This is exported as a `JSCameraInfo`.
 */
-export class CameraInfo {
+export class JSCameraInfo {
   free(): void;
 /**
 * Create a new [`CameraInfo`].
@@ -512,6 +512,56 @@ export class CameraInfo {
 * @returns {string}
 */
   MiscString: string;
+}
+/**
+* Describes a Resolution.
+* This struct consists of a Width and a Height value (x,y). <br>
+* Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
+* # JS-WASM
+* This is exported as `JSResolution`
+*/
+export class JSResolution {
+  free(): void;
+/**
+* Create a new resolution from 2 image size coordinates.
+* # JS-WASM
+* This is exported as a constructor for [`Resolution`].
+* @param {number} x
+* @param {number} y
+*/
+  constructor(x: number, y: number);
+/**
+* Get the x (width) of Resolution
+* @returns {number}
+*/
+  x(): number;
+/**
+* Get the y (height) of Resolution
+* @returns {number}
+*/
+  y(): number;
+/**
+* Get the height of Resolution
+* # JS-WASM
+* This is exported as `get_Height`.
+* @returns {number}
+*/
+  readonly Height: number;
+/**
+* Get the width of Resolution
+* # JS-WASM
+* This is exported as `get_Width`.
+* @returns {number}
+*/
+  readonly Width: number;
+/**
+* @returns {number}
+*/
+  height_y: number;
+/**
+* @returns {number}
+*/
+  width_x: number;
 }
 /**
 * A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
@@ -640,59 +690,9 @@ export class NokhwaCamera {
 * Note: This value is only updated after you call [`measure_resolution`](crate::js_camera::JSCamera::measure_resolution)
 * # JS-WASM
 * This is exported as `get_Resolution`.
-* @returns {Resolution}
+* @returns {JSResolution}
 */
-  readonly Resolution: Resolution;
-}
-/**
-* Describes a Resolution.
-* This struct consists of a Width and a Height value (x,y). <br>
-* Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
-* # JS-WASM
-* This is exported as `Resolution`
-*/
-export class Resolution {
-  free(): void;
-/**
-* Create a new resolution from 2 image size coordinates.
-* # JS-WASM
-* This is exported as a constructor for [`Resolution`].
-* @param {number} x
-* @param {number} y
-*/
-  constructor(x: number, y: number);
-/**
-* Get the x (width) of Resolution
-* @returns {number}
-*/
-  x(): number;
-/**
-* Get the y (height) of Resolution
-* @returns {number}
-*/
-  y(): number;
-/**
-* Get the height of Resolution
-* # JS-WASM
-* This is exported as `get_Height`.
-* @returns {number}
-*/
-  readonly Height: number;
-/**
-* Get the width of Resolution
-* # JS-WASM
-* This is exported as `get_Width`.
-* @returns {number}
-*/
-  readonly Width: number;
-/**
-* @returns {number}
-*/
-  height_y: number;
-/**
-* @returns {number}
-*/
-  width_x: number;
+  readonly Resolution: JSResolution;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -783,34 +783,34 @@ export interface InitOutput {
   readonly nokhwacamera_detachCamera: (a: number) => void;
   readonly nokhwacamera_stopAll: (a: number) => void;
   readonly cameraconstraintsbuilder_MinResolution: (a: number, b: number) => number;
-  readonly __wbg_resolution_free: (a: number) => void;
-  readonly __wbg_get_resolution_width_x: (a: number) => number;
-  readonly __wbg_set_resolution_width_x: (a: number, b: number) => void;
-  readonly __wbg_get_resolution_height_y: (a: number) => number;
-  readonly __wbg_set_resolution_height_y: (a: number, b: number) => void;
-  readonly resolution_width: (a: number) => number;
-  readonly resolution_height: (a: number) => number;
-  readonly __wbg_camerainfo_free: (a: number) => void;
-  readonly camerainfo_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
-  readonly camerainfo_human_name: (a: number, b: number) => void;
-  readonly camerainfo_set_human_name: (a: number, b: number, c: number) => void;
-  readonly camerainfo_description: (a: number, b: number) => void;
-  readonly camerainfo_set_description: (a: number, b: number, c: number) => void;
-  readonly camerainfo_misc: (a: number, b: number) => void;
-  readonly camerainfo_set_misc: (a: number, b: number, c: number) => void;
-  readonly camerainfo_index: (a: number) => number;
-  readonly camerainfo_set_index: (a: number, b: number) => void;
-  readonly resolution_new: (a: number, b: number) => number;
-  readonly resolution_x: (a: number) => number;
-  readonly resolution_y: (a: number) => number;
+  readonly __wbg_jsresolution_free: (a: number) => void;
+  readonly __wbg_get_jsresolution_width_x: (a: number) => number;
+  readonly __wbg_set_jsresolution_width_x: (a: number, b: number) => void;
+  readonly __wbg_get_jsresolution_height_y: (a: number) => number;
+  readonly __wbg_set_jsresolution_height_y: (a: number, b: number) => void;
+  readonly jsresolution_width: (a: number) => number;
+  readonly jsresolution_height: (a: number) => number;
+  readonly __wbg_jscamerainfo_free: (a: number) => void;
+  readonly jscamerainfo_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly jscamerainfo_human_name: (a: number, b: number) => void;
+  readonly jscamerainfo_set_human_name: (a: number, b: number, c: number) => void;
+  readonly jscamerainfo_description: (a: number, b: number) => void;
+  readonly jscamerainfo_set_description: (a: number, b: number, c: number) => void;
+  readonly jscamerainfo_misc: (a: number, b: number) => void;
+  readonly jscamerainfo_set_misc: (a: number, b: number, c: number) => void;
+  readonly jscamerainfo_index: (a: number) => number;
+  readonly jscamerainfo_set_index: (a: number, b: number) => void;
+  readonly jsresolution_new: (a: number, b: number) => number;
+  readonly jsresolution_x: (a: number) => number;
+  readonly jsresolution_y: (a: number) => number;
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hea39c228ba1e4ce0: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h4e37a62ffa13b731: (a: number, b: number, c: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__h064f4f45fefb46a0: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__h4d59381e7733ca36: (a: number, b: number, c: number, d: number) => void;
 }
 
 /**

@@ -211,7 +211,7 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     return real;
 }
 function __wbg_adapter_26(arg0, arg1, arg2) {
-    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hea39c228ba1e4ce0(arg0, arg1, addHeapObject(arg2));
+    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h4e37a62ffa13b731(arg0, arg1, addHeapObject(arg2));
 }
 
 /**
@@ -279,7 +279,7 @@ function passArray8ToWasm0(arg, malloc) {
     return ptr;
 }
 function __wbg_adapter_240(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__h064f4f45fefb46a0(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__h4d59381e7733ca36(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 /**
@@ -360,20 +360,20 @@ export class CameraConstraints {
     * Gets the minimum [`Resolution`].
     * # JS-WASM
     * This is exported as `get_MinResolution`.
-    * @returns {Resolution | undefined}
+    * @returns {JSResolution | undefined}
     */
     get MinResolution() {
         var ret = wasm.cameraconstraints_min_resolution(this.ptr);
-        return ret === 0 ? undefined : Resolution.__wrap(ret);
+        return ret === 0 ? undefined : JSResolution.__wrap(ret);
     }
     /**
     * Gets the minimum [`Resolution`].
     * # JS-WASM
     * This is exported as `set_MinResolution`.
-    * @param {Resolution} min_resolution
+    * @param {JSResolution} min_resolution
     */
     set MinResolution(min_resolution) {
-        _assertClass(min_resolution, Resolution);
+        _assertClass(min_resolution, JSResolution);
         var ptr0 = min_resolution.ptr;
         min_resolution.ptr = 0;
         wasm.cameraconstraints_set_min_resolution(this.ptr, ptr0);
@@ -382,11 +382,11 @@ export class CameraConstraints {
     * Gets the internal [`Resolution`]
     * # JS-WASM
     * This is exported as `get_Resolution`.
-    * @returns {Resolution}
+    * @returns {JSResolution}
     */
     get Resolution() {
         var ret = wasm.cameraconstraints_resolution(this.ptr);
-        return Resolution.__wrap(ret);
+        return JSResolution.__wrap(ret);
     }
     /**
     * Sets the internal [`Resolution`]
@@ -394,10 +394,10 @@ export class CameraConstraints {
     * [`apply_constraints()`](crate::js_camera::JSCameraConstraints::apply_constraints)
     * # JS-WASM
     * This is exported as `set_Resolution`.
-    * @param {Resolution} preferred_resolution
+    * @param {JSResolution} preferred_resolution
     */
     set Resolution(preferred_resolution) {
-        _assertClass(preferred_resolution, Resolution);
+        _assertClass(preferred_resolution, JSResolution);
         var ptr0 = preferred_resolution.ptr;
         preferred_resolution.ptr = 0;
         wasm.cameraconstraints_set_resolution(this.ptr, ptr0);
@@ -406,20 +406,20 @@ export class CameraConstraints {
     * Gets the maximum [`Resolution`].
     * # JS-WASM
     * This is exported as `get_MaxResolution`.
-    * @returns {Resolution | undefined}
+    * @returns {JSResolution | undefined}
     */
     get MaxResolution() {
         var ret = wasm.cameraconstraints_max_resolution(this.ptr);
-        return ret === 0 ? undefined : Resolution.__wrap(ret);
+        return ret === 0 ? undefined : JSResolution.__wrap(ret);
     }
     /**
     * Gets the maximum [`Resolution`].
     * # JS-WASM
     * This is exported as `set_MaxResolution`.
-    * @param {Resolution} max_resolution
+    * @param {JSResolution} max_resolution
     */
     set MaxResolution(max_resolution) {
-        _assertClass(max_resolution, Resolution);
+        _assertClass(max_resolution, JSResolution);
         var ptr0 = max_resolution.ptr;
         max_resolution.ptr = 0;
         wasm.cameraconstraints_set_max_resolution(this.ptr, ptr0);
@@ -882,12 +882,12 @@ export class CameraConstraintsBuilder {
     * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
     * # JS-WASM
     * This is exported as `set_MinResolution`.
-    * @param {Resolution} min_resolution
+    * @param {JSResolution} min_resolution
     * @returns {CameraConstraintsBuilder}
     */
     MinResolution(min_resolution) {
         const ptr = this.__destroy_into_raw();
-        _assertClass(min_resolution, Resolution);
+        _assertClass(min_resolution, JSResolution);
         var ptr0 = min_resolution.ptr;
         min_resolution.ptr = 0;
         var ret = wasm.cameraconstraintsbuilder_MaxResolution(ptr, ptr0);
@@ -899,12 +899,12 @@ export class CameraConstraintsBuilder {
     * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
     * # JS-WASM
     * This is exported as `set_Resolution`.
-    * @param {Resolution} new_resolution
+    * @param {JSResolution} new_resolution
     * @returns {CameraConstraintsBuilder}
     */
     Resolution(new_resolution) {
         const ptr = this.__destroy_into_raw();
-        _assertClass(new_resolution, Resolution);
+        _assertClass(new_resolution, JSResolution);
         var ptr0 = new_resolution.ptr;
         new_resolution.ptr = 0;
         var ret = wasm.cameraconstraintsbuilder_Resolution(ptr, ptr0);
@@ -916,12 +916,12 @@ export class CameraConstraintsBuilder {
     * Sets [`width`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/width) and [`height`](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/height).
     * # JS-WASM
     * This is exported as `set_MaxResolution`.
-    * @param {Resolution} max_resolution
+    * @param {JSResolution} max_resolution
     * @returns {CameraConstraintsBuilder}
     */
     MaxResolution(max_resolution) {
         const ptr = this.__destroy_into_raw();
-        _assertClass(max_resolution, Resolution);
+        _assertClass(max_resolution, JSResolution);
         var ptr0 = max_resolution.ptr;
         max_resolution.ptr = 0;
         var ret = wasm.cameraconstraintsbuilder_MaxResolution(ptr, ptr0);
@@ -1178,12 +1178,12 @@ export class CameraConstraintsBuilder {
 * `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 * `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 * # JS-WASM
-* This is exported as a `CameraInfo`.
+* This is exported as a `JSCameraInfo`.
 */
-export class CameraInfo {
+export class JSCameraInfo {
 
     static __wrap(ptr) {
-        const obj = Object.create(CameraInfo.prototype);
+        const obj = Object.create(JSCameraInfo.prototype);
         obj.ptr = ptr;
 
         return obj;
@@ -1198,7 +1198,7 @@ export class CameraInfo {
 
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_camerainfo_free(ptr);
+        wasm.__wbg_jscamerainfo_free(ptr);
     }
     /**
     * Create a new [`CameraInfo`].
@@ -1216,8 +1216,8 @@ export class CameraInfo {
         var len1 = WASM_VECTOR_LEN;
         var ptr2 = passStringToWasm0(misc, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len2 = WASM_VECTOR_LEN;
-        var ret = wasm.camerainfo_new(ptr0, len0, ptr1, len1, ptr2, len2, index);
-        return CameraInfo.__wrap(ret);
+        var ret = wasm.jscamerainfo_new(ptr0, len0, ptr1, len1, ptr2, len2, index);
+        return JSCameraInfo.__wrap(ret);
     }
     /**
     * Get a reference to the device info's human readable name.
@@ -1228,7 +1228,7 @@ export class CameraInfo {
     get HumanReadableName() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_human_name(retptr, this.ptr);
+            wasm.jscamerainfo_human_name(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -1246,7 +1246,7 @@ export class CameraInfo {
     set HumanReadableName(human_name) {
         var ptr0 = passStringToWasm0(human_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_human_name(this.ptr, ptr0, len0);
+        wasm.jscamerainfo_set_human_name(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's description.
@@ -1257,7 +1257,7 @@ export class CameraInfo {
     get Description() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_description(retptr, this.ptr);
+            wasm.jscamerainfo_description(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -1275,7 +1275,7 @@ export class CameraInfo {
     set Description(description) {
         var ptr0 = passStringToWasm0(description, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_description(this.ptr, ptr0, len0);
+        wasm.jscamerainfo_set_description(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's misc.
@@ -1286,7 +1286,7 @@ export class CameraInfo {
     get MiscString() {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.camerainfo_misc(retptr, this.ptr);
+            wasm.jscamerainfo_misc(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
@@ -1304,7 +1304,7 @@ export class CameraInfo {
     set MiscString(misc) {
         var ptr0 = passStringToWasm0(misc, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.camerainfo_set_misc(this.ptr, ptr0, len0);
+        wasm.jscamerainfo_set_misc(this.ptr, ptr0, len0);
     }
     /**
     * Get a reference to the device info's index.
@@ -1313,7 +1313,7 @@ export class CameraInfo {
     * @returns {number}
     */
     get Index() {
-        var ret = wasm.camerainfo_index(this.ptr);
+        var ret = wasm.jscamerainfo_index(this.ptr);
         return ret >>> 0;
     }
     /**
@@ -1323,7 +1323,112 @@ export class CameraInfo {
     * @param {number} index
     */
     set Index(index) {
-        wasm.camerainfo_set_index(this.ptr, index);
+        wasm.jscamerainfo_set_index(this.ptr, index);
+    }
+}
+/**
+* Describes a Resolution.
+* This struct consists of a Width and a Height value (x,y). <br>
+* Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
+* # JS-WASM
+* This is exported as `JSResolution`
+*/
+export class JSResolution {
+
+    static __wrap(ptr) {
+        const obj = Object.create(JSResolution.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    __destroy_into_raw() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_jsresolution_free(ptr);
+    }
+    /**
+    * @returns {number}
+    */
+    get width_x() {
+        var ret = wasm.__wbg_get_jsresolution_width_x(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * @param {number} arg0
+    */
+    set width_x(arg0) {
+        wasm.__wbg_set_jsresolution_width_x(this.ptr, arg0);
+    }
+    /**
+    * @returns {number}
+    */
+    get height_y() {
+        var ret = wasm.__wbg_get_jsresolution_height_y(this.ptr);
+        return ret >>> 0;
+    }
+    /**
+    * @param {number} arg0
+    */
+    set height_y(arg0) {
+        wasm.__wbg_set_jsresolution_height_y(this.ptr, arg0);
+    }
+    /**
+    * Create a new resolution from 2 image size coordinates.
+    * # JS-WASM
+    * This is exported as a constructor for [`Resolution`].
+    * @param {number} x
+    * @param {number} y
+    */
+    constructor(x, y) {
+        var ret = wasm.jsresolution_new(x, y);
+        return JSResolution.__wrap(ret);
+    }
+    /**
+    * Get the width of Resolution
+    * # JS-WASM
+    * This is exported as `get_Width`.
+    * @returns {number}
+    */
+    get Width() {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.jsresolution_width(ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Get the height of Resolution
+    * # JS-WASM
+    * This is exported as `get_Height`.
+    * @returns {number}
+    */
+    get Height() {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.jsresolution_height(ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Get the x (width) of Resolution
+    * @returns {number}
+    */
+    x() {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.jsresolution_width(ptr);
+        return ret >>> 0;
+    }
+    /**
+    * Get the y (height) of Resolution
+    * @returns {number}
+    */
+    y() {
+        const ptr = this.__destroy_into_raw();
+        var ret = wasm.jsresolution_height(ptr);
+        return ret >>> 0;
     }
 }
 /**
@@ -1399,11 +1504,11 @@ export class NokhwaCamera {
     * Note: This value is only updated after you call [`measure_resolution`](crate::js_camera::JSCamera::measure_resolution)
     * # JS-WASM
     * This is exported as `get_Resolution`.
-    * @returns {Resolution}
+    * @returns {JSResolution}
     */
     get Resolution() {
         var ret = wasm.nokhwacamera_resolution(this.ptr);
-        return Resolution.__wrap(ret);
+        return JSResolution.__wrap(ret);
     }
     /**
     * Measures the [`Resolution`] of the internal stream. You usually do not need to call this.
@@ -1549,111 +1654,6 @@ export class NokhwaCamera {
         wasm.nokhwacamera_stopAll(this.ptr);
     }
 }
-/**
-* Describes a Resolution.
-* This struct consists of a Width and a Height value (x,y). <br>
-* Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
-* # JS-WASM
-* This is exported as `Resolution`
-*/
-export class Resolution {
-
-    static __wrap(ptr) {
-        const obj = Object.create(Resolution.prototype);
-        obj.ptr = ptr;
-
-        return obj;
-    }
-
-    __destroy_into_raw() {
-        const ptr = this.ptr;
-        this.ptr = 0;
-
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_resolution_free(ptr);
-    }
-    /**
-    * @returns {number}
-    */
-    get width_x() {
-        var ret = wasm.__wbg_get_resolution_width_x(this.ptr);
-        return ret >>> 0;
-    }
-    /**
-    * @param {number} arg0
-    */
-    set width_x(arg0) {
-        wasm.__wbg_set_resolution_width_x(this.ptr, arg0);
-    }
-    /**
-    * @returns {number}
-    */
-    get height_y() {
-        var ret = wasm.__wbg_get_resolution_height_y(this.ptr);
-        return ret >>> 0;
-    }
-    /**
-    * @param {number} arg0
-    */
-    set height_y(arg0) {
-        wasm.__wbg_set_resolution_height_y(this.ptr, arg0);
-    }
-    /**
-    * Create a new resolution from 2 image size coordinates.
-    * # JS-WASM
-    * This is exported as a constructor for [`Resolution`].
-    * @param {number} x
-    * @param {number} y
-    */
-    constructor(x, y) {
-        var ret = wasm.resolution_new(x, y);
-        return Resolution.__wrap(ret);
-    }
-    /**
-    * Get the width of Resolution
-    * # JS-WASM
-    * This is exported as `get_Width`.
-    * @returns {number}
-    */
-    get Width() {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_width(ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Get the height of Resolution
-    * # JS-WASM
-    * This is exported as `get_Height`.
-    * @returns {number}
-    */
-    get Height() {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_height(ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Get the x (width) of Resolution
-    * @returns {number}
-    */
-    x() {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_width(ptr);
-        return ret >>> 0;
-    }
-    /**
-    * Get the y (height) of Resolution
-    * @returns {number}
-    */
-    y() {
-        const ptr = this.__destroy_into_raw();
-        var ret = wasm.resolution_height(ptr);
-        return ret >>> 0;
-    }
-}
 
 async function load(module, imports) {
     if (typeof Response === 'function' && module instanceof Response) {
@@ -1719,8 +1719,8 @@ async function init(input) {
         var ret = getObject(arg0) === getObject(arg1);
         return ret;
     };
-    imports.wbg.__wbg_camerainfo_new = function(arg0) {
-        var ret = CameraInfo.__wrap(arg0);
+    imports.wbg.__wbg_jscamerainfo_new = function(arg0) {
+        var ret = JSCameraInfo.__wrap(arg0);
         return addHeapObject(ret);
     };
     imports.wbg.__wbindgen_cb_drop = function(arg0) {
@@ -1864,6 +1864,13 @@ async function init(input) {
         getInt32Memory0()[arg0 / 4 + 1] = len0;
         getInt32Memory0()[arg0 / 4 + 0] = ptr0;
     }, arguments) };
+    imports.wbg.__wbg_data_3b5132cf708f3fa5 = function(arg0, arg1) {
+        var ret = getObject(arg1).data;
+        var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        getInt32Memory0()[arg0 / 4 + 1] = len0;
+        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+    };
     imports.wbg.__wbg_instanceof_HtmlVideoElement_fc0a10eaf320d2aa = function(arg0) {
         var ret = getObject(arg0) instanceof HTMLVideoElement;
         return ret;
@@ -1873,13 +1880,6 @@ async function init(input) {
     };
     imports.wbg.__wbg_setheight_2b2cb0447984d19f = function(arg0, arg1) {
         getObject(arg0).height = arg1 >>> 0;
-    };
-    imports.wbg.__wbg_data_3b5132cf708f3fa5 = function(arg0, arg1) {
-        var ret = getObject(arg1).data;
-        var ptr0 = passArray8ToWasm0(ret, wasm.__wbindgen_malloc);
-        var len0 = WASM_VECTOR_LEN;
-        getInt32Memory0()[arg0 / 4 + 1] = len0;
-        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
     };
     imports.wbg.__wbg_label_b3c3caf2db14bc2f = function(arg0, arg1) {
         var ret = getObject(arg1).label;
