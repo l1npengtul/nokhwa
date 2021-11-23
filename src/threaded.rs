@@ -20,8 +20,8 @@ use crate::{
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::FairMutex;
-use std::any::Any;
 use std::{
+    any::Any,
     collections::HashMap,
     ops::Deref,
     sync::{
@@ -47,6 +47,7 @@ use std::{
 pub struct ThreadedCamera {
     camera: Arc<FairMutex<Camera>>,
     frame_callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    last_frame_captured: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     die_bool: Arc<AtomicBool>,
 }
 
@@ -69,19 +70,29 @@ impl ThreadedCamera {
         let camera = Arc::new(FairMutex::new(Camera::with_backend(
             index, format, backend,
         )?));
+        let format = match format {
+            Some(fmt) => fmt,
+            None => CameraFormat::default(),
+        };
         let frame_callback = Arc::new(FairMutex::new(None));
         let die_bool = Arc::new(AtomicBool::new(false));
+        let holding_cell = Arc::new(FairMutex::new(ImageBuffer::new(
+            format.width(),
+            format.height(),
+        )));
 
         let die_clone = die_bool.clone();
         let camera_clone = camera.clone();
         let callback_clone = frame_callback.clone();
+        let holding_cell_clone = holding_cell.clone();
         std::thread::spawn(move || {
-            camera_frame_thread_loop(camera_clone, callback_clone, die_clone)
+            camera_frame_thread_loop(camera_clone, callback_clone, holding_cell_clone, die_clone)
         });
 
         Ok(ThreadedCamera {
             camera,
             frame_callback,
+            last_frame_captured: holding_cell,
             die_bool,
         })
     }
@@ -144,6 +155,7 @@ impl ThreadedCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
+        *self.last_frame_captured.lock() = ImageBuffer::new(new_fmt.width(), new_fmt.height());
         self.camera.lock().set_camera_format(new_fmt)
     }
 
@@ -175,6 +187,7 @@ impl ThreadedCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
+        *self.last_frame_captured.lock() = ImageBuffer::new(new_res.width(), new_res.height());
         self.camera.lock().set_resolution(new_res)
     }
 
@@ -340,6 +353,14 @@ impl ThreadedCamera {
         *self.frame_callback.lock() = Some(callback);
     }
 
+    pub fn poll_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+        self.camera.lock().frame()
+    }
+
+    pub fn last_frame(&self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+        self.last_frame_captured.lock().clone()
+    }
+
     /// Checks if stream if open. If it is, it will return true.
     pub fn is_stream_open(&self) -> bool {
         self.camera.lock().is_stream_open()
@@ -363,10 +384,12 @@ impl Drop for ThreadedCamera {
 fn camera_frame_thread_loop(
     camera: Arc<FairMutex<Camera>>,
     callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    holding_cell: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     die_bool: Arc<AtomicBool>,
 ) {
     loop {
         if let Ok(img) = camera.lock().frame() {
+            *holding_cell.lock() = img.clone();
             if let Some(cb) = callback.lock().deref() {
                 cb(img)
             }

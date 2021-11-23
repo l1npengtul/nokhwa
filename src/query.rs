@@ -153,7 +153,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
         Err(why) => {
             return Err(NokhwaError::GeneralError(format!(
                 "UVC Context failure: {}",
-                why.to_string()
+                why
             )))
         }
     };
@@ -167,7 +167,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
         Err(why) => {
             return Err(NokhwaError::GeneralError(format!(
                 "UVC Context Devicelist failure: {}",
-                why.to_string()
+                why
             )))
         }
     };

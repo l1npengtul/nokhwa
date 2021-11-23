@@ -46,7 +46,7 @@ The table below lists current Nokhwa API support.
  | Video4Linux(`input-v4l`)            | ✅                 | ✅                 | ✅                 | Linux               |
  | MSMF(`input-msmf`)                  | ✅                 | ✅                 | ✅                 | Windows             |
  | AVFoundation(`input-avfoundatuin`)^^| ✅                 | ✅                 | ✅                 | Mac                 |
- | libuvc(`input-uvc`)                 | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | libuvc(`input-uvc`)^^^              | ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^             | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^     | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | GStreamer(`input-gst`)              | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
@@ -55,7 +55,10 @@ The table below lists current Nokhwa API support.
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
   ^ = No CameraFormat setting support.
+
   ^^ = No FPS setting support.
+
+  ^^^ = `input-uvc` is disabled for now as there are lifetime/soundness holes. You can still query, however.
 ## Feature
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.

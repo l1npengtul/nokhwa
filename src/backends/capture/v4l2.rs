@@ -188,7 +188,7 @@ impl<'a> V4LCaptureDevice<'a> {
             Err(why) => {
                 return Err(NokhwaError::OpenDeviceError(
                     index.to_string(),
-                    format!("V4L2 Error: {}", why.to_string()),
+                    format!("V4L2 Error: {}", why),
                 ))
             }
         };
@@ -379,7 +379,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     // undo
                     if let Err(why) = Capture::set_format(&self.device, &prev_format) {
                         return Err(NokhwaError::SetPropertyError {
-                            property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why.to_string()),
+                            property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why),
                             value: prev_format.to_string(),
                             error: why.to_string(),
                         });
@@ -387,7 +387,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     if let Err(why) = Capture::set_params(&self.device, &prev_fps) {
                         return Err(NokhwaError::SetPropertyError {
                             property:
-                            format!("Attempt undo due to stream acquisition failure with error {}. Frame rate", why.to_string()),
+                            format!("Attempt undo due to stream acquisition failure with error {}. Frame rate", why),
                             value: prev_fps.to_string(),
                             error: why.to_string(),
                         });

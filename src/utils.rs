@@ -169,15 +169,15 @@ impl From<FrameFormat> for AVFourCC {
 /// This struct consists of a Width and a Height value (x,y). <br>
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
 /// # JS-WASM
-/// This is exported as `Resolution`
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = Resolution))]
+/// This is exported as `JSResolution`
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = Resolution))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSResolution))]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     /// # JS-WASM
@@ -389,7 +389,7 @@ impl Default for CameraFormat {
         CameraFormat {
             resolution: Resolution::new(640, 480),
             format: FrameFormat::MJPEG,
-            frame_rate: 15,
+            frame_rate: 30,
         }
     }
 }
@@ -470,8 +470,8 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 /// # JS-WASM
-/// This is exported as a `CameraInfo`.
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = CameraInfo))]
+/// This is exported as a `JSCameraInfo`.
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct CameraInfo {
     human_name: String,
@@ -480,7 +480,7 @@ pub struct CameraInfo {
     index: usize,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = CameraInfo))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
@@ -770,6 +770,8 @@ impl Display for KnownCameraControlFlag {
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
+/// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
+/// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct CameraControl {
     control: KnownCameraControls,
@@ -866,6 +868,12 @@ impl CameraControl {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
+            });
+        }
+        if value == self.minimum_value() || value == self.maximum_value() {
+            return Err(NokhwaError::StructureError {
+                structure: "CameraControl".to_string(),
+                error: "Values not inclusive".to_string(),
             });
         }
         if value % self.step() != 0 {
