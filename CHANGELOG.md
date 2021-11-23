@@ -1,3 +1,9 @@
+# 0.9.0
+- Fixed Camera Controls for V4L2
+- Disabled UVC Backend.
+- Added polling and last frame to `ThreadedCamera`
+- Updated the `CameraControl` related Camera APIs
+
 # 0.8.0
 - Media Foundation Access Violation fix (#13)
 
