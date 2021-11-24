@@ -16,6 +16,7 @@
 
 use image::{ImageBuffer, Rgb};
 use nokhwa::{query_devices, CaptureAPIBackend, ThreadedCamera};
+use std::time::Duration;
 
 fn main() {
     let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
@@ -24,7 +25,15 @@ fn main() {
     let mut threaded = ThreadedCamera::new(0, None).unwrap();
     threaded.open_stream(callback).unwrap();
     #[allow(clippy::empty_loop)] // keep it running
-    loop {}
+    loop {
+        let frame = threaded.poll_frame().unwrap();
+        println!(
+            "{}x{} {} naripoggers",
+            frame.width(),
+            frame.height(),
+            frame.len()
+        );
+    }
 }
 
 fn callback(image: ImageBuffer<Rgb<u8>, Vec<u8>>) {

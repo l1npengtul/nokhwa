@@ -52,7 +52,7 @@ pub struct ThreadedCamera {
 }
 
 impl ThreadedCamera {
-    /// Create a new camera from an `index` and `format`. `format` can be `None`.
+    /// Create a new `ThreadedCamera` from an `index` and `format`. `format` can be `None`.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(index: usize, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
@@ -66,6 +66,44 @@ impl ThreadedCamera {
         index: usize,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
+    ) -> Result<Self, NokhwaError> {
+        Self::customized_all(index, format, backend, None)
+    }
+
+    /// Create a new `ThreadedCamera` from raw values.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    pub fn new_with(
+        index: usize,
+        width: u32,
+        height: u32,
+        fps: u32,
+        fourcc: FrameFormat,
+        backend: CaptureAPIBackend,
+    ) -> Result<Self, NokhwaError> {
+        let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
+        ThreadedCamera::with_backend(index, Some(camera_format), backend)
+    }
+
+    /// Create a new `ThreadedCamera` from raw values, including the raw capture function.
+    ///
+    /// **This is meant for advanced users only.**
+    ///
+    /// An example capture function can be found by clicking `[src]` and scrolling down to the bottom to function `camera_frame_thread_loop()`.
+    /// # Errors
+    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    pub fn customized_all(
+        index: usize,
+        format: Option<CameraFormat>,
+        backend: CaptureAPIBackend,
+        func: Option<
+            fn(
+                _: Arc<FairMutex<Camera>>,
+                _: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+                _: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+                _: Arc<AtomicBool>,
+            ),
+        >,
     ) -> Result<Self, NokhwaError> {
         let camera = Arc::new(FairMutex::new(Camera::with_backend(
             index, format, backend,
@@ -85,8 +123,12 @@ impl ThreadedCamera {
         let camera_clone = camera.clone();
         let callback_clone = frame_callback.clone();
         let holding_cell_clone = holding_cell.clone();
+        let func = match func {
+            Some(f) => f,
+            None => camera_frame_thread_loop,
+        };
         std::thread::spawn(move || {
-            camera_frame_thread_loop(camera_clone, callback_clone, holding_cell_clone, die_clone)
+            func(camera_clone, callback_clone, holding_cell_clone, die_clone)
         });
 
         Ok(ThreadedCamera {
@@ -95,21 +137,6 @@ impl ThreadedCamera {
             last_frame_captured: holding_cell,
             die_bool,
         })
-    }
-
-    /// Create a new `Camera` from raw values.
-    /// # Errors
-    /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new_with(
-        index: usize,
-        width: u32,
-        height: u32,
-        fps: u32,
-        fourcc: FrameFormat,
-        backend: CaptureAPIBackend,
-    ) -> Result<Self, NokhwaError> {
-        let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        ThreadedCamera::with_backend(index, Some(camera_format), backend)
     }
 
     /// Gets the current Camera's index.
@@ -349,14 +376,19 @@ impl ThreadedCamera {
         self.camera.lock().open_stream()
     }
 
+    /// Sets the frame callback to the new specified function. This function will be called instead of the previous one(s).
     pub fn set_callback(&mut self, callback: fn(ImageBuffer<Rgb<u8>, Vec<u8>>)) {
         *self.frame_callback.lock() = Some(callback);
     }
 
+    /// Polls the camera for a frame, analogous to [`Camera::frame`](crate::Camera::frame)
     pub fn poll_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        self.camera.lock().frame()
+        let frame = self.camera.lock().frame()?;
+        *self.last_frame_captured.lock() = frame.clone();
+        Ok(frame)
     }
 
+    /// Gets the last frame captured by the camera.
     pub fn last_frame(&self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
         self.last_frame_captured.lock().clone()
     }

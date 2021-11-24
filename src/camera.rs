@@ -380,11 +380,12 @@ impl Camera {
             buffer.copy_from_slice(rgba_image.as_raw());
             return Ok(rgba_image.len());
         }
-        buffer.copy_from_slice(&frame);
+        buffer.copy_from_slice(frame.as_ref());
         Ok(frame.len())
     }
 
     #[cfg(feature = "output-wgpu")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-wgpu")))]
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
