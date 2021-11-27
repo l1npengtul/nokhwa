@@ -18,7 +18,6 @@ use crate::{
     mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
     CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
-use flume::Receiver;
 use glib::Quark;
 use gstreamer::{
     element_error,
@@ -30,11 +29,11 @@ use gstreamer::{
 use gstreamer_app::{AppSink, AppSinkCallbacks};
 use gstreamer_video::{VideoFormat, VideoInfo};
 use image::{ImageBuffer, Rgb};
+use parking_lot::Mutex;
 use regex::Regex;
-use std::any::Any;
-use std::{borrow::Cow, collections::HashMap, str::FromStr};
+use std::{any::Any, borrow::Cow, collections::HashMap, str::FromStr, sync::Arc};
 
-type PipelineGenRet = (Element, AppSink, Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>);
+type PipelineGenRet = (Element, AppSink, Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>);
 
 /// The backend struct that interfaces with `GStreamer`.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -47,7 +46,7 @@ pub struct GStreamerCaptureDevice {
     app_sink: AppSink,
     camera_format: CameraFormat,
     camera_info: CameraInfo,
-    receiver: Receiver<ImageBuffer<Rgb<u8>, Vec<u8>>>,
+    image_lock: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     caps: Option<Caps>,
 }
 
@@ -128,7 +127,7 @@ impl GStreamerCaptureDevice {
             app_sink,
             camera_format,
             camera_info,
-            receiver,
+            image_lock: receiver,
             caps,
         })
     }
@@ -166,7 +165,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
         let (pipeline, app_sink, receiver) = generate_pipeline(new_fmt, self.camera_info.index())?;
         self.pipeline = pipeline;
         self.app_sink = app_sink;
-        self.receiver = receiver;
+        self.image_lock = receiver;
         if reopen {
             self.open_stream()?;
         }
@@ -540,15 +539,7 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
             }
         }
 
-        match self.receiver.recv() {
-            Ok(msg) => Ok(Cow::from(msg.to_vec())),
-            Err(why) => {
-                return Err(NokhwaError::ReadFrameError(format!(
-                    "Receiver Error: {}",
-                    why
-                )));
-            }
-        }
+        Ok(Cow::from(self.image_lock.lock().to_vec()))
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
@@ -650,7 +641,8 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
 
     pipeline.set_state(State::Playing).unwrap();
 
-    let (sender, receiver) = flume::unbounded();
+    let image_lock = Arc::new(Mutex::new(Default::default()));
+    let img_lck_clone = image_lock.clone();
 
     appsink.set_callbacks(
         AppSinkCallbacks::builder()
@@ -816,13 +808,11 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                     }
                 };
 
-                if sender.send(image_buffer).is_err() {
-                    return Err(FlowError::Error);
-                }
+                *img_lck_clone.lock() = image_buffer;
 
                 Ok(FlowSuccess::Ok)
             })
             .build(),
     );
-    Ok((pipeline, appsink, receiver))
+    Ok((pipeline, appsink, image_lock))
 }

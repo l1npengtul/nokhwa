@@ -29,6 +29,10 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(feature = "input-uvc")]
+#[macro_use]
+extern crate lazy_static;
+
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
 mod camera;
