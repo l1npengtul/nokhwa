@@ -51,8 +51,15 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
         index: CameraIndex<'a>,
         camera_fmt: Option<CameraFormat>,
     ) -> Result<Self, NokhwaError> {
-        let index = index.index_num()?;
-        let mut mf_device = MediaFoundationDevice::new(index as usize)?;
+        let mut mf_device = match &index {
+            CameraIndex::Index(idx) => MediaFoundationDevice::new(*idx as usize),
+            CameraIndex::String(lnk) => MediaFoundationDevice::with_string(
+                &lnk.as_bytes()
+                    .into_iter()
+                    .map(|x| *x as u16)
+                    .collect::<Vec<u16>>(),
+            ),
+        }?;
         if let Some(fmt) = camera_fmt {
             mf_device.set_format(fmt.into())?;
         }
@@ -61,7 +68,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
             mf_device.name(),
             "MediaFoundation Camera Device".to_string(),
             mf_device.symlink(),
-            CameraIndex::Index(index),
+            index,
         );
 
         Ok(MediaFoundationCaptureDevice {

@@ -14,7 +14,8 @@ repository = "https://github.com/l1npengtul/nokhwa"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["flume"]
+default = ["flume", "decoding"]
+decoding = ["mozjpeg"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
@@ -35,7 +36,6 @@ test-fail-warning = []
 [dependencies]
 thiserror = "1.0.26"
 paste = "1.0.5"
-mozjpeg = "0.8.24"
 
 [dependencies.flume]
 version = "0.10.9"
@@ -44,6 +44,10 @@ optional = true
 [dependencies.image]
 version = "^0.23"
 default-features = false
+
+[target.'cfg(not(target_arch = "wasm"))'.dependencies.mozjpeg]
+version = "0.8.24"
+optional = true
 
 [target.'cfg(target_os = "linux")'.dependencies.v4l]
 version = "0.12.1"
@@ -75,11 +79,13 @@ features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.3.2"
+version = "0.3.3"
+path = "nokhwa-bindings-windows"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
 version = "0.1.1"
+path = "nokhwa-bindings-macos"
 optional = true
 
 [dependencies.gstreamer]

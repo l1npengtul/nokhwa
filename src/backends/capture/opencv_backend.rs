@@ -26,8 +26,7 @@ use opencv::{
         CAP_MSMF, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
     },
 };
-use std::ops::Deref;
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap, ops::Deref};
 
 /// Converts $from into $to
 /// Example usage:

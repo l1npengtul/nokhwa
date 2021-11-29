@@ -209,7 +209,7 @@ pub trait CaptureBackendTrait {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
