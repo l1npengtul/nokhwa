@@ -15,8 +15,9 @@
  */
 
 use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraIndex, CameraInfo,
+    CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
+    Resolution,
 };
 use glib::Quark;
 use gstreamer::{
@@ -41,28 +42,30 @@ type PipelineGenRet = (Element, AppSink, Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>
 /// - `Drop`-ing this may cause a `panic`.
 /// - Setting controls is not supported.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
-pub struct GStreamerCaptureDevice {
+pub struct GStreamerCaptureDevice<'a> {
     pipeline: Element,
     app_sink: AppSink,
     camera_format: CameraFormat,
-    camera_info: CameraInfo,
+    camera_info: CameraInfo<'a>,
     image_lock: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     caps: Option<Caps>,
 }
 
-impl GStreamerCaptureDevice {
+impl<'a> GStreamerCaptureDevice<'a> {
     /// Creates a new capture device using the `GStreamer` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
-    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
+    pub fn new(index: CameraIndex<'a>, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match cam_fmt {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
         };
+
+        let index = index.as_index()?;
 
         if let Err(why) = gstreamer::init() {
             return Err(NokhwaError::InitializeError {
@@ -98,7 +101,7 @@ impl GStreamerCaptureDevice {
                     error: format!("Not started, {}", why),
                 });
             }
-            let device = match device_monitor.devices().get(index) {
+            let device = match device_monitor.devices().get(index as usize) {
                 Some(dev) => dev.clone(),
                 None => {
                     return Err(NokhwaError::OpenDeviceError(
@@ -114,13 +117,13 @@ impl GStreamerCaptureDevice {
                     DeviceExt::display_name(&device).to_string(),
                     DeviceExt::device_class(&device).to_string(),
                     "".to_string(),
-                    index,
+                    CameraIndex::Index(index),
                 ),
                 caps,
             )
         };
 
-        let (pipeline, app_sink, receiver) = generate_pipeline(camera_format, index)?;
+        let (pipeline, app_sink, receiver) = generate_pipeline(camera_format, index as usize)?;
 
         Ok(GStreamerCaptureDevice {
             pipeline,
@@ -137,13 +140,18 @@ impl GStreamerCaptureDevice {
     /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
     /// # Errors
     /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
-    pub fn new_with(index: usize, width: u32, height: u32, fps: u32) -> Result<Self, NokhwaError> {
+    pub fn new_with(
+        index: CameraIndex<'a>,
+        width: u32,
+        height: u32,
+        fps: u32,
+    ) -> Result<Self, NokhwaError> {
         let cam_fmt = CameraFormat::new(Resolution::new(width, height), FrameFormat::MJPEG, fps);
         GStreamerCaptureDevice::new(index, Some(cam_fmt))
     }
 }
 
-impl CaptureBackendTrait for GStreamerCaptureDevice {
+impl<'a> CaptureBackendTrait for GStreamerCaptureDevice<'a> {
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::GStreamer
     }
@@ -162,7 +170,8 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
             self.stop_stream()?;
             reopen = true;
         }
-        let (pipeline, app_sink, receiver) = generate_pipeline(new_fmt, self.camera_info.index())?;
+        let (pipeline, app_sink, receiver) =
+            generate_pipeline(new_fmt, self.camera_info.index_num()? as usize)?;
         self.pipeline = pipeline;
         self.app_sink = app_sink;
         self.image_lock = receiver;
@@ -553,9 +562,9 @@ impl CaptureBackendTrait for GStreamerCaptureDevice {
     }
 }
 
-impl Drop for GStreamerCaptureDevice {
+impl<'a> Drop for GStreamerCaptureDevice<'a> {
     fn drop(&mut self) {
-        self.pipeline.set_state(State::Null).unwrap();
+        let _ = self.pipeline.set_state(State::Null);
     }
 }
 

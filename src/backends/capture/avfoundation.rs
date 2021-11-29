@@ -15,15 +15,16 @@
  */
 
 use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraIndex, CameraInfo,
+    CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
+    Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
     AVCaptureVideoCallback, AVCaptureVideoDataOutput, AVFourCC,
 };
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::{any::Any, borrow::Borrow, borrow::Cow, collections::HashMap, ops::Deref};
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -33,27 +34,32 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - This only works on 64 bit platforms.
 /// - FPS adjustment does not work.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
-pub struct AVFoundationCaptureDevice {
+pub struct AVFoundationCaptureDevice<'a> {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,
     session: Option<AVCaptureSession>,
     data_out: Option<AVCaptureVideoDataOutput>,
     data_collect: Option<AVCaptureVideoCallback>,
-    info: CameraInfo,
+    info: CameraInfo<'a>,
     format: CameraFormat,
 }
 
-impl AVFoundationCaptureDevice {
+impl<'a> AVFoundationCaptureDevice<'a> {
     /// Creates a new capture device using the `AVFoundation` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
-    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
+    pub fn new(
+        index: CameraIndex<'a>,
+        camera_format: Option<CameraFormat>,
+    ) -> Result<Self, NokhwaError> {
         let camera_format = match camera_format {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
         };
+
+        let index = index.index_num()? as usize;
 
         let device_descriptor: CameraInfo = match query_avfoundation()?.into_iter().nth(index) {
             Some(descriptor) => descriptor.into(),
@@ -85,7 +91,7 @@ impl AVFoundationCaptureDevice {
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new_with(
-        index: usize,
+        index: CameraIndex<'a>,
         width: u32,
         height: u32,
         fps: u32,
@@ -223,7 +229,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         let session = AVCaptureSession::new();
         session.begin_configuration();
         session.add_input(&input)?;
-        let callback = AVCaptureVideoCallback::new(self.info.index());
+        let callback = AVCaptureVideoCallback::new(self.info.index_num()? as usize);
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&callback)?;
         session.add_output(&output)?;
@@ -293,8 +299,8 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             Some(collector) => {
                 let data = collector.frame_to_slice()?;
                 let data = match data.1 {
-                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb888(&data.0)?),
-                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb888(&data.0)?),
+                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb888(data.0.borrow())),
+                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb888(data.0.borrow())),
                 };
                 Ok(data)
             }
