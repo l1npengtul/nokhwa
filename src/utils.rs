@@ -592,13 +592,13 @@ impl<'a> Display for CameraInfo<'a> {
     all(feature = "input-msmf", target_os = "windows"),
     all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
 ))]
-impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
+impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo<'_> {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
-            human_name: dev_desc.name_as_string(),
-            description: "Media Foundation Device".to_string(),
-            misc: dev_desc.link_as_string(),
-            index: dev_desc.index(),
+            human_name: Cow::from(dev_desc.name_as_string()),
+            description: Cow::from("Media Foundation Device"),
+            misc: Cow::from(dev_desc.link_as_string()),
+            index: CameraIndex::Index(dev_desc.index() as u32),
         }
     }
 }
@@ -615,13 +615,13 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     )
 ))]
 #[allow(clippy::cast_possible_truncation)]
-impl From<AVCaptureDeviceDescriptor> for CameraInfo {
+impl From<AVCaptureDeviceDescriptor> for CameraInfo<'_> {
     fn from(descriptor: AVCaptureDeviceDescriptor) -> Self {
         CameraInfo {
-            human_name: descriptor.name,
-            description: descriptor.description,
-            misc: descriptor.misc,
-            index: descriptor.index as usize,
+            human_name: Cow::from(descriptor.name),
+            description: Cow::from(descriptor.description),
+            misc: Cow::from(descriptor.misc),
+            index: CameraIndex::Index(descriptor.index as u32),
         }
     }
 }
@@ -1088,6 +1088,8 @@ where
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
+#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1125,6 +1127,13 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         unsafe { std::slice::from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }
             .to_vec(),
     )
+}
+
+#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "Not available on WASM".to_string(),
+    ))
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2

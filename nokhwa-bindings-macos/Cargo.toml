@@ -1,7 +1,7 @@
 [package]
 name = "nokhwa-bindings-macos"
-version = "0.1.1"
-edition = "2018"
+version = "0.1.2"
+edition = "2021"
 authors = ["l1npengtul"]
 license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"

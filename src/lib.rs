@@ -28,10 +28,6 @@
 //!
 //! Please read the README for more.
 
-#[cfg(feature = "small-wasm")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
 mod camera;

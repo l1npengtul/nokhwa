@@ -102,7 +102,7 @@ impl<'a> NetworkCamera<'a> {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a>(
+    pub fn frame_texture(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,

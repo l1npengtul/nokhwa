@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{CameraIndex, CameraInfo, CaptureAPIBackend, NokhwaError};
+use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 
 /// Query the system for a list of available devices.
 /// Usually the order goes Native -> UVC -> Gstreamer.

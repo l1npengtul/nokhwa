@@ -16,7 +16,9 @@
 
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
-#![allow(clippy::must_use_candidate)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::too_many_lines)]
 
 //! # nokhwa-bindings-windows
 //! This crate is the `MediaFoundation` bindings for the `nokhwa` crate.
@@ -52,7 +54,7 @@ pub enum BindingError {
     #[error("Failed to enumerate: {0}")]
     EnumerateError(String),
     #[error("Failed to open device {0}: {1}")]
-    DeviceOpenFailError(usize, String),
+    DeviceOpenFailError(String, String),
     #[error("Failed to read frame: {0}")]
     ReadFrameError(String),
     #[error("Not Implemented!")]
@@ -92,6 +94,7 @@ impl Default for MFCameraFormat {
 }
 
 impl MFCameraFormat {
+    #[must_use]
     pub fn new(resolution: MFResolution, format: MFFrameFormat, frame_rate: u32) -> Self {
         MFCameraFormat {
             resolution,
@@ -100,6 +103,7 @@ impl MFCameraFormat {
         }
     }
 
+    #[must_use]
     pub fn new_from(res_x: u32, res_y: u32, format: MFFrameFormat, fps: u32) -> Self {
         MFCameraFormat {
             resolution: MFResolution {
@@ -111,14 +115,17 @@ impl MFCameraFormat {
         }
     }
 
+    #[must_use]
     pub fn resolution(&self) -> MFResolution {
         self.resolution
     }
 
+    #[must_use]
     pub fn width(&self) -> u32 {
         self.resolution.width_x
     }
 
+    #[must_use]
     pub fn height(&self) -> u32 {
         self.resolution.height_y
     }
@@ -127,6 +134,7 @@ impl MFCameraFormat {
         self.resolution = resolution;
     }
 
+    #[must_use]
     pub fn frame_rate(&self) -> u32 {
         self.frame_rate
     }
@@ -135,6 +143,7 @@ impl MFCameraFormat {
         self.frame_rate = frame_rate;
     }
 
+    #[must_use]
     pub fn format(&self) -> MFFrameFormat {
         self.format
     }
@@ -182,22 +191,27 @@ impl<'a> MediaFoundationDeviceDescriptor<'a> {
         })
     }
 
+    #[must_use]
     pub fn index(&self) -> usize {
         self.index
     }
 
+    #[must_use]
     pub fn name(&self) -> &Cow<[u16]> {
         &self.name
     }
 
+    #[must_use]
     pub fn symlink(&self) -> &Cow<[u16]> {
         &self.symlink
     }
 
+    #[must_use]
     pub fn name_as_string(&self) -> String {
         String::from_utf16_lossy(self.name.borrow())
     }
 
+    #[must_use]
     pub fn link_as_string(&self) -> String {
         String::from_utf16_lossy(self.symlink.borrow())
     }
@@ -250,6 +264,7 @@ pub struct MFControl {
 
 impl MFControl {
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         control: MediaFoundationControls,
         min: i32,
@@ -272,6 +287,7 @@ impl MFControl {
         }
     }
 
+    #[must_use]
     pub fn control(&self) -> MediaFoundationControls {
         self.control
     }
@@ -280,6 +296,7 @@ impl MFControl {
         self.control = control;
     }
 
+    #[must_use]
     pub fn min(&self) -> i32 {
         self.min
     }
@@ -288,6 +305,7 @@ impl MFControl {
         self.min = min;
     }
 
+    #[must_use]
     pub fn max(&self) -> i32 {
         self.max
     }
@@ -296,6 +314,7 @@ impl MFControl {
         self.max = max;
     }
 
+    #[must_use]
     pub fn step(&self) -> i32 {
         self.step
     }
@@ -304,6 +323,7 @@ impl MFControl {
         self.step = step;
     }
 
+    #[must_use]
     pub fn current(&self) -> i32 {
         self.current
     }
@@ -311,6 +331,7 @@ impl MFControl {
     pub fn set_current(&mut self, current: i32) {
         self.current = current;
     }
+    #[must_use]
     pub fn default(&self) -> i32 {
         self.default
     }
@@ -319,6 +340,7 @@ impl MFControl {
         self.default = default;
     }
 
+    #[must_use]
     pub fn manual(&self) -> bool {
         self.manual
     }
@@ -327,6 +349,7 @@ impl MFControl {
         self.manual = manual;
     }
 
+    #[must_use]
     pub fn active(&self) -> bool {
         self.active
     }
@@ -336,44 +359,16 @@ impl MFControl {
     }
 }
 
-mod bindings {
-    #[cfg(all(windows, not(feature = "docs-only")))]
-    ::windows::include_bindings!();
-}
-
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
     #![windows_subsystem = "windows"]
     use crate::{
-        bindings::Windows::Win32::{
-            Foundation::PWSTR,
-            Graphics::DirectShow::{
-                CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris, CameraControl_Pan,
-                CameraControl_Roll, CameraControl_Tilt, CameraControl_Zoom, IAMCameraControl,
-                IAMVideoProcAmp, VideoProcAmp_BacklightCompensation, VideoProcAmp_Brightness,
-                VideoProcAmp_ColorEnable, VideoProcAmp_Contrast, VideoProcAmp_Gain,
-                VideoProcAmp_Gamma, VideoProcAmp_Hue, VideoProcAmp_Saturation,
-                VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
-            },
-            Media::MediaFoundation::{
-                IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
-                MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
-                MFEnumDeviceSources, MFMediaType_Video, MFShutdown, MFStartup, MFSTARTUP_NOSOCKET,
-                MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
-                MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, MF_MEDIASOURCE_SERVICE,
-                MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX, MF_MT_FRAME_RATE_RANGE_MIN,
-                MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE, MF_READWRITE_DISABLE_CONVERTERS,
-            },
-            System::Com::{CoInitializeEx, CoUninitialize, COINIT},
-        },
         BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
         MediaFoundationControls, MediaFoundationDeviceDescriptor,
     };
     use std::{
         borrow::Cow,
         cell::Cell,
-        ffi::c_void,
         mem::MaybeUninit,
         slice::from_raw_parts,
         sync::{
@@ -381,7 +376,35 @@ pub mod wmf {
             Arc,
         },
     };
-    use windows::{Guid, Interface};
+    use windows::{
+        core::{Interface, GUID},
+        Win32::{
+            Foundation::PWSTR,
+            Media::{
+                DirectShow::{
+                    CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris,
+                    CameraControl_Pan, CameraControl_Roll, CameraControl_Tilt, CameraControl_Zoom,
+                    IAMCameraControl, IAMVideoProcAmp, VideoProcAmp_BacklightCompensation,
+                    VideoProcAmp_Brightness, VideoProcAmp_ColorEnable, VideoProcAmp_Contrast,
+                    VideoProcAmp_Gain, VideoProcAmp_Gamma, VideoProcAmp_Hue,
+                    VideoProcAmp_Saturation, VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
+                },
+                MediaFoundation::{
+                    IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
+                    MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
+                    MFEnumDeviceSources, MFMediaType_Video, MFShutdown, MFStartup,
+                    MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+                    MF_MEDIASOURCE_SERVICE, MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
+                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE,
+                    MF_READWRITE_DISABLE_CONVERTERS,
+                },
+            },
+            System::Com::{CoInitializeEx, CoUninitialize, COINIT},
+        },
+    };
 
     lazy_static! {
         static ref INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
@@ -393,13 +416,13 @@ pub mod wmf {
     const CO_INIT_DISABLE_OLE1DDE: COINIT = COINIT(0x4);
 
     // See: https://gix.github.io/media-types/#major-types
-    const MF_VIDEO_FORMAT_YUY2: Guid = Guid::from_values(
+    const MF_VIDEO_FORMAT_YUY2: GUID = GUID::from_values(
         0x3259_5559,
         0x0000,
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
-    const MF_VIDEO_FORMAT_MJPEG: Guid = Guid::from_values(
+    const MF_VIDEO_FORMAT_MJPEG: GUID = GUID::from_values(
         0x4750_4A4D,
         0x0000,
         0x0010,
@@ -483,10 +506,10 @@ pub mod wmf {
         let mut device_list = vec![];
 
         unsafe { from_raw_parts(unused_mf_activate.assume_init(), count as usize) }
-            .into_iter()
+            .iter()
             .for_each(|pointer| {
                 if let Some(imf_activate) = pointer {
-                    device_list.push(imf_activate.clone())
+                    device_list.push(imf_activate.clone());
                 }
             });
 
@@ -495,7 +518,7 @@ pub mod wmf {
 
     fn activate_to_descriptors(
         index: usize,
-        imf_activate: IMFActivate,
+        imf_activate: &IMFActivate,
     ) -> Result<MediaFoundationDeviceDescriptor<'static>, BindingError> {
         let mut name: PWSTR = PWSTR(&mut 0_u16);
         let mut len_name = 0;
@@ -528,9 +551,9 @@ pub mod wmf {
             ));
         }
 
-        Ok(unsafe {
+        unsafe {
             MediaFoundationDeviceDescriptor::new(index, name.0, symlink.0, len_name, len_symlink)
-        }?)
+        }
     }
 
     pub fn query_media_foundation_descriptors(
@@ -538,7 +561,7 @@ pub mod wmf {
         let mut device_list = vec![];
 
         for (index, activate_ptr) in query_activate_pointers()?.into_iter().enumerate() {
-            device_list.push(activate_to_descriptors(index, activate_ptr.clone())?);
+            device_list.push(activate_to_descriptors(index, &activate_ptr)?);
         }
         Ok(device_list)
     }
@@ -557,18 +580,18 @@ pub mod wmf {
                 .nth(index)
             {
                 Some(activate) => match unsafe { activate.ActivateObject::<IMFMediaSource>() } {
-                    Ok(media_source) => (
-                        media_source,
-                        activate_to_descriptors(index, activate.clone())?,
-                    ),
+                    Ok(media_source) => (media_source, activate_to_descriptors(index, &activate)?),
                     Err(why) => {
-                        return Err(BindingError::DeviceOpenFailError(index, why.to_string()))
+                        return Err(BindingError::DeviceOpenFailError(
+                            index.to_string(),
+                            why.to_string(),
+                        ))
                     }
                 },
                 None => {
                     return Err(BindingError::DeviceOpenFailError(
-                        index,
-                        "No Device".to_string(),
+                        index.to_string(),
+                        "Not Found".to_string(),
                     ))
                 }
             };
@@ -604,7 +627,12 @@ pub mod wmf {
                 MFCreateSourceReaderFromMediaSource(&media_source, source_reader_attr)
             } {
                 Ok(sr) => sr,
-                Err(why) => return Err(BindingError::DeviceOpenFailError(index, why.to_string())),
+                Err(why) => {
+                    return Err(BindingError::DeviceOpenFailError(
+                        index.to_string(),
+                        why.to_string(),
+                    ))
+                }
             };
 
             // increment refcnt
@@ -616,6 +644,32 @@ pub mod wmf {
                 device_format: MFCameraFormat::default(),
                 source_reader,
             })
+        }
+
+        pub fn with_string(unique_id: &[u16]) -> Result<Self, BindingError> {
+            let devicelist = query_media_foundation_descriptors()?;
+            let mut id_eq = None;
+
+            for mfdev in devicelist {
+                if (mfdev.symlink() as &[u16]) == unique_id {
+                    id_eq = Some(mfdev.index);
+                    break;
+                }
+            }
+
+            match id_eq {
+                Some(index) => Self::new(index),
+                None => {
+                    return Err(BindingError::DeviceOpenFailError(
+                        std::str::from_utf8(
+                            &unique_id.iter().map(|x| *x as u8).collect::<Vec<u8>>(),
+                        )
+                        .unwrap_or("")
+                        .to_string(),
+                        "Not Found".to_string(),
+                    ))
+                }
+            }
         }
 
         pub fn index(&self) -> usize {
@@ -634,17 +688,10 @@ pub mod wmf {
             let mut camera_format_list = vec![];
             let mut index = 0;
 
-            loop {
-                let media_type = match unsafe {
-                    self.source_reader
-                        .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
-                } {
-                    Ok(mt) => mt,
-                    Err(_) => {
-                        break;
-                    }
-                };
-
+            while let Ok(media_type) = unsafe {
+                self.source_reader
+                    .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
+            } {
                 let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
                     Ok(fcc) => fcc,
                     Err(why) => {
@@ -791,7 +838,7 @@ pub mod wmf {
                     }
                 }
 
-                index = index + 1;
+                index += 1;
             }
             Ok(camera_format_list)
         }
@@ -804,7 +851,7 @@ pub mod wmf {
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
-                    &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
+                    (&mut ptr_receiver as *mut *mut IMFMediaSource).cast::<*mut std::ffi::c_void>(),
                 ) {
                     return Err(BindingError::GUIDSetError(
                         "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
@@ -1291,10 +1338,7 @@ pub mod wmf {
                 }
             }
 
-            let is_manual = match flag {
-                CAM_CTRL_MANUAL => true,
-                _ => false,
-            };
+            let is_manual = matches!(flag, CAM_CTRL_MANUAL);
 
             Ok(MFControl::new(
                 control, min, max, step, value, default, is_manual, true,
@@ -1309,7 +1353,7 @@ pub mod wmf {
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
-                    &mut ptr_receiver as *mut *mut IMFMediaSource as *mut *mut c_void,
+                    (&mut ptr_receiver as *mut *mut IMFMediaSource).cast::<*mut std::ffi::c_void>(),
                 ) {
                     return Err(BindingError::GUIDSetError(
                         "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
@@ -1341,13 +1385,15 @@ pub mod wmf {
             };
 
             let value = control.current;
-            let flags = match control.manual {
-                true => CAM_CTRL_MANUAL,
-                false => CAM_CTRL_AUTO,
+            let flags = if control.manual {
+                CAM_CTRL_MANUAL
+            } else {
+                CAM_CTRL_AUTO
             };
-            let flag_str = match control.manual {
-                true => "CAM_CTRL_MANUAL",
-                false => "CAM_CTRL_AUTO",
+            let flag_str = if control.manual {
+                "CAM_CTRL_MANUAL"
+            } else {
+                "CAM_CTRL_AUTO"
             };
 
             match control.control {
@@ -1555,8 +1601,8 @@ pub mod wmf {
             };
 
             // set relevant things
-            let resolution = ((format.resolution.width_x as u64) << 32_u64)
-                + (format.resolution.height_y as u64);
+            let resolution = (u64::from(format.resolution.width_x) << 32_u64)
+                + u64::from(format.resolution.height_y);
             let fps = {
                 let frame_rate_u64 = 0_u64;
                 let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
@@ -1718,11 +1764,14 @@ pub mod wmf {
                     buffer_valid_length as usize,
                 ) as &[u8]);
                 // swallow errors
-                let _ = buffer.Lock(
-                    &mut buffer_start_ptr,
-                    std::ptr::null_mut(),
-                    &mut buffer_valid_length,
-                );
+                if buffer
+                    .Lock(
+                        &mut buffer_start_ptr,
+                        std::ptr::null_mut(),
+                        &mut buffer_valid_length,
+                    )
+                    .is_ok()
+                {}
             }
 
             Ok(Cow::from(data_slice))
@@ -1737,15 +1786,18 @@ pub mod wmf {
         fn drop(&mut self) {
             // swallow errors
             unsafe {
-                let _ = self
+                if self
                     .source_reader
-                    .Flush(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM);
+                    .Flush(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM)
+                    .is_ok()
+                {}
 
                 // decrement refcnt
                 if CAMERA_REFCNT.load(Ordering::SeqCst) > 0 {
-                    CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) - 1, Ordering::SeqCst)
+                    CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) - 1, Ordering::SeqCst);
                 }
                 if CAMERA_REFCNT.load(Ordering::SeqCst) == 0 {
+                    #[allow(clippy::let_underscore_drop)]
                     let _ = de_initialize_mf();
                 }
             }
