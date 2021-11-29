@@ -81,7 +81,7 @@ pipeline {
           }
           steps {
             sh 'rustup update stable'
-            sh 'cargo +nightly clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
+            sh 'cargo clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
           }
         }
 
