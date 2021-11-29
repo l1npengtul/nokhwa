@@ -19,7 +19,7 @@ use crate::{
     KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use parking_lot::FairMutex;
+use parking_lot::Mutex;
 use std::{
     any::Any,
     collections::HashMap,
@@ -31,7 +31,7 @@ use std::{
 };
 
 /// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
-/// It uses a `Arc` and a `FairMutex` to ensure that this feels like a normal camera, but callback based.
+/// It uses a `Arc` and a `Mutex` to ensure that this feels like a normal camera, but callback based.
 /// See [`Camera`] for more details on the camera itself.
 ///
 /// Your function is called every time there is a new frame. In order to avoid frame loss, it should
@@ -45,9 +45,9 @@ use std::{
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 #[derive(Clone)]
 pub struct ThreadedCamera {
-    camera: Arc<FairMutex<Camera>>,
-    frame_callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
-    last_frame_captured: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+    camera: Arc<Mutex<Camera>>,
+    frame_callback: Arc<Mutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    last_frame_captured: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     die_bool: Arc<AtomicBool>,
 }
 
@@ -98,23 +98,21 @@ impl ThreadedCamera {
         backend: CaptureAPIBackend,
         func: Option<
             fn(
-                _: Arc<FairMutex<Camera>>,
-                _: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
-                _: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+                _: Arc<Mutex<Camera>>,
+                _: Arc<Mutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+                _: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
                 _: Arc<AtomicBool>,
             ),
         >,
     ) -> Result<Self, NokhwaError> {
-        let camera = Arc::new(FairMutex::new(Camera::with_backend(
-            index, format, backend,
-        )?));
+        let camera = Arc::new(Mutex::new(Camera::with_backend(index, format, backend)?));
         let format = match format {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
         };
-        let frame_callback = Arc::new(FairMutex::new(None));
+        let frame_callback = Arc::new(Mutex::new(None));
         let die_bool = Arc::new(AtomicBool::new(false));
-        let holding_cell = Arc::new(FairMutex::new(ImageBuffer::new(
+        let holding_cell = Arc::new(Mutex::new(ImageBuffer::new(
             format.width(),
             format.height(),
         )));
@@ -414,9 +412,9 @@ impl Drop for ThreadedCamera {
 }
 
 fn camera_frame_thread_loop(
-    camera: Arc<FairMutex<Camera>>,
-    callback: Arc<FairMutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
-    holding_cell: Arc<FairMutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+    camera: Arc<Mutex<Camera>>,
+    callback: Arc<Mutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
+    holding_cell: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     die_bool: Arc<AtomicBool>,
 ) {
     loop {

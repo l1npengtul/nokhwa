@@ -11,11 +11,11 @@ keywords = ["media-foundation", "windows", "capture", "webcam"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1.0.26"
+thiserror = "^1.0"
 
 [target.'cfg(all(target_os = "windows", windows))'.dependencies]
-windows = "0.21.1"
+windows = "^0.28"
 lazy_static = "1.4.0"
 
 [target.'cfg(all(target_os = "windows", windows))'.build-dependencies.windows]
-version = "0.21.1"
+version = "^0.28"

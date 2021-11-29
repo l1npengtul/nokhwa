@@ -15,7 +15,10 @@
  */
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
 #![cfg_attr(feature = "docs-features", feature(doc_cfg))]
-
+#![deny(clippy::pedantic)]
+#![deny(clippy::missing_errors_doc)]
+#![deny(clippy::missing_safety_doc)]
+#![warn(clippy::all)]
 //! # nokhwa
 //! A Simple-to-use, cross-platform Rust Webcam Capture Library
 //!

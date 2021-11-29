@@ -20,9 +20,10 @@
 //!
 //! This assumes that you are running a modern browser on the desktop.
 
-use crate::{CameraInfo, NokhwaError, Resolution};
+use crate::{CameraIndex, CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
 use js_sys::{Array, JsString, Map, Object, Promise};
+use std::borrow::Borrow;
 use std::{
     borrow::Cow,
     convert::TryFrom,
@@ -243,7 +244,7 @@ pub async fn js_request_permission() -> Result<(), JsValue> {
 /// Queries Cameras using [`MediaDevices::enumerate_devices()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.enumerate_devices) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices)
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
-pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
+pub async fn query_js_cameras<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
     let window: Window = window()?;
     let navigator = window.navigator();
     let media_devices = media_devices(&navigator)?;
@@ -294,7 +295,11 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                                                     media_device_info.group_id(),
                                                     media_device_info.device_id()
                                                 ),
-                                                idx_device as usize,
+                                                CameraIndex::String(Cow::from(format!(
+                                                    "{} {}",
+                                                    media_device_info.group_id(),
+                                                    media_device_info.device_id()
+                                                ))),
                                             ));
                                             tracks
                                                 .iter()
@@ -314,7 +319,11 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                                                 media_device_info.group_id(),
                                                 media_device_info.device_id()
                                             ),
-                                            idx_device as usize,
+                                            CameraIndex::String(Cow::from(format!(
+                                                "{} {}",
+                                                media_device_info.group_id(),
+                                                media_device_info.device_id()
+                                            ))),
                                         ));
                                     }
                                 }
@@ -2544,7 +2553,7 @@ impl JSCamera {
         let resolution = self.resolution();
         let frame = self.frame_raw()?;
         if convert_rgba {
-            buffer.copy_from_slice(&frame);
+            buffer.copy_from_slice(frame.borrow());
             return Ok(frame.len());
         }
         let image = match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
@@ -2611,7 +2620,7 @@ impl JSCamera {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &frame,
+            frame.borrow(),
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: width_nonzero,

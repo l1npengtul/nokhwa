@@ -26,12 +26,12 @@ use wgpu::{
 
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-pub struct NetworkCamera {
+pub struct NetworkCamera<'a> {
     ip: String,
-    opencv_backend: RefCell<OpenCvCaptureDevice>,
+    opencv_backend: RefCell<OpenCvCaptureDevice<'a>>,
 }
 
-impl NetworkCamera {
+impl<'a> NetworkCamera<'a> {
     /// Creates a new [`NetworkCamera`] from an IP.
     /// # Errors
     /// If the IP is invalid or `OpenCV` fails to open the IP, this will error
@@ -108,7 +108,7 @@ impl NetworkCamera {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
@@ -165,8 +165,8 @@ impl NetworkCamera {
     }
 }
 
-impl Drop for NetworkCamera {
+impl<'a> Drop for NetworkCamera<'a> {
     fn drop(&mut self) {
-        self.stop_stream().unwrap();
+        let _ = self.stop_stream();
     }
 }

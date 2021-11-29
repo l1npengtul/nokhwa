@@ -14,24 +14,9 @@
  * limitations under the License.
  */
 
-/*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 use crate::NokhwaError;
 use std::{
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
@@ -70,7 +55,7 @@ use v4l::{control::Description, Format, FourCC};
 /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 /// # JS-WASM
 /// This is exported as `FrameFormat`
-#[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd, Ord, Eq)]
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
@@ -171,7 +156,7 @@ impl From<FrameFormat> for AVFourCC {
 /// # JS-WASM
 /// This is exported as `JSResolution`
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
@@ -295,7 +280,7 @@ impl From<AVVideoResolution> for Resolution {
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
-#[derive(Copy, Clone, Debug, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -472,26 +457,31 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// # JS-WASM
 /// This is exported as a `JSCameraInfo`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
-pub struct CameraInfo {
-    human_name: String,
-    description: String,
-    misc: String,
-    index: usize,
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+pub struct CameraInfo<'a> {
+    human_name: Cow<'a, str>,
+    description: Cow<'a, str>,
+    misc: Cow<'a, str>,
+    index: CameraIndex<'a>,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
-impl CameraInfo {
+impl<'a> CameraInfo<'a> {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
     /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
-    pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
+    pub fn new<S: ToString>(
+        human_name: S,
+        description: S,
+        misc: S,
+        index: CameraIndex<'a>,
+    ) -> Self {
         CameraInfo {
-            human_name,
-            description,
-            misc,
+            human_name: Cow::from(human_name.to_string()),
+            description: Cow::from(description.to_string()),
+            misc: Cow::from(misc.to_string()),
             index,
         }
     }
@@ -504,8 +494,8 @@ impl CameraInfo {
         feature = "output-wasm",
         wasm_bindgen(getter = HumanReadableName)
     )]
-    pub fn human_name(&self) -> String {
-        self.human_name.clone()
+    pub fn human_name(&self) -> &'_ str {
+        &self.human_name.borrow()
     }
 
     /// Set the device info's human name.
@@ -515,8 +505,8 @@ impl CameraInfo {
         feature = "output-wasm",
         wasm_bindgen(setter = HumanReadableName)
     )]
-    pub fn set_human_name(&mut self, human_name: String) {
-        self.human_name = human_name;
+    pub fn set_human_name<S: AsRef<str>>(&mut self, human_name: S) {
+        self.human_name = Cow::from(human_name.as_ref().to_string());
     }
 
     /// Get a reference to the device info's description.
@@ -524,16 +514,16 @@ impl CameraInfo {
     /// This is exported as a `get_Description`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Description))]
-    pub fn description(&self) -> String {
-        self.description.clone()
+    pub fn description(&self) -> &'_ str {
+        &self.description.borrow()
     }
 
     /// Set the device info's description.
     /// # JS-WASM
     /// This is exported as a `set_Description`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Description))]
-    pub fn set_description(&mut self, description: String) {
-        self.description = description;
+    pub fn set_description<S: AsRef<str>>(&mut self, description: S) {
+        self.description = Cow::from(description.as_ref().to_string());
     }
 
     /// Get a reference to the device info's misc.
@@ -541,16 +531,16 @@ impl CameraInfo {
     /// This is exported as a `get_MiscString`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = MiscString))]
-    pub fn misc(&self) -> String {
-        self.misc.clone()
+    pub fn misc(&self) -> &'_ str {
+        &self.misc.borrow()
     }
 
     /// Set the device info's misc.
     /// # JS-WASM
     /// This is exported as a `set_MiscString`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = MiscString))]
-    pub fn set_misc(&mut self, misc: String) {
-        self.misc = misc;
+    pub fn set_misc<S: AsRef<str>>(&mut self, misc: S) {
+        self.misc = Cow::from(misc.as_ref().to_string());
     }
 
     /// Get a reference to the device info's index.
@@ -558,32 +548,37 @@ impl CameraInfo {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> usize {
-        self.index
+    pub fn index(&self) -> &CameraIndex<'a> {
+        &self.index
     }
 
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: usize) {
+    pub fn set_index(&mut self, index: CameraIndex<'a>) {
         self.index = index;
     }
-}
 
-impl PartialOrd for CameraInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+    /// Gets the device info's index as an `usize`.
+    /// # JS-WASM
+    /// This is exported as `get_Index_Int`
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
+    pub fn index_num(&self) -> Result<u32, NokhwaError> {
+        match &self.index {
+            CameraIndex::Index(i) => Ok(*i),
+            CameraIndex::String(s) => match s.parse::<u32>() {
+                Ok(p) => Ok(p),
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: "index-int".to_string(),
+                    error: why.to_string(),
+                }),
+            },
+        }
     }
 }
 
-impl Ord for CameraInfo {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.index.cmp(&other.index)
-    }
-}
-
-impl Display for CameraInfo {
+impl<'a> Display for CameraInfo<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -1003,7 +998,9 @@ impl Ord for CameraControl {
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
 /// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// - `Network` - Uses `OpenCV` to capture from an IP.
+/// - `Browser` - Uses browser APIs to capture from a webcam.
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
@@ -1012,6 +1009,8 @@ pub enum CaptureAPIBackend {
     MediaFoundation,
     OpenCv,
     GStreamer,
+    Network,
+    Browser,
 }
 
 impl Display for CaptureAPIBackend {
@@ -1021,29 +1020,65 @@ impl Display for CaptureAPIBackend {
     }
 }
 
-/// The `OpenCV` backend supports both native cameras and IP Cameras, so this is an enum to differentiate them
-/// The `IPCamera`'s string follows the pattern
-/// ```.ignore
-/// <protocol>://<IP>:<port>/
-/// ```
-/// but please consult the manufacturer's specification for more details.
-/// The index is a standard webcam index.
-#[derive(Clone, Debug, PartialEq)]
-pub enum CameraIndexType {
+/// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+pub enum CameraIndex<'a> {
     Index(u32),
-    IPCamera(String),
+    String(Cow<'a, str>),
 }
 
-impl Display for CameraIndexType {
+impl<'a> CameraIndex<'a> {
+    pub fn as_index(&self) -> Result<u32, NokhwaError> {
+        match self {
+            CameraIndex::Index(i) => Ok(*i),
+            CameraIndex::String(s) => match s.parse::<u32>() {
+                Ok(p) => Ok(p),
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: "index-int".to_string(),
+                    error: why.to_string(),
+                }),
+            },
+        }
+    }
+}
+
+impl<'a> Display for CameraIndex<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CameraIndexType::Index(idx) => {
+            CameraIndex::Index(idx) => {
                 write!(f, "{}", idx)
             }
-            CameraIndexType::IPCamera(ip) => {
+            CameraIndex::String(ip) => {
                 write!(f, "{}", ip)
             }
         }
+    }
+}
+
+impl<'a> From<u32> for CameraIndex<'a> {
+    fn from(v: u32) -> Self {
+        CameraIndex::Index(v)
+    }
+}
+
+/// Trait for strings that can be converted to [`CameraIndex`]es.
+pub trait ValidString: AsRef<str> {}
+
+impl ValidString for String {}
+impl<'a> ValidString for &'a String {}
+impl<'a> ValidString for &'a mut String {}
+impl<'a> ValidString for Cow<'a, str> {}
+impl<'a> ValidString for &'a Cow<'a, str> {}
+impl<'a> ValidString for &'a mut Cow<'a, str> {}
+impl<'a> ValidString for &'a str {}
+impl<'a> ValidString for &'a mut str {}
+
+impl<'a, T> From<T> for CameraIndex<'a>
+where
+    T: ValidString + 'a,
+{
+    fn from(v: T) -> Self {
+        CameraIndex::String(Cow::from(v.as_ref().to_string()))
     }
 }
 
@@ -1053,8 +1088,6 @@ impl Display for CameraIndexType {
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
-#[cfg(feature = "decoding")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1103,12 +1136,8 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
-#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
 pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    use std::convert::TryFrom;
-
     let mut rgb_vec: Vec<u8> = vec![];
     if data.len() % 4 == 0 {
         for px_idx in (0..data.len()).step_by(4) {
@@ -1210,8 +1239,6 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
-#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
 pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;

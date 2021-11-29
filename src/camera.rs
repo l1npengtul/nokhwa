@@ -15,12 +15,11 @@
  */
 
 use crate::{
-    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControls, NokhwaError, Resolution,
+    CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
+    FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::any::Any;
-use std::{borrow::Cow, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -29,18 +28,18 @@ use wgpu::{
 };
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
-pub struct Camera {
-    idx: usize,
-    backend: Box<dyn CaptureBackendTrait>,
+pub struct Camera<'a> {
+    idx: CameraIndex<'a>,
+    backend: Box<dyn CaptureBackendTrait + 'a>,
     backend_api: CaptureAPIBackend,
 }
 
 #[allow(clippy::nonminimal_bool)]
-impl Camera {
+impl<'a> Camera<'a> {
     /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new(index: usize, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: CameraIndex<'a>, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         Camera::with_backend(index, format, CaptureAPIBackend::Auto)
     }
 
@@ -48,11 +47,12 @@ impl Camera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn with_backend(
-        index: usize,
+        index: CameraIndex<'a>,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
-        let camera_backend = init_camera(index, format, backend)?;
+        let camera_backend: Box<dyn CaptureBackendTrait + 'a> =
+            init_camera(index.clone(), format, backend)?;
 
         Ok(Camera {
             idx: index,
@@ -65,7 +65,7 @@ impl Camera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new_with(
-        index: usize,
+        index: CameraIndex<'a>,
         width: u32,
         height: u32,
         fps: u32,
@@ -78,19 +78,20 @@ impl Camera {
 
     /// Gets the current Camera's index.
     #[must_use]
-    pub fn index(&self) -> usize {
-        self.idx
+    pub fn index(&self) -> &CameraIndex<'a> {
+        &self.idx
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: usize) -> Result<(), NokhwaError> {
+    pub fn set_index(&mut self, new_idx: CameraIndex<'a>) -> Result<(), NokhwaError> {
         {
             self.backend.stop_stream()?;
         }
         let new_camera_format = self.backend.camera_format();
-        let new_camera = init_camera(new_idx, Some(new_camera_format), self.backend_api)?;
+        let new_camera: Box<dyn CaptureBackendTrait + 'a> =
+            init_camera(new_idx, Some(new_camera_format), self.backend_api)?;
         self.backend = new_camera;
         Ok(())
     }
@@ -109,7 +110,8 @@ impl Camera {
             self.backend.stop_stream()?;
         }
         let new_camera_format = self.backend.camera_format();
-        let new_camera = init_camera(self.idx, Some(new_camera_format), new_backend)?;
+        let new_camera: Box<dyn CaptureBackendTrait + 'a> =
+            init_camera((&self.idx).clone(), Some(new_camera_format), new_backend)?;
         self.backend = new_camera;
         Ok(())
     }
@@ -389,13 +391,13 @@ impl Camera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a>(
+    pub fn frame_texture(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
@@ -452,9 +454,9 @@ impl Camera {
     }
 }
 
-impl Drop for Camera {
+impl<'a> Drop for Camera<'a> {
     fn drop(&mut self) {
-        self.stop_stream().unwrap();
+        let _ = self.stop_stream();
     }
 }
 
@@ -475,6 +477,8 @@ fn figure_out_auto() -> Option<CaptureAPIBackend> {
         cap = CaptureAPIBackend::GStreamer;
     } else if cfg!(feature = "input-opencv") {
         cap = CaptureAPIBackend::OpenCv;
+    } else if cfg!(feature = "input-jscam") {
+        cap = CaptureAPIBackend::Browser;
     }
     if cap == CaptureAPIBackend::Auto {
         return None;
@@ -489,7 +493,7 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>](idx: usize, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](idx: CameraIndex<'_>, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait + '_>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
                         Ok(cap) => Some(Ok(Box::new(cap))),
@@ -497,7 +501,7 @@ macro_rules! cap_impl_fn {
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>](_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](_idx: CameraIndex<'_>, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait + '_>, NokhwaError>> {
                     None
                 }
             }
@@ -591,16 +595,17 @@ cap_impl_fn! {
     (GStreamerCaptureDevice, new, feature = "input-gst", gst),
     (OpenCvCaptureDevice, new_autopref, feature = "input-opencv", opencv),
     // (UVCCaptureDevice, create, feature = "input-uvc", uvc),
+    (BrowserCaptureDevice, new, feature = "input-jscam", browser),
     (V4LCaptureDevice, new, all(feature = "input-v4l", target_os = "linux"), v4l),
     (MediaFoundationCaptureDevice, new, all(feature = "input-msmf", target_os = "windows"), msmf),
     (AVFoundationCaptureDevice, new, all(feature = "input-avfoundation", any(target_os = "macos", target_os = "ios")), avfoundation)
 }
 
-fn init_camera(
-    index: usize,
+fn init_camera<'a>(
+    index: CameraIndex<'a>,
     format: Option<CameraFormat>,
     backend: CaptureAPIBackend,
-) -> Result<Box<dyn CaptureBackendTrait>, NokhwaError> {
+) -> Result<Box<dyn CaptureBackendTrait + 'a>, NokhwaError> {
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
@@ -608,10 +613,12 @@ fn init_camera(
             ("input-avfoundation", AVFoundation, init_avfoundation),
             // ("input-uvc", UniversalVideoClass, init_uvc),
             ("input-gst", GStreamer, init_gst),
-            ("input-opencv", OpenCv, init_opencv)
+            ("input-opencv", OpenCv, init_opencv),
+            ("input-jscam", Browser, init_browser)
     };
     Ok(camera_backend)
 }
 
 #[cfg(feature = "output-threaded")]
-unsafe impl Send for Camera {}
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
+unsafe impl<'a> Send for Camera<'a> {}
