@@ -1,3 +1,5 @@
+#![deny(clippy::pedantic)]
+#![warn(clippy::all)]
 /*
  * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
@@ -15,10 +17,6 @@
  */
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
 #![cfg_attr(feature = "docs-features", feature(doc_cfg))]
-#![deny(clippy::pedantic)]
-#![deny(clippy::missing_errors_doc)]
-#![deny(clippy::missing_safety_doc)]
-#![warn(clippy::all)]
 //! # nokhwa
 //! A Simple-to-use, cross-platform Rust Webcam Capture Library
 //!
@@ -62,5 +60,5 @@ pub use network_camera::NetworkCamera;
 pub use query::*;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
-pub use threaded::ThreadedCamera;
+pub use threaded::CallbackCamera;
 pub use utils::*;

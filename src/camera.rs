@@ -28,18 +28,18 @@ use wgpu::{
 };
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
-pub struct Camera<'a> {
-    idx: CameraIndex<'a>,
-    backend: Box<dyn CaptureBackendTrait + 'a>,
+pub struct Camera {
+    idx: CameraIndex,
+    backend: Box<dyn CaptureBackendTrait>,
     backend_api: CaptureAPIBackend,
 }
 
 #[allow(clippy::nonminimal_bool)]
-impl<'a> Camera<'a> {
+impl Camera {
     /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new(index: CameraIndex<'a>, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         Camera::with_backend(index, format, CaptureAPIBackend::Auto)
     }
 
@@ -47,15 +47,14 @@ impl<'a> Camera<'a> {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn with_backend(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
-        let camera_backend: Box<dyn CaptureBackendTrait + 'a> =
-            init_camera(index.clone(), format, backend)?;
+        let camera_backend: Box<dyn CaptureBackendTrait> = init_camera(index, format, backend)?;
 
         Ok(Camera {
-            idx: index,
+            idx: index.clone(),
             backend: camera_backend,
             backend_api: backend,
         })
@@ -65,7 +64,7 @@ impl<'a> Camera<'a> {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new_with(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
@@ -78,19 +77,19 @@ impl<'a> Camera<'a> {
 
     /// Gets the current Camera's index.
     #[must_use]
-    pub fn index(&self) -> &CameraIndex<'a> {
+    pub fn index(&self) -> &CameraIndex {
         &self.idx
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: CameraIndex<'a>) -> Result<(), NokhwaError> {
+    pub fn set_index(&mut self, new_idx: &CameraIndex) -> Result<(), NokhwaError> {
         {
             self.backend.stop_stream()?;
         }
         let new_camera_format = self.backend.camera_format();
-        let new_camera: Box<dyn CaptureBackendTrait + 'a> =
+        let new_camera: Box<dyn CaptureBackendTrait> =
             init_camera(new_idx, Some(new_camera_format), self.backend_api)?;
         self.backend = new_camera;
         Ok(())
@@ -110,8 +109,8 @@ impl<'a> Camera<'a> {
             self.backend.stop_stream()?;
         }
         let new_camera_format = self.backend.camera_format();
-        let new_camera: Box<dyn CaptureBackendTrait + 'a> =
-            init_camera((&self.idx).clone(), Some(new_camera_format), new_backend)?;
+        let new_camera: Box<dyn CaptureBackendTrait> =
+            init_camera(&self.idx, Some(new_camera_format), new_backend)?;
         self.backend = new_camera;
         Ok(())
     }
@@ -230,7 +229,7 @@ impl<'a> Camera<'a> {
             .collect::<Vec<(String, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
-        for (kc, cc) in maybe_camera_controls.into_iter() {
+        for (kc, cc) in maybe_camera_controls {
             control_map.insert(kc, cc);
         }
 
@@ -252,7 +251,7 @@ impl<'a> Camera<'a> {
             .collect::<Vec<(KnownCameraControls, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
-        for (kc, cc) in maybe_camera_controls.into_iter() {
+        for (kc, cc) in maybe_camera_controls {
             control_map.insert(kc, cc);
         }
 
@@ -391,7 +390,7 @@ impl<'a> Camera<'a> {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture(
+    pub fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
@@ -454,9 +453,9 @@ impl<'a> Camera<'a> {
     }
 }
 
-impl<'a> Drop for Camera<'a> {
+impl Drop for Camera {
     fn drop(&mut self) {
-        let _ = self.stop_stream();
+        let _drop = self.stop_stream();
     }
 }
 
@@ -493,7 +492,7 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>](idx: CameraIndex<'_>, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait + '_>, NokhwaError>> {
+                fn [< init_ $backend_name>](idx: &CameraIndex, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
                         Ok(cap) => Some(Ok(Box::new(cap))),
@@ -501,7 +500,7 @@ macro_rules! cap_impl_fn {
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>](_idx: CameraIndex<'_>, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait + '_>, NokhwaError>> {
+                fn [< init_ $backend_name>](_idx: &CameraIndex, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     None
                 }
             }
@@ -524,7 +523,7 @@ macro_rules! cap_impl_matches {
                             CaptureAPIBackend::$backend => {
                                 match cfg!(feature = $feature) {
                                     true => {
-                                        match $fn(i,s) {
+                                        match $fn(&i,s) {
                                             Some(cap) => match cap {
                                                 Ok(c) => c,
                                                 Err(why) => return Err(why),
@@ -560,7 +559,7 @@ macro_rules! cap_impl_matches {
                     CaptureAPIBackend::$backend => {
                         match cfg!(feature = $feature) {
                             true => {
-                                match $fn(i,s) {
+                                match $fn(&i,s) {
                                     Some(cap) => match cap {
                                         Ok(c) => c,
                                         Err(why) => return Err(why),
@@ -601,11 +600,11 @@ cap_impl_fn! {
     (AVFoundationCaptureDevice, new, all(feature = "input-avfoundation", any(target_os = "macos", target_os = "ios")), avfoundation)
 }
 
-fn init_camera<'a>(
-    index: CameraIndex<'a>,
+fn init_camera(
+    index: &CameraIndex,
     format: Option<CameraFormat>,
     backend: CaptureAPIBackend,
-) -> Result<Box<dyn CaptureBackendTrait + 'a>, NokhwaError> {
+) -> Result<Box<dyn CaptureBackendTrait>, NokhwaError> {
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
@@ -621,4 +620,4 @@ fn init_camera<'a>(
 
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
-unsafe impl<'a> Send for Camera<'a> {}
+unsafe impl Send for Camera {}

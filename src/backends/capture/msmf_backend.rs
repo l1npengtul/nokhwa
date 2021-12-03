@@ -38,7 +38,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-msmf")))]
 pub struct MediaFoundationCaptureDevice<'a> {
     inner: MediaFoundationDevice<'a>,
-    info: CameraInfo<'a>,
+    info: CameraInfo,
 }
 
 impl<'a> MediaFoundationCaptureDevice<'a> {
@@ -48,7 +48,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// # Errors
     /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
     pub fn new(
-        index: CameraIndex<'a>,
+        index: &CameraIndex<'a>,
         camera_fmt: Option<CameraFormat>,
     ) -> Result<Self, NokhwaError> {
         let mut mf_device = match &index {
@@ -81,7 +81,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// # Errors
     /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
     pub fn new_with(
-        index: CameraIndex<'a>,
+        index: &CameraIndex<'a>,
         width: u32,
         height: u32,
         fps: u32,

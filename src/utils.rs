@@ -458,30 +458,30 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// This is exported as a `JSCameraInfo`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-pub struct CameraInfo<'a> {
-    human_name: Cow<'a, str>,
-    description: Cow<'a, str>,
-    misc: Cow<'a, str>,
-    index: CameraIndex<'a>,
+pub struct CameraInfo {
+    human_name: String,
+    description: String,
+    misc: String,
+    index: CameraIndex,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
-impl<'a> CameraInfo<'a> {
+impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
     /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
-    pub fn new<S: ToString>(
-        human_name: S,
-        description: S,
-        misc: S,
-        index: CameraIndex<'a>,
+    pub fn new(
+        human_name: &(impl AsRef<str> + ?Sized),
+        description: &(impl AsRef<str> + ?Sized),
+        misc: &(impl AsRef<str> + ?Sized),
+        index: CameraIndex,
     ) -> Self {
         CameraInfo {
-            human_name: Cow::from(human_name.to_string()),
-            description: Cow::from(description.to_string()),
-            misc: Cow::from(misc.to_string()),
+            human_name: human_name.as_ref().to_string(),
+            description: description.as_ref().to_string(),
+            misc: misc.as_ref().to_string(),
             index,
         }
     }
@@ -495,7 +495,7 @@ impl<'a> CameraInfo<'a> {
         wasm_bindgen(getter = HumanReadableName)
     )]
     pub fn human_name(&self) -> &'_ str {
-        &self.human_name.borrow()
+        self.human_name.borrow()
     }
 
     /// Set the device info's human name.
@@ -506,7 +506,7 @@ impl<'a> CameraInfo<'a> {
         wasm_bindgen(setter = HumanReadableName)
     )]
     pub fn set_human_name<S: AsRef<str>>(&mut self, human_name: S) {
-        self.human_name = Cow::from(human_name.as_ref().to_string());
+        self.human_name = human_name.as_ref().to_string();
     }
 
     /// Get a reference to the device info's description.
@@ -515,7 +515,7 @@ impl<'a> CameraInfo<'a> {
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Description))]
     pub fn description(&self) -> &'_ str {
-        &self.description.borrow()
+        self.description.borrow()
     }
 
     /// Set the device info's description.
@@ -523,7 +523,7 @@ impl<'a> CameraInfo<'a> {
     /// This is exported as a `set_Description`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Description))]
     pub fn set_description<S: AsRef<str>>(&mut self, description: S) {
-        self.description = Cow::from(description.as_ref().to_string());
+        self.description = description.as_ref().to_string();
     }
 
     /// Get a reference to the device info's misc.
@@ -532,7 +532,7 @@ impl<'a> CameraInfo<'a> {
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = MiscString))]
     pub fn misc(&self) -> &'_ str {
-        &self.misc.borrow()
+        self.misc.borrow()
     }
 
     /// Set the device info's misc.
@@ -540,7 +540,7 @@ impl<'a> CameraInfo<'a> {
     /// This is exported as a `set_MiscString`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = MiscString))]
     pub fn set_misc<S: AsRef<str>>(&mut self, misc: S) {
-        self.misc = Cow::from(misc.as_ref().to_string());
+        self.misc = misc.as_ref().to_string();
     }
 
     /// Get a reference to the device info's index.
@@ -548,7 +548,7 @@ impl<'a> CameraInfo<'a> {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> &CameraIndex<'a> {
+    pub fn index(&self) -> &CameraIndex {
         &self.index
     }
 
@@ -556,11 +556,13 @@ impl<'a> CameraInfo<'a> {
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: CameraIndex<'a>) {
+    pub fn set_index(&mut self, index: CameraIndex) {
         self.index = index;
     }
 
-    /// Gets the device info's index as an `usize`.
+    /// Gets the device info's index as an `u32`.
+    /// # Errors
+    /// If the index is not parsable as a `u32`, this will error.
     /// # JS-WASM
     /// This is exported as `get_Index_Int`
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
@@ -578,7 +580,7 @@ impl<'a> CameraInfo<'a> {
     }
 }
 
-impl<'a> Display for CameraInfo<'a> {
+impl Display for CameraInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -592,12 +594,12 @@ impl<'a> Display for CameraInfo<'a> {
     all(feature = "input-msmf", target_os = "windows"),
     all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
 ))]
-impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo<'_> {
+impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
-            human_name: Cow::from(dev_desc.name_as_string()),
-            description: Cow::from("Media Foundation Device"),
-            misc: Cow::from(dev_desc.link_as_string()),
+            human_name: dev_desc,
+            description: "Media Foundation Device",
+            misc: dev_desc.link_as_string(),
             index: CameraIndex::Index(dev_desc.index() as u32),
         }
     }
@@ -615,12 +617,12 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo<'_> {
     )
 ))]
 #[allow(clippy::cast_possible_truncation)]
-impl From<AVCaptureDeviceDescriptor> for CameraInfo<'_> {
+impl From<AVCaptureDeviceDescriptor> for CameraInfo {
     fn from(descriptor: AVCaptureDeviceDescriptor) -> Self {
         CameraInfo {
-            human_name: Cow::from(descriptor.name),
-            description: Cow::from(descriptor.description),
-            misc: Cow::from(descriptor.misc),
+            human_name: descriptor.name,
+            description: descriptor.description,
+            misc: descriptor.misc,
             index: CameraIndex::Index(descriptor.index as u32),
         }
     }
@@ -992,7 +994,7 @@ impl Ord for CameraControl {
 
 /// The list of known capture backends to the library. <br>
 /// - `AUTO` is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
-/// - `AVFoundation` - Uses `AVFoundation` on MacOSX
+/// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
 /// - `V4L2` - `Video4Linux2`, a linux specific backend.
 /// - `UVC` - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
@@ -1022,12 +1024,15 @@ impl Display for CaptureAPIBackend {
 
 /// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-pub enum CameraIndex<'a> {
+pub enum CameraIndex {
     Index(u32),
-    String(Cow<'a, str>),
+    String(String),
 }
 
-impl<'a> CameraIndex<'a> {
+impl CameraIndex {
+    /// Gets the device info's index as an `u32`.
+    /// # Errors
+    /// If the index is not parsable as a `u32`, this will error.
     pub fn as_index(&self) -> Result<u32, NokhwaError> {
         match self {
             CameraIndex::Index(i) => Ok(*i),
@@ -1042,7 +1047,7 @@ impl<'a> CameraIndex<'a> {
     }
 }
 
-impl<'a> Display for CameraIndex<'a> {
+impl Display for CameraIndex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CameraIndex::Index(idx) => {
@@ -1055,7 +1060,7 @@ impl<'a> Display for CameraIndex<'a> {
     }
 }
 
-impl<'a> From<u32> for CameraIndex<'a> {
+impl From<u32> for CameraIndex {
     fn from(v: u32) -> Self {
         CameraIndex::Index(v)
     }
@@ -1073,12 +1078,12 @@ impl<'a> ValidString for &'a mut Cow<'a, str> {}
 impl<'a> ValidString for &'a str {}
 impl<'a> ValidString for &'a mut str {}
 
-impl<'a, T> From<T> for CameraIndex<'a>
+impl<T> From<T> for CameraIndex
 where
-    T: ValidString + 'a,
+    T: ValidString,
 {
     fn from(v: T) -> Self {
-        CameraIndex::String(Cow::from(v.as_ref().to_string()))
+        CameraIndex::String(v.as_ref().to_string())
     }
 }
 

@@ -244,7 +244,7 @@ pub async fn js_request_permission() -> Result<(), JsValue> {
 /// Queries Cameras using [`MediaDevices::enumerate_devices()`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaDevices.html#method.enumerate_devices) [MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices)
 /// # Errors
 /// This will error if there is no valid web context or the web API is not supported
-pub async fn query_js_cameras<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
+pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
     let window: Window = window()?;
     let navigator = window.navigator();
     let media_devices = media_devices(&navigator)?;
@@ -288,18 +288,18 @@ pub async fn query_js_cameras<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> 
                                                 MediaStreamTrack::from(first).label()
                                             };
                                             device_list.push(CameraInfo::new(
-                                                name,
-                                                format!("{:?}", media_device_info.kind()),
-                                                format!(
+                                                &name,
+                                                &format!("{:?}", media_device_info.kind()),
+                                                &format!(
                                                     "{} {}",
                                                     media_device_info.group_id(),
                                                     media_device_info.device_id()
                                                 ),
-                                                CameraIndex::String(Cow::from(format!(
+                                                CameraIndex::String(format!(
                                                     "{} {}",
                                                     media_device_info.group_id(),
                                                     media_device_info.device_id()
-                                                ))),
+                                                )),
                                             ));
                                             tracks
                                                 .iter()
@@ -308,22 +308,22 @@ pub async fn query_js_cameras<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> 
                                     }
                                     Err(_) => {
                                         device_list.push(CameraInfo::new(
-                                            format!(
+                                            &format!(
                                                 "{:?}#{}",
                                                 media_device_info.kind(),
                                                 idx_device
                                             ),
-                                            format!("{:?}", media_device_info.kind()),
-                                            format!(
+                                            &format!("{:?}", media_device_info.kind()),
+                                            &format!(
                                                 "{} {}",
                                                 media_device_info.group_id(),
                                                 media_device_info.device_id()
                                             ),
-                                            CameraIndex::String(Cow::from(format!(
+                                            CameraIndex::String(format!(
                                                 "{} {}",
                                                 media_device_info.group_id(),
                                                 media_device_info.device_id()
-                                            ))),
+                                            )),
                                         ));
                                     }
                                 }
@@ -2713,3 +2713,7 @@ impl Drop for JSCamera {
         self.stop_all().unwrap_or(()); // swallow errors
     }
 }
+
+// SAFETY: JSCamera is used in WASM, it will never be sent to a different thread. This is only done to satisfy the compiler.
+#[allow(clippy::non_send_fields_in_send_ty)]
+unsafe impl Send for JSCamera {}

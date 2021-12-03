@@ -42,16 +42,16 @@ type PipelineGenRet = (Element, AppSink, Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>
 /// - `Drop`-ing this may cause a `panic`.
 /// - Setting controls is not supported.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
-pub struct GStreamerCaptureDevice<'a> {
+pub struct GStreamerCaptureDevice {
     pipeline: Element,
     app_sink: AppSink,
     camera_format: CameraFormat,
-    camera_info: CameraInfo<'a>,
+    camera_info: CameraInfo,
     image_lock: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
     caps: Option<Caps>,
 }
 
-impl<'a> GStreamerCaptureDevice<'a> {
+impl GStreamerCaptureDevice {
     /// Creates a new capture device using the `GStreamer` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
@@ -59,7 +59,7 @@ impl<'a> GStreamerCaptureDevice<'a> {
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if `GStreamer` can't read device information. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
-    pub fn new(index: CameraIndex<'a>, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match cam_fmt {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
@@ -114,9 +114,9 @@ impl<'a> GStreamerCaptureDevice<'a> {
             let caps = device.caps();
             (
                 CameraInfo::new(
-                    DeviceExt::display_name(&device).to_string(),
-                    DeviceExt::device_class(&device).to_string(),
-                    "".to_string(),
+                    &DeviceExt::display_name(&device),
+                    &DeviceExt::device_class(&device),
+                    &"",
                     CameraIndex::Index(index),
                 ),
                 caps,
@@ -141,7 +141,7 @@ impl<'a> GStreamerCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
     pub fn new_with(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
@@ -151,7 +151,7 @@ impl<'a> GStreamerCaptureDevice<'a> {
     }
 }
 
-impl<'a> CaptureBackendTrait for GStreamerCaptureDevice<'a> {
+impl CaptureBackendTrait for GStreamerCaptureDevice {
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::GStreamer
     }
@@ -562,7 +562,7 @@ impl<'a> CaptureBackendTrait for GStreamerCaptureDevice<'a> {
     }
 }
 
-impl<'a> Drop for GStreamerCaptureDevice<'a> {
+impl Drop for GStreamerCaptureDevice {
     fn drop(&mut self) {
         let _ = self.pipeline.set_state(State::Null);
     }
@@ -650,7 +650,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
 
     pipeline.set_state(State::Playing).unwrap();
 
-    let image_lock = Arc::new(Mutex::new(Default::default()));
+    let image_lock = Arc::new(Mutex::new(ImageBuffer::default()));
     let img_lck_clone = image_lock.clone();
 
     appsink.set_callbacks(

@@ -10,23 +10,23 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// Captures using the Browser API. This internally wraps [`JSCamera`].
 ///
 /// # Quirks
-/// - FourCC setting is ignored
+/// - `FourCC` setting is ignored
 /// - Cannot get compatible resolution(s).
 /// - CameraControl(s) are not supported.
 /// - All frame capture is done by creating (then destorying) a canvas on the DOM.
 /// - Many methods are blocking on user input.
-pub struct BrowserCaptureDevice<'a> {
+pub struct BrowserCaptureDevice {
     camera: JSCamera,
-    info: CameraInfo<'a>,
+    info: CameraInfo,
 }
 
-impl<'a> BrowserCaptureDevice<'a> {
+impl BrowserCaptureDevice {
     // WARN: blocking on pass integer for index
     /// Creates a new camera from an [`CameraIndex`]. It can take [`CameraIndex::Index`] or [`CameraIndex::String`] (NOTE: blocks on [`CameraIndex::Index`])
     ///
     /// # Errors
     /// If the device is not found, browser not supported, or camera is over-constrained this will error.
-    pub fn new(index: CameraIndex<'a>, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let (group_id, device_id) = match &index {
             CameraIndex::Index(i) => {
                 let query_devices =
@@ -35,7 +35,7 @@ impl<'a> BrowserCaptureDevice<'a> {
                     Some(info) => {
                         let ids = info
                             .to_string()
-                            .split(" ")
+                            .split(' ')
                             .map(ToString::to_string)
                             .collect::<Vec<String>>();
                         match (ids.get(0), ids.get(1)) {
@@ -61,7 +61,7 @@ impl<'a> BrowserCaptureDevice<'a> {
             CameraIndex::String(id) => {
                 let ids = id
                     .to_string()
-                    .split(" ")
+                    .split(' ')
                     .map(ToString::to_string)
                     .collect::<Vec<String>>();
                 match (ids.get(0), ids.get(1)) {
@@ -81,12 +81,11 @@ impl<'a> BrowserCaptureDevice<'a> {
         let constraints = JSCameraConstraintsBuilder::new()
             .frame_rate(camera_format.frame_rate())
             .resolution(camera_format.resolution())
-            .aspect_ratio(camera_format.width() as f64 / camera_format.height() as f64)
+            .aspect_ratio(f64::from(camera_format.width()) / f64::from(camera_format.height()))
             .group_id(&group_id)
             .group_id_exact(true)
             .device_id(&device_id)
             .device_id_exact(true)
-            .resize_mode(JSCameraResizeMode::Any)
             .resize_mode(JSCameraResizeMode::Any)
             .build();
 
@@ -100,12 +99,7 @@ impl<'a> BrowserCaptureDevice<'a> {
                     return Ok(cam);
                 }
             }
-            Ok(CameraInfo::new(
-                "".to_string(),
-                "videoinput".to_string(),
-                giddid,
-                index,
-            ))
+            Ok(CameraInfo::new("", "videoinput", &giddid, index.clone()))
         })()?;
         Ok(BrowserCaptureDevice { camera, info })
     }
@@ -115,7 +109,7 @@ impl<'a> BrowserCaptureDevice<'a> {
     /// # Errors
     /// If the device is not found, browser not supported, or camera is over-constrained this will error.
     pub fn new_with(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
@@ -132,7 +126,7 @@ impl<'a> BrowserCaptureDevice<'a> {
     }
 }
 
-impl<'a> CaptureBackendTrait for BrowserCaptureDevice<'a> {
+impl CaptureBackendTrait for BrowserCaptureDevice {
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::Browser
     }
@@ -154,18 +148,18 @@ impl<'a> CaptureBackendTrait for BrowserCaptureDevice<'a> {
 
         let new_constraints = JSCameraConstraintsBuilder::new()
             .resolution(new_fmt.resolution())
-            .aspect_ratio(new_fmt.width() as f64 / new_fmt.height() as f64)
+            .aspect_ratio(f64::from(new_fmt.width()) / f64::from(new_fmt.height()))
             .frame_rate(new_fmt.frame_rate())
             .group_id(&current_constraints.group_id())
             .device_id(&current_constraints.device_id())
             .resize_mode(JSCameraResizeMode::Any)
             .build();
 
-        let _ = self.camera.set_constraints(new_constraints);
+        let _constraint_err = self.camera.set_constraints(new_constraints);
         match self.camera.apply_constraints() {
             Ok(_) => Ok(()),
             Err(why) => {
-                let _ = self.camera.set_constraints(current_constraints); // swallow errors - revert
+                let _returnerr = self.camera.set_constraints(current_constraints); // swallow errors - revert
                 Err(why)
             }
         }

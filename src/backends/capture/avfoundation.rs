@@ -34,24 +34,24 @@ use std::{any::Any, borrow::Borrow, borrow::Cow, collections::HashMap, ops::Dere
 /// - This only works on 64 bit platforms.
 /// - FPS adjustment does not work.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
-pub struct AVFoundationCaptureDevice<'a> {
+pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,
     session: Option<AVCaptureSession>,
     data_out: Option<AVCaptureVideoDataOutput>,
     data_collect: Option<AVCaptureVideoCallback>,
-    info: CameraInfo<'a>,
+    info: CameraInfo,
     format: CameraFormat,
 }
 
-impl<'a> AVFoundationCaptureDevice<'a> {
+impl AVFoundationCaptureDevice {
     /// Creates a new capture device using the `AVFoundation` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
     pub fn new(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         camera_format: Option<CameraFormat>,
     ) -> Result<Self, NokhwaError> {
         let camera_format = match camera_format {
@@ -91,7 +91,7 @@ impl<'a> AVFoundationCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new_with(
-        index: CameraIndex<'a>,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
