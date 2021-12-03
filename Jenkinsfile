@@ -9,6 +9,7 @@ pipeline {
     stage('Sanity Check') {
       steps {
         echo '$BUILD_TAG'
+        scmSkip(deleteBuild: true, skipPattern: '.*\\[ci skip\\].*')
       }
     }
 
@@ -20,6 +21,7 @@ pipeline {
 
       }
       steps {
+        scmSkip(deleteBuild: true, skipPattern: '.*\\[ci skip\\].*')
         sh 'rustup update stable'
         sh 'cargo fmt --all -- --check'
       }
@@ -35,6 +37,7 @@ pipeline {
 
           }
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             sh 'rustup update stable'
             sh 'cargo clippy --features "input-v4l, output-wgpu, test-fail-warning"'
           }
@@ -48,6 +51,7 @@ pipeline {
 
           }
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             pwsh(script: 'rustup update stable', returnStatus: true)
             pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
           }
@@ -67,6 +71,7 @@ pipeline {
 
           }
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             sh 'rustup update stable'
             sh 'cargo clippy --features "input-uvc, output-wgpu, test-fail-warning"'
           }
@@ -80,6 +85,7 @@ pipeline {
 
           }
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             sh 'rustup update stable'
             sh 'cargo clippy --features "input-opencv, input-ipcam, output-wgpu, test-fail-warning"'
           }
@@ -93,6 +99,7 @@ pipeline {
 
           }
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             sh 'rustup update nightly'
             sh 'cargo clippy --features "input-gst, output-wgpu, test-fail-warning"'
           }
@@ -100,6 +107,7 @@ pipeline {
 
         stage('JSCamera/WASM') {
           steps {
+            scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
             sh 'rustup update stable'
             sh 'wasm-pack build --release -- --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features'
             sh 'cargo clippy --features "input-jscam, output-wasm,  test-fail-warning" --no-default-features'
@@ -117,6 +125,7 @@ pipeline {
 
       }
       steps {
+        scmSkip(skipPattern: '.*\\[ci skip\\].*', deleteBuild: true)
         sh 'rustup update nightly'
         sh 'cargo +nightly doc --features "docs-only, docs-nolink, docs-features, test-fail-warning" --no-deps --release'
       }
