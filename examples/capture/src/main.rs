@@ -23,7 +23,8 @@ use glium::{
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
 use nokhwa::{
-    nokhwa_initialize, query_devices, Camera, CameraIndex, CaptureAPIBackend, FrameFormat,
+    nokhwa_initialize, query_devices, Camera, CameraFormat, CameraIndex, CaptureAPIBackend,
+    FrameFormat, Resolution,
 };
 use std::time::Instant;
 
@@ -194,7 +195,7 @@ fn main() {
                 .parse::<usize>()
             {
                 let mut camera = Camera::new_with(
-                    CameraIndex::Index(index as u32),
+                    &CameraIndex::Index(index as u32),
                     width,
                     height,
                     fps,

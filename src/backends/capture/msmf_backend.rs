@@ -47,22 +47,18 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
-    pub fn new(
-        index: &CameraIndex<'a>,
-        camera_fmt: Option<CameraFormat>,
-    ) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, camera_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+        let format = camera_fmt.unwrap_or_default();
         let mut mf_device = match &index {
-            CameraIndex::Index(idx) => MediaFoundationDevice::new(*idx as usize),
+            CameraIndex::Index(idx) => MediaFoundationDevice::new(*idx as usize, format.into()),
             CameraIndex::String(lnk) => MediaFoundationDevice::with_string(
                 &lnk.as_bytes()
                     .into_iter()
                     .map(|x| *x as u16)
                     .collect::<Vec<u16>>(),
+                format.into(),
             ),
         }?;
-        if let Some(fmt) = camera_fmt {
-            mf_device.set_format(fmt.into())?;
-        }
 
         let info = CameraInfo::new(
             mf_device.name(),
@@ -81,7 +77,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// # Errors
     /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
     pub fn new_with(
-        index: &CameraIndex<'a>,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
