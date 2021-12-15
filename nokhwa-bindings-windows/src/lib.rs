@@ -61,7 +61,7 @@ pub enum BindingError {
     NotImplementedError,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MFResolution {
     pub width_x: u32,
     pub height_y: u32,
@@ -73,7 +73,7 @@ pub enum MFFrameFormat {
     YUYV,
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq)]
 pub struct MFCameraFormat {
     resolution: MFResolution,
     format: MFFrameFormat,
@@ -369,9 +369,7 @@ pub mod wmf {
     use std::{
         borrow::Cow,
         cell::Cell,
-        collections::HashMap,
         mem::MaybeUninit,
-        ptr::null_mut,
         slice::from_raw_parts,
         sync::{
             atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -392,11 +390,11 @@ pub mod wmf {
                     VideoProcAmp_Saturation, VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
                 },
                 MediaFoundation::{
-                    IMFActivate, IMFAttributes, IMFMediaSource, IMFMediaType, IMFSample,
-                    IMFSourceReader, MFCreateAttributes, MFCreateMediaType,
-                    MFCreateSourceReaderFromMediaSource, MFEnumDeviceSources, MFMediaType_Video,
-                    MFShutdown, MFStartup, MFSTARTUP_NOSOCKET, MF_API_VERSION,
-                    MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                    IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
+                    MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
+                    MFEnumDeviceSources, MFMediaType_Video, MFShutdown, MFStartup,
+                    MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
                     MF_MEDIASOURCE_SERVICE, MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
@@ -576,7 +574,7 @@ pub mod wmf {
     }
 
     impl<'a> MediaFoundationDevice<'a> {
-        fn internal(index: usize) -> Result<Self, BindingError> {
+        pub fn new(index: usize) -> Result<Self, BindingError> {
             let (media_source, device_descriptor) = match query_activate_pointers()?
                 .into_iter()
                 .nth(index)
@@ -648,28 +646,19 @@ pub mod wmf {
             })
         }
 
-        pub fn new(index: usize, format: MFCameraFormat) -> Result<Self, BindingError> {
-            let mut camera = MediaFoundationDevice::internal(index)?;
-            camera.set_format(format)?;
-            Ok(camera)
-        }
-
-        pub fn with_string(
-            unique_id: &[u16],
-            format: MFCameraFormat,
-        ) -> Result<Self, BindingError> {
-            let device_list = query_media_foundation_descriptors()?;
+        pub fn with_string(unique_id: &[u16]) -> Result<Self, BindingError> {
+            let devicelist = query_media_foundation_descriptors()?;
             let mut id_eq = None;
 
-            for media_foundation_device in device_list {
-                if (media_foundation_device.symlink() as &[u16]) == unique_id {
-                    id_eq = Some(media_foundation_device.index);
+            for mfdev in devicelist {
+                if (mfdev.symlink() as &[u16]) == unique_id {
+                    id_eq = Some(mfdev.index);
                     break;
                 }
             }
 
             match id_eq {
-                Some(index) => Self::new(index, format),
+                Some(index) => Self::new(index),
                 None => {
                     return Err(BindingError::DeviceOpenFailError(
                         std::str::from_utf8(
@@ -695,24 +684,16 @@ pub mod wmf {
             self.device_specifier.link_as_string()
         }
 
-        fn internal_format_list(
-            &mut self,
-        ) -> Result<HashMap<MFCameraFormat, IMFMediaType>, BindingError> {
-            let mut camera_format_map = HashMap::new();
+        pub fn compatible_format_list(&mut self) -> Result<Vec<MFCameraFormat>, BindingError> {
+            let mut camera_format_list = vec![];
             let mut index = 0;
 
             while let Ok(media_type) = unsafe {
                 self.source_reader
                     .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
             } {
-                index += 1;
-
                 let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
-                    Ok(fcc) => match fcc {
-                        MF_VIDEO_FORMAT_YUY2 => MFFrameFormat::YUYV,
-                        MF_VIDEO_FORMAT_MJPEG => MFFrameFormat::MJPEG,
-                        _ => continue,
-                    },
+                    Ok(fcc) => fcc,
                     Err(why) => {
                         return Err(BindingError::GUIDReadError(
                             "MF_MT_SUBTYPE".to_string(),
@@ -789,60 +770,77 @@ pub mod wmf {
                         }
                     };
 
-                if frame_rate_min != 0 {
-                    camera_format_map.insert(
-                        MFCameraFormat {
+                if fourcc == MF_VIDEO_FORMAT_MJPEG {
+                    if frame_rate_min != 0 {
+                        camera_format_list.push(MFCameraFormat {
                             resolution: MFResolution {
                                 width_x: width,
                                 height_y: height,
                             },
-                            format: fourcc,
+                            format: MFFrameFormat::MJPEG,
                             frame_rate: frame_rate_min,
-                        },
-                        media_type.clone(),
-                    );
-                }
+                        });
+                    }
 
-                if frame_rate != frame_rate_min && frame_rate != 0 {
-                    camera_format_map.insert(
-                        MFCameraFormat {
+                    if frame_rate != 0 && frame_rate_min != frame_rate {
+                        camera_format_list.push(MFCameraFormat {
                             resolution: MFResolution {
                                 width_x: width,
                                 height_y: height,
                             },
-                            format: fourcc,
+                            format: MFFrameFormat::MJPEG,
                             frame_rate,
-                        },
-                        media_type.clone(),
-                    );
-                }
+                        });
+                    }
 
-                if frame_rate_max != frame_rate
-                    && frame_rate_max != frame_rate_min
-                    && frame_rate_max != 0
-                {
-                    camera_format_map.insert(
-                        MFCameraFormat {
+                    if frame_rate_max != 0 && frame_rate != frame_rate_max {
+                        camera_format_list.push(MFCameraFormat {
                             resolution: MFResolution {
                                 width_x: width,
                                 height_y: height,
                             },
-                            format: fourcc,
+                            format: MFFrameFormat::MJPEG,
                             frame_rate: frame_rate_max,
-                        },
-                        media_type.clone(),
-                    );
-                }
-            }
-            Ok(camera_format_map)
-        }
+                        });
+                    }
+                } else if fourcc == MF_VIDEO_FORMAT_YUY2 {
+                    if frame_rate_min != 0 {
+                        camera_format_list.push(MFCameraFormat {
+                            resolution: MFResolution {
+                                width_x: width,
+                                height_y: height,
+                            },
+                            format: MFFrameFormat::YUYV,
+                            frame_rate: frame_rate_min,
+                        });
+                    }
 
-        pub fn compatible_format_list(&mut self) -> Result<Vec<MFCameraFormat>, BindingError> {
-            Ok(self
-                .internal_format_list()?
-                .into_keys()
-                .into_iter()
-                .collect())
+                    if frame_rate != 0 && frame_rate_min != frame_rate {
+                        camera_format_list.push(MFCameraFormat {
+                            resolution: MFResolution {
+                                width_x: width,
+                                height_y: height,
+                            },
+                            format: MFFrameFormat::YUYV,
+                            frame_rate,
+                        });
+                    }
+
+                    if frame_rate_max != 0 && frame_rate != frame_rate_max {
+                        camera_format_list.push(MFCameraFormat {
+                            resolution: MFResolution {
+                                width_x: width,
+                                height_y: height,
+                            },
+                            format: MFFrameFormat::YUYV,
+                            frame_rate: frame_rate_max,
+                        });
+                    }
+                }
+
+                index += 1;
+            }
+            Ok(camera_format_list)
         }
 
         pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
@@ -1596,7 +1594,6 @@ pub mod wmf {
         }
 
         pub fn set_format(&mut self, format: MFCameraFormat) -> Result<(), BindingError> {
-            let mut index = 0;
             // convert to media_type
             let media_type = match unsafe { MFCreateMediaType() } {
                 Ok(mt) => mt,
@@ -1662,115 +1659,22 @@ pub mod wmf {
                 ));
             }
 
-            while let Ok(media_type) = unsafe {
-                self.source_reader
-                    .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
+            let reserved = std::ptr::null_mut();
+            if let Err(why) = unsafe {
+                self.source_reader.SetCurrentMediaType(
+                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    reserved,
+                    media_type.clone(),
+                )
             } {
-                index += 1;
-
-                let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
-                    Ok(fcc) => match fcc {
-                        MF_VIDEO_FORMAT_YUY2 => MFFrameFormat::YUYV,
-                        MF_VIDEO_FORMAT_MJPEG => MFFrameFormat::MJPEG,
-                        _ => continue,
-                    },
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_SUBTYPE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                let (width, height) = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_SIZE) } {
-                    Ok(res_u64) => {
-                        let width = (res_u64 >> 32) as u32;
-                        let height = res_u64 as u32; // the cast will truncate the upper bits
-                        (width, height)
-                    }
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_SIZE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                // MFRatio is represented as 2 u32s in memory. This means we cann convert it to 2
-                let frame_rate_max =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
-                                why.to_string(),
-                            ))
-                        }
-                    };
-
-                let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
-                    Ok(fraction_u64) => {
-                        let mut numerator = (fraction_u64 >> 32) as u32;
-                        let denominator = fraction_u64 as u32;
-                        if denominator != 1 {
-                            numerator = 0;
-                        }
-                        numerator
-                    }
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_RATE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                let frame_rate_min =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
-                                why.to_string(),
-                            ))
-                        }
-                    };
-
-                if format.width() == width
-                    && format.height() == height
-                    && [frame_rate_max, frame_rate, frame_rate_min].contains(&format.frame_rate)
-                    && format.format == fourcc
-                {
-                    return match unsafe {
-                        self.source_reader.SetCurrentMediaType(
-                            MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
-                            null_mut(),
-                            media_type,
-                        )
-                    } {
-                        Ok(_) => {
-                            self.device_format = format;
-                            Ok(())
-                        }
-                        Err(why) => Err(BindingError::AttributeError(why.to_string())),
-                    };
-                }
+                return Err(BindingError::GUIDSetError(
+                    "MF_SOURCE_READER_FIRST_VIDEO_STREAM".to_string(),
+                    format!("{:?}", media_type),
+                    why.to_string(),
+                ));
             }
-            Err(BindingError::EnumerateError("Not Found".to_string()))
+            self.device_format = format;
+            Ok(())
         }
 
         pub fn is_stream_open(&self) -> bool {
@@ -1782,6 +1686,7 @@ pub mod wmf {
                 self.source_reader
                     .SetStreamSelection(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, true)
             } {
+                println!("a");
                 return Err(BindingError::ReadFrameError(why.to_string()));
             }
 
