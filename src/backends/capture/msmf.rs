@@ -48,7 +48,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// This function will error if Media Foundation fails to get the device.
     pub fn new(index: usize, camera_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let format = camera_fmt.unwrap_or_default();
-        let mut mf_device = MediaFoundationDevice::new(index, format.into())?;
+        let mf_device = MediaFoundationDevice::new(index, format.into())?;
 
         let info = CameraInfo::new(
             mf_device.name(),
