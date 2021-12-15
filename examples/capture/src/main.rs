@@ -22,10 +22,7 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{
-    nokhwa_initialize, query_devices, Camera, CameraFormat, CaptureAPIBackend, FrameFormat,
-    Resolution,
-};
+use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -278,7 +275,7 @@ fn main() {
                             fps,
                             frame.len()
                         );
-                        send.send(frame).unwrap()
+                        let _send = send.send(frame);
                     }
                 }
             }
