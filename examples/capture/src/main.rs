@@ -23,8 +23,8 @@ use glium::{
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
 use nokhwa::{
-    nokhwa_initialize, query_devices, Camera, CameraFormat, CaptureAPIBackend, FrameFormat,
-    Resolution,
+    nokhwa_initialize, query_devices, Camera, CameraFormat, CameraIndex, CaptureAPIBackend,
+    FrameFormat, Resolution,
 };
 use std::time::Instant;
 
