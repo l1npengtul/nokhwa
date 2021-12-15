@@ -17,7 +17,7 @@
 use crate::{
     error::NokhwaError,
     mjpeg_to_rgb888,
-    utils::{CameraFormat, CameraInfo},
+    utils::{CameraFormat, CameraIndex, CameraInfo},
     yuyv422_to_rgb888, CameraControl, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
     KnownCameraControlFlag, KnownCameraControls, Resolution,
 };
@@ -181,9 +181,10 @@ impl<'a> V4LCaptureDevice<'a> {
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
-    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let device = match Device::new(index) {
+    /// This function will error if the camera is currently busy or if `V4L2` can't read device information. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
+    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+        let index = index.as_index()?;
+        let device = match Device::new(index as usize) {
             Ok(dev) => dev,
             Err(why) => {
                 return Err(NokhwaError::OpenDeviceError(
@@ -194,7 +195,7 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         let camera_info = match device.query_caps() {
-            Ok(caps) => CameraInfo::new(caps.card, "".to_string(), caps.driver, index),
+            Ok(caps) => CameraInfo::new(&caps.card, "", &caps.driver, CameraIndex::Index(index)),
             Err(why) => {
                 return Err(NokhwaError::GetPropertyError {
                     property: "Capabilities".to_string(),
@@ -269,7 +270,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     pub fn new_with(
-        index: usize,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,

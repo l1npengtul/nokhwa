@@ -366,12 +366,12 @@ pub mod wmf {
         BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
         MediaFoundationControls, MediaFoundationDeviceDescriptor,
     };
-    use std::ptr::null_mut;
     use std::{
         borrow::Cow,
         cell::Cell,
         collections::HashMap,
         mem::MaybeUninit,
+        ptr::null_mut,
         slice::from_raw_parts,
         sync::{
             atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -393,13 +393,14 @@ pub mod wmf {
                 },
                 MediaFoundation::{
                     IMFActivate, IMFAttributes, IMFMediaSource, IMFMediaType, IMFSample,
-                    IMFSourceReader, MFCreateAttributes, MFCreateSourceReaderFromMediaSource,
-                    MFEnumDeviceSources, MFShutdown, MFStartup, MFSTARTUP_NOSOCKET, MF_API_VERSION,
+                    IMFSourceReader, MFCreateAttributes, MFCreateMediaType,
+                    MFCreateSourceReaderFromMediaSource, MFEnumDeviceSources, MFMediaType_Video,
+                    MFShutdown, MFStartup, MFSTARTUP_NOSOCKET, MF_API_VERSION,
                     MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
                     MF_MEDIASOURCE_SERVICE, MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
-                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_SUBTYPE,
+                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE,
                     MF_READWRITE_DISABLE_CONVERTERS,
                 },
             },
@@ -653,7 +654,10 @@ pub mod wmf {
             Ok(camera)
         }
 
-        pub fn with_string(unique_id: &[u16]) -> Result<Self, BindingError> {
+        pub fn with_string(
+            unique_id: &[u16],
+            format: MFCameraFormat,
+        ) -> Result<Self, BindingError> {
             let device_list = query_media_foundation_descriptors()?;
             let mut id_eq = None;
 
@@ -665,7 +669,7 @@ pub mod wmf {
             }
 
             match id_eq {
-                Some(index) => Self::internal(index),
+                Some(index) => Self::new(index, format),
                 None => {
                     return Err(BindingError::DeviceOpenFailError(
                         std::str::from_utf8(
@@ -1593,6 +1597,70 @@ pub mod wmf {
 
         pub fn set_format(&mut self, format: MFCameraFormat) -> Result<(), BindingError> {
             let mut index = 0;
+            // convert to media_type
+            let media_type = match unsafe { MFCreateMediaType() } {
+                Ok(mt) => mt,
+                Err(why) => return Err(BindingError::AttributeError(why.to_string())),
+            };
+
+            // set relevant things
+            let resolution = (u64::from(format.resolution.width_x) << 32_u64)
+                + u64::from(format.resolution.height_y);
+            let fps = {
+                let frame_rate_u64 = 0_u64;
+                let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
+                bytes[7] = format.frame_rate as u8;
+                bytes[3] = 0x01;
+                println!("{:?}", bytes);
+                u64::from_le_bytes(bytes)
+            };
+            let fourcc = match format.format {
+                MFFrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
+                MFFrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
+            };
+            // setting to the new media_type
+            if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_MAJOR_TYPE".to_string(),
+                    "MFMediaType_Video".to_string(),
+                    why.to_string(),
+                ));
+            }
+            if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_SUBTYPE, &fourcc) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_SUBTYPE".to_string(),
+                    format!("{:?}", fourcc),
+                    why.to_string(),
+                ));
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_SIZE, resolution) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_FRAME_SIZE".to_string(),
+                    resolution.to_string(),
+                    why.to_string(),
+                ));
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE, fps) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_FRAME_RATE".to_string(),
+                    fps.to_string(),
+                    why.to_string(),
+                ));
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN, fps) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
+                    fps.to_string(),
+                    why.to_string(),
+                ));
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX, fps) } {
+                return Err(BindingError::GUIDSetError(
+                    "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
+                    fps.to_string(),
+                    why.to_string(),
+                ));
+            }
 
             while let Ok(media_type) = unsafe {
                 self.source_reader

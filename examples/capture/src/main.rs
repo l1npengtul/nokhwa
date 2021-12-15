@@ -194,8 +194,15 @@ fn main() {
                 .trim()
                 .parse::<usize>()
             {
-                let mut camera =
-                    Camera::new_with(index, width, height, fps, format, backend_value).unwrap();
+                let mut camera = Camera::new_with(
+                    CameraIndex::Index(index as u32),
+                    width,
+                    height,
+                    fps,
+                    format,
+                    backend_value,
+                )
+                .unwrap();
 
                 if matches_clone.is_present("query-device") {
                     match camera.compatible_fourcc() {

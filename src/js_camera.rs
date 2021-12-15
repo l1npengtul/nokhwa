@@ -20,9 +20,10 @@
 //!
 //! This assumes that you are running a modern browser on the desktop.
 
-use crate::{CameraInfo, NokhwaError, Resolution};
+use crate::{CameraIndex, CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
 use js_sys::{Array, JsString, Map, Object, Promise};
+use std::borrow::Borrow;
 use std::{
     borrow::Cow,
     convert::TryFrom,
@@ -287,14 +288,18 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                                                 MediaStreamTrack::from(first).label()
                                             };
                                             device_list.push(CameraInfo::new(
-                                                name,
-                                                format!("{:?}", media_device_info.kind()),
-                                                format!(
+                                                &name,
+                                                &format!("{:?}", media_device_info.kind()),
+                                                &format!(
                                                     "{} {}",
                                                     media_device_info.group_id(),
                                                     media_device_info.device_id()
                                                 ),
-                                                idx_device as usize,
+                                                CameraIndex::String(format!(
+                                                    "{} {}",
+                                                    media_device_info.group_id(),
+                                                    media_device_info.device_id()
+                                                )),
                                             ));
                                             tracks
                                                 .iter()
@@ -303,18 +308,22 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                                     }
                                     Err(_) => {
                                         device_list.push(CameraInfo::new(
-                                            format!(
+                                            &format!(
                                                 "{:?}#{}",
                                                 media_device_info.kind(),
                                                 idx_device
                                             ),
-                                            format!("{:?}", media_device_info.kind()),
-                                            format!(
+                                            &format!("{:?}", media_device_info.kind()),
+                                            &format!(
                                                 "{} {}",
                                                 media_device_info.group_id(),
                                                 media_device_info.device_id()
                                             ),
-                                            idx_device as usize,
+                                            CameraIndex::String(format!(
+                                                "{} {}",
+                                                media_device_info.group_id(),
+                                                media_device_info.device_id()
+                                            )),
                                         ));
                                     }
                                 }
@@ -2544,7 +2553,7 @@ impl JSCamera {
         let resolution = self.resolution();
         let frame = self.frame_raw()?;
         if convert_rgba {
-            buffer.copy_from_slice(&frame);
+            buffer.copy_from_slice(frame.borrow());
             return Ok(frame.len());
         }
         let image = match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
@@ -2611,7 +2620,7 @@ impl JSCamera {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &frame,
+            frame.borrow(),
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: width_nonzero,
@@ -2704,3 +2713,7 @@ impl Drop for JSCamera {
         self.stop_all().unwrap_or(()); // swallow errors
     }
 }
+
+// SAFETY: JSCamera is used in WASM, it will never be sent to a different thread. This is only done to satisfy the compiler.
+#[allow(clippy::non_send_fields_in_send_ty)]
+unsafe impl Send for JSCamera {}

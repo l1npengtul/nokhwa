@@ -56,7 +56,7 @@ use uvc::{
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
-    camera_info: CameraInfo,
+    camera_info: CameraInfo<'a>,
     frame_receiver: Receiver<Vec<u8>>,
     frame_sender: Sender<Vec<u8>>,
     stream_handle_init: Cell<bool>,

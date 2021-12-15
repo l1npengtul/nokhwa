@@ -108,7 +108,7 @@ impl NetworkCamera {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
@@ -167,6 +167,6 @@ impl NetworkCamera {
 
 impl Drop for NetworkCamera {
     fn drop(&mut self) {
-        self.stop_stream().unwrap();
+        let _stop_stream_err = self.stop_stream();
     }
 }

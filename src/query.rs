@@ -19,10 +19,11 @@ use crate::{CameraInfo, CaptureAPIBackend, NokhwaError};
 /// Query the system for a list of available devices.
 /// Usually the order goes Native -> UVC -> Gstreamer.
 /// # Quirks
-/// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
-/// - Media Foundation: The names may contain invalid characters since they were converted from UTF16.
-/// - AVFoundation: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
-/// - AVFoundation: There is lots of miscellaneous info in the `desc` attribute.
+/// - `Media Foundation`: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
+/// - `Media Foundation`: The names may contain invalid characters since they were converted from UTF16.
+/// - `AVFoundation`: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
+/// - `AVFoundation`: There is lots of miscellaneous info in the `desc` attribute.
+/// - `WASM`: The device ID and group ID are seperated by a space (' ')
 /// # Errors
 /// If you use an unsupported API (check the README or crate root for more info), incompatible backend for current platform, incompatible platform, or insufficient permissions, etc
 /// this will error.
@@ -32,13 +33,13 @@ pub fn query() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
-/// Currently, these are `V4L`, `MediaFoundation`, `AVFoundation`, `UVC`, and `GST`. <br>
 /// Usually the order goes Native -> UVC -> Gstreamer.
 /// # Quirks
-/// - Media Foundation: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
-/// - Media Foundation: The names may contain invalid characters since they were converted from UTF16.
-/// - AVFoundation: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
-/// - AVFoundation: There is lots of miscellaneous info in the `desc` attribute.
+/// - `Media Foundation`: The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
+/// - `Media Foundation`: The names may contain invalid characters since they were converted from UTF16.
+/// - `AVFoundation`: The ID of the device is stored in the `misc` attribute of the [`CameraInfo`].
+/// - `AVFoundation`: There is lots of miscellaneous info in the `desc` attribute.
+/// - `WASM`: The `misc` field contains the device ID and group ID are seperated by a space (' ')
 /// # Errors
 /// If you use an unsupported API (check the README or crate root for more info), incompatible backend for current platform, incompatible platform, or insufficient permissions, etc
 /// this will error.
@@ -112,7 +113,10 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
         CaptureAPIBackend::UniversalVideoClass => query_uvc(),
         CaptureAPIBackend::MediaFoundation => query_msmf(),
         CaptureAPIBackend::GStreamer => query_gstreamer(),
-        CaptureAPIBackend::OpenCv => Err(NokhwaError::UnsupportedOperationError(api)),
+        CaptureAPIBackend::OpenCv | CaptureAPIBackend::Network => {
+            Err(NokhwaError::UnsupportedOperationError(api))
+        }
+        CaptureAPIBackend::Browser => query_wasm(),
     }
 }
 
@@ -120,17 +124,20 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
 #[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::cast_possible_truncation)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use crate::CameraIndex;
     Ok({
         let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
             .iter()
             .map(|node| {
                 CameraInfo::new(
-                    node.name()
+                    &node
+                        .name()
                         .unwrap_or(format!("{}", node.path().to_string_lossy())),
-                    format!("Video4Linux Device @ {}", node.path().to_string_lossy()),
-                    "".to_string(),
-                    node.index(),
+                    &format!("Video4Linux Device @ {}", node.path().to_string_lossy()),
+                    &"".to_string(),
+                    CameraIndex::Index(node.index() as u32),
                 )
             })
             .collect();
@@ -139,7 +146,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
 }
 
 #[cfg(any(not(feature = "input-v4l"), not(target_os = "linux")))]
-fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
+fn query_v4l<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::Video4Linux,
     ))
@@ -147,7 +154,9 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(feature = "input-uvc")]
 fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use crate::CameraIndex;
     use uvc::Device;
+
     let context = match uvc::Context::new() {
         Ok(ctx) => ctx,
         Err(why) => {
@@ -205,7 +214,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
                             desc.product_id,
                             desc.serial_number.unwrap_or_else(|| "".to_string())
                         ),
-                        counter,
+                        CameraIndex::Index(counter as u32),
                     ));
                     counter += 1;
                 }
@@ -224,6 +233,7 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(feature = "input-gst")]
 fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use crate::CameraIndex;
     use gstreamer::{
         prelude::{DeviceExt, DeviceMonitorExt, DeviceMonitorExtManual},
         Caps, DeviceMonitor,
@@ -269,12 +279,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
             let name = DeviceExt::display_name(gst_dev);
             let class = DeviceExt::device_class(gst_dev);
             counter += 1;
-            CameraInfo::new(
-                name.to_string(),
-                class.to_string(),
-                "".to_string(),
-                counter - 1,
-            )
+            CameraInfo::new(&name, &class, "", CameraIndex::Index(counter - 1))
         })
         .collect();
     device_monitor.stop();
@@ -282,7 +287,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 }
 
 #[cfg(not(feature = "input-gst"))]
-fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
+fn query_gstreamer<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::GStreamer,
     ))
@@ -290,7 +295,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
 #[cfg(all(feature = "input-msmf", target_os = "windows"))]
-fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
+fn query_msmf<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
     let list: Vec<CameraInfo> =
         match nokhwa_bindings_windows::wmf::query_media_foundation_descriptors() {
             Ok(l) => l
@@ -332,5 +337,20 @@ fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
 fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::AVFoundation,
+    ))
+}
+
+#[cfg(feature = "input-jscam")]
+fn query_wasm() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use crate::js_camera::query_js_cameras;
+    use wasm_rs_async_executor::single_threaded::block_on;
+
+    block_on(query_js_cameras())
+}
+
+#[cfg(not(feature = "input-jscam"))]
+fn query_wasm() -> Result<Vec<CameraInfo>, NokhwaError> {
+    Err(NokhwaError::UnsupportedOperationError(
+        CaptureAPIBackend::Browser,
     ))
 }

@@ -16,8 +16,8 @@
 
 use crate::{
     all_known_camera_controls, mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat,
-    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControlFlag,
-    KnownCameraControls, NokhwaError, Resolution,
+    CameraIndex, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    KnownCameraControlFlag, KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
@@ -34,6 +34,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - The names may contain invalid characters since they were converted from UTF16.
 /// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.
+// TODO: Allow CameraIndex to contain a device string.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-msmf")))]
 pub struct MediaFoundationCaptureDevice<'a> {
     inner: MediaFoundationDevice<'a>,
@@ -45,16 +46,25 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if Media Foundation fails to get the device.
-    pub fn new(index: usize, camera_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
+    pub fn new(index: &CameraIndex, camera_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let format = camera_fmt.unwrap_or_default();
-        let mut mf_device = MediaFoundationDevice::new(index, format.into())?;
+        let mut mf_device = match &index {
+            CameraIndex::Index(idx) => MediaFoundationDevice::new(*idx as usize, format.into()),
+            CameraIndex::String(lnk) => MediaFoundationDevice::with_string(
+                &lnk.as_bytes()
+                    .into_iter()
+                    .map(|x| *x as u16)
+                    .collect::<Vec<u16>>(),
+                format.into(),
+            ),
+        }?;
 
         let info = CameraInfo::new(
             mf_device.name(),
             "MediaFoundation Camera Device".to_string(),
             mf_device.symlink(),
-            mf_device.index(),
+            index,
         );
 
         Ok(MediaFoundationCaptureDevice {
@@ -65,9 +75,9 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
 
     /// Create a new Media Foundation Device with desired settings.
     /// # Errors
-    /// This function will error if Media Foundation fails to get the device.
+    /// This function will error if Media Foundation fails to get the device. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
     pub fn new_with(
-        index: usize,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
