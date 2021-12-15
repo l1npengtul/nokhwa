@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["l1npengtul"]
 edition = "2021"
 license = "Apache-2.0"

@@ -22,7 +22,10 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
+use nokhwa::{
+    nokhwa_initialize, query_devices, Camera, CameraFormat, CaptureAPIBackend, FrameFormat,
+    Resolution,
+};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
