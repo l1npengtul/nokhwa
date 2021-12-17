@@ -101,7 +101,7 @@ impl From<BindingError> for NokhwaError {
                 error,
             },
             BindingError::DeviceOpenFailError(device, error) => {
-                NokhwaError::OpenDeviceError(device.to_string(), error)
+                NokhwaError::OpenDeviceError(device, error)
             }
             BindingError::ReadFrameError(error) => NokhwaError::ReadFrameError(error),
             BindingError::NotImplementedError => {
