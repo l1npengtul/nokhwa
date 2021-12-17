@@ -170,14 +170,56 @@ impl From<FrameFormat> for AVFourCC {
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
 /// # JS-WASM
 /// This is exported as `JSResolution`
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSResolution))]
+#[cfg(not(target_feature = "output-wasm"))]
+impl Resolution {
+    /// Create a new resolution from 2 image size coordinates.
+    /// # JS-WASM
+    /// This is exported as a constructor for [`Resolution`].
+    #[must_use]
+    pub fn new(x: u32, y: u32) -> Self {
+        Resolution {
+            width_x: x,
+            height_y: y,
+        }
+    }
+
+    /// Get the width of Resolution
+    /// # JS-WASM
+    /// This is exported as `get_Width`.
+    #[must_use]
+    pub fn width(self) -> u32 {
+        self.width_x
+    }
+
+    /// Get the height of Resolution
+    /// # JS-WASM
+    /// This is exported as `get_Height`.
+    #[must_use]
+    pub fn height(self) -> u32 {
+        self.height_y
+    }
+
+    /// Get the x (width) of Resolution
+    #[must_use]
+    pub fn x(self) -> u32 {
+        self.width_x
+    }
+
+    /// Get the y (height) of Resolution
+    #[must_use]
+    pub fn y(self) -> u32 {
+        self.height_y
+    }
+}
+
+#[cfg(target_feature = "output-wasm")]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     /// # JS-WASM
@@ -471,8 +513,8 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 /// # JS-WASM
 /// This is exported as a `JSCameraInfo`.
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 pub struct CameraInfo {
     human_name: String,
     description: String,
@@ -480,7 +522,83 @@ pub struct CameraInfo {
     index: usize,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
+#[cfg(not(target_feature = "output-wasm"))]
+impl CameraInfo {
+    /// Create a new [`CameraInfo`].
+    /// # JS-WASM
+    /// This is exported as a constructor for [`CameraInfo`].
+    #[must_use]
+    pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
+        CameraInfo {
+            human_name,
+            description,
+            misc,
+            index,
+        }
+    }
+
+    /// Get a reference to the device info's human readable name.
+    /// # JS-WASM
+    /// This is exported as a `get_HumanReadableName`.
+    #[must_use]
+    pub fn human_name(&self) -> String {
+        self.human_name.clone()
+    }
+
+    /// Set the device info's human name.
+    /// # JS-WASM
+    /// This is exported as a `set_HumanReadableName`.
+    pub fn set_human_name(&mut self, human_name: String) {
+        self.human_name = human_name;
+    }
+
+    /// Get a reference to the device info's description.
+    /// # JS-WASM
+    /// This is exported as a `get_Description`.
+    #[must_use]
+    pub fn description(&self) -> String {
+        self.description.clone()
+    }
+
+    /// Set the device info's description.
+    /// # JS-WASM
+    /// This is exported as a `set_Description`.
+    pub fn set_description(&mut self, description: String) {
+        self.description = description;
+    }
+
+    /// Get a reference to the device info's misc.
+    /// # JS-WASM
+    /// This is exported as a `get_MiscString`.
+    #[must_use]
+    pub fn misc(&self) -> String {
+        self.misc.clone()
+    }
+
+    /// Set the device info's misc.
+    /// # JS-WASM
+    /// This is exported as a `set_MiscString`.
+    pub fn set_misc(&mut self, misc: String) {
+        self.misc = misc;
+    }
+
+    /// Get a reference to the device info's index.
+    /// # JS-WASM
+    /// This is exported as a `get_Index`.
+    #[must_use]
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    /// Set the device info's index.
+    /// # JS-WASM
+    /// This is exported as a `set_Index`.
+    pub fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+}
+
+#[cfg(target_feature = "output-wasm")]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
@@ -501,8 +619,8 @@ impl CameraInfo {
     /// This is exported as a `get_HumanReadableName`.
     #[must_use]
     #[cfg_attr(
-        feature = "output-wasm",
-        wasm_bindgen(getter = HumanReadableName)
+    feature = "output-wasm",
+    wasm_bindgen(getter = HumanReadableName)
     )]
     pub fn human_name(&self) -> String {
         self.human_name.clone()
@@ -512,8 +630,8 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `set_HumanReadableName`.
     #[cfg_attr(
-        feature = "output-wasm",
-        wasm_bindgen(setter = HumanReadableName)
+    feature = "output-wasm",
+    wasm_bindgen(setter = HumanReadableName)
     )]
     pub fn set_human_name(&mut self, human_name: String) {
         self.human_name = human_name;

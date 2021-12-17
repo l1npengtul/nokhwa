@@ -19,8 +19,7 @@ use crate::{
     KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::any::Any;
-use std::{borrow::Cow, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -149,6 +148,23 @@ impl Camera {
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
         self.backend.compatible_fourcc()
+    }
+
+    /// A Vector of available [`CameraFormat`]s.
+    /// # Errors
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
+    pub fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
+        let mut camera_formats = Vec::with_capacity(64);
+        for foramt in self.compatible_fourcc()? {
+            let resolution_and_fps: HashMap<Resolution, Vec<u32>> =
+                self.compatible_list_by_resolution(foramt)?;
+            for (res, rates) in resolution_and_fps {
+                for fps in rates {
+                    camera_formats.push(CameraFormat::new(res, foramt, fps))
+                }
+            }
+        }
+        Ok(camera_formats)
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
