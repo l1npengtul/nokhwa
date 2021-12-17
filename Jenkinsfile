@@ -49,7 +49,7 @@ pipeline {
           }
           steps {
             pwsh(script: 'rustup update stable', returnStatus: true)
-            pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true)
+            pwsh(script: 'cargo clippy --features "input-msmf, output-wgpu, test-fail-warning"', returnStatus: true, returnStdout: true)
           }
         }
 
