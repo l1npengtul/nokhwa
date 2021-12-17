@@ -9,6 +9,7 @@ pipeline {
     stage('Sanity Check') {
       steps {
         echo '$BUILD_TAG'
+        scmSkip(deleteBuild: true, skipPattern: '.*\\[ci skip\\].*')
       }
     }
 
