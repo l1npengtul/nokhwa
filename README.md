@@ -1,3 +1,4 @@
+[![cargo version](https://img.shields.io/crates/v/nokhwa.svg)](https://crates.io/crates/nokhwa) ![docs.rs version](https://img.shields.io/docsrs/nokhwa)
 # nokhwa
 Nokhwa(녹화): Korean word meaning "to record".
 
@@ -107,3 +108,6 @@ Contributions are welcome!
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
+
+## 0.10
+0.10 is currently stalled due to upstream not having the necessary features (wasm-bindgen).
