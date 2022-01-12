@@ -1,4 +1,4 @@
-[![cargo version](https://img.shields.io/crates/v/nokhwa.svg)](https://crates.io/crates/nokhwa) ![docs.rs version](https://img.shields.io/docsrs/nokhwa)
+[![cargo version](https://img.shields.io/crates/v/nokhwa.svg)](https://crates.io/crates/nokhwa) [![docs.rs version](https://img.shields.io/docsrs/nokhwa)](https://docs.rs/nokhwa/latest/nokhwa/)
 # nokhwa
 Nokhwa(녹화): Korean word meaning "to record".
 
