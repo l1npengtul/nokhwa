@@ -28,7 +28,7 @@ let mut camera = Camera::new(
 // open stream
 camera.open_stream().unwrap();
 loop {
-    let frame = camera.get_frame().unwrap();
+    let frame = camera.frame().unwrap();
     println!("{}, {}", frame.width(), frame.height());
 }
 ```
