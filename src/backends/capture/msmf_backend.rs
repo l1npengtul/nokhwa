@@ -15,7 +15,7 @@
  */
 
 use crate::{
-    all_known_camera_controls, mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat,
+    all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat,
     CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControlFlag,
     KnownCameraControls, NokhwaError, Resolution,
 };
@@ -339,8 +339,8 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         let camera_format = self.camera_format();
         let raw_data = self.frame_raw()?;
         let conv = match camera_format.format() {
-            FrameFormat::MJPEG => mjpeg_to_rgb888(raw_data.as_ref())?,
-            FrameFormat::YUYV => yuyv422_to_rgb888(raw_data.as_ref())?,
+            FrameFormat::MJPEG => mjpeg_to_rgb(raw_data.as_ref(), false)?,
+            FrameFormat::YUYV => yuyv422_to_rgb(raw_data.as_ref(), false)?,
         };
 
         let imagebuf =
