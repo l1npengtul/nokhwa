@@ -14,24 +14,9 @@
  * limitations under the License.
  */
 
-/*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 use crate::NokhwaError;
 use std::{
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
@@ -70,7 +55,7 @@ use v4l::{control::Description, Format, FourCC};
 /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 /// # JS-WASM
 /// This is exported as `FrameFormat`
-#[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd, Ord, Eq)]
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
@@ -170,56 +155,14 @@ impl From<FrameFormat> for AVFourCC {
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
 /// # JS-WASM
 /// This is exported as `JSResolution`
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
+#[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
     pub width_x: u32,
     pub height_y: u32,
 }
 
-#[cfg(not(target_feature = "output-wasm"))]
-impl Resolution {
-    /// Create a new resolution from 2 image size coordinates.
-    /// # JS-WASM
-    /// This is exported as a constructor for [`Resolution`].
-    #[must_use]
-    pub fn new(x: u32, y: u32) -> Self {
-        Resolution {
-            width_x: x,
-            height_y: y,
-        }
-    }
-
-    /// Get the width of Resolution
-    /// # JS-WASM
-    /// This is exported as `get_Width`.
-    #[must_use]
-    pub fn width(self) -> u32 {
-        self.width_x
-    }
-
-    /// Get the height of Resolution
-    /// # JS-WASM
-    /// This is exported as `get_Height`.
-    #[must_use]
-    pub fn height(self) -> u32 {
-        self.height_y
-    }
-
-    /// Get the x (width) of Resolution
-    #[must_use]
-    pub fn x(self) -> u32 {
-        self.width_x
-    }
-
-    /// Get the y (height) of Resolution
-    #[must_use]
-    pub fn y(self) -> u32 {
-        self.height_y
-    }
-}
-
-#[cfg(target_feature = "output-wasm")]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSResolution))]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     /// # JS-WASM
@@ -337,7 +280,7 @@ impl From<AVVideoResolution> for Resolution {
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
-#[derive(Copy, Clone, Debug, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -513,103 +456,32 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 /// # JS-WASM
 /// This is exported as a `JSCameraInfo`.
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
 pub struct CameraInfo {
     human_name: String,
     description: String,
     misc: String,
-    index: usize,
+    index: CameraIndex,
 }
 
-#[cfg(not(target_feature = "output-wasm"))]
-impl CameraInfo {
-    /// Create a new [`CameraInfo`].
-    /// # JS-WASM
-    /// This is exported as a constructor for [`CameraInfo`].
-    #[must_use]
-    pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
-        CameraInfo {
-            human_name,
-            description,
-            misc,
-            index,
-        }
-    }
-
-    /// Get a reference to the device info's human readable name.
-    /// # JS-WASM
-    /// This is exported as a `get_HumanReadableName`.
-    #[must_use]
-    pub fn human_name(&self) -> String {
-        self.human_name.clone()
-    }
-
-    /// Set the device info's human name.
-    /// # JS-WASM
-    /// This is exported as a `set_HumanReadableName`.
-    pub fn set_human_name(&mut self, human_name: String) {
-        self.human_name = human_name;
-    }
-
-    /// Get a reference to the device info's description.
-    /// # JS-WASM
-    /// This is exported as a `get_Description`.
-    #[must_use]
-    pub fn description(&self) -> String {
-        self.description.clone()
-    }
-
-    /// Set the device info's description.
-    /// # JS-WASM
-    /// This is exported as a `set_Description`.
-    pub fn set_description(&mut self, description: String) {
-        self.description = description;
-    }
-
-    /// Get a reference to the device info's misc.
-    /// # JS-WASM
-    /// This is exported as a `get_MiscString`.
-    #[must_use]
-    pub fn misc(&self) -> String {
-        self.misc.clone()
-    }
-
-    /// Set the device info's misc.
-    /// # JS-WASM
-    /// This is exported as a `set_MiscString`.
-    pub fn set_misc(&mut self, misc: String) {
-        self.misc = misc;
-    }
-
-    /// Get a reference to the device info's index.
-    /// # JS-WASM
-    /// This is exported as a `get_Index`.
-    #[must_use]
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    /// Set the device info's index.
-    /// # JS-WASM
-    /// This is exported as a `set_Index`.
-    pub fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-}
-
-#[cfg(target_feature = "output-wasm")]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
     /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
-    pub fn new(human_name: String, description: String, misc: String, index: usize) -> Self {
+    pub fn new(
+        human_name: &(impl AsRef<str> + ?Sized),
+        description: &(impl AsRef<str> + ?Sized),
+        misc: &(impl AsRef<str> + ?Sized),
+        index: CameraIndex,
+    ) -> Self {
         CameraInfo {
-            human_name,
-            description,
-            misc,
+            human_name: human_name.as_ref().to_string(),
+            description: description.as_ref().to_string(),
+            misc: misc.as_ref().to_string(),
             index,
         }
     }
@@ -619,22 +491,22 @@ impl CameraInfo {
     /// This is exported as a `get_HumanReadableName`.
     #[must_use]
     #[cfg_attr(
-    feature = "output-wasm",
-    wasm_bindgen(getter = HumanReadableName)
+        feature = "output-wasm",
+        wasm_bindgen(getter = HumanReadableName)
     )]
-    pub fn human_name(&self) -> String {
-        self.human_name.clone()
+    pub fn human_name(&self) -> &'_ str {
+        self.human_name.borrow()
     }
 
     /// Set the device info's human name.
     /// # JS-WASM
     /// This is exported as a `set_HumanReadableName`.
     #[cfg_attr(
-    feature = "output-wasm",
-    wasm_bindgen(setter = HumanReadableName)
+        feature = "output-wasm",
+        wasm_bindgen(setter = HumanReadableName)
     )]
-    pub fn set_human_name(&mut self, human_name: String) {
-        self.human_name = human_name;
+    pub fn set_human_name<S: AsRef<str>>(&mut self, human_name: S) {
+        self.human_name = human_name.as_ref().to_string();
     }
 
     /// Get a reference to the device info's description.
@@ -642,16 +514,16 @@ impl CameraInfo {
     /// This is exported as a `get_Description`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Description))]
-    pub fn description(&self) -> String {
-        self.description.clone()
+    pub fn description(&self) -> &'_ str {
+        self.description.borrow()
     }
 
     /// Set the device info's description.
     /// # JS-WASM
     /// This is exported as a `set_Description`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Description))]
-    pub fn set_description(&mut self, description: String) {
-        self.description = description;
+    pub fn set_description<S: AsRef<str>>(&mut self, description: S) {
+        self.description = description.as_ref().to_string();
     }
 
     /// Get a reference to the device info's misc.
@@ -659,16 +531,16 @@ impl CameraInfo {
     /// This is exported as a `get_MiscString`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = MiscString))]
-    pub fn misc(&self) -> String {
-        self.misc.clone()
+    pub fn misc(&self) -> &'_ str {
+        self.misc.borrow()
     }
 
     /// Set the device info's misc.
     /// # JS-WASM
     /// This is exported as a `set_MiscString`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = MiscString))]
-    pub fn set_misc(&mut self, misc: String) {
-        self.misc = misc;
+    pub fn set_misc<S: AsRef<str>>(&mut self, misc: S) {
+        self.misc = misc.as_ref().to_string();
     }
 
     /// Get a reference to the device info's index.
@@ -676,28 +548,35 @@ impl CameraInfo {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> usize {
-        self.index
+    pub fn index(&self) -> &CameraIndex {
+        &self.index
     }
 
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: usize) {
+    pub fn set_index(&mut self, index: CameraIndex) {
         self.index = index;
     }
-}
 
-impl PartialOrd for CameraInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CameraInfo {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.index.cmp(&other.index)
+    /// Gets the device info's index as an `u32`.
+    /// # Errors
+    /// If the index is not parsable as a `u32`, this will error.
+    /// # JS-WASM
+    /// This is exported as `get_Index_Int`
+    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
+    pub fn index_num(&self) -> Result<u32, NokhwaError> {
+        match &self.index {
+            CameraIndex::Index(i) => Ok(*i),
+            CameraIndex::String(s) => match s.parse::<u32>() {
+                Ok(p) => Ok(p),
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: "index-int".to_string(),
+                    error: why.to_string(),
+                }),
+            },
+        }
     }
 }
 
@@ -718,10 +597,10 @@ impl Display for CameraInfo {
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
-            human_name: dev_desc.name_as_string(),
-            description: "Media Foundation Device".to_string(),
+            human_name: dev_desc,
+            description: "Media Foundation Device",
             misc: dev_desc.link_as_string(),
-            index: dev_desc.index(),
+            index: CameraIndex::Index(dev_desc.index() as u32),
         }
     }
 }
@@ -744,7 +623,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
             human_name: descriptor.name,
             description: descriptor.description,
             misc: descriptor.misc,
-            index: descriptor.index as usize,
+            index: CameraIndex::Index(descriptor.index as u32),
         }
     }
 }
@@ -1115,13 +994,15 @@ impl Ord for CameraControl {
 
 /// The list of known capture backends to the library. <br>
 /// - `AUTO` is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
-/// - `AVFoundation` - Uses `AVFoundation` on MacOSX
+/// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
 /// - `V4L2` - `Video4Linux2`, a linux specific backend.
 /// - `UVC` - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
 /// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
 /// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// - `Network` - Uses `OpenCV` to capture from an IP.
+/// - `Browser` - Uses browser APIs to capture from a webcam.
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
@@ -1130,6 +1011,8 @@ pub enum CaptureAPIBackend {
     MediaFoundation,
     OpenCv,
     GStreamer,
+    Network,
+    Browser,
 }
 
 impl Display for CaptureAPIBackend {
@@ -1139,29 +1022,68 @@ impl Display for CaptureAPIBackend {
     }
 }
 
-/// The `OpenCV` backend supports both native cameras and IP Cameras, so this is an enum to differentiate them
-/// The `IPCamera`'s string follows the pattern
-/// ```.ignore
-/// <protocol>://<IP>:<port>/
-/// ```
-/// but please consult the manufacturer's specification for more details.
-/// The index is a standard webcam index.
-#[derive(Clone, Debug, PartialEq)]
-pub enum CameraIndexType {
+/// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+pub enum CameraIndex {
     Index(u32),
-    IPCamera(String),
+    String(String),
 }
 
-impl Display for CameraIndexType {
+impl CameraIndex {
+    /// Gets the device info's index as an `u32`.
+    /// # Errors
+    /// If the index is not parsable as a `u32`, this will error.
+    pub fn as_index(&self) -> Result<u32, NokhwaError> {
+        match self {
+            CameraIndex::Index(i) => Ok(*i),
+            CameraIndex::String(s) => match s.parse::<u32>() {
+                Ok(p) => Ok(p),
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: "index-int".to_string(),
+                    error: why.to_string(),
+                }),
+            },
+        }
+    }
+}
+
+impl Display for CameraIndex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CameraIndexType::Index(idx) => {
+            CameraIndex::Index(idx) => {
                 write!(f, "{}", idx)
             }
-            CameraIndexType::IPCamera(ip) => {
+            CameraIndex::String(ip) => {
                 write!(f, "{}", ip)
             }
         }
+    }
+}
+
+impl From<u32> for CameraIndex {
+    fn from(v: u32) -> Self {
+        CameraIndex::Index(v)
+    }
+}
+
+/// Trait for strings that can be converted to [`CameraIndex`]es.
+pub trait ValidString: AsRef<str> {}
+
+impl ValidString for String {}
+impl<'a> ValidString for &'a String {}
+impl<'a> ValidString for &'a mut String {}
+impl<'a> ValidString for Cow<'a, str> {}
+impl<'a> ValidString for &'a Cow<'a, str> {}
+impl<'a> ValidString for &'a mut Cow<'a, str> {}
+impl<'a> ValidString for &'a str {}
+impl<'a> ValidString for &'a mut str {}
+
+impl<T> From<T> for CameraIndex
+where
+    T: ValidString,
+{
+    fn from(v: T) -> Self {
+        CameraIndex::String(v.as_ref().to_string())
     }
 }
 
@@ -1171,22 +1093,29 @@ impl Display for CameraIndexType {
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
-#[cfg(feature = "decoding")]
+#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
-pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
     let mut jpeg_decompress = match Decompress::new_mem(data) {
-        Ok(decompress) => match decompress.rgb() {
-            Ok(decompressor) => decompressor,
-            Err(why) => {
-                return Err(NokhwaError::ProcessFrameError {
-                    src: FrameFormat::MJPEG,
-                    destination: "RGB888".to_string(),
-                    error: why.to_string(),
-                })
+        Ok(decompress) => {
+            let decompressor_res = if rgba {
+                decompress.rgba()
+            } else {
+                decompress.rgb()
+            };
+            match decompressor_res {
+                Ok(decompressor) => decompressor,
+                Err(why) => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::MJPEG,
+                        destination: "RGB888".to_string(),
+                        error: why.to_string(),
+                    })
+                }
             }
-        },
+        }
         Err(why) => {
             return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
@@ -1195,21 +1124,72 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
             })
         }
     };
-    let decompressed = match jpeg_decompress.read_scanlines::<[u8; 3]>() {
-        Some(pixels) => pixels,
-        None => {
+
+    let scanlines_res: Option<Vec<u8>> = jpeg_decompress.read_scanlines_flat();
+    assert!(jpeg_decompress.finish_decompress());
+
+    match scanlines_res {
+        Some(pixels) => Ok(pixels),
+        None => Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::MJPEG,
+            destination: "RGB888".to_string(),
+            error: "Failed to get read readlines into RGB888 pixels!".to_string(),
+        }),
+    }
+}
+
+#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "Not available on WASM".to_string(),
+    ))
+}
+
+#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
+pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    use mozjpeg::Decompress;
+
+    let mut jpeg_decompress = match Decompress::new_mem(data) {
+        Ok(decompress) => {
+            let decompressor_res = if rgba {
+                decompress.rgba()
+            } else {
+                decompress.rgb()
+            };
+            match decompressor_res {
+                Ok(decompressor) => decompressor,
+                Err(why) => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::MJPEG,
+                        destination: "RGB888".to_string(),
+                        error: why.to_string(),
+                    })
+                }
+            }
+        }
+        Err(why) => {
             return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
                 destination: "RGB888".to_string(),
-                error: "Failed to get read readlines into RGB888 pixels!".to_string(),
+                error: why.to_string(),
             })
         }
     };
 
-    Ok(
-        unsafe { std::slice::from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }
-            .to_vec(),
-    )
+    assert_eq!(dest.len(), jpeg_decompress.min_flat_buffer_size());
+
+    jpeg_decompress.read_scanlines_flat_into(dest);
+    assert!(jpeg_decompress.finish_decompress());
+
+    Ok(())
+}
+
+#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "Not available on WASM".to_string(),
+    ))
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2
@@ -1221,105 +1201,86 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
-#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
-pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    use std::convert::TryFrom;
-
-    let mut rgb_vec: Vec<u8> = vec![];
-    if data.len() % 4 == 0 {
-        for px_idx in (0..data.len()).step_by(4) {
-            let y1 = match data.get(px_idx) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx
-                        ),
-                    });
-                }
-            };
-
-            let u = match data.get(px_idx + 1) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+1, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 1
-                        ),
-                    });
-                }
-            };
-
-            let y2 = match data.get(px_idx + 2) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+2, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 2
-                        ),
-                    });
-                }
-            };
-
-            let v = match data.get(px_idx + 3) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+3, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 3
-                        ),
-                    });
-                }
-            };
-
-            let pixel1 = yuyv444_to_rgb888(y1, u, v);
-            let pixel2 = yuyv444_to_rgb888(y2, u, v);
-            rgb_vec.append(&mut pixel1.to_vec());
-            rgb_vec.append(&mut pixel2.to_vec());
-        }
-        Ok(rgb_vec)
-    } else {
-        Err(NokhwaError::ProcessFrameError {
+pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
+    if data.len() % 4 != 0 {
+        return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::YUYV,
             destination: "RGB888".to_string(),
             error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
                 .to_string(),
-        })
+        });
     }
+
+    let pixel_size = if rgba { 4 } else { 3 };
+    // yuyv yields 2 3-byte pixels per yuyv chunk
+    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
+
+    let mut dest = Vec::with_capacity(rgb_buf_size);
+    buf_yuyv422_to_rgb(data, &mut dest, rgba)?;
+
+    Ok(dest)
+}
+
+/// Same as yuyv422_to_rgb(&data) but with a destination buffer
+pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    if data.len() % 4 != 0 {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::YUYV,
+            destination: "RGB888".to_string(),
+            error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
+                .to_string(),
+        });
+    }
+
+    let pixel_size = if rgba { 4 } else { 3 };
+    // yuyv yields 2 3-byte pixels per yuyv chunk
+    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
+
+    if dest.len() != rgb_buf_size {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::YUYV,
+            destination: "RGB888".to_string(),
+            error: format!("Assertion failure, the destination RGB buffer is of the wrong size! [expected: {rgb_buf_size}, actual: {}]", dest.len()),
+        });
+    }
+
+    let iter = data.chunks_exact(4);
+
+    if rgba {
+        let mut iter = iter
+            .flat_map(|yuyv| {
+                let y1 = yuyv[0] as i32;
+                let u = yuyv[1] as i32;
+                let y2 = yuyv[2] as i32;
+                let v = yuyv[3] as i32;
+                let pixel1 = yuyv444_to_rgba(y1, u, v);
+                let pixel2 = yuyv444_to_rgba(y2, u, v);
+                [pixel1, pixel2]
+            })
+            .flatten();
+        for i in 0..rgb_buf_size {
+            dest[i] = iter.next().unwrap();
+        }
+    } else {
+        let mut iter = iter
+            .flat_map(|yuyv| {
+                let y1 = yuyv[0] as i32;
+                let u = yuyv[1] as i32;
+                let y2 = yuyv[2] as i32;
+                let v = yuyv[3] as i32;
+                let pixel1 = yuyv444_to_rgb(y1, u, v);
+                let pixel2 = yuyv444_to_rgb(y2, u, v);
+                [pixel1, pixel2]
+            })
+            .flatten();
+
+        for i in 0..rgb_buf_size {
+            dest[i] = iter.next().unwrap();
+        }
+    }
+
+    Ok(())
 }
 
 // equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
@@ -1328,10 +1289,8 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
-#[cfg(any(not(target_family = "wasm"), feature = "decoding"))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 #[inline]
-pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
+pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;
     let e = v - 128;
@@ -1339,4 +1298,10 @@ pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
     let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
     [r, g, b]
+}
+
+#[inline]
+pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
+    let [r, g, b] = yuyv444_to_rgb(y, u, v);
+    [r, g, b, 255]
 }
