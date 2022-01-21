@@ -19,7 +19,8 @@ decoding = ["mozjpeg"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
-input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration", "lazy_static"]
+# Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
+# input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/clang-runtime"]
 input-ipcam = ["input-opencv"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex", "parking_lot"]
@@ -28,80 +29,81 @@ output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
 output-threaded = ["parking_lot"]
 small-wasm = ["wee_alloc"]
-docs-only = ["input-uvc", "input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
+docs-only = ["input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
 docs-features = []
 test-fail-warning = []
 
 [dependencies]
-thiserror = "1.0.26"
-paste = "1.0.5"
+thiserror = "1.0"
+paste = "1.0"
 
 [dependencies.flume]
-version = "0.10.9"
+version = "0.10"
 optional = true
 
 [dependencies.image]
-version = "^0.23"
+version = "0.23"
 default-features = false
 
 [target.'cfg(not(target_arch = "wasm"))'.dependencies.mozjpeg]
-version = "0.8.24"
+git = "https://github.com/otak/mozjpeg-rust"
+branch = "otak/read_scanlines_into"
 optional = true
 
 [target.'cfg(target_os = "linux")'.dependencies.v4l]
-version = "0.12.1"
+version = "0.12"
 optional = true
 
 [target.'cfg(target_os = "linux")'.dependencies.v4l2-sys-mit]
-version = "0.2.0"
+version = "0.2"
 optional = true
 
 [dependencies.ouroboros]
-version = "^0.13"
+version = "0.14"
 optional = true
 
-[dependencies.uvc]
-version = "0.2.0"
-optional = true
+# [dependencies.uvc]
+# version = "0.2"
+# optional = true
 
 [dependencies.usb_enumeration]
 version = "0.1.2"
 optional = true
 
 [dependencies.wgpu]
-version = "^0.11"
+version = "^0.12"
 optional = true
 
 [dependencies.opencv]
-version = "0.60.0"
+version = "0.62"
 features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.3.3"
+version = "0.3"
 path = "nokhwa-bindings-windows"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
-version = "0.1.1"
+version = "0.1"
 path = "nokhwa-bindings-macos"
 optional = true
 
 [dependencies.gstreamer]
-version = "0.17.0"
+version = "0.18"
 optional = true
 
 [dependencies.gstreamer-app]
-version = "0.17.0"
+version = "0.18"
 optional = true
 
 [dependencies.gstreamer-video]
-version = "0.17.0"
+version = "0.18"
 optional = true
 
 [dependencies.glib]
-version = "0.14.0"
+version = "0.15"
 optional = true
 
 [dependencies.regex]
@@ -109,7 +111,7 @@ version = "1.4.6"
 optional = true
 
 [dependencies.web-sys]
-version = "^0.3"
+version = "0.3"
 # why
 features = [
     "console",
@@ -130,31 +132,31 @@ features = [
 optional = true
 
 [dependencies.js-sys]
-version = "^0.3"
+version = "0.3"
 optional = true
 
 [dependencies.wasm-bindgen]
-version = "^0.2"
+version = "0.2"
 optional = true
 
 [dependencies.wasm-bindgen-futures]
-version = "^0.4"
+version = "0.4"
 optional = true
 
 [dependencies.wasm-rs-async-executor]
-version = "^0.9"
+version = "0.9"
 optional = true
 
 [dependencies.wee_alloc]
-version = "0.4.5"
+version = "0.4"
 optional = true
 
 [dependencies.parking_lot]
-version = "^0.11"
+version = "0.11"
 optional = true
 
 [dependencies.lazy_static]
-version = "^1.4"
+version = "1.4"
 optional = true
 
 [profile.release]

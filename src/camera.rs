@@ -18,7 +18,7 @@ use crate::{
     CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
     FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
-use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use image::{ImageBuffer, Rgb};
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -348,10 +348,10 @@ impl Camera {
     #[must_use]
     pub fn min_buffer_size(&self, rgba: bool) -> usize {
         let resolution = self.backend.resolution();
-        if rgba {
-            return (resolution.width() * resolution.height() * 4) as usize;
-        }
-        (resolution.width() * resolution.height() * 3) as usize
+        let w = resolution.width() as usize;
+        let h = resolution.height() as usize;
+        let c = if rgba { 4 } else { 3 };
+        w * h * c
     }
 
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
@@ -361,28 +361,18 @@ impl Camera {
         &mut self,
         buffer: &mut [u8],
         convert_rgba: bool,
-    ) -> Result<usize, NokhwaError> {
-        let resolution = self.resolution();
-        let frame = self.frame_raw()?;
-        if convert_rgba {
-            let image_data =
-                match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
-                    Some(image) => {
-                        let image: ImageBuffer<Rgb<u8>, Cow<[u8]>> = image;
-                        image
-                    }
-                    None => {
-                        return Err(NokhwaError::ReadFrameError(
-                            "Frame Cow Too Small".to_string(),
-                        ))
-                    }
-                };
-            let rgba_image: RgbaImage = image_data.convert();
-            buffer.copy_from_slice(rgba_image.as_raw());
-            return Ok(rgba_image.len());
-        }
-        buffer.copy_from_slice(frame.as_ref());
-        Ok(frame.len())
+    ) -> Result<(), NokhwaError> {
+        let camera_format = self.backend.camera_format();
+        let format = camera_format.format();
+        let raw_frame = self.frame_raw()?;
+        match format {
+            FrameFormat::MJPEG => crate::utils::buf_mjpeg_to_rgb(&raw_frame, buffer, convert_rgba)?,
+            FrameFormat::YUYV => {
+                crate::utils::buf_yuyv422_to_rgb(&raw_frame, buffer, convert_rgba)?
+            }
+        };
+
+        Ok(())
     }
 
     #[cfg(feature = "output-wgpu")]
