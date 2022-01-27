@@ -30,14 +30,13 @@ use std::{
 };
 
 type AtomicLock<T> = Arc<Mutex<T>>;
-type OptionalAtomicLock<T> = Arc<Mutex<Option<T>>>;
 pub type CallbackFn = fn(
-    _: &Arc<Mutex<Camera>>,
-    _: &Arc<Mutex<Option<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>>>,
-    _: &Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
-    _: &Arc<AtomicBool>,
+    _camera: &Arc<Mutex<Camera>>,
+    _frame_callback: &Arc<Mutex<Option<Box<dyn FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>) + Send + Sync + 'static>>>>,
+    _last_frame_captured: &Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+    _die_bool: &Arc<AtomicBool>,
 );
-type HeldCallbackType = OptionalAtomicLock<fn(ImageBuffer<Rgb<u8>, Vec<u8>>)>;
+type HeldCallbackType = Arc<Mutex<Option<Box<dyn FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>) + Send + Sync + 'static>>>>;
 
 /// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
 /// It uses a `Arc` and a `Mutex` to ensure that this feels like a normal camera, but callback based.
@@ -388,17 +387,22 @@ impl CallbackCamera {
     /// The callback will be called every frame.
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
-    pub fn open_stream(
+    pub fn open_stream<F>(
         &mut self,
-        callback: fn(ImageBuffer<Rgb<u8>, Vec<u8>>),
-    ) -> Result<(), NokhwaError> {
-        *self.frame_callback.lock() = Some(callback);
+        mut callback: F) -> Result<(), NokhwaError>
+    where
+        F: (FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>)) + Send + Sync + 'static,
+    {
+        *self.frame_callback.lock() = Some(Box::new(move |image: ImageBuffer<Rgb<u8>, Vec<u8>>| { callback(image) }, ));
         self.camera.lock().open_stream()
     }
 
     /// Sets the frame callback to the new specified function. This function will be called instead of the previous one(s).
-    pub fn set_callback(&mut self, callback: fn(ImageBuffer<Rgb<u8>, Vec<u8>>)) {
-        *self.frame_callback.lock() = Some(callback);
+    pub fn set_callback<F>(&mut self, mut callback: F)
+    where
+        F: (FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>)) + Send + Sync + 'static,
+    {
+        *self.frame_callback.lock() = Some(Box::new(move |image: ImageBuffer<Rgb<u8>, Vec<u8>>| { callback(image) }, ));
     }
 
     /// Polls the camera for a frame, analogous to [`Camera::frame`](crate::Camera::frame)
@@ -446,7 +450,7 @@ fn camera_frame_thread_loop(
     loop {
         if let Ok(img) = camera.lock().frame() {
             *last_frame_captured.lock() = img.clone();
-            if let Some(cb) = &*frame_callback.lock() {
+            if let Some(cb) = (*frame_callback.lock()).as_mut() {
                 cb(img);
             }
         }

@@ -146,7 +146,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
 }
 
 #[cfg(any(not(feature = "input-v4l"), not(target_os = "linux")))]
-fn query_v4l<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
+fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::Video4Linux,
     ))
@@ -287,7 +287,7 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 }
 
 #[cfg(not(feature = "input-gst"))]
-fn query_gstreamer<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
+fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
     Err(NokhwaError::UnsupportedOperationError(
         CaptureAPIBackend::GStreamer,
     ))
