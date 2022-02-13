@@ -47,8 +47,7 @@ version = "0.23"
 default-features = false
 
 [target.'cfg(not(target_arch = "wasm"))'.dependencies.mozjpeg]
-git = "https://github.com/otak/mozjpeg-rust"
-branch = "otak/read_scanlines_into"
+version = "0.9"
 optional = true
 
 [target.'cfg(target_os = "linux")'.dependencies.v4l]
