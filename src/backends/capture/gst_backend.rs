@@ -42,6 +42,10 @@ type PipelineGenRet = (Element, AppSink, Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>
 /// - `Drop`-ing this may cause a `panic`.
 /// - Setting controls is not supported.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
+#[deprecated(
+    since = "0.10",
+    note = "Use one of the native backends instead(V4L, AVF, MSMF) or OpenCV"
+)]
 pub struct GStreamerCaptureDevice {
     pipeline: Element,
     app_sink: AppSink,

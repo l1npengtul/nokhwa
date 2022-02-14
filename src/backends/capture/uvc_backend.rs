@@ -54,6 +54,10 @@ use uvc::{
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
 #[self_referencing]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
+#[deprecated(
+    since = "0.10",
+    note = "Use one of the native backends instead(V4L, AVF, MSMF) or OpenCV"
+)]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
     camera_info: CameraInfo,
