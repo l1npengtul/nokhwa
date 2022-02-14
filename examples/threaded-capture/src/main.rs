@@ -16,7 +16,6 @@
 
 use image::{ImageBuffer, Rgb};
 use nokhwa::{query_devices, CaptureAPIBackend, ThreadedCamera};
-use std::time::Duration;
 
 fn main() {
     let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
