@@ -15,7 +15,7 @@
  */
 
 use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraIndex, CameraInfo,
+    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraIndex, CameraInfo,
     CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
     Resolution,
 };
@@ -299,8 +299,8 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             Some(collector) => {
                 let data = collector.frame_to_slice()?;
                 let data = match data.1 {
-                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb888(data.0.borrow())),
-                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb888(data.0.borrow())),
+                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb(data.0.borrow(), false)),
+                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb(data.0.borrow(), false)),
                 };
                 Ok(data)
             }

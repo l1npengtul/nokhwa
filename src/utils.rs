@@ -1095,20 +1095,27 @@ where
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
 #[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
-pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
     let mut jpeg_decompress = match Decompress::new_mem(data) {
-        Ok(decompress) => match decompress.rgb() {
-            Ok(decompressor) => decompressor,
-            Err(why) => {
-                return Err(NokhwaError::ProcessFrameError {
-                    src: FrameFormat::MJPEG,
-                    destination: "RGB888".to_string(),
-                    error: why.to_string(),
-                })
+        Ok(decompress) => {
+            let decompressor_res = if rgba {
+                decompress.rgba()
+            } else {
+                decompress.rgb()
+            };
+            match decompressor_res {
+                Ok(decompressor) => decompressor,
+                Err(why) => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::MJPEG,
+                        destination: "RGB888".to_string(),
+                        error: why.to_string(),
+                    })
+                }
             }
-        },
+        }
         Err(why) => {
             return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
@@ -1117,25 +1124,69 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
             })
         }
     };
-    let decompressed = match jpeg_decompress.read_scanlines::<[u8; 3]>() {
-        Some(pixels) => pixels,
-        None => {
+
+    let scanlines_res: Option<Vec<u8>> = jpeg_decompress.read_scanlines_flat();
+    assert!(jpeg_decompress.finish_decompress());
+
+    match scanlines_res {
+        Some(pixels) => Ok(pixels),
+        None => Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::MJPEG,
+            destination: "RGB888".to_string(),
+            error: "Failed to get read readlines into RGB888 pixels!".to_string(),
+        }),
+    }
+}
+
+#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "Not available on WASM".to_string(),
+    ))
+}
+
+#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
+pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    use mozjpeg::Decompress;
+
+    let mut jpeg_decompress = match Decompress::new_mem(data) {
+        Ok(decompress) => {
+            let decompressor_res = if rgba {
+                decompress.rgba()
+            } else {
+                decompress.rgb()
+            };
+            match decompressor_res {
+                Ok(decompressor) => decompressor,
+                Err(why) => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::MJPEG,
+                        destination: "RGB888".to_string(),
+                        error: why.to_string(),
+                    })
+                }
+            }
+        }
+        Err(why) => {
             return Err(NokhwaError::ProcessFrameError {
                 src: FrameFormat::MJPEG,
                 destination: "RGB888".to_string(),
-                error: "Failed to get read readlines into RGB888 pixels!".to_string(),
+                error: why.to_string(),
             })
         }
     };
 
-    Ok(
-        unsafe { std::slice::from_raw_parts(decompressed.as_ptr().cast(), decompressed.len() * 3) }
-            .to_vec(),
-    )
+    assert_eq!(dest.len(), jpeg_decompress.min_flat_buffer_size());
+
+    jpeg_decompress.read_scanlines_flat_into(dest);
+    assert!(jpeg_decompress.finish_decompress());
+
+    Ok(())
 }
 
 #[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
-pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),
     ))
@@ -1151,100 +1202,85 @@ pub fn mjpeg_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 #[inline]
-pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
-    let mut rgb_vec: Vec<u8> = vec![];
-    if data.len() % 4 == 0 {
-        for px_idx in (0..data.len()).step_by(4) {
-            let y1 = match data.get(px_idx) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx
-                        ),
-                    });
-                }
-            };
-
-            let u = match data.get(px_idx + 1) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+1, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 1
-                        ),
-                    });
-                }
-            };
-
-            let y2 = match data.get(px_idx + 2) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+2, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 2
-                        ),
-                    });
-                }
-            };
-
-            let v = match data.get(px_idx + 3) {
-                Some(px) => match i32::try_from(*px) {
-                    Ok(i) => i,
-                    Err(why) => {
-                        return Err(NokhwaError::ProcessFrameError { src: FrameFormat::YUYV, destination: "RGB888".to_string(), error: format!("Failed to convert byte at {} to a i32 because {}, This shouldn't happen!", px_idx+3, why) });
-                    }
-                },
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::YUYV,
-                        destination: "RGB888".to_string(),
-                        error: format!(
-                            "Failed to get bytes at {}, this is probably a bug, please report!",
-                            px_idx + 3
-                        ),
-                    });
-                }
-            };
-
-            let pixel1 = yuyv444_to_rgb888(y1, u, v);
-            let pixel2 = yuyv444_to_rgb888(y2, u, v);
-            rgb_vec.append(&mut pixel1.to_vec());
-            rgb_vec.append(&mut pixel2.to_vec());
-        }
-        Ok(rgb_vec)
-    } else {
-        Err(NokhwaError::ProcessFrameError {
+pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
+    if data.len() % 4 != 0 {
+        return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::YUYV,
             destination: "RGB888".to_string(),
             error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
                 .to_string(),
-        })
+        });
     }
+
+    let pixel_size = if rgba { 4 } else { 3 };
+    // yuyv yields 2 3-byte pixels per yuyv chunk
+    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
+
+    let mut dest = Vec::with_capacity(rgb_buf_size);
+    buf_yuyv422_to_rgb(data, &mut dest, rgba)?;
+
+    Ok(dest)
+}
+
+/// Same as yuyv422_to_rgb(&data) but with a destination buffer
+pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    if data.len() % 4 != 0 {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::YUYV,
+            destination: "RGB888".to_string(),
+            error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
+                .to_string(),
+        });
+    }
+
+    let pixel_size = if rgba { 4 } else { 3 };
+    // yuyv yields 2 3-byte pixels per yuyv chunk
+    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
+
+    if dest.len() != rgb_buf_size {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::YUYV,
+            destination: "RGB888".to_string(),
+            error: format!("Assertion failure, the destination RGB buffer is of the wrong size! [expected: {rgb_buf_size}, actual: {}]", dest.len()),
+        });
+    }
+
+    let iter = data.chunks_exact(4);
+
+    if rgba {
+        let mut iter = iter
+            .flat_map(|yuyv| {
+                let y1 = yuyv[0] as i32;
+                let u = yuyv[1] as i32;
+                let y2 = yuyv[2] as i32;
+                let v = yuyv[3] as i32;
+                let pixel1 = yuyv444_to_rgba(y1, u, v);
+                let pixel2 = yuyv444_to_rgba(y2, u, v);
+                [pixel1, pixel2]
+            })
+            .flatten();
+        for i in 0..rgb_buf_size {
+            dest[i] = iter.next().unwrap();
+        }
+    } else {
+        let mut iter = iter
+            .flat_map(|yuyv| {
+                let y1 = yuyv[0] as i32;
+                let u = yuyv[1] as i32;
+                let y2 = yuyv[2] as i32;
+                let v = yuyv[3] as i32;
+                let pixel1 = yuyv444_to_rgb(y1, u, v);
+                let pixel2 = yuyv444_to_rgb(y2, u, v);
+                [pixel1, pixel2]
+            })
+            .flatten();
+
+        for i in 0..rgb_buf_size {
+            dest[i] = iter.next().unwrap();
+        }
+    }
+
+    Ok(())
 }
 
 // equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
@@ -1254,7 +1290,7 @@ pub fn yuyv422_to_rgb888(data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
 #[inline]
-pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
+pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;
     let e = v - 128;
@@ -1262,4 +1298,10 @@ pub fn yuyv444_to_rgb888(y: i32, u: i32, v: i32) -> [u8; 3] {
     let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
     let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
     [r, g, b]
+}
+
+#[inline]
+pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
+    let [r, g, b] = yuyv444_to_rgb(y, u, v);
+    [r, g, b, 255]
 }

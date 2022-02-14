@@ -16,9 +16,9 @@
 
 use crate::{
     error::NokhwaError,
-    mjpeg_to_rgb888,
+    mjpeg_to_rgb,
     utils::{CameraFormat, CameraIndex, CameraInfo},
-    yuyv422_to_rgb888, CameraControl, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    yuyv422_to_rgb, CameraControl, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
     KnownCameraControlFlag, KnownCameraControls, Resolution,
 };
 use image::{ImageBuffer, Rgb};
@@ -686,8 +686,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let cam_fmt = self.camera_format;
         let raw_frame = self.frame_raw()?;
         let conv = match cam_fmt.format() {
-            FrameFormat::MJPEG => mjpeg_to_rgb888(&raw_frame)?,
-            FrameFormat::YUYV => yuyv422_to_rgb888(&raw_frame)?,
+            FrameFormat::MJPEG => mjpeg_to_rgb(&raw_frame, false)?,
+            FrameFormat::YUYV => yuyv422_to_rgb(&raw_frame, false)?,
         };
         let image_buf =
             match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {

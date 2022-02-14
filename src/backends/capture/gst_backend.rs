@@ -15,7 +15,7 @@
  */
 
 use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraIndex, CameraInfo,
+    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraIndex, CameraInfo,
     CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
     Resolution,
 };
@@ -709,7 +709,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
 
                 let image_buffer = match video_info.format() {
                     VideoFormat::Yuy2 => {
-                        let mut decoded_buffer = match yuyv422_to_rgb888(&buffer_map) {
+                        let mut decoded_buffer = match yuyv422_to_rgb(&buffer_map, false) {
                             Ok(buf) => buf,
                             Err(why) => {
                                 element_error!(
@@ -771,7 +771,7 @@ fn generate_pipeline(fmt: CameraFormat, index: usize) -> Result<PipelineGenRet, 
                     }
                     // MJPEG
                     VideoFormat::Encoded => {
-                        let mut decoded_buffer = match mjpeg_to_rgb888(&buffer_map) {
+                        let mut decoded_buffer = match mjpeg_to_rgb(&buffer_map, false) {
                             Ok(buf) => buf,
                             Err(why) => {
                                 element_error!(
