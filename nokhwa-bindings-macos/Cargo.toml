@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-macos"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2018"
 authors = ["l1npengtul"]
 license = "Apache-2.0"
