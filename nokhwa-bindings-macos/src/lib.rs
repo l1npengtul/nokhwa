@@ -757,7 +757,7 @@ pub mod avfoundation {
                     Err(why) => {
                         return Err(AVFError::ReadFrame(format!(
                             "Failed to read frame from pipe: {}",
-                            why.to_string()
+                            why
                         )))
                     }
                 },
@@ -861,8 +861,7 @@ pub mod avfoundation {
                 msg_send![value, videoSupportedFrameRateRanges]
             })
             .into_iter()
-            .map(|v| [v.min(), v.max()])
-            .flatten()
+            .flat_map(|v| [v.min(), v.max()])
             .collect::<Vec<f64>>();
             fps_list.sort_by(|n, m| n.partial_cmp(m).unwrap_or(Ordering::Equal));
             fps_list.dedup();
