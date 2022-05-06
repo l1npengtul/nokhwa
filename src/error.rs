@@ -21,6 +21,8 @@ use thiserror::Error;
 #[allow(clippy::module_name_repetitions)]
 #[derive(Error, Debug, Clone)]
 pub enum NokhwaError {
+    #[error("Unitialized Camera. Call `init()` first!")]
+    UnitializedError,
     #[error("Could not initialize {backend}: {error}")]
     InitializeError {
         backend: CaptureAPIBackend,

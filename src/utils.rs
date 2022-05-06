@@ -49,6 +49,7 @@ use nokhwa_bindings_windows::{
 use uvc::StreamFormat;
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
 use v4l::{control::Description, Format, FourCC};
+use crate::pixel_format::PixelFormat;
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
@@ -59,6 +60,7 @@ use v4l::{control::Description, Format, FourCC};
 pub enum FrameFormat {
     MJPEG,
     YUYV,
+    GRAY8,
 }
 
 impl Display for FrameFormat {
@@ -70,7 +72,16 @@ impl Display for FrameFormat {
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
             }
+            FrameFormat::GRAY8 => {
+                write!(f, "GRAY8")
+            }
         }
+    }
+}
+
+impl<P> From<P> for FrameFormat where P: PixelFormat {
+    fn from(px: P) -> Self {
+        match P::
     }
 }
 
@@ -93,6 +104,7 @@ impl From<MFFrameFormat> for FrameFormat {
         match mf_ff {
             MFFrameFormat::MJPEG => FrameFormat::MJPEG,
             MFFrameFormat::YUYV => FrameFormat::YUYV,
+            MFFrameFormat::GRAY8 => FrameFormat::GRAY8,
         }
     }
 }
@@ -106,6 +118,7 @@ impl From<FrameFormat> for MFFrameFormat {
         match ff {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
+            FrameFormat::GRAY8 => MFFrameFormat::GRAY8, //FIXME
         }
     }
 }
@@ -126,6 +139,7 @@ impl From<AVFourCC> for FrameFormat {
         match av_fcc {
             AVFourCC::YUV2 => FrameFormat::YUYV,
             AVFourCC::MJPEG => FrameFormat::MJPEG,
+            AVFourCC::GRAY8 => FrameFormat::GRAY8,
         }
     }
 }
@@ -146,6 +160,7 @@ impl From<FrameFormat> for AVFourCC {
         match ff {
             FrameFormat::MJPEG => AVFourCC::MJPEG,
             FrameFormat::YUYV => AVFourCC::YUV2,
+            FrameFormat::GRAY8 => AVFourCC::GRAY8,
         }
     }
 }
@@ -419,6 +434,7 @@ impl From<CameraFormat> for Format {
         let pxfmt = match cam_fmt.format() {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
+            FrameFormat::GRAY8 => FourCC::new(b"GREY"),
         };
 
         Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)

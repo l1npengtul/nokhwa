@@ -35,6 +35,7 @@ use v4l::{
 
 use std::any::Any;
 pub use v4l::control::{Control, Description, Flags};
+use v4l::video::Output;
 
 /// Generates a camera control from a device and a description of control
 /// # Error
@@ -212,6 +213,7 @@ impl<'a> V4LCaptureDevice<'a> {
         let fourcc = match camera_format.format() {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
+            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
         };
 
         let new_param = Parameters::with_fps(camera_format.frame_rate());
@@ -284,6 +286,7 @@ impl<'a> V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
+            FrameFormat::GRAY8 => FourCC::new("GRAY"),
         };
 
         match v4l::video::Capture::enum_framesizes(&self.device, format) {
@@ -311,6 +314,7 @@ impl<'a> V4LCaptureDevice<'a> {
     }
 
     /// Get the inner device (immutable) for e.g. Controls
+    /// apps  bloodtests  contact  css  images  index  index.html  injectionsupplies  transfem  transmasc
     #[allow(clippy::must_use_candidate)]
     pub fn inner_device(&self) -> &Device {
         &self.device
@@ -319,6 +323,18 @@ impl<'a> V4LCaptureDevice<'a> {
     /// Get the inner device (mutable) for e.g. Controls
     pub fn inner_device_mut(&mut self) -> &mut Device {
         &mut self.device
+    }
+
+    /// Force refreshes the inner [`CameraFormat`] state.
+    pub fn force_refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        match (self.device.params(), self.device.format()) {
+            (Ok(params), Ok(format)) => {
+                let new_format = CameraFormat::new(params.capabilities.)
+            }
+            (_, _) => {
+                return Err(NokhwaError::GetPropertyError { property: "parameters".to_string(), error: why.to_string() })
+            }
+        }
     }
 }
 
@@ -409,6 +425,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
+            FrameFormat::GRAY8 => {}
         };
         let mut res_map = HashMap::new();
         for res in resolutions {

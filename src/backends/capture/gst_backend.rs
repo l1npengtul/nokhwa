@@ -155,7 +155,7 @@ impl GStreamerCaptureDevice {
     }
 }
 
-impl CaptureBackendTrait for GStreamerCaptureDevice {
+impl GStreamerCaptureDevice {
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::GStreamer
     }

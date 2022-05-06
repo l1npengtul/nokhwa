@@ -21,6 +21,7 @@ use crate::{
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 
+use crate::pixel_format::PixelFormat;
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -36,7 +37,10 @@ use wgpu::{
 /// - Backends, if not provided with a camera format, will be spawned with 640x480@15 FPS, MJPEG [`CameraFormat`].
 /// - Behaviour can differ from backend to backend. While the [`Camera`](crate::camera::Camera) struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
-pub trait CaptureBackendTrait: Send {
+pub trait CaptureBackendTrait {
+    /// Initializes the camera. You must call this before any other function.
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError>;
+
     /// Returns the current backend used.
     fn backend(&self) -> CaptureAPIBackend;
 
@@ -209,7 +213,7 @@ pub trait CaptureBackendTrait: Send {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::num::NonZeroU32;
+        use std::{convert::TryFrom, num::NonZeroU32};
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
