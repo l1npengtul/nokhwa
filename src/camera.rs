@@ -29,14 +29,19 @@ use wgpu::{
 };
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
-pub struct Camera {
+pub struct Camera<C>
+where
+    C: CaptureBackendTrait,
+{
     idx: usize,
-    backend: Box<dyn CaptureBackendTrait>,
+    backend: C,
     backend_api: CaptureAPIBackend,
 }
 
-#[allow(clippy::nonminimal_bool)]
-impl Camera {
+impl Camera<C>
+where
+    C: CaptureBackendTrait,
+{
     /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
@@ -386,6 +391,7 @@ impl Camera {
             FrameFormat::YUYV => {
                 crate::utils::buf_yuyv422_to_rgb(&raw_frame, buffer, convert_rgba)?
             }
+            FrameFormat::GRAY8 => {}
         };
 
         Ok(())
@@ -459,7 +465,10 @@ impl Camera {
     }
 }
 
-impl Drop for Camera {
+impl Drop for Camera<C>
+where
+    C: CaptureBackendTrait,
+{
     fn drop(&mut self) {
         self.stop_stream().unwrap();
     }
@@ -496,7 +505,7 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>](idx: usize, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>]<C: CaptureBackendTrait>(idx: usize, setting: Option<CameraFormat>) -> Option<Result<C, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
                         Ok(cap) => Some(Ok(Box::new(cap))),
@@ -504,7 +513,7 @@ macro_rules! cap_impl_fn {
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>](_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>]<C: CaptureBackendTrait>(_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<C, NokhwaError>> {
                     None
                 }
             }
@@ -603,11 +612,11 @@ cap_impl_fn! {
     (AVFoundationCaptureDevice, new, all(feature = "input-avfoundation", any(target_os = "macos", target_os = "ios")), avfoundation)
 }
 
-fn init_camera(
+fn init_camera<C: CaptureBackendTrait + Send + Sync>(
     index: usize,
     format: Option<CameraFormat>,
     backend: CaptureAPIBackend,
-) -> Result<Box<dyn CaptureBackendTrait>, NokhwaError> {
+) -> Result<C, NokhwaError> {
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
@@ -621,4 +630,4 @@ fn init_camera(
 }
 
 #[cfg(feature = "output-threaded")]
-unsafe impl Send for Camera {}
+unsafe impl Send for Camera<C> where C: CaptureBackendTrait {}

@@ -1303,6 +1303,7 @@ pub mod avfoundation {
     pub enum AVFourCC {
         YUV2,
         MJPEG,
+        GRAY8,
     }
 
     // Localized Name

@@ -10,6 +10,10 @@ repository = "https://github.com/l1npengtul/nokhwa"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows"]
+exclude = ["examples/threaded-capture", "examples/capture"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -28,7 +32,7 @@ input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "was
 output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
 output-threaded = ["parking_lot"]
-small-wasm = ["wee_alloc"]
+small-wasm = []
 docs-only = ["input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
 docs-features = []
@@ -37,34 +41,28 @@ test-fail-warning = []
 [dependencies]
 thiserror = "1.0"
 paste = "1.0"
+anymap = "1.0.0-beta.2"
+enum_dispatch = "0.3"
 
 [dependencies.flume]
 version = "0.10"
 optional = true
 
 [dependencies.image]
-version = "0.23"
+version = "0.24"
 default-features = false
 
-[target.'cfg(not(target_arch = "wasm"))'.dependencies.mozjpeg]
+[dependencies.mozjpeg]
 version = "0.9"
 optional = true
 
-[target.'cfg(target_os = "linux")'.dependencies.v4l]
+[dependencies.v4l]
 version = "0.12"
 optional = true
 
-[target.'cfg(target_os = "linux")'.dependencies.v4l2-sys-mit]
+[dependencies.v4l2-sys-mit]
 version = "0.2"
 optional = true
-
-[dependencies.ouroboros]
-version = "0.14"
-optional = true
-
-# [dependencies.uvc]
-# version = "0.2"
-# optional = true
 
 [dependencies.usb_enumeration]
 version = "0.1.2"
@@ -75,17 +73,17 @@ version = "^0.12"
 optional = true
 
 [dependencies.opencv]
-version = "0.62"
+version = "0.63"
 features = ["clang-runtime"]
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.3"
+version = "0.3.4"
 path = "nokhwa-bindings-windows"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
-version = "0.1"
+version = "0.1.1"
 path = "nokhwa-bindings-macos"
 optional = true
 
@@ -111,7 +109,6 @@ optional = true
 
 [dependencies.web-sys]
 version = "0.3"
-# why
 features = [
     "console",
     "CanvasRenderingContext2d",
@@ -146,12 +143,8 @@ optional = true
 version = "0.9"
 optional = true
 
-[dependencies.wee_alloc]
-version = "0.4"
-optional = true
-
 [dependencies.parking_lot]
-version = "0.11"
+version = "0.12"
 optional = true
 
 [dependencies.lazy_static]

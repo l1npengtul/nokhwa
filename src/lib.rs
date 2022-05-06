@@ -25,12 +25,9 @@
 //!
 //! Please read the README for more.
 
-#[cfg(feature = "small-wasm")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
+pub mod buffer;
 mod camera;
 mod camera_traits;
 mod error;
@@ -43,6 +40,7 @@ pub mod js_camera;
 #[cfg(feature = "input-ipcam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub mod network_camera;
+pub mod pixel_format;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
