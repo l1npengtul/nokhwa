@@ -14,15 +14,8 @@
  * limitations under the License.
  */
 
+use crate::pixel_format::PixelFormat;
 use crate::NokhwaError;
-use std::{
-    borrow::{Borrow, Cow},
-    cmp::Ordering,
-    fmt::{Display, Formatter},
-};
-#[cfg(feature = "output-wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
-
 #[cfg(any(
     all(
         feature = "input-avfoundation",
@@ -45,11 +38,20 @@ use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
+use serde::{Deserialize, Serialize};
+#[cfg(feature = serde)]
+use serde::{Deserialize, Serialize};
+use std::{
+    borrow::{Borrow, Cow},
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+};
 #[cfg(feature = "input-uvc")]
 use uvc::StreamFormat;
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
 use v4l::{control::Description, Format, FourCC};
-use crate::pixel_format::PixelFormat;
+#[cfg(feature = "output-wasm")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
@@ -57,6 +59,7 @@ use crate::pixel_format::PixelFormat;
 /// # JS-WASM
 /// This is exported as `FrameFormat`
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
@@ -64,7 +67,7 @@ pub enum FrameFormat {
 }
 
 impl Display for FrameFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FrameFormat::MJPEG => {
                 write!(f, "MJPEG")
@@ -79,9 +82,12 @@ impl Display for FrameFormat {
     }
 }
 
-impl<P> From<P> for FrameFormat where P: PixelFormat {
-    fn from(px: P) -> Self {
-        match P::
+impl<P> From<P> for FrameFormat
+where
+    P: PixelFormat,
+{
+    fn from(_: P) -> Self {
+        P::CODE
     }
 }
 
@@ -171,6 +177,7 @@ impl From<FrameFormat> for AVFourCC {
 /// # JS-WASM
 /// This is exported as `JSResolution`
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
     pub width_x: u32,
@@ -225,7 +232,7 @@ impl Resolution {
 }
 
 impl Display for Resolution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}x{}", self.x(), self.y())
     }
 }
@@ -296,6 +303,7 @@ impl From<AVVideoResolution> for Resolution {
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -474,6 +482,7 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// This is exported as a `JSCameraInfo`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraInfo {
     human_name: String,
     description: String,
@@ -488,10 +497,13 @@ impl CameraInfo {
     /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
+    // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
+    // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
+    // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
     pub fn new(
-        human_name: &(impl AsRef<str> + ?Sized),
-        description: &(impl AsRef<str> + ?Sized),
-        misc: &(impl AsRef<str> + ?Sized),
+        human_name: impl AsRef<str>,
+        description: impl AsRef<str>,
+        misc: impl AsRef<str>,
         index: CameraIndex,
     ) -> Self {
         CameraInfo {
@@ -648,6 +660,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KnownCameraControls {
     Brightness,
     Contrast,
@@ -737,7 +750,7 @@ impl From<MFControl> for KnownCameraControls {
 }
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
-impl std::convert::TryFrom<Description> for KnownCameraControls {
+impl TryFrom<Description> for KnownCameraControls {
     type Error = NokhwaError;
 
     fn try_from(value: Description) -> Result<Self, Self::Error> {
@@ -786,6 +799,7 @@ impl Display for KnownCameraControlFlag {
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
 /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraControl {
     control: KnownCameraControls,
     min: i32,
@@ -1019,6 +1033,7 @@ impl Ord for CameraControl {
 /// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
@@ -1032,7 +1047,7 @@ pub enum CaptureAPIBackend {
 }
 
 impl Display for CaptureAPIBackend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_str = format!("{:?}", self);
         write!(f, "{}", self_str)
     }

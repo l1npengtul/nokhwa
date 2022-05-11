@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+use crate::buffer::Buffer;
+use crate::pixel_format::PixelFormat;
 use crate::{
     error::NokhwaError,
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
     CameraControl, CaptureAPIBackend, KnownCameraControls,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-
-use crate::pixel_format::PixelFormat;
+use opencv::imgproc::FloodFillFlags;
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -48,7 +49,7 @@ pub trait CaptureBackendTrait {
     fn camera_info(&self) -> &CameraInfo;
 
     /// Gets the current [`CameraFormat`].
-    fn camera_format(&self) -> CameraFormat;
+    fn camera_format(&self) -> Result<CameraFormat, NokhwaError>;
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -70,7 +71,7 @@ pub trait CaptureBackendTrait {
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
-    fn resolution(&self) -> Resolution;
+    fn resolution(&self) -> Result<Resolution, NokhwaError>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -79,7 +80,7 @@ pub trait CaptureBackendTrait {
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
-    fn frame_rate(&self) -> u32;
+    fn frame_rate(&self) -> Result<u32, NokhwaError>;
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
@@ -88,7 +89,7 @@ pub trait CaptureBackendTrait {
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    fn frame_format(&self) -> FrameFormat;
+    fn frame_format(&self) -> Result<FrameFormat, NokhwaError>;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -155,7 +156,16 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError>;
+    fn frame(&mut self) -> Result<Buffer, NokhwaError>;
+
+    /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
+    /// it will either return an error.
+    /// # Errors
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
+    /// or if the PixelFormat is invalid, this will error.
+    fn frame_typed<F: PixelFormat>(
+        &mut self,
+    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
@@ -174,11 +184,14 @@ pub trait CaptureBackendTrait {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn write_frame_to_buffer(
+    fn write_frame_to_buffer<F>(
         &mut self,
         buffer: &mut [u8],
-        convert_rgba: bool,
-    ) -> Result<usize, NokhwaError> {
+        write_alpha: bool,
+    ) -> Result<usize, NokhwaError>
+    where
+        F: PixelFormat,
+    {
         let resolution = self.resolution();
         let frame = self.frame_raw()?;
         if convert_rgba {

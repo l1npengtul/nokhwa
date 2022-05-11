@@ -286,7 +286,7 @@ impl<'a> V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => FourCC::new("GRAY"),
+            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
         };
 
         match v4l::video::Capture::enum_framesizes(&self.device, format) {
@@ -329,10 +329,19 @@ impl<'a> V4LCaptureDevice<'a> {
     pub fn force_refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
         match (self.device.params(), self.device.format()) {
             (Ok(params), Ok(format)) => {
-                let new_format = CameraFormat::new(params.capabilities.)
+                // FIXME: actually handle the fractions??????
+                self.camera_format = CameraFormat::new(
+                    Resolution::new(format.width, format.height),
+                    FrameFormat::from(format.fourcc),
+                    params.interval.numerator,
+                );
+                return Ok(());
             }
             (_, _) => {
-                return Err(NokhwaError::GetPropertyError { property: "parameters".to_string(), error: why.to_string() })
+                return Err(NokhwaError::GetPropertyError {
+                    property: "parameters".to_string(),
+                    error: why.to_string(),
+                })
             }
         }
     }

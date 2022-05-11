@@ -19,13 +19,14 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["flume", "decoding"]
+serialize = ["serde"]
 decoding = ["mozjpeg"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration", "lazy_static"]
-input-opencv = ["opencv", "opencv/clang-runtime"]
+input-opencv = ["opencv", "opencv/rgb", "rgb"]
 input-ipcam = ["input-opencv"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex", "parking_lot"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
@@ -43,6 +44,10 @@ thiserror = "1.0"
 paste = "1.0"
 anymap = "1.0.0-beta.2"
 enum_dispatch = "0.3"
+
+[dependencies.serde]
+version = "1.0"
+optional = true
 
 [dependencies.flume]
 version = "0.10"
@@ -74,7 +79,10 @@ optional = true
 
 [dependencies.opencv]
 version = "0.63"
-features = ["clang-runtime"]
+optional = true
+
+[dependencies.rgb]
+version = "0.8"
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
