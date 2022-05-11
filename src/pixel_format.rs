@@ -15,6 +15,7 @@
  */
 
 use crate::buffer_output::{BufferOutput, GrayU8, RgbU8};
+use crate::FrameFormat;
 use image::{Luma, Pixel, Rgb};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -22,36 +23,5 @@ use std::hash::Hash;
 pub trait PixelFormat: Copy + Clone + Debug + Default + Hash + Send + Sync {
     type Output: Pixel;
 
-    const CODE: &'static str;
-
-    fn code(&self) -> &'static str {
-        CODE
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default, Hash)]
-pub struct Mjpeg;
-
-impl PixelFormat for Mjpeg {
-    type Output = Rgb<u8>;
-
-    const CODE: &'static str = "MJPG";
-}
-
-#[derive(Copy, Clone, Debug, Default, Hash)]
-pub struct Yuyv;
-
-impl PixelFormat for Yuyv {
-    type Output = Rgb<u8>;
-
-    const CODE: &'static str = "YUYV";
-}
-
-#[derive(Copy, Clone, Debug, Default, Hash)]
-pub struct Gray;
-
-impl PixelFormat for Gray {
-    type Output = Luma<u8>;
-
-    const CODE: &'static str = "GRAY";
+    const SUPPORTED_CODES: &'static [FrameFormat];
 }
