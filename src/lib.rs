@@ -51,6 +51,7 @@ mod utils;
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
+pub use buffer::Buffer;
 pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
@@ -61,5 +62,5 @@ pub use network_camera::NetworkCamera;
 pub use query::*;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
-pub use threaded::ThreadedCamera;
+pub use threaded::CallbackCamera;
 pub use utils::*;

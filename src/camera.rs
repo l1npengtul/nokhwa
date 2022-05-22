@@ -15,11 +15,11 @@
  */
 
 use crate::{
-    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControls, NokhwaError, Resolution,
+    buffer::Buffer, BackendsEnum, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use image::buffer::ConvertBuffer;
-use image::{ImageBuffer, Rgb, RgbaImage};
+use image::RgbaImage;
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -29,19 +29,13 @@ use wgpu::{
 };
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
-pub struct Camera<C>
-where
-    C: CaptureBackendTrait,
-{
+pub struct Camera {
     idx: usize,
-    backend: C,
+    backend: BackendsEnum,
     backend_api: CaptureAPIBackend,
 }
 
-impl Camera<C>
-where
-    C: CaptureBackendTrait,
-{
+impl Camera {
     /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
@@ -94,7 +88,7 @@ where
         {
             self.backend.stop_stream()?;
         }
-        let new_camera_format = self.backend.camera_format();
+        let new_camera_format = self.backend.camera_format()?;
         let new_camera = init_camera(new_idx, Some(new_camera_format), self.backend_api)?;
         self.backend = new_camera;
         Ok(())
@@ -113,7 +107,7 @@ where
         {
             self.backend.stop_stream()?;
         }
-        let new_camera_format = self.backend.camera_format();
+        let new_camera_format = self.backend.camera_format()?;
         let new_camera = init_camera(self.idx, Some(new_camera_format), new_backend)?;
         self.backend = new_camera;
         Ok(())
@@ -126,13 +120,19 @@ where
     }
 
     /// Gets the current [`CameraFormat`].
-    #[must_use]
-    pub fn camera_format(&self) -> CameraFormat {
+    pub fn cached_camera_format(&self) -> CameraFormat {
+        self.backend.cached_camera_format()
+    }
+
+    /// Gets the current [`CameraFormat`]. This will force refresh to the current latest if it has changed.
+    pub fn camera_format(&self) -> Result<CameraFormat, NokhwaError> {
         self.backend.camera_format()
     }
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
@@ -174,13 +174,19 @@ where
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
-    #[must_use]
-    pub fn resolution(&self) -> Resolution {
+    pub fn cached_resolution(&self) -> Resolution {
+        self.backend.cached_resolution()
+    }
+
+    /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
+    pub fn resolution(&self) -> Result<Resolution, NokhwaError> {
         self.backend.resolution()
     }
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
@@ -188,13 +194,19 @@ where
     }
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
-    #[must_use]
-    pub fn frame_rate(&self) -> u32 {
+    pub fn cached_frame_rate(&self) -> u32 {
+        self.backend.cached_frame_rate()
+    }
+
+    /// Gets the current camera framerate (See: [`CameraFormat`]).
+    pub fn frame_rate(&self) -> Result<u32, NokhwaError> {
         self.backend.frame_rate()
     }
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
     pub fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
@@ -202,13 +214,19 @@ where
     }
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    #[must_use]
-    pub fn frame_format(&self) -> FrameFormat {
+    pub fn cached_frame_format(&self) -> FrameFormat {
+        self.backend.cached_frame_format()
+    }
+
+    /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
+    pub fn frame_format(&self) -> Result<FrameFormat, NokhwaError> {
         self.backend.frame_format()
     }
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
@@ -351,7 +369,7 @@ where
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    pub fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    pub fn frame(&mut self) -> Result<Buffer, NokhwaError> {
         self.backend.frame()
     }
 
@@ -365,36 +383,15 @@ where
         }
     }
 
-    /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
-    #[must_use]
-    pub fn min_buffer_size(&self, rgba: bool) -> usize {
-        let resolution = self.backend.resolution();
-        let w = resolution.width() as usize;
-        let h = resolution.height() as usize;
-        let c = if rgba { 4 } else { 3 };
-        w * h * c
-    }
-
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn frame_to_buffer(
+    pub fn write_frame_to_buffer(
         &mut self,
         buffer: &mut [u8],
-        convert_rgba: bool,
-    ) -> Result<(), NokhwaError> {
-        let camera_format = self.backend.camera_format();
-        let format = camera_format.format();
-        let raw_frame = self.frame_raw()?;
-        match format {
-            FrameFormat::MJPEG => crate::utils::buf_mjpeg_to_rgb(&raw_frame, buffer, convert_rgba)?,
-            FrameFormat::YUYV => {
-                crate::utils::buf_yuyv422_to_rgb(&raw_frame, buffer, convert_rgba)?
-            }
-            FrameFormat::GRAY8 => {}
-        };
-
-        Ok(())
+        write_alpha: bool,
+    ) -> Result<usize, NokhwaError> {
+        self.backend.write_frame_to_buffer(buffer, write_alpha)
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -402,59 +399,13 @@ where
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a>(
+    pub fn frame_texture<'a, F: PixelFormat>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
-        let frame = self.frame()?;
-        let rgba_frame: RgbaImage = frame.convert();
-
-        let texture_size = Extent3d {
-            width: frame.width(),
-            height: frame.height(),
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&TextureDescriptor {
-            label,
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-        });
-
-        let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
-            Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-
-        let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
-            Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-
-        queue.write_texture(
-            ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: TextureAspect::All,
-            },
-            &rgba_frame.to_vec(),
-            ImageDataLayout {
-                offset: 0,
-                bytes_per_row: width_nonzero,
-                rows_per_image: height_nonzero,
-            },
-            texture_size,
-        );
-
-        Ok(texture)
+        self.backend.frame_texture(device, queue, label)
     }
 
     /// Will drop the stream.
@@ -465,10 +416,7 @@ where
     }
 }
 
-impl Drop for Camera<C>
-where
-    C: CaptureBackendTrait,
-{
+impl Drop for Camera {
     fn drop(&mut self) {
         self.stop_stream().unwrap();
     }
@@ -505,15 +453,15 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>]<C: CaptureBackendTrait>(idx: usize, setting: Option<CameraFormat>) -> Option<Result<C, NokhwaError>> {
+                fn [< init_ $backend_name>](idx: usize, setting: Option<CameraFormat>) -> Option<Result<BackendsEnum, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
-                        Ok(cap) => Some(Ok(Box::new(cap))),
+                        Ok(cap) => Some(Ok(cp.into())),
                         Err(why) => Some(Err(why)),
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>]<C: CaptureBackendTrait>(_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<C, NokhwaError>> {
+                fn [< init_ $backend_name>](_idx: usize, _setting: Option<CameraFormat>) -> Option<Result<BackendsEnum, NokhwaError>> {
                     None
                 }
             }
@@ -604,7 +552,7 @@ macro_rules! cap_impl_matches {
 }
 
 cap_impl_fn! {
-    (GStreamerCaptureDevice, new, feature = "input-gst", gst),
+    // (GStreamerCaptureDevice, new, feature = "input-gst", gst),
     (OpenCvCaptureDevice, new_autopref, feature = "input-opencv", opencv),
     // (UVCCaptureDevice, create, feature = "input-uvc", uvc),
     (V4LCaptureDevice, new, all(feature = "input-v4l", target_os = "linux"), v4l),
@@ -612,22 +560,22 @@ cap_impl_fn! {
     (AVFoundationCaptureDevice, new, all(feature = "input-avfoundation", any(target_os = "macos", target_os = "ios")), avfoundation)
 }
 
-fn init_camera<C: CaptureBackendTrait + Send + Sync>(
+fn init_camera(
     index: usize,
     format: Option<CameraFormat>,
     backend: CaptureAPIBackend,
-) -> Result<C, NokhwaError> {
+) -> Result<BackendsEnum, NokhwaError> {
     let camera_backend = cap_impl_matches! {
             backend, index, format,
             ("input-v4l", Video4Linux, init_v4l),
             ("input-msmf", MediaFoundation, init_msmf),
             ("input-avfoundation", AVFoundation, init_avfoundation),
             // ("input-uvc", UniversalVideoClass, init_uvc),
-            ("input-gst", GStreamer, init_gst),
+            // ("input-gst", GStreamer, init_gst),
             ("input-opencv", OpenCv, init_opencv)
     };
     Ok(camera_backend)
 }
 
 #[cfg(feature = "output-threaded")]
-unsafe impl Send for Camera<C> where C: CaptureBackendTrait {}
+unsafe impl Send for Camera {}

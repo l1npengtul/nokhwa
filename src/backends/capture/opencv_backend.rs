@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+use crate::pixel_format::PixelFormat;
 use crate::{
-    CameraControl, CameraFormat, CameraIndexType, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use opencv::{
@@ -50,7 +51,6 @@ macro_rules! tryinto_num {
     }};
 }
 
-// TODO: Define behaviour for IPCameras.
 /// The backend struct that interfaces with `OpenCV`. Note that an `opencv` matching the version that this was either compiled on must be present on the user's machine. (usually 4.5.2 or greater)
 /// For more information, please see [`opencv-rust`](https://github.com/twistedfall/opencv-rust) and [`OpenCV VideoCapture Docs`](https://docs.opencv.org/4.5.2/d8/dfe/classcv_1_1VideoCapture.html).
 ///
@@ -71,7 +71,7 @@ macro_rules! tryinto_num {
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
 pub struct OpenCvCaptureDevice {
     camera_format: CameraFormat,
-    camera_location: CameraIndexType,
+    camera_location: usize,
     camera_info: CameraInfo,
     api_preference: i32,
     video_capture: VideoCapture,
@@ -79,7 +79,7 @@ pub struct OpenCvCaptureDevice {
 
 #[allow(clippy::must_use_candidate)]
 impl OpenCvCaptureDevice {
-    /// Creates a new capture device using the `OpenCV` backend. You can either use an [`Index`](CameraIndexType::Index) or [`IPCamera`](CameraIndexType::IPCamera).
+    /// Creates a new capture device using the `OpenCV` backend.
     ///
     /// Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
@@ -95,7 +95,7 @@ impl OpenCvCaptureDevice {
     /// # Panics
     /// If the API u32 -> i32 fails this will error
     pub fn new(
-        camera_location: CameraIndexType,
+        index: usize,
         cfmt: Option<CameraFormat>,
         api_pref: Option<u32>,
     ) -> Result<Self, NokhwaError> {
@@ -105,47 +105,33 @@ impl OpenCvCaptureDevice {
             tryinto_num!(i32, get_api_pref_int())
         };
 
-        let mut index = i32::MAX as u32;
-
         let camera_format = match cfmt {
             Some(cam_fmt) => cam_fmt,
             None => CameraFormat::default(),
         };
 
-        let mut video_capture = match camera_location.clone() {
-            CameraIndexType::Index(idx) => {
-                let vid_cap = match VideoCapture::new(tryinto_num!(i32, idx), api) {
-                    Ok(vc) => {
-                        index = idx;
-                        vc
-                    }
-                    Err(why) => {
-                        return Err(NokhwaError::OpenDeviceError(
-                            idx.to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-                vid_cap
+        let mut video_capture = match VideoCapture::new(tryinto_num!(i32, idx), api) {
+            Ok(vc) => vc,
+            Err(why) => {
+                return Err(NokhwaError::OpenDeviceError(
+                    idx.to_string(),
+                    why.to_string(),
+                ))
             }
-            CameraIndexType::IPCamera(ip) => match VideoCapture::from_file(&*ip, CAP_ANY) {
-                Ok(vc) => vc,
-                Err(why) => return Err(NokhwaError::OpenDeviceError(ip, why.to_string())),
-            },
         };
 
-        set_properties(&mut video_capture, camera_format, &camera_location)?;
+        set_properties(&mut video_capture, camera_format, index)?;
 
         let camera_info = CameraInfo::new(
-            format!("OpenCV Capture Device {}", camera_location),
-            camera_location.to_string(),
+            format!("OpenCV Capture Device {}", index),
+            index.to_string(),
             "".to_string(),
             index as usize,
         );
 
         Ok(OpenCvCaptureDevice {
             camera_format,
-            camera_location,
+            camera_location: index,
             camera_info,
             api_preference: api,
             video_capture,
@@ -339,6 +325,10 @@ impl OpenCvCaptureDevice {
 }
 
 impl CaptureBackendTrait for OpenCvCaptureDevice {
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
+        todo!()
+    }
+
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::OpenCv
     }
@@ -365,7 +355,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
         self.camera_format = new_fmt;
 
-        if let Err(why) = set_properties(&mut self.video_capture, new_fmt, &self.camera_location) {
+        if let Err(why) = set_properties(&mut self.video_capture, new_fmt, self.camera_location) {
             self.camera_format = current_format;
             return Err(why);
         }
@@ -598,6 +588,12 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         Ok(image_buf)
     }
 
+    fn frame_typed<F: PixelFormat>(
+        &mut self,
+    ) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
+        todo!()
+    }
+
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         let cow = self.raw_frame_vec()?;
         Ok(cow)
@@ -627,7 +623,7 @@ fn get_api_pref_int() -> u32 {
 fn set_properties(
     _vc: &mut VideoCapture,
     _camera_format: CameraFormat,
-    _camera_location: &CameraIndexType,
+    _camera_location: usize,
 ) -> Result<(), NokhwaError> {
     Ok(())
 }

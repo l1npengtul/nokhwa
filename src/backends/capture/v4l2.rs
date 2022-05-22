@@ -17,7 +17,7 @@
 use crate::{
     error::NokhwaError,
     mjpeg_to_rgb,
-    utils::{CameraFormat, CameraIndex, CameraInfo},
+    utils::{CameraFormat, CameraInfo},
     yuyv422_to_rgb, CameraControl, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
     KnownCameraControlFlag, KnownCameraControls, Resolution,
 };
@@ -28,14 +28,17 @@ use v4l::{
     frameinterval::FrameIntervalEnum,
     framesize::FrameSizeEnum,
     io::traits::CaptureStream,
-    prelude::*,
     video::{capture::Parameters, Capture},
     Format, FourCC,
+    Device,
 };
 
+use crate::pixel_format::PixelFormat;
 use std::any::Any;
 pub use v4l::control::{Control, Description, Flags};
+use v4l::prelude::MmapStream;
 use v4l::video::Output;
+use crate::buffer::Buffer;
 
 /// Generates a camera control from a device and a description of control
 /// # Error
@@ -171,6 +174,7 @@ fn clone_control(ctrl: &Control) -> Control {
 /// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`u32`] and [`Control`]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-v4l")))]
 pub struct V4LCaptureDevice<'a> {
+    initialized: bool,
     camera_format: CameraFormat,
     camera_info: CameraInfo,
     device: Device,
@@ -180,11 +184,12 @@ pub struct V4LCaptureDevice<'a> {
 impl<'a> V4LCaptureDevice<'a> {
     /// Creates a new capture device using the `V4L2` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
+    /// If `camera_format` is `None`, it will be spawned with a random [`CameraFormat`] as determined by [`init()`](crate::CaptureBackendTrait::init).
+    ///
+    /// If `camera_format` is not `None`, the camera will try to use it when you call [`init()`](crate::CaptureBackendTrait::init).
     /// # Errors
-    /// This function will error if the camera is currently busy or if `V4L2` can't read device information. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
-    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let index = index.as_index()?;
+    /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
+    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let device = match Device::new(index as usize) {
             Ok(dev) => dev,
             Err(why) => {
@@ -196,7 +201,7 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         let camera_info = match device.query_caps() {
-            Ok(caps) => CameraInfo::new(&caps.card, "", &caps.driver, CameraIndex::Index(index)),
+            Ok(caps) => CameraInfo::new(&caps.card, "", &caps.driver, usize),
             Err(why) => {
                 return Err(NokhwaError::GetPropertyError {
                     property: "Capabilities".to_string(),
@@ -261,6 +266,7 @@ impl<'a> V4LCaptureDevice<'a> {
         }
 
         Ok(V4LCaptureDevice {
+            initialized: false,
             camera_format,
             camera_info,
             device,
@@ -268,11 +274,11 @@ impl<'a> V4LCaptureDevice<'a> {
         })
     }
 
-    /// Create a new `V4L2` Camera with desired settings.
+    /// Create a new `V4L2` Camera with desired settings. This may or may not work.
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     pub fn new_with(
-        index: &CameraIndex,
+        index: usize,
         width: u32,
         height: u32,
         fps: u32,
@@ -289,7 +295,8 @@ impl<'a> V4LCaptureDevice<'a> {
             FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
         };
 
-        match v4l::video::Capture::enum_framesizes(&self.device, format) {
+        // match Capture::enum_framesizes(&self.device, format) {
+        match self.device.enum_framesizes(format) {
             Ok(frame_sizes) => {
                 let mut resolutions = vec![];
                 for frame_size in frame_sizes {
@@ -327,7 +334,7 @@ impl<'a> V4LCaptureDevice<'a> {
 
     /// Force refreshes the inner [`CameraFormat`] state.
     pub fn force_refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        match (self.device.params(), self.device.format()) {
+        match (Capture::format(&self.device), self.device.format()) {
             (Ok(params), Ok(format)) => {
                 // FIXME: actually handle the fractions??????
                 self.camera_format = CameraFormat::new(
@@ -335,10 +342,10 @@ impl<'a> V4LCaptureDevice<'a> {
                     FrameFormat::from(format.fourcc),
                     params.interval.numerator,
                 );
-                return Ok(());
+                Ok(())
             }
             (_, _) => {
-                return Err(NokhwaError::GetPropertyError {
+                Err(NokhwaError::GetPropertyError {
                     property: "parameters".to_string(),
                     error: why.to_string(),
                 })
@@ -348,6 +355,23 @@ impl<'a> V4LCaptureDevice<'a> {
 }
 
 impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
+        let camera_format = self.camera_format;
+        let compatible = self.compatible_camera_formats()?;
+        if compatible.len() == 0 {
+            return Err(NokhwaError::InitializeError { backend: self.backend(), error: "Could not find any compatible camera formats!".to_string() })
+        }
+        if compatible.contains(&camera_format) {
+            self.initialized = true;
+            return Ok(camera_format)
+        } else {
+            self.initialized = true;
+            let new_fmt = compatible[0];
+            self.camera_format = new_fmt;
+            Ok(new_fmt)
+        }
+    }
+
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::Video4Linux
     }
@@ -434,7 +458,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => {}
+            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
         };
         let mut res_map = HashMap::new();
         for res in resolutions {
@@ -605,7 +629,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             }
         };
 
-        if let Err(why) = self.device.set_control(id, Control::Value(control.value())) {
+        if let Err(why) = self.device.set_control(Control { id, value: Value }) {
             return Err(NokhwaError::SetPropertyError {
                 property: format!("{} V4L2ID {}", control.control(), id),
                 value: control.value().to_string(),
@@ -708,25 +732,19 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.stream_handle.is_some()
     }
 
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    fn frame(&mut self) -> Result<Buffer, NokhwaError> {
         let cam_fmt = self.camera_format;
         let raw_frame = self.frame_raw()?;
         let conv = match cam_fmt.format() {
             FrameFormat::MJPEG => mjpeg_to_rgb(&raw_frame, false)?,
             FrameFormat::YUYV => yuyv422_to_rgb(&raw_frame, false)?,
+            FrameFormat::GRAY8 => raw_frame.to_vec(),
         };
-        let image_buf =
-            match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {
-                Some(buf) => {
-                    let rgb_buf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                    rgb_buf
-                }
-                None => return Err(NokhwaError::ReadFrameError(
-                    "ImageBuffer is not large enough! This is probably a bug, please report it!"
-                        .to_string(),
-                )),
-            };
-        Ok(image_buf)
+        Ok(Buffer::new(cam_fmt.resolution(), conv, cam_fmt.format()))
+    }
+
+    fn frame_typed<F: PixelFormat>(&mut self) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
+        self.frame()?.to_image_with_custom_format::<F>()
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {

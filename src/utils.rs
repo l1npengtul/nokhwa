@@ -38,11 +38,10 @@ use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
-use serde::{Deserialize, Serialize};
 #[cfg(feature = serde)]
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::{Borrow, Cow},
+    borrow::Borrow,
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
@@ -169,6 +168,10 @@ impl From<FrameFormat> for AVFourCC {
             FrameFormat::GRAY8 => AVFourCC::GRAY8,
         }
     }
+}
+
+pub const fn frame_formats() -> [FrameFormat; 3] {
+    [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY8]
 }
 
 /// Describes a Resolution.
@@ -487,7 +490,7 @@ pub struct CameraInfo {
     human_name: String,
     description: String,
     misc: String,
-    index: CameraIndex,
+    index: usize,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
@@ -504,7 +507,7 @@ impl CameraInfo {
         human_name: impl AsRef<str>,
         description: impl AsRef<str>,
         misc: impl AsRef<str>,
-        index: CameraIndex,
+        index: usize,
     ) -> Self {
         CameraInfo {
             human_name: human_name.as_ref().to_string(),
@@ -576,36 +579,36 @@ impl CameraInfo {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> &CameraIndex {
-        &self.index
+    pub fn index(&self) -> u32 {
+        self.index
     }
 
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: CameraIndex) {
+    pub fn set_index(&mut self, index: u32) {
         self.index = index;
     }
 
-    /// Gets the device info's index as an `u32`.
-    /// # Errors
-    /// If the index is not parsable as a `u32`, this will error.
-    /// # JS-WASM
-    /// This is exported as `get_Index_Int`
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
-    pub fn index_num(&self) -> Result<u32, NokhwaError> {
-        match &self.index {
-            CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) => match s.parse::<u32>() {
-                Ok(p) => Ok(p),
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "index-int".to_string(),
-                    error: why.to_string(),
-                }),
-            },
-        }
-    }
+    // /// Gets the device info's index as an `u32`.
+    // /// # Errors
+    // /// If the index is not parsable as a `u32`, this will error.
+    // /// # JS-WASM
+    // /// This is exported as `get_Index_Int`
+    // #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
+    // pub fn index_num(&self) -> Result<u32, NokhwaError> {
+    //     match &self.index {
+    //         CameraIndex::Index(i) => Ok(*i),
+    //         CameraIndex::String(s) => match s.parse::<u32>() {
+    //             Ok(p) => Ok(p),
+    //             Err(why) => Err(NokhwaError::GetPropertyError {
+    //                 property: "index-int".to_string(),
+    //                 error: why.to_string(),
+    //             }),
+    //         },
+    //     }
+    // }
 }
 
 impl Display for CameraInfo {
@@ -625,10 +628,10 @@ impl Display for CameraInfo {
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
-            human_name: dev_desc,
-            description: "Media Foundation Device",
+            human_name: dev_desc.name_as_string(),
+            description: "Media Foundation Device".to_string(),
             misc: dev_desc.link_as_string(),
-            index: CameraIndex::Index(dev_desc.index() as u32),
+            index: dev_desc.index() as usize,
         }
     }
 }
@@ -651,7 +654,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
             human_name: descriptor.name,
             description: descriptor.description,
             misc: descriptor.misc,
-            index: CameraIndex::Index(descriptor.index as u32),
+            index: descriptor.index as usize,
         }
     }
 }
@@ -790,6 +793,37 @@ pub enum KnownCameraControlFlag {
 impl Display for KnownCameraControlFlag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// TODO: use in CameraControl
+pub enum ControlValue {
+    None,
+    Integer {
+        value: i64,
+        default: i64,
+        step: i64,
+    },
+    IntegerRange {
+        min: i32,
+        max: i32,
+        value: i32,
+        step: i32,
+        default: i32,
+    },
+    Boolean {
+        value: bool,
+        default: bool,
+    },
+    String {
+        value: String,
+        default: String,
+    },
+    Bytes {
+        value: Vec<u8>,
+        default: Vec<u8>,
     }
 }
 
@@ -1041,7 +1075,7 @@ pub enum CaptureAPIBackend {
     UniversalVideoClass,
     MediaFoundation,
     OpenCv,
-    GStreamer,
+    // GStreamer,
     Network,
     Browser,
 }
@@ -1053,70 +1087,70 @@ impl Display for CaptureAPIBackend {
     }
 }
 
-/// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-pub enum CameraIndex {
-    Index(u32),
-    String(String),
-}
+// /// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
+// #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+// pub enum CameraIndex {
+//     Index(u32),
+//     String(String),
+// }
 
-impl CameraIndex {
-    /// Gets the device info's index as an `u32`.
-    /// # Errors
-    /// If the index is not parsable as a `u32`, this will error.
-    pub fn as_index(&self) -> Result<u32, NokhwaError> {
-        match self {
-            CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) => match s.parse::<u32>() {
-                Ok(p) => Ok(p),
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "index-int".to_string(),
-                    error: why.to_string(),
-                }),
-            },
-        }
-    }
-}
+// impl CameraIndex {
+//     /// Gets the device info's index as an `u32`.
+//     /// # Errors
+//     /// If the index is not parsable as a `u32`, this will error.
+//     pub fn as_index(&self) -> Result<u32, NokhwaError> {
+//         match self {
+//             CameraIndex::Index(i) => Ok(*i),
+//             CameraIndex::String(s) => match s.parse::<u32>() {
+//                 Ok(p) => Ok(p),
+//                 Err(why) => Err(NokhwaError::GetPropertyError {
+//                     property: "index-int".to_string(),
+//                     error: why.to_string(),
+//                 }),
+//             },
+//         }
+//     }
+// }
 
-impl Display for CameraIndex {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CameraIndex::Index(idx) => {
-                write!(f, "{}", idx)
-            }
-            CameraIndex::String(ip) => {
-                write!(f, "{}", ip)
-            }
-        }
-    }
-}
+// impl Display for CameraIndex {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             CameraIndex::Index(idx) => {
+//                 write!(f, "{}", idx)
+//             }
+//             CameraIndex::String(ip) => {
+//                 write!(f, "{}", ip)
+//             }
+//         }
+//     }
+// }
 
-impl From<u32> for CameraIndex {
-    fn from(v: u32) -> Self {
-        CameraIndex::Index(v)
-    }
-}
+// impl From<u32> for CameraIndex {
+//     fn from(v: u32) -> Self {
+//         CameraIndex::Index(v)
+//     }
+// }
 
-/// Trait for strings that can be converted to [`CameraIndex`]es.
-pub trait ValidString: AsRef<str> {}
+// /// Trait for strings that can be converted to [`CameraIndex`]es.
+// pub trait ValidString: AsRef<str> {}
+//
+// impl ValidString for String {}
+// impl<'a> ValidString for &'a String {}
+// impl<'a> ValidString for &'a mut String {}
+// impl<'a> ValidString for Cow<'a, str> {}
+// impl<'a> ValidString for &'a Cow<'a, str> {}
+// impl<'a> ValidString for &'a mut Cow<'a, str> {}
+// impl<'a> ValidString for &'a str {}
+// impl<'a> ValidString for &'a mut str {}
 
-impl ValidString for String {}
-impl<'a> ValidString for &'a String {}
-impl<'a> ValidString for &'a mut String {}
-impl<'a> ValidString for Cow<'a, str> {}
-impl<'a> ValidString for &'a Cow<'a, str> {}
-impl<'a> ValidString for &'a mut Cow<'a, str> {}
-impl<'a> ValidString for &'a str {}
-impl<'a> ValidString for &'a mut str {}
-
-impl<T> From<T> for CameraIndex
-where
-    T: ValidString,
-{
-    fn from(v: T) -> Self {
-        CameraIndex::String(v.as_ref().to_string())
-    }
-}
+// impl<T> From<T> for CameraIndex
+// where
+//     T: ValidString,
+// {
+//     fn from(v: T) -> Self {
+//         CameraIndex::String(v.as_ref().to_string())
+//     }
+// }
 
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
