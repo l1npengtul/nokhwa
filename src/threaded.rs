@@ -15,8 +15,8 @@
  */
 
 use crate::{
-    Camera, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureAPIBackend, FrameFormat,
-    KnownCameraControls, NokhwaError, Resolution,
+    Camera, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
+    FrameFormat, KnownCameraControls, NokhwaError, Resolution, Buffer
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::Mutex;
@@ -33,13 +33,13 @@ type AtomicLock<T> = Arc<Mutex<T>>;
 pub type CallbackFn = fn(
     _camera: &Arc<Mutex<Camera>>,
     _frame_callback: &Arc<
-        Mutex<Option<Box<dyn FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>) + Send + 'static>>>,
+        Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>,
     >,
-    _last_frame_captured: &Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>,
+    _last_frame_captured: &Arc<Mutex<Buffer>>,
     _die_bool: &Arc<AtomicBool>,
 );
 type HeldCallbackType =
-    Arc<Mutex<Option<Box<dyn FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>) + Send + 'static>>>>;
+    Arc<Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>>;
 
 /// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
 /// It uses a `Arc` and a `Mutex` to ensure that this feels like a normal camera, but callback based.
@@ -57,7 +57,7 @@ type HeldCallbackType =
 pub struct CallbackCamera {
     camera: AtomicLock<Camera>,
     frame_callback: HeldCallbackType,
-    last_frame_captured: AtomicLock<ImageBuffer<Rgb<u8>, Vec<u8>>>,
+    last_frame_captured: AtomicLock<Buffer>,
     die_bool: Arc<AtomicBool>,
 }
 
@@ -65,7 +65,7 @@ impl CallbackCamera {
     /// Create a new `ThreadedCamera` from an `index` and `format`. `format` can be `None`.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new(index: &CameraIndex, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: usize, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         CallbackCamera::with_backend(index, format, CaptureAPIBackend::Auto)
     }
 
@@ -73,7 +73,7 @@ impl CallbackCamera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn with_backend(
-        index: &CameraIndex,
+        index: usize,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
     ) -> Result<Self, NokhwaError> {
@@ -84,7 +84,7 @@ impl CallbackCamera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new_with(
-        index: &CameraIndex,
+        index: usize,
         width: u32,
         height: u32,
         fps: u32,
@@ -103,7 +103,7 @@ impl CallbackCamera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn customized_all(
-        index: &CameraIndex,
+        index: usize,
         format: Option<CameraFormat>,
         backend: CaptureAPIBackend,
         func: Option<CallbackFn>,
@@ -118,10 +118,7 @@ impl CallbackCamera {
             backend,
         )?));
         let frame_callback = Arc::new(Mutex::new(None));
-        let last_frame_captured = Arc::new(Mutex::new(ImageBuffer::new(
-            format.width(),
-            format.height(),
-        )));
+        let last_frame_captured = Arc::new(Mutex::new(Buffer::default()));
         let die_bool = Arc::new(AtomicBool::new(false));
 
         let camera_clone = camera.clone();
@@ -163,14 +160,14 @@ impl CallbackCamera {
 
     /// Gets the current Camera's index.
     #[must_use]
-    pub fn index(&self) -> CameraIndex {
+    pub fn index(&self) -> usize {
         self.camera.lock().index().clone()
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: &CameraIndex) -> Result<(), NokhwaError> {
+    pub fn set_index(&mut self, new_idx: usize) -> Result<(), NokhwaError> {
         self.camera.lock().set_index(new_idx)
     }
 
@@ -195,7 +192,7 @@ impl CallbackCamera {
 
     /// Gets the current [`CameraFormat`].
     #[must_use]
-    pub fn camera_format(&self) -> CameraFormat {
+    pub fn camera_format(&self) -> Result<CameraFormat, NokhwaError> {
         self.camera.lock().camera_format()
     }
 
@@ -204,7 +201,7 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() = ImageBuffer::new(new_fmt.width(), new_fmt.height());
+        *self.last_frame_captured.lock() = Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
         self.camera.lock().set_camera_format(new_fmt)
     }
 
@@ -227,7 +224,7 @@ impl CallbackCamera {
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
     #[must_use]
-    pub fn resolution(&self) -> Resolution {
+    pub fn resolution(&self) -> Result<Resolution, NokhwaError> {
         self.camera.lock().resolution()
     }
 
@@ -236,13 +233,13 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() = ImageBuffer::new(new_res.width(), new_res.height());
+        *self.last_frame_captured.lock() = Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
         self.camera.lock().set_resolution(new_res)
     }
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
     #[must_use]
-    pub fn frame_rate(&self) -> u32 {
+    pub fn frame_rate(&self) -> Result<u32, NokhwaError> {
         self.camera.lock().frame_rate()
     }
 
@@ -256,7 +253,7 @@ impl CallbackCamera {
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
     #[must_use]
-    pub fn frame_format(&self) -> FrameFormat {
+    pub fn frame_format(&self) -> Result<FrameFormat, NokhwaError> {
         self.camera.lock().frame_format()
     }
 
@@ -392,10 +389,10 @@ impl CallbackCamera {
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     pub fn open_stream<F>(&mut self, mut callback: F) -> Result<(), NokhwaError>
     where
-        F: (FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>)) + Send + 'static,
+        F: (FnMut(Buffer)) + Send + 'static,
     {
         *self.frame_callback.lock() =
-            Some(Box::new(move |image: ImageBuffer<Rgb<u8>, Vec<u8>>| {
+            Some(Box::new(move |image: Buffer| {
                 callback(image)
             }));
         self.camera.lock().open_stream()
@@ -404,10 +401,10 @@ impl CallbackCamera {
     /// Sets the frame callback to the new specified function. This function will be called instead of the previous one(s).
     pub fn set_callback<F>(&mut self, mut callback: F)
     where
-        F: (FnMut(ImageBuffer<Rgb<u8>, Vec<u8>>)) + Send + 'static,
+        F: (FnMut(Buffer)) + Send + 'static,
     {
         *self.frame_callback.lock() =
-            Some(Box::new(move |image: ImageBuffer<Rgb<u8>, Vec<u8>>| {
+            Some(Box::new(move |image: Buffer| {
                 callback(image)
             }));
     }
@@ -415,7 +412,7 @@ impl CallbackCamera {
     /// Polls the camera for a frame, analogous to [`Camera::frame`](crate::Camera::frame)
     /// # Errors
     /// This will error if the camera fails to capture a frame.
-    pub fn poll_frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    pub fn poll_frame(&mut self) -> Result<Buffer, NokhwaError> {
         let frame = self.camera.lock().frame()?;
         *self.last_frame_captured.lock() = frame.clone();
         Ok(frame)
@@ -441,21 +438,24 @@ impl CallbackCamera {
     }
 }
 
-impl Drop for CallbackCamera {
+impl<C> Drop for CallbackCamera<C>
+where
+    C: CaptureBackendTrait,
+{
     fn drop(&mut self) {
         let _stop_stream_err = self.stop_stream();
         self.die_bool.store(true, Ordering::SeqCst);
     }
 }
 
-fn camera_frame_thread_loop(
-    camera: &AtomicLock<Camera>,
+fn camera_frame_thread_loop<C: CaptureBackendTrait>(
+    camera: &AtomicLock<Camera<C>>,
     frame_callback: &HeldCallbackType,
     last_frame_captured: &AtomicLock<ImageBuffer<Rgb<u8>, Vec<u8>>>,
     die_bool: &Arc<AtomicBool>,
 ) {
     loop {
-        if let Ok(img) = camera.lock().frame() {
+        if let Ok(img) = camera.lock().fr {
             *last_frame_captured.lock() = img.clone();
             if let Some(cb) = (*frame_callback.lock()).as_mut() {
                 cb(img);

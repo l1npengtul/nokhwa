@@ -52,6 +52,7 @@ mod utils;
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
+pub use buffer::Buffer;
 pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]

@@ -62,7 +62,7 @@ version = "0.9"
 optional = true
 
 [dependencies.v4l]
-version = "0.12"
+version = "0.13"
 optional = true
 
 [dependencies.v4l2-sys-mit]

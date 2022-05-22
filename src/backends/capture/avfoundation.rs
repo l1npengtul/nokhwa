@@ -15,9 +15,8 @@
  */
 
 use crate::{
-    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-    CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
-    Resolution,
+    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
@@ -49,17 +48,12 @@ impl AVFoundationCaptureDevice {
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
-    pub fn new(
-        index: &CameraIndex,
-        camera_format: Option<CameraFormat>,
-    ) -> Result<Self, NokhwaError> {
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
+    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match camera_format {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
         };
-
-        let index = index.index_num()? as usize;
 
         let device_descriptor: CameraInfo = match query_avfoundation()?.into_iter().nth(index) {
             Some(descriptor) => descriptor.into(),
@@ -91,7 +85,7 @@ impl AVFoundationCaptureDevice {
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new_with(
-        index: &CameraIndex,
+        index: usize,
         width: u32,
         height: u32,
         fps: u32,

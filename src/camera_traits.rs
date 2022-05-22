@@ -18,18 +18,27 @@ use crate::buffer::Buffer;
 use crate::pixel_format::PixelFormat;
 use crate::{
     error::NokhwaError,
-    utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
+    frame_formats,
+    utils::{CameraFormat, CameraInfo, FrameFormat, Resolution, buf_mjpeg_to_rgb, buf_yuyv422_to_rgb},
     CameraControl, CaptureAPIBackend, KnownCameraControls,
 };
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use opencv::imgproc::FloodFillFlags;
 use std::{any::Any, borrow::Cow, collections::HashMap};
+use enum_dispatch::enum_dispatch;
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
     Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
     TextureUsages,
 };
+
+#[enum_dispatch]
+pub(crate) enum BackendsEnum {
+    MSMF,
+    AVF,
+    V4L2,
+    OCV,
+}
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
@@ -38,6 +47,7 @@ use wgpu::{
 /// - Backends, if not provided with a camera format, will be spawned with 640x480@15 FPS, MJPEG [`CameraFormat`].
 /// - Behaviour can differ from backend to backend. While the [`Camera`](crate::camera::Camera) struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
+#[enum_dispatch(BackendsEnum)]
 pub trait CaptureBackendTrait {
     /// Initializes the camera. You must call this before any other function.
     fn init(&mut self) -> Result<CameraFormat, NokhwaError>;
@@ -49,10 +59,15 @@ pub trait CaptureBackendTrait {
     fn camera_info(&self) -> &CameraInfo;
 
     /// Gets the current [`CameraFormat`].
+    fn cached_camera_format(&self) -> CameraFormat;
+
+    /// Gets the current [`CameraFormat`]. This will force refresh to the current latest if it has changed.
     fn camera_format(&self) -> Result<CameraFormat, NokhwaError>;
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
@@ -65,34 +80,69 @@ pub trait CaptureBackendTrait {
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
+    fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
+        let mut compatible_formats = vec![];
+        frame_formats().map(|ff| {
+            if let Ok(mut fmts) = self.compatible_list_by_resolution(ff).map(|compatible| {
+                compatible
+                    .into_iter()
+                    .map(|(res, fps)| {
+                        fps.into_iter().map(|rate| CameraFormat {
+                            resolution: res,
+                            format: ff,
+                            frame_rate: rate,
+                        })
+                    })
+                    .collect::<Vec<CameraFormat>>()
+            }) {
+                compatible_formats.append(&mut fmts)
+            }
+        })
+    }
+
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError)).
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
+    fn cached_resolution(&self) -> Resolution;
+
+    /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
     fn resolution(&self) -> Result<Resolution, NokhwaError>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
+    fn cached_frame_rate(&self) -> u32;
+
+    /// Gets the current camera framerate (See: [`CameraFormat`]). This will force refresh to the current latest if it has changed.
     fn frame_rate(&self) -> Result<u32, NokhwaError>;
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
+    fn cached_frame_format(&self) -> FrameFormat;
+
+    /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
     fn frame_format(&self) -> Result<FrameFormat, NokhwaError>;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
@@ -172,46 +222,44 @@ pub trait CaptureBackendTrait {
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
-    /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
-    fn min_buffer_size(&self, rgba: bool) -> usize {
-        let resolution = self.resolution();
-        if rgba {
-            return (resolution.width() * resolution.height() * 4) as usize;
+    /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the RGBA buffer needed.
+    fn decoded_buffer_size(&self, alpha: bool) -> Result<usize, NokhwaError> {
+        let cfmt = self.camera_format()?;
+        let resolution = cfmt.resolution();
+        let pxwidth = match cfmt.format() {
+            FrameFormat::MJPEG | FrameFormat::YUYV => 3,
+            FrameFormat::GRAY8 => 1,
+        };
+        if alpha {
+            return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;
         }
-        (resolution.width() * resolution.height() * 3) as usize
+        (resolution.width() * resolution.height() * pxwidth) as usize
     }
 
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn write_frame_to_buffer<F>(
+    fn write_frame_to_buffer(
         &mut self,
         buffer: &mut [u8],
         write_alpha: bool,
     ) -> Result<usize, NokhwaError>
-    where
-        F: PixelFormat,
     {
-        let resolution = self.resolution();
+        let cfmt = self.camera_format()?;
         let frame = self.frame_raw()?;
-        if convert_rgba {
-            let image_data =
-                match ImageBuffer::from_raw(resolution.width(), resolution.height(), frame) {
-                    Some(image) => {
-                        let image: ImageBuffer<Rgb<u8>, Cow<[u8]>> = image;
-                        image
-                    }
-                    None => {
-                        return Err(NokhwaError::ReadFrameError(
-                            "Frame Cow Too Small".to_string(),
-                        ))
-                    }
+        let data = match cfmt.format() {
+            FrameFormat::MJPEG => buf_mjpeg_to_rgb(&frame, buffer, write_alpha),
+            FrameFormat::YUYV => buf_yuyv422_to_rgb(&frame, buffer, write_alpha),
+            FrameFormat::GRAY8 => {
+                let data = if write_alpha {
+                    frame.into_iter().flat_map(|px| [*px, u8::MAX]).collect::<Cow<[u8]>>()
+                } else {
+                    frame
                 };
-            let rgba_image: RgbaImage = image_data.convert();
-            buffer.copy_from_slice(rgba_image.as_raw());
-            return Ok(rgba_image.len());
-        }
-        buffer.copy_from_slice(frame.as_ref());
+
+                buffer.copy_from_slice(&data);
+            }
+        };
         Ok(frame.len())
     }
 
@@ -220,15 +268,15 @@ pub trait CaptureBackendTrait {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    fn frame_texture<'a>(
+    fn frame_texture<'a, F: PixelFormat>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
         use std::{convert::TryFrom, num::NonZeroU32};
-        let frame = self.frame()?;
-        let rgba_frame: RgbaImage = frame.convert();
+        use image::RgbaImage;
+        let frame = RgbaImage::from( elf.frame()?.to_image_with_custom_format::<F>()?);
 
         let texture_size = Extent3d {
             width: frame.width(),
@@ -246,12 +294,12 @@ pub trait CaptureBackendTrait {
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         });
 
-        let width_nonzero = match NonZeroU32::try_from(4 * rgba_frame.width()) {
+        let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
             Ok(w) => Some(w),
             Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
-        let height_nonzero = match NonZeroU32::try_from(rgba_frame.height()) {
+        let height_nonzero = match NonZeroU32::try_from(frame.height()) {
             Ok(h) => Some(h),
             Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };

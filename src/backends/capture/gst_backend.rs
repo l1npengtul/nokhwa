@@ -15,9 +15,8 @@
  */
 
 use crate::{
-    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-    CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError,
-    Resolution,
+    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
 };
 use glib::Quark;
 use gstreamer::{
@@ -62,8 +61,8 @@ impl GStreamerCaptureDevice {
     ///
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
-    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information. This will also error if the index is a [`CameraIndex::String`] that cannot be parsed into a `usize`.
-    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
+    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match cam_fmt {
             Some(fmt) => fmt,
             None => CameraFormat::default(),
@@ -121,7 +120,7 @@ impl GStreamerCaptureDevice {
                     &DeviceExt::display_name(&device),
                     &DeviceExt::device_class(&device),
                     &"",
-                    CameraIndex::Index(index),
+                    index,
                 ),
                 caps,
             )
@@ -144,12 +143,7 @@ impl GStreamerCaptureDevice {
     /// `GStreamer` uses `v4l2src` on linux, `ksvideosrc` on windows, and `autovideosrc` on mac.
     /// # Errors
     /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
-    pub fn new_with(
-        index: &CameraIndex,
-        width: u32,
-        height: u32,
-        fps: u32,
-    ) -> Result<Self, NokhwaError> {
+    pub fn new_with(index: usize, width: u32, height: u32, fps: u32) -> Result<Self, NokhwaError> {
         let cam_fmt = CameraFormat::new(Resolution::new(width, height), FrameFormat::MJPEG, fps);
         GStreamerCaptureDevice::new(index, Some(cam_fmt))
     }

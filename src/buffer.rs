@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::{PixelFormat, PixelFormats};
+use crate::pixel_format::{PixelFormat};
 use crate::{FrameFormat, NokhwaError, Resolution};
 use image::ImageBuffer;
 #[cfg(feature = "input-opencv")]
