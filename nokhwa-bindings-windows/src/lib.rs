@@ -1834,7 +1834,7 @@ pub mod wmf {
     }
 
     impl<'a> MediaFoundationDevice<'a> {
-        pub fn new(_: usize) -> Result<Self, BindingError> {
+        pub fn new(_: usize, _: MFCameraFormat) -> Result<Self, BindingError> {
             Ok(MediaFoundationDevice { phantom: &Empty() })
         }
 

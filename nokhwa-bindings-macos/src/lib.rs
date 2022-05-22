@@ -242,9 +242,9 @@ pub mod avfoundation {
     use block::ConcreteBlock;
     use cocoa_foundation::foundation::{NSArray, NSInteger, NSString, NSUInteger};
     use core_media_sys::{
-        kCMPixelFormat_422YpCbCr8_yuvs, kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG,
-        kCMVideoCodecType_JPEG_OpenDML, CMFormatDescriptionGetMediaSubType, CMSampleBufferRef,
-        CMVideoDimensions,
+        kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
+        kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML,
+        CMFormatDescriptionGetMediaSubType, CMSampleBufferRef, CMVideoDimensions,
     };
     use dashmap::DashMap;
     use flume::{Receiver, Sender};
@@ -681,6 +681,7 @@ pub mod avfoundation {
     pub enum AVFourCC {
         YUV2,
         MJPEG,
+        GRAY8,
     }
 
     // Localized Name
@@ -757,7 +758,7 @@ pub mod avfoundation {
                     Err(why) => {
                         return Err(AVFError::ReadFrame(format!(
                             "Failed to read frame from pipe: {}",
-                            why.to_string()
+                            why
                         )))
                     }
                 },
@@ -861,8 +862,7 @@ pub mod avfoundation {
                 msg_send![value, videoSupportedFrameRateRanges]
             })
             .into_iter()
-            .map(|v| [v.min(), v.max()])
-            .flatten()
+            .flat_map(|v| [v.min(), v.max()])
             .collect::<Vec<f64>>();
             fps_list.sort_by(|n, m| n.partial_cmp(m).unwrap_or(Ordering::Equal));
             fps_list.dedup();
@@ -875,6 +875,7 @@ pub mod avfoundation {
             let fourcc = match fcc_raw {
                 kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => AVFourCC::YUV2,
                 kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => AVFourCC::MJPEG,
+                kCMPixelFormat_8IndexedGray_WhiteIsZero => AVFourCC::GRAY8,
                 _ => {
                     return Err(AVFError::InvalidValue {
                         found: fcc_raw.to_string(),
@@ -1110,7 +1111,7 @@ pub mod avfoundation {
                     Ok(avf) => avf.into_raw(),
                     Err(_) => {
                         // should not happen
-                        return Err(AVFError::StreamOpen("String contains null? This is a bug, please report it https://github.com/l1npengtul/nokhwa".to_string()));
+                        return Err(AVFError::StreamOpen("String contains null? This is a bug, please report it: https://github.com/l1npengtul/nokhwa".to_string()));
                     }
                 };
                 let queue = dispatch_queue_create(avf_queue_str, NSObject(std::ptr::null_mut()));
@@ -1302,6 +1303,7 @@ pub mod avfoundation {
     pub enum AVFourCC {
         YUV2,
         MJPEG,
+        GRAY8,
     }
 
     // Localized Name

@@ -108,3 +108,6 @@ Contributions are welcome!
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
+
+## 0.10
+0.10 is currently stalled due to upstream not having the necessary features (wasm-bindgen).

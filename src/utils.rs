@@ -14,15 +14,8 @@
  * limitations under the License.
  */
 
+use crate::pixel_format::PixelFormat;
 use crate::NokhwaError;
-use std::{
-    borrow::{Borrow, Cow},
-    cmp::Ordering,
-    fmt::{Display, Formatter},
-};
-#[cfg(feature = "output-wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
-
 #[cfg(any(
     all(
         feature = "input-avfoundation",
@@ -45,10 +38,19 @@ use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
+#[cfg(feature = serde)]
+use serde::{Deserialize, Serialize};
+use std::{
+    borrow::Borrow,
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+};
 #[cfg(feature = "input-uvc")]
 use uvc::StreamFormat;
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
 use v4l::{control::Description, Format, FourCC};
+#[cfg(feature = "output-wasm")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
@@ -56,13 +58,15 @@ use v4l::{control::Description, Format, FourCC};
 /// # JS-WASM
 /// This is exported as `FrameFormat`
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
+    GRAY8,
 }
 
 impl Display for FrameFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FrameFormat::MJPEG => {
                 write!(f, "MJPEG")
@@ -70,7 +74,19 @@ impl Display for FrameFormat {
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
             }
+            FrameFormat::GRAY8 => {
+                write!(f, "GRAY8")
+            }
         }
+    }
+}
+
+impl<P> From<P> for FrameFormat
+where
+    P: PixelFormat,
+{
+    fn from(_: P) -> Self {
+        P::CODE
     }
 }
 
@@ -93,6 +109,7 @@ impl From<MFFrameFormat> for FrameFormat {
         match mf_ff {
             MFFrameFormat::MJPEG => FrameFormat::MJPEG,
             MFFrameFormat::YUYV => FrameFormat::YUYV,
+            MFFrameFormat::GRAY8 => FrameFormat::GRAY8,
         }
     }
 }
@@ -106,6 +123,7 @@ impl From<FrameFormat> for MFFrameFormat {
         match ff {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
+            FrameFormat::GRAY8 => MFFrameFormat::GRAY8, //FIXME
         }
     }
 }
@@ -126,6 +144,7 @@ impl From<AVFourCC> for FrameFormat {
         match av_fcc {
             AVFourCC::YUV2 => FrameFormat::YUYV,
             AVFourCC::MJPEG => FrameFormat::MJPEG,
+            AVFourCC::GRAY8 => FrameFormat::GRAY8,
         }
     }
 }
@@ -146,8 +165,13 @@ impl From<FrameFormat> for AVFourCC {
         match ff {
             FrameFormat::MJPEG => AVFourCC::MJPEG,
             FrameFormat::YUYV => AVFourCC::YUV2,
+            FrameFormat::GRAY8 => AVFourCC::GRAY8,
         }
     }
+}
+
+pub const fn frame_formats() -> [FrameFormat; 3] {
+    [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY8]
 }
 
 /// Describes a Resolution.
@@ -156,6 +180,7 @@ impl From<FrameFormat> for AVFourCC {
 /// # JS-WASM
 /// This is exported as `JSResolution`
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
     pub width_x: u32,
@@ -210,7 +235,7 @@ impl Resolution {
 }
 
 impl Display for Resolution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}x{}", self.x(), self.y())
     }
 }
@@ -281,6 +306,7 @@ impl From<AVVideoResolution> for Resolution {
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -419,6 +445,7 @@ impl From<CameraFormat> for Format {
         let pxfmt = match cam_fmt.format() {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
+            FrameFormat::GRAY8 => FourCC::new(b"GREY"),
         };
 
         Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
@@ -458,11 +485,12 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// This is exported as a `JSCameraInfo`.
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraInfo {
     human_name: String,
     description: String,
     misc: String,
-    index: CameraIndex,
+    index: usize,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
@@ -472,11 +500,14 @@ impl CameraInfo {
     /// This is exported as a constructor for [`CameraInfo`].
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(constructor))]
+    // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
+    // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
+    // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
     pub fn new(
-        human_name: &(impl AsRef<str> + ?Sized),
-        description: &(impl AsRef<str> + ?Sized),
-        misc: &(impl AsRef<str> + ?Sized),
-        index: CameraIndex,
+        human_name: impl AsRef<str>,
+        description: impl AsRef<str>,
+        misc: impl AsRef<str>,
+        index: usize,
     ) -> Self {
         CameraInfo {
             human_name: human_name.as_ref().to_string(),
@@ -548,36 +579,36 @@ impl CameraInfo {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> &CameraIndex {
-        &self.index
+    pub fn index(&self) -> u32 {
+        self.index
     }
 
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: CameraIndex) {
+    pub fn set_index(&mut self, index: u32) {
         self.index = index;
     }
 
-    /// Gets the device info's index as an `u32`.
-    /// # Errors
-    /// If the index is not parsable as a `u32`, this will error.
-    /// # JS-WASM
-    /// This is exported as `get_Index_Int`
-    #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
-    pub fn index_num(&self) -> Result<u32, NokhwaError> {
-        match &self.index {
-            CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) => match s.parse::<u32>() {
-                Ok(p) => Ok(p),
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "index-int".to_string(),
-                    error: why.to_string(),
-                }),
-            },
-        }
-    }
+    // /// Gets the device info's index as an `u32`.
+    // /// # Errors
+    // /// If the index is not parsable as a `u32`, this will error.
+    // /// # JS-WASM
+    // /// This is exported as `get_Index_Int`
+    // #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
+    // pub fn index_num(&self) -> Result<u32, NokhwaError> {
+    //     match &self.index {
+    //         CameraIndex::Index(i) => Ok(*i),
+    //         CameraIndex::String(s) => match s.parse::<u32>() {
+    //             Ok(p) => Ok(p),
+    //             Err(why) => Err(NokhwaError::GetPropertyError {
+    //                 property: "index-int".to_string(),
+    //                 error: why.to_string(),
+    //             }),
+    //         },
+    //     }
+    // }
 }
 
 impl Display for CameraInfo {
@@ -597,10 +628,10 @@ impl Display for CameraInfo {
 impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
     fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
         CameraInfo {
-            human_name: dev_desc,
-            description: "Media Foundation Device",
+            human_name: dev_desc.name_as_string(),
+            description: "Media Foundation Device".to_string(),
             misc: dev_desc.link_as_string(),
-            index: CameraIndex::Index(dev_desc.index() as u32),
+            index: dev_desc.index() as usize,
         }
     }
 }
@@ -623,7 +654,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
             human_name: descriptor.name,
             description: descriptor.description,
             misc: descriptor.misc,
-            index: CameraIndex::Index(descriptor.index as u32),
+            index: descriptor.index as usize,
         }
     }
 }
@@ -632,6 +663,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KnownCameraControls {
     Brightness,
     Contrast,
@@ -721,7 +753,7 @@ impl From<MFControl> for KnownCameraControls {
 }
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
-impl std::convert::TryFrom<Description> for KnownCameraControls {
+impl TryFrom<Description> for KnownCameraControls {
     type Error = NokhwaError;
 
     fn try_from(value: Description) -> Result<Self, Self::Error> {
@@ -764,12 +796,44 @@ impl Display for KnownCameraControlFlag {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// TODO: use in CameraControl
+pub enum ControlValue {
+    None,
+    Integer {
+        value: i64,
+        default: i64,
+        step: i64,
+    },
+    IntegerRange {
+        min: i32,
+        max: i32,
+        value: i32,
+        step: i32,
+        default: i32,
+    },
+    Boolean {
+        value: bool,
+        default: bool,
+    },
+    String {
+        value: String,
+        default: String,
+    },
+    Bytes {
+        value: Vec<u8>,
+        default: Vec<u8>,
+    }
+}
+
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
 /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraControl {
     control: KnownCameraControls,
     min: i32,
@@ -1003,6 +1067,7 @@ impl Ord for CameraControl {
 /// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
@@ -1010,82 +1075,82 @@ pub enum CaptureAPIBackend {
     UniversalVideoClass,
     MediaFoundation,
     OpenCv,
-    GStreamer,
+    // GStreamer,
     Network,
     Browser,
 }
 
 impl Display for CaptureAPIBackend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_str = format!("{:?}", self);
         write!(f, "{}", self_str)
     }
 }
 
-/// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-pub enum CameraIndex {
-    Index(u32),
-    String(String),
-}
+// /// A webcam index that supports both strings and integers. Most backends take an int, but `IPCamera`s take a URL (string).
+// #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+// pub enum CameraIndex {
+//     Index(u32),
+//     String(String),
+// }
 
-impl CameraIndex {
-    /// Gets the device info's index as an `u32`.
-    /// # Errors
-    /// If the index is not parsable as a `u32`, this will error.
-    pub fn as_index(&self) -> Result<u32, NokhwaError> {
-        match self {
-            CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) => match s.parse::<u32>() {
-                Ok(p) => Ok(p),
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "index-int".to_string(),
-                    error: why.to_string(),
-                }),
-            },
-        }
-    }
-}
+// impl CameraIndex {
+//     /// Gets the device info's index as an `u32`.
+//     /// # Errors
+//     /// If the index is not parsable as a `u32`, this will error.
+//     pub fn as_index(&self) -> Result<u32, NokhwaError> {
+//         match self {
+//             CameraIndex::Index(i) => Ok(*i),
+//             CameraIndex::String(s) => match s.parse::<u32>() {
+//                 Ok(p) => Ok(p),
+//                 Err(why) => Err(NokhwaError::GetPropertyError {
+//                     property: "index-int".to_string(),
+//                     error: why.to_string(),
+//                 }),
+//             },
+//         }
+//     }
+// }
 
-impl Display for CameraIndex {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CameraIndex::Index(idx) => {
-                write!(f, "{}", idx)
-            }
-            CameraIndex::String(ip) => {
-                write!(f, "{}", ip)
-            }
-        }
-    }
-}
+// impl Display for CameraIndex {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             CameraIndex::Index(idx) => {
+//                 write!(f, "{}", idx)
+//             }
+//             CameraIndex::String(ip) => {
+//                 write!(f, "{}", ip)
+//             }
+//         }
+//     }
+// }
 
-impl From<u32> for CameraIndex {
-    fn from(v: u32) -> Self {
-        CameraIndex::Index(v)
-    }
-}
+// impl From<u32> for CameraIndex {
+//     fn from(v: u32) -> Self {
+//         CameraIndex::Index(v)
+//     }
+// }
 
-/// Trait for strings that can be converted to [`CameraIndex`]es.
-pub trait ValidString: AsRef<str> {}
+// /// Trait for strings that can be converted to [`CameraIndex`]es.
+// pub trait ValidString: AsRef<str> {}
+//
+// impl ValidString for String {}
+// impl<'a> ValidString for &'a String {}
+// impl<'a> ValidString for &'a mut String {}
+// impl<'a> ValidString for Cow<'a, str> {}
+// impl<'a> ValidString for &'a Cow<'a, str> {}
+// impl<'a> ValidString for &'a mut Cow<'a, str> {}
+// impl<'a> ValidString for &'a str {}
+// impl<'a> ValidString for &'a mut str {}
 
-impl ValidString for String {}
-impl<'a> ValidString for &'a String {}
-impl<'a> ValidString for &'a mut String {}
-impl<'a> ValidString for Cow<'a, str> {}
-impl<'a> ValidString for &'a Cow<'a, str> {}
-impl<'a> ValidString for &'a mut Cow<'a, str> {}
-impl<'a> ValidString for &'a str {}
-impl<'a> ValidString for &'a mut str {}
-
-impl<T> From<T> for CameraIndex
-where
-    T: ValidString,
-{
-    fn from(v: T) -> Self {
-        CameraIndex::String(v.as_ref().to_string())
-    }
-}
+// impl<T> From<T> for CameraIndex
+// where
+//     T: ValidString,
+// {
+//     fn from(v: T) -> Self {
+//         CameraIndex::String(v.as_ref().to_string())
+//     }
+// }
 
 /// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
 /// # Errors

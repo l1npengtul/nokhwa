@@ -15,13 +15,13 @@
  */
 
 use image::{ImageBuffer, Rgb};
-use nokhwa::{query_devices, CallbackCamera, CameraIndex, CaptureAPIBackend};
+use nokhwa::{query_devices, CaptureAPIBackend, ThreadedCamera};
 
 fn main() {
     let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
     cameras.iter().for_each(|cam| println!("{:?}", cam));
 
-    let mut threaded = CallbackCamera::new(&CameraIndex::Index(0), None).unwrap();
+    let mut threaded = ThreadedCamera::new(0, None).unwrap();
     threaded.open_stream(callback).unwrap();
     #[allow(clippy::empty_loop)] // keep it running
     loop {

@@ -10,14 +10,13 @@ edition = "2018"
 default = ["nokhwa/default"]
 input-msmf = ["nokhwa/input-msmf"]
 input-v4l = ["nokhwa/input-v4l"]
-input-uvc = ["nokhwa/input-uvc"]
 input-opencv = ["nokhwa/input-opencv"]
 input-gst = ["nokhwa/input-gst"]
 input-avfoundation = ["nokhwa/input-avfoundation"]
 
 [dependencies]
 clap = "2.33.3"
-glium = "0.30.0"
+glium = "0.31.0"
 glutin = "0.27.0"
 flume = "0.10.9"
 

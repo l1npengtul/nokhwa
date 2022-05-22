@@ -22,9 +22,7 @@ use glium::{
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
 use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
-use nokhwa::{
-    nokhwa_initialize, query_devices, Camera, CameraIndex, CaptureAPIBackend, FrameFormat,
-};
+use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -193,15 +191,8 @@ fn main() {
                 .trim()
                 .parse::<usize>()
             {
-                let mut camera = Camera::new_with(
-                    CameraIndex::Index(index as u32),
-                    width,
-                    height,
-                    fps,
-                    format,
-                    backend_value,
-                )
-                .unwrap();
+                let mut camera =
+                    Camera::new_with(index, width, height, fps, format, backend_value).unwrap();
 
                 if matches_clone.is_present("query-device") {
                     match camera.compatible_fourcc() {
@@ -284,7 +275,7 @@ fn main() {
                             fps,
                             frame.len()
                         );
-                        send.send(frame).unwrap()
+                        let _send = send.send(frame);
                     }
                 }
             }
