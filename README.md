@@ -42,16 +42,16 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
- | Backend                             | Input              | Query             | Query-Device       | Platform            |
- |-------------------------------------|--------------------|-------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)            | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF(`input-msmf`)                  | ✅                 | ✅                 | ✅                 | Windows             |
- | AVFoundation(`input-avfoundatuin`)^^| ✅                 | ✅                 | ✅                 | Mac                 |
- | libuvc(`input-uvc`)^^^              | ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
- | OpenCV(`input-opencv`)^             | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | IPCamera(`input-ipcam`/OpenCV)^     | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | GStreamer(`input-gst`)              | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)               | ✅                 | ✅                 | ✅                 | Browser(Web)        |
+ | Backend                                | Input              | Query             | Query-Device       | Platform            |
+ |----------------------------------------|--------------------|-------------------|--------------------|---------------------|
+ | Video4Linux(`input-v4l`)               | ✅                 | ✅                 | ✅                 | Linux               |
+ | MSMF(`input-msmf`)                     | ✅                 | ✅                 | ✅                 | Windows             |
+ | AVFoundation(`input-avfoundatuin`)^^   | ✅                 | ✅                 | ✅                 | Mac                 |
+ | libuvc(`input-uvc`) (**DEPRECATED**)^^^| ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
+ | OpenCV(`input-opencv`)^                | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | IPCamera(`input-ipcam`/OpenCV)^        | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)(**DEPRECATED**) | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | JS/WASM(`input-wasm`)                  | ✅                 | ✅                 | ✅                 | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
@@ -68,10 +68,10 @@ As a general rule of thumb, you would want to keep at least `input-uvc` or other
  - `input-v4l`: Enables the `Video4Linux` backend. (linux)
  - `input-msmf`: Enables the `MediaFoundation` backennd. (Windows 7 or newer)
  - `input-avfoundation`: Enables the `AVFoundation` backend. (MacOSX 10.7)
- - `input-uvc`: Enables the `libuvc` backend. (cross-platform, libuvc statically-linked)
+ - `input-uvc`: Enables the `libuvc` backend. (cross-platform, libuvc statically-linked) (**DEPRECATED**)
  - `input-opencv`: Enables the `opencv` backend. (cross-platform) 
  - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
- - `input-gst`: Enables the `gstreamer` backend. (cross-platform)
+ - `input-gst`: Enables the `gstreamer` backend. (**DEPRECATED**)
  - `input-jscam`: Enables the use of the `JSCamera` struct, which uses browser APIs. (Web)
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
@@ -108,6 +108,3 @@ Contributions are welcome!
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
-
-## 0.10
-0.10 is currently stalled due to upstream not having the necessary features (wasm-bindgen).
