@@ -1281,7 +1281,7 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     // yuyv yields 2 3-byte pixels per yuyv chunk
     let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
 
-    let mut dest = Vec::with_capacity(rgb_buf_size);
+    let mut dest = vec![0; rgb_buf_size];
     buf_yuyv422_to_rgb(data, &mut dest, rgba)?;
 
     Ok(dest)
