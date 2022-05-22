@@ -15,18 +15,13 @@
  */
 
 use crate::{
-    buffer::Buffer, BackendsEnum, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+    buffer::Buffer, pixel_format::PixelFormat, BackendsEnum, CameraControl, CameraFormat,
+    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls,
+    NokhwaError, Resolution,
 };
-use image::buffer::ConvertBuffer;
-use image::RgbaImage;
 use std::{any::Any, borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
-use wgpu::{
-    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
-    Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
-    TextureUsages,
-};
+use wgpu::{Device as WgpuDevice, Queue as WgpuQueue, Texture as WgpuTexture};
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
 pub struct Camera {

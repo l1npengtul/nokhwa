@@ -41,7 +41,8 @@ pub mod js_camera;
 #[cfg(feature = "input-ipcam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub mod network_camera;
-pub mod pixel_format;
+mod pixel_format;
+pub use pixel_format::PixelFormat;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
@@ -49,10 +50,10 @@ mod query;
 mod threaded;
 mod utils;
 
+pub use buffer::Buffer;
 pub use camera::Camera;
 pub use camera_traits::*;
 pub use error::NokhwaError;
-pub use buffer::Buffer;
 pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]

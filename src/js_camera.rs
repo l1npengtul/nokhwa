@@ -22,18 +22,20 @@
 
 use crate::{CameraIndex, CameraInfo, NokhwaError, Resolution};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
+#[cfg(feature = "output-wasm")]
 use js_sys::{Array, JsString, Map, Object, Promise};
-use std::borrow::Borrow;
 use std::{
+    borrow::Borrow,
     borrow::Cow,
     convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     ops::Deref,
 };
 #[cfg(feature = "output-wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
+#[cfg(feature = "output-wasm")]
 use wasm_bindgen_futures::JsFuture;
+#[cfg(feature = "output-wasm")]
 use web_sys::{
     console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
     HtmlVideoElement, ImageData, MediaDeviceInfo, MediaDeviceKind, MediaDevices, MediaStream,
@@ -1675,7 +1677,8 @@ impl Deref for JSCameraConstraints {
 /// A wrapper around a [`MediaStream`](https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.MediaStream.html)
 /// # JS-WASM
 /// This is exported as `NokhwaCamera`.
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
+#[cfg(feature = "output-wasm")]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))#[cfg(feature = "output-wasm")]]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub struct JSCamera {
     media_stream: MediaStream,
@@ -1687,6 +1690,7 @@ pub struct JSCamera {
     canvas_context: Option<CanvasRenderingContext2d>,
 }
 
+#[cfg(feature = "output-wasm")]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = NokhwaCamera))]
 impl JSCamera {
     /// Creates a new [`JSCamera`] using [`JSCameraConstraints`].

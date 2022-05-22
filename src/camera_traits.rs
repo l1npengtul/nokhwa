@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-use crate::buffer::Buffer;
-use crate::pixel_format::PixelFormat;
 use crate::{
     error::NokhwaError,
     frame_formats,
-    utils::{CameraFormat, CameraInfo, FrameFormat, Resolution, buf_mjpeg_to_rgb, buf_yuyv422_to_rgb},
-    CameraControl, CaptureAPIBackend, KnownCameraControls,
+    utils::{
+        buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
+    },
+    Buffer, CameraControl, CaptureAPIBackend, KnownCameraControls, PixelFormat,
 };
+use enum_dispatch::enum_dispatch;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
 use std::{any::Any, borrow::Cow, collections::HashMap};
-use enum_dispatch::enum_dispatch;
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -243,8 +243,7 @@ pub trait CaptureBackendTrait {
         &mut self,
         buffer: &mut [u8],
         write_alpha: bool,
-    ) -> Result<usize, NokhwaError>
-    {
+    ) -> Result<usize, NokhwaError> {
         let cfmt = self.camera_format()?;
         let frame = self.frame_raw()?;
         let data = match cfmt.format() {
@@ -252,7 +251,10 @@ pub trait CaptureBackendTrait {
             FrameFormat::YUYV => buf_yuyv422_to_rgb(&frame, buffer, write_alpha),
             FrameFormat::GRAY8 => {
                 let data = if write_alpha {
-                    frame.into_iter().flat_map(|px| [*px, u8::MAX]).collect::<Cow<[u8]>>()
+                    frame
+                        .into_iter()
+                        .flat_map(|px| [*px, u8::MAX])
+                        .collect::<Cow<[u8]>>()
                 } else {
                     frame
                 };
@@ -274,9 +276,9 @@ pub trait CaptureBackendTrait {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
         use image::RgbaImage;
-        let frame = RgbaImage::from( elf.frame()?.to_image_with_custom_format::<F>()?);
+        use std::{convert::TryFrom, num::NonZeroU32};
+        let frame = RgbaImage::from(elf.frame()?.to_image_with_custom_format::<F>()?);
 
         let texture_size = Extent3d {
             width: frame.width(),

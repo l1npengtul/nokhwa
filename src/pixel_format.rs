@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-use crate::buffer_output::{BufferOutput, GrayU8, RgbU8};
 use crate::FrameFormat;
-use image::{Luma, Pixel, Rgb};
-use std::fmt::Debug;
-use std::hash::Hash;
+use image::Pixel;
+use std::{fmt::Debug, hash::Hash};
 
 pub trait PixelFormat: Copy + Clone + Debug + Default + Hash + Send + Sync {
     type Output: Pixel;
