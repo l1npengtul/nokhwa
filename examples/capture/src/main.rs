@@ -21,7 +21,12 @@ use glium::{
     implement_vertex, index::PrimitiveType, program, texture::RawImage2d, uniform, Display,
     IndexBuffer, Surface, Texture2d, VertexBuffer,
 };
-use glutin::{event_loop::EventLoop, window::WindowBuilder, ContextBuilder};
+use glutin::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+    ContextBuilder,
+};
 use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
 use std::time::Instant;
 
@@ -137,7 +142,7 @@ fn main() {
                 }
             }
             Err(why) => {
-                println!("Failed to query: {}", why.to_string())
+                println!("Failed to query: {why}")
             }
         }
     }
@@ -206,13 +211,13 @@ fn main() {
                                         }
                                     }
                                     Err(why) => {
-                                        println!("Failed to get compatible resolution/FPS list for FrameFormat {}: {}", ff, why.to_string())
+                                        println!("Failed to get compatible resolution/FPS list for FrameFormat {ff}: {why}")
                                     }
                                 }
                             }
                         }
                         Err(why) => {
-                            println!("Failed to get compatible FourCC: {}", why.to_string())
+                            println!("Failed to get compatible FourCC: {why}")
                         }
                     }
                 }
@@ -226,7 +231,7 @@ fn main() {
                             }
                         }
                         Err(why) => {
-                            println!("Failed to get camera controls: {}", why.to_string())
+                            println!("Failed to get camera controls: {why}")
                         }
                     }
                 }
@@ -237,7 +242,7 @@ fn main() {
                     let supported = match camera.camera_controls_string() {
                         Ok(cc) => cc,
                         Err(why) => {
-                            println!("Failed to get camera controls: {}", why.to_string());
+                            println!("Failed to get camera controls: {why}");
                             return;
                         }
                     };
@@ -330,7 +335,7 @@ fn main() {
                     v_tex_coords = tex_coords;
                 }
             ",
-
+                    outputs_srgb: true,
                     fragment: "
                 #version 140
                 uniform sampler2D tex;
@@ -347,49 +352,49 @@ fn main() {
             // run the event loop
 
             gl_event_loop.run(move |event, _window, ctrl| {
-                let before_capture = Instant::now();
-                let frame = recv.recv().unwrap();
-                let after_capture = Instant::now();
+                *ctrl = match event {
+                    Event::MainEventsCleared => {
+                        let instant = Instant::now();
+                        let frame = recv.recv().unwrap();
+                        let capture_elapsed = instant.elapsed().as_millis();
 
-                let width = &frame.width();
-                let height = &frame.height();
+                        let frame_size = (frame.width(), frame.height());
 
-                let raw_data = RawImage2d::from_raw_rgb(frame.into_raw(), (*width, *height));
-                let gl_texture = Texture2d::new(&gl_display, raw_data).unwrap();
+                        let raw_data = RawImage2d::from_raw_rgb(frame.into_raw(), frame_size);
+                        let gl_texture = Texture2d::new(&gl_display, raw_data).unwrap();
 
-                let uniforms = uniform! {
-                    matrix: [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, -1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0f32]
-                    ],
-                    tex: &gl_texture
-                };
+                        let uniforms = uniform! {
+                            matrix: [
+                                [1.0, 0.0, 0.0, 0.0],
+                                [0.0, -1.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0f32]
+                            ],
+                            tex: &gl_texture
+                        };
 
-                let mut target = gl_display.draw();
-                target.clear_color(0.0, 0.0, 0.0, 0.0);
-                target
-                    .draw(
-                        &vert_buffer,
-                        &idx_buf,
-                        &program,
-                        &uniforms,
-                        &Default::default(),
-                    )
-                    .unwrap();
-                target.finish().unwrap();
+                        let mut target = gl_display.draw();
+                        target.clear_color(0.0, 0.0, 0.0, 0.0);
+                        target
+                            .draw(
+                                &vert_buffer,
+                                &idx_buf,
+                                &program,
+                                &uniforms,
+                                &Default::default(),
+                            )
+                            .unwrap();
+                        target.finish().unwrap();
 
-                if let glutin::event::Event::WindowEvent { event, .. } = event {
-                    if event == glutin::event::WindowEvent::CloseRequested {
-                        *ctrl = glutin::event_loop::ControlFlow::Exit;
+                        println!("Took {capture_elapsed}ms to capture",);
+                        ControlFlow::Poll
                     }
+                    Event::WindowEvent {
+                        event: WindowEvent::CloseRequested,
+                        ..
+                    } => ControlFlow::Exit,
+                    _ => ControlFlow::Poll,
                 }
-
-                println!(
-                    "Took {}ms to capture",
-                    after_capture.duration_since(before_capture).as_millis()
-                )
             })
         }
         // dont
