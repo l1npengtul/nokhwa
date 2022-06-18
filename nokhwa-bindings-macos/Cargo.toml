@@ -18,5 +18,5 @@ core-media-sys = "0.1.2"
 cocoa-foundation = "0.1.0"
 objc = { version = "0.2.7", features = ["exception"] }
 block = "0.1.6"
-dashmap = "4.0.2"
+dashmap = "5.3.4"
 lazy_static = "1.4.0"
