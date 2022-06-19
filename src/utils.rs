@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::PixelFormat;
-use crate::NokhwaError;
+use crate::{pixel_format::PixelFormat, NokhwaError};
 #[cfg(any(
     all(
         feature = "input-avfoundation",
@@ -490,7 +489,7 @@ pub struct CameraInfo {
     human_name: String,
     description: String,
     misc: String,
-    index: usize,
+    index: u32,
 }
 
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
@@ -507,7 +506,7 @@ impl CameraInfo {
         human_name: impl AsRef<str>,
         description: impl AsRef<str>,
         misc: impl AsRef<str>,
-        index: usize,
+        index: u32,
     ) -> Self {
         CameraInfo {
             human_name: human_name.as_ref().to_string(),
@@ -664,51 +663,52 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum KnownCameraControls {
+pub enum KnownCameraControl {
     Brightness,
     Contrast,
     Hue,
     Saturation,
     Sharpness,
     Gamma,
-    ColorEnable,
     WhiteBalance,
     BacklightComp,
     Gain,
     Pan,
     Tilt,
-    Roll,
     Zoom,
     Exposure,
     Iris,
     Focus,
+    /// Other camera control. Listed is the ID.
+    /// Wasteful, however is needed for a unified API across Windows, Linux, and MacOSX due to Microsoft's usage of GUIDs.
+    ///
+    /// THIS SHOULD ONLY BE USED WHEN YOU KNOW THE PLATFORM THAT YOU ARE RUNNING ON.
+    Other(u128),
 }
 
 /// All camera controls in an array.
 #[must_use]
-pub fn all_known_camera_controls() -> [KnownCameraControls; 17] {
+pub const fn all_known_camera_controls() -> [KnownCameraControl; 15] {
     [
-        KnownCameraControls::Brightness,
-        KnownCameraControls::Contrast,
-        KnownCameraControls::Hue,
-        KnownCameraControls::Saturation,
-        KnownCameraControls::Sharpness,
-        KnownCameraControls::Gamma,
-        KnownCameraControls::ColorEnable,
-        KnownCameraControls::WhiteBalance,
-        KnownCameraControls::BacklightComp,
-        KnownCameraControls::Gain,
-        KnownCameraControls::Pan,
-        KnownCameraControls::Tilt,
-        KnownCameraControls::Roll,
-        KnownCameraControls::Zoom,
-        KnownCameraControls::Exposure,
-        KnownCameraControls::Iris,
-        KnownCameraControls::Focus,
+        KnownCameraControl::Brightness,
+        KnownCameraControl::Contrast,
+        KnownCameraControl::Hue,
+        KnownCameraControl::Saturation,
+        KnownCameraControl::Sharpness,
+        KnownCameraControl::Gamma,
+        KnownCameraControl::WhiteBalance,
+        KnownCameraControl::BacklightComp,
+        KnownCameraControl::Gain,
+        KnownCameraControl::Pan,
+        KnownCameraControl::Tilt,
+        KnownCameraControl::Zoom,
+        KnownCameraControl::Exposure,
+        KnownCameraControl::Iris,
+        KnownCameraControl::Focus,
     ]
 }
 
-impl Display for KnownCameraControls {
+impl Display for KnownCameraControl {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", &self)
     }
@@ -718,26 +718,24 @@ impl Display for KnownCameraControls {
     all(feature = "input-msmf", target_os = "windows"),
     all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
 ))]
-impl From<MediaFoundationControls> for KnownCameraControls {
+impl From<MediaFoundationControls> for KnownCameraControl {
     fn from(mf_c: MediaFoundationControls) -> Self {
         match mf_c {
-            MediaFoundationControls::Brightness => KnownCameraControls::Brightness,
-            MediaFoundationControls::Contrast => KnownCameraControls::Contrast,
-            MediaFoundationControls::Hue => KnownCameraControls::Hue,
-            MediaFoundationControls::Saturation => KnownCameraControls::Saturation,
-            MediaFoundationControls::Sharpness => KnownCameraControls::Sharpness,
-            MediaFoundationControls::Gamma => KnownCameraControls::Gamma,
-            MediaFoundationControls::ColorEnable => KnownCameraControls::ColorEnable,
-            MediaFoundationControls::WhiteBalance => KnownCameraControls::WhiteBalance,
-            MediaFoundationControls::BacklightComp => KnownCameraControls::BacklightComp,
-            MediaFoundationControls::Gain => KnownCameraControls::Gain,
-            MediaFoundationControls::Pan => KnownCameraControls::Pan,
-            MediaFoundationControls::Tilt => KnownCameraControls::Tilt,
-            MediaFoundationControls::Roll => KnownCameraControls::Roll,
-            MediaFoundationControls::Zoom => KnownCameraControls::Zoom,
-            MediaFoundationControls::Exposure => KnownCameraControls::Exposure,
-            MediaFoundationControls::Iris => KnownCameraControls::Iris,
-            MediaFoundationControls::Focus => KnownCameraControls::Focus,
+            MediaFoundationControls::Brightness => KnownCameraControl::Brightness,
+            MediaFoundationControls::Contrast => KnownCameraControl::Contrast,
+            MediaFoundationControls::Hue => KnownCameraControl::Hue,
+            MediaFoundationControls::Saturation => KnownCameraControl::Saturation,
+            MediaFoundationControls::Sharpness => KnownCameraControl::Sharpness,
+            MediaFoundationControls::Gamma => KnownCameraControl::Gamma,
+            MediaFoundationControls::WhiteBalance => KnownCameraControl::WhiteBalance,
+            MediaFoundationControls::BacklightComp => KnownCameraControl::BacklightComp,
+            MediaFoundationControls::Gain => KnownCameraControl::Gain,
+            MediaFoundationControls::Pan => KnownCameraControl::Pan,
+            MediaFoundationControls::Tilt => KnownCameraControl::Tilt,
+            MediaFoundationControls::Zoom => KnownCameraControl::Zoom,
+            MediaFoundationControls::Exposure => KnownCameraControl::Exposure,
+            MediaFoundationControls::Iris => KnownCameraControl::Iris,
+            MediaFoundationControls::Focus => KnownCameraControl::Focus,
         }
     }
 }
@@ -746,39 +744,33 @@ impl From<MediaFoundationControls> for KnownCameraControls {
     all(feature = "input-msmf", target_os = "windows"),
     all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
 ))]
-impl From<MFControl> for KnownCameraControls {
+impl From<MFControl> for KnownCameraControl {
     fn from(mf_cc: MFControl) -> Self {
         mf_cc.control().into()
     }
 }
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
-impl TryFrom<Description> for KnownCameraControls {
-    type Error = NokhwaError;
-
-    fn try_from(value: Description) -> Result<Self, Self::Error> {
-        Ok(match value.id {
-            9_963_776 => KnownCameraControls::Brightness,
-            9_963_777 => KnownCameraControls::Contrast,
-            9_963_779 => KnownCameraControls::Hue,
-            9_963_778 => KnownCameraControls::Saturation,
-            9_963_803 => KnownCameraControls::Sharpness,
-            9_963_792 => KnownCameraControls::Gamma,
-            9_963_802 => KnownCameraControls::WhiteBalance,
-            9_963_804 => KnownCameraControls::BacklightComp,
-            9_963_795 => KnownCameraControls::Gain,
-            10_094_852 => KnownCameraControls::Pan,
-            10_094_853 => KnownCameraControls::Tilt,
-            10_094_862 => KnownCameraControls::Zoom,
-            10_094_850 => KnownCameraControls::Exposure,
-            10_094_866 => KnownCameraControls::Iris,
-            10_094_859 => KnownCameraControls::Focus,
-            _ => {
-                return Err(NokhwaError::NotImplementedError(
-                    "Control not implemented!".to_string(),
-                ))
-            }
-        })
+impl From<Description> for KnownCameraControl {
+    fn from(value: Description) -> KnownCameraControl {
+        match value.id {
+            9_963_776 => KnownCameraControl::Brightness,
+            9_963_777 => KnownCameraControl::Contrast,
+            9_963_779 => KnownCameraControl::Hue,
+            9_963_778 => KnownCameraControl::Saturation,
+            9_963_803 => KnownCameraControl::Sharpness,
+            9_963_792 => KnownCameraControl::Gamma,
+            9_963_802 => KnownCameraControl::WhiteBalance,
+            9_963_804 => KnownCameraControl::BacklightComp,
+            9_963_795 => KnownCameraControl::Gain,
+            10_094_852 => KnownCameraControl::Pan,
+            10_094_853 => KnownCameraControl::Tilt,
+            10_094_862 => KnownCameraControl::Zoom,
+            10_094_850 => KnownCameraControl::Exposure,
+            10_094_866 => KnownCameraControl::Iris,
+            10_094_859 => KnownCameraControl::Focus,
+            id => KnownCameraControl::Other(id as u128),
+        }
     }
 }
 
@@ -788,6 +780,11 @@ impl TryFrom<Description> for KnownCameraControls {
 pub enum KnownCameraControlFlag {
     Automatic,
     Manual,
+    ReadOnly,
+    WriteOnly,
+    Volatile,
+    Disabled,
+    Inactive,
 }
 
 impl Display for KnownCameraControlFlag {
@@ -799,7 +796,10 @@ impl Display for KnownCameraControlFlag {
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 // TODO: use in CameraControl
-pub enum ControlValue {
+/// The values for a [`CameraControl`].
+///
+/// This provides a wide range of values that can be used to control a camera.
+pub enum ControlDescription {
     None,
     Integer {
         value: i64,
@@ -807,11 +807,23 @@ pub enum ControlValue {
         step: i64,
     },
     IntegerRange {
-        min: i32,
-        max: i32,
-        value: i32,
-        step: i32,
-        default: i32,
+        min: i64,
+        max: i64,
+        value: i64,
+        step: i64,
+        default: i64,
+    },
+    Float {
+        value: f64,
+        default: f64,
+        step: f64,
+    },
+    FloatRange {
+        min: f64,
+        max: f64,
+        value: f64,
+        step: f64,
+        default: f64,
     },
     Boolean {
         value: bool,
@@ -819,15 +831,108 @@ pub enum ControlValue {
     },
     String {
         value: String,
-        default: String,
+        default: Option<String>,
     },
     Bytes {
         value: Vec<u8>,
         default: Vec<u8>,
+    },
+}
+
+impl ControlDescription {
+    pub(crate) fn value(&self) -> ControlValueSetter {
+        match self {
+            ControlDescription::None => ControlValueSetter::None,
+            ControlDescription::Integer { value, .. } => ControlValueSetter::Integer(*value),
+            ControlDescription::IntegerRange { value, .. } => ControlValueSetter::Integer(*value),
+            ControlDescription::Float { value, .. } => ControlValueSetter::Float(*value),
+            ControlDescription::FloatRange { value, .. } => ControlValueSetter::Float(*value),
+            ControlDescription::Boolean { value, .. } => ControlValueSetter::Boolean(*value),
+            ControlDescription::String { value, .. } => ControlValueSetter::String(value.clone()),
+            ControlDescription::Bytes { value, .. } => ControlValueSetter::Bytes(value.clone()),
+        }
     }
 }
 
-/// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
+impl Display for ControlDescription {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ControlDescription::None => {
+                write!(f, "(None)")
+            }
+            ControlDescription::Integer {
+                value,
+                default,
+                step,
+            } => {
+                write!(
+                    f,
+                    "(Current: {}, Default: {}, Step: {})",
+                    value, default, step
+                )
+            }
+            ControlDescription::IntegerRange {
+                min,
+                max,
+                value,
+                step,
+                default,
+            } => {
+                write!(
+                    f,
+                    "(Current: {}, Default: {}, Step: {}, Range: ({}, {}))",
+                    value, default, step, min, max
+                )
+            }
+            ControlDescription::Float {
+                value,
+                default,
+                step,
+            } => {
+                write!(
+                    f,
+                    "(Current: {}, Default: {}, Step: {})",
+                    value, default, step
+                )
+            }
+            ControlDescription::FloatRange {
+                min,
+                max,
+                value,
+                step,
+                default,
+            } => {
+                write!(
+                    f,
+                    "(Current: {}, Default: {}, Step: {}, Range: ({}, {}))",
+                    value, default, step, min, max
+                )
+            }
+            ControlDescription::Boolean { value, default } => {
+                write!(f, "(Current: {}, Default: {})", value, default)
+            }
+            ControlDescription::String { value, default } => {
+                write!(f, "(Current: {}, Default: {:?})", value, default)
+            }
+            ControlDescription::Bytes { value, default } => {
+                write!(f, "(Current: {:x?}, Default: {:x?})", value, default)
+            }
+        }
+    }
+}
+
+fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
+    if (val - default) % step != 0 {
+        return Err(NokhwaError::StructureError {
+            structure: "Value".to_string(),
+            error: "Doesnt fit step".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// This struct tells you everything about a particular [`KnownCameraControls`].
+///
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
@@ -835,114 +940,48 @@ pub enum ControlValue {
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraControl {
-    control: KnownCameraControls,
-    min: i32,
-    max: i32,
-    value: i32,
-    step: i32,
-    default: i32,
-    flag: KnownCameraControlFlag,
+    control: KnownCameraControl,
+    name: String,
+    value: ControlDescription,
+    flag: Vec<KnownCameraControlFlag>,
     active: bool,
 }
 
 impl CameraControl {
     /// Creates a new [`CameraControl`]
-    /// # Errors
-    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        control: KnownCameraControls,
-        minimum: i32,
-        maximum: i32,
-        value: i32,
-        step: i32,
-        default: i32,
-        flag: KnownCameraControlFlag,
+        control: KnownCameraControl,
+        name: String,
+        value: ControlDescription,
+        flag: Vec<KnownCameraControlFlag>,
         active: bool,
-    ) -> Result<Self, NokhwaError> {
-        if value >= maximum {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too large".to_string(),
-            });
-        }
-        if value <= minimum {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too low".to_string(),
-            });
-        }
-        if value % step != 0 {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Not aligned with step".to_string(),
-            });
-        }
-
-        Ok(CameraControl {
+    ) -> Self {
+        CameraControl {
             control,
-            min: minimum,
-            max: maximum,
+            name,
             value,
-            step,
-            default,
             flag,
             active,
-        })
+        }
     }
 
     /// Gets the [`KnownCameraControls`] of this [`CameraControl`]
     #[must_use]
-    pub fn control(&self) -> KnownCameraControls {
+    pub fn control(&self) -> KnownCameraControl {
         self.control
-    }
-
-    /// Gets the minimum value of this [`CameraControl`]
-    #[must_use]
-    pub fn minimum_value(&self) -> i32 {
-        self.min
-    }
-
-    /// Gets the maximum value of this [`CameraControl`]
-    #[must_use]
-    pub fn maximum_value(&self) -> i32 {
-        self.max
     }
 
     /// Gets the current value of this [`CameraControl`]
     #[must_use]
-    pub fn value(&self) -> i32 {
-        self.value
+    pub fn value(&self) -> &ControlDescription {
+        &self.value
     }
 
     /// Sets the value of this [`CameraControl`]
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    pub fn set_value(&mut self, value: i32) -> Result<(), NokhwaError> {
-        if value >= self.maximum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too large".to_string(),
-            });
-        }
-        if value <= self.minimum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too low".to_string(),
-            });
-        }
-        if value == self.minimum_value() || value == self.maximum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Values not inclusive".to_string(),
-            });
-        }
-        if value % self.step() != 0 {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Not aligned with step".to_string(),
-            });
-        }
+    pub fn set_value(&mut self, value: ControlValue) -> Result<(), NokhwaError> {
+        value.verify_value()?;
 
         self.value = value;
         Ok(())
@@ -951,56 +990,22 @@ impl CameraControl {
     /// Creates a new [`CameraControl`] but with `value`
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    pub fn with_value(self, value: i32) -> Result<Self, NokhwaError> {
-        if value >= self.maximum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too large".to_string(),
-            });
-        }
-        if value <= self.minimum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Value too low".to_string(),
-            });
-        }
-        if value % self.step() != 0 {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Not aligned with step".to_string(),
-            });
-        }
+    pub fn with_value(self, value: ControlValue) -> Result<Self, NokhwaError> {
+        value.verify_value()?;
 
-        Ok(CameraControl {
+        Ok(ControlDescription {
             control: self.control(),
-            min: self.minimum_value(),
-            max: self.maximum_value(),
             value,
-            step: self.step(),
-            default: self.default(),
             flag: self.flag(),
             active: true,
         })
     }
 
-    /// Gets the step value of this [`CameraControl`]
-    /// Note that `value` must be divisible by `step`
-    #[must_use]
-    pub fn step(&self) -> i32 {
-        self.step
-    }
-
-    /// Gets the default value of this [`CameraControl`]
-    #[must_use]
-    pub fn default(&self) -> i32 {
-        self.default
-    }
-
     /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
     /// telling you weather this control is automatically set or manually set.
     #[must_use]
-    pub fn flag(&self) -> KnownCameraControlFlag {
-        self.flag
+    pub fn flag(&self) -> &[KnownCameraControlFlag] {
+        &self.flag
     }
 
     /// Gets `active` of this [`CameraControl`],
@@ -1031,15 +1036,8 @@ impl Display for CameraControl {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Name: {}, Range: ({}~{}), Current: {}, Step: {}, Default: {}, Flag: {}, Active: {}",
-            self.control,
-            self.min,
-            self.max,
-            self.value,
-            self.step,
-            self.default,
-            self.flag,
-            self.active
+            "Control: {}, Name: {}, Value: {}, Flag: {:?}, Active: {}",
+            self.control, self.name, self.value, self.flag, self.active
         )
     }
 }
@@ -1053,6 +1051,43 @@ impl PartialOrd for CameraControl {
 impl Ord for CameraControl {
     fn cmp(&self, other: &Self) -> Ordering {
         self.control().cmp(&other.control())
+    }
+}
+
+/// The setter for a control value
+#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ControlValueSetter {
+    None,
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Bytes(Vec<u8>),
+}
+
+impl Display for ControlValueSetter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ControlValueSetter::None => {
+                write!(f, "Value: None")
+            }
+            ControlValueSetter::Integer(i) => {
+                write!(f, "Value: {}", i)
+            }
+            ControlValueSetter::Float(f) => {
+                write!(f, "Value: {}", f)
+            }
+            ControlValueSetter::Boolean(b) => {
+                write!(f, "Value: {}", b)
+            }
+            ControlValueSetter::String(s) => {
+                write!(f, "Value: {}", s)
+            }
+            ControlValueSetter::Bytes(b) => {
+                write!(f, "Value: {:x?}", b)
+            }
+        }
     }
 }
 
@@ -1072,7 +1107,7 @@ pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
     Video4Linux,
-    UniversalVideoClass,
+    // UniversalVideoClass,
     MediaFoundation,
     OpenCv,
     // GStreamer,
@@ -1359,9 +1394,9 @@ pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;
     let e = v - 128;
-    let r = ((c298 + 409 * e + 128) >> 8).clamp(0, 255) as u8;
-    let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
-    let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
+    let r = ((c298 + 409 * e + 128) >> 8) as u8;
+    let g = ((c298 - 100 * d - 208 * e + 128) >> 8) as u8;
+    let b = ((c298 + 516 * d + 128) >> 8) as u8;
     [r, g, b]
 }
 

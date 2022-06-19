@@ -16,7 +16,7 @@
 
 use crate::{
     buffer::Buffer, pixel_format::PixelFormat, BackendsEnum, CameraControl, CameraFormat,
-    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControls,
+    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControl,
     NokhwaError, Resolution,
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
@@ -231,7 +231,7 @@ impl Camera {
     /// Gets the current supported list of [`KnownCameraControls`]
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         self.backend.supported_camera_controls()
     }
 
@@ -275,14 +275,14 @@ impl Camera {
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn camera_controls_known_camera_controls(
         &self,
-    ) -> Result<HashMap<KnownCameraControls, CameraControl>, NokhwaError> {
+    ) -> Result<HashMap<KnownCameraControl, CameraControl>, NokhwaError> {
         let known_controls = self.supported_camera_controls()?;
         let maybe_camera_controls = known_controls
             .iter()
             .map(|x| (*x, self.camera_control(*x)))
             .filter(|(_, x)| x.is_ok())
             .map(|(c, x)| (c, Result::unwrap(x)))
-            .collect::<Vec<(KnownCameraControls, CameraControl)>>();
+            .collect::<Vec<(KnownCameraControl, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
         for (kc, cc) in maybe_camera_controls.into_iter() {
@@ -298,7 +298,7 @@ impl Camera {
     /// this will error.
     pub fn camera_control(
         &self,
-        control: KnownCameraControls,
+        control: KnownCameraControl,
     ) -> Result<CameraControl, NokhwaError> {
         self.backend.camera_control(control)
     }

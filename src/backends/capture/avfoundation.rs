@@ -16,7 +16,7 @@
 
 use crate::{
     mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+    CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
@@ -182,13 +182,13 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         self.set_camera_format(format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))
     }
 
-    fn camera_control(&self, _: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))

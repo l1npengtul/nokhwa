@@ -18,7 +18,7 @@
 
 use crate::{
     CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControlFlag, KnownCameraControls, NokhwaError, Resolution,
+    KnownCameraControl, KnownCameraControlFlag, NokhwaError, Resolution,
 };
 use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
@@ -329,16 +329,16 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.set_camera_format(current_format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Ok(vec![
-            KnownCameraControls::Exposure,
-            KnownCameraControls::Focus,
+            KnownCameraControl::Exposure,
+            KnownCameraControl::Focus,
         ])
     }
 
-    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         match control {
-            KnownCameraControls::Focus => match self.with_device_handle(|x| x).exposure_rel() {
+            KnownCameraControl::Focus => match self.with_device_handle(|x| x).exposure_rel() {
                 Ok(v) => {
                     let v: i8 = v;
                     match CameraControl::new(

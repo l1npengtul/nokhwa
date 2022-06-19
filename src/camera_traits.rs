@@ -20,11 +20,11 @@ use crate::{
     utils::{
         buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
     },
-    Buffer, CameraControl, CaptureAPIBackend, KnownCameraControls, PixelFormat,
+    Buffer, CameraControl, CaptureAPIBackend, KnownCameraControl, PixelFormat,
 };
 use enum_dispatch::enum_dispatch;
-use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use image::{buffer::ConvertBuffer, ImageBuffer, RgbaImage};
+use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -33,7 +33,7 @@ use wgpu::{
 };
 
 #[enum_dispatch]
-pub(crate) enum BackendsEnum {
+pub enum BackendsEnum {
     MSMF,
     AVF,
     V4L2,
@@ -58,11 +58,12 @@ pub trait CaptureBackendTrait {
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     fn camera_info(&self) -> &CameraInfo;
 
-    /// Gets the current [`CameraFormat`].
-    fn cached_camera_format(&self) -> CameraFormat;
+    /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
+    /// You shouldn't have to call this as it is done for you.
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError>;
 
     /// Gets the current [`CameraFormat`]. This will force refresh to the current latest if it has changed.
-    fn camera_format(&self) -> Result<CameraFormat, NokhwaError>;
+    fn camera_format(&self) -> CameraFormat;
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -105,11 +106,8 @@ pub trait CaptureBackendTrait {
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError)).
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
-    /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
-    fn cached_resolution(&self) -> Resolution;
-
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn resolution(&self) -> Result<Resolution, NokhwaError>;
+    fn resolution(&self) -> Resolution;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -119,11 +117,8 @@ pub trait CaptureBackendTrait {
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
 
-    /// Gets the current camera framerate (See: [`CameraFormat`]).
-    fn cached_frame_rate(&self) -> u32;
-
     /// Gets the current camera framerate (See: [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn frame_rate(&self) -> Result<u32, NokhwaError>;
+    fn frame_rate(&self) -> u32;
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
@@ -133,11 +128,8 @@ pub trait CaptureBackendTrait {
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
-    /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    fn cached_frame_format(&self) -> FrameFormat;
-
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn frame_format(&self) -> Result<FrameFormat, NokhwaError>;
+    fn frame_format(&self) -> FrameFormat;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -147,16 +139,16 @@ pub trait CaptureBackendTrait {
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
 
-    /// Gets the current supported list of [`KnownCameraControls`]
-    /// # Errors
-    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError>;
-
     /// Gets the value of [`KnownCameraControls`].
     /// # Errors
     /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
     /// this will error.
-    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError>;
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError>;
+
+    /// Gets the current supported list of [`KnownCameraControls`]
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError>;
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
@@ -164,34 +156,38 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.
-    fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError>;
-
-    /// Gets the current supported list of Controls as an `Any` from the backend.
-    /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
-    /// # Errors
-    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError>;
-
-    /// Sets the control to `control` in the camera.
-    /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
-    /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
-    /// # Errors
-    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
-    /// this will error.
-    fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError>;
-
-    /// Sets the control to `control` in the camera.
-    /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
-    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
-    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
-    /// # Errors
-    /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
-    /// this will error.
-    fn set_raw_camera_control(
+    fn set_camera_control(
         &mut self,
-        control: &dyn Any,
-        value: &dyn Any,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
     ) -> Result<(), NokhwaError>;
+
+    // /// Gets the current supported list of Controls as an `Any` from the backend.
+    // /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
+    // /// # Errors
+    // /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    // fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError>;
+    //
+    // /// Sets the control to `control` in the camera.
+    // /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
+    // /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
+    // /// # Errors
+    // /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
+    // /// this will error.
+    // fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError>;
+    //
+    // /// Sets the control to `control` in the camera.
+    // /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
+    // /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    // /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    // /// # Errors
+    // /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
+    // /// this will error.
+    // fn set_raw_camera_control(
+    //     &mut self,
+    //     control: &dyn Any,
+    //     value: &dyn Any,
+    // ) -> Result<(), NokhwaError>;
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
@@ -244,6 +240,7 @@ pub trait CaptureBackendTrait {
         buffer: &mut [u8],
         write_alpha: bool,
     ) -> Result<usize, NokhwaError> {
+        // FIXME: ??????
         let cfmt = self.camera_format()?;
         let frame = self.frame_raw()?;
         let data = match cfmt.format() {
@@ -259,7 +256,7 @@ pub trait CaptureBackendTrait {
                     frame
                 };
 
-                buffer.copy_from_slice(&data);
+                buffer.copy_from_slice(&data)
             }
         };
         Ok(frame.len())

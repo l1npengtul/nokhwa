@@ -16,8 +16,8 @@
 
 use crate::{
     all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat,
-    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControlFlag,
-    KnownCameraControls, NokhwaError, Resolution,
+    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControl,
+    KnownCameraControlFlag, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
@@ -179,28 +179,28 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         self.set_camera_format(new_format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
-        let mut supported_camera_controls: Vec<KnownCameraControls> = vec![];
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
+        let mut supported_camera_controls: Vec<KnownCameraControl> = vec![];
 
         for camera_control in all_known_camera_controls() {
             let msmf_camera_control: MediaFoundationControls = match camera_control {
-                KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
-                KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
-                KnownCameraControls::Hue => MediaFoundationControls::Hue,
-                KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
-                KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
-                KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
-                KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
-                KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
-                KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
-                KnownCameraControls::Gain => MediaFoundationControls::Gain,
-                KnownCameraControls::Pan => MediaFoundationControls::Pan,
-                KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
-                KnownCameraControls::Roll => MediaFoundationControls::Roll,
-                KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
-                KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
-                KnownCameraControls::Iris => MediaFoundationControls::Iris,
-                KnownCameraControls::Focus => MediaFoundationControls::Focus,
+                KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
+                KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
+                KnownCameraControl::Hue => MediaFoundationControls::Hue,
+                KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
+                KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
+                KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
+                KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
+                KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
+                KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
+                KnownCameraControl::Gain => MediaFoundationControls::Gain,
+                KnownCameraControl::Pan => MediaFoundationControls::Pan,
+                KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
+                KnownCameraControl::Roll => MediaFoundationControls::Roll,
+                KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
+                KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
+                KnownCameraControl::Iris => MediaFoundationControls::Iris,
+                KnownCameraControl::Focus => MediaFoundationControls::Focus,
             };
 
             if let Ok(supported) = self.inner.control(msmf_camera_control) {
@@ -211,25 +211,25 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         Ok(supported_camera_controls)
     }
 
-    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         let msmf_camera_control: MediaFoundationControls = match control {
-            KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
-            KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
-            KnownCameraControls::Hue => MediaFoundationControls::Hue,
-            KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
-            KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
-            KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
-            KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
-            KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
-            KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
-            KnownCameraControls::Gain => MediaFoundationControls::Gain,
-            KnownCameraControls::Pan => MediaFoundationControls::Pan,
-            KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
-            KnownCameraControls::Roll => MediaFoundationControls::Roll,
-            KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
-            KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
-            KnownCameraControls::Iris => MediaFoundationControls::Iris,
-            KnownCameraControls::Focus => MediaFoundationControls::Focus,
+            KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
+            KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
+            KnownCameraControl::Hue => MediaFoundationControls::Hue,
+            KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
+            KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
+            KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
+            KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
+            KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
+            KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
+            KnownCameraControl::Gain => MediaFoundationControls::Gain,
+            KnownCameraControl::Pan => MediaFoundationControls::Pan,
+            KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
+            KnownCameraControl::Roll => MediaFoundationControls::Roll,
+            KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
+            KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
+            KnownCameraControl::Iris => MediaFoundationControls::Iris,
+            KnownCameraControl::Focus => MediaFoundationControls::Focus,
         };
 
         let ctrl = match self.inner.control(msmf_camera_control) {
@@ -260,23 +260,23 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
 
     fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
         let ctrl = match control.control() {
-            KnownCameraControls::Brightness => MediaFoundationControls::Brightness,
-            KnownCameraControls::Contrast => MediaFoundationControls::Contrast,
-            KnownCameraControls::Hue => MediaFoundationControls::Hue,
-            KnownCameraControls::Saturation => MediaFoundationControls::Saturation,
-            KnownCameraControls::Sharpness => MediaFoundationControls::Sharpness,
-            KnownCameraControls::Gamma => MediaFoundationControls::Gamma,
-            KnownCameraControls::ColorEnable => MediaFoundationControls::ColorEnable,
-            KnownCameraControls::WhiteBalance => MediaFoundationControls::WhiteBalance,
-            KnownCameraControls::BacklightComp => MediaFoundationControls::BacklightComp,
-            KnownCameraControls::Gain => MediaFoundationControls::Gain,
-            KnownCameraControls::Pan => MediaFoundationControls::Pan,
-            KnownCameraControls::Tilt => MediaFoundationControls::Tilt,
-            KnownCameraControls::Roll => MediaFoundationControls::Roll,
-            KnownCameraControls::Zoom => MediaFoundationControls::Zoom,
-            KnownCameraControls::Exposure => MediaFoundationControls::Exposure,
-            KnownCameraControls::Iris => MediaFoundationControls::Iris,
-            KnownCameraControls::Focus => MediaFoundationControls::Focus,
+            KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
+            KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
+            KnownCameraControl::Hue => MediaFoundationControls::Hue,
+            KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
+            KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
+            KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
+            KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
+            KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
+            KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
+            KnownCameraControl::Gain => MediaFoundationControls::Gain,
+            KnownCameraControl::Pan => MediaFoundationControls::Pan,
+            KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
+            KnownCameraControl::Roll => MediaFoundationControls::Roll,
+            KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
+            KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
+            KnownCameraControl::Iris => MediaFoundationControls::Iris,
+            KnownCameraControl::Focus => MediaFoundationControls::Focus,
         };
 
         let flag = match control.flag() {

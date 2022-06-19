@@ -15,8 +15,8 @@
  */
 
 use crate::{
-    Camera, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
-    FrameFormat, KnownCameraControls, NokhwaError, Resolution, Buffer
+    Buffer, Camera, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::Mutex;
@@ -32,14 +32,11 @@ use std::{
 type AtomicLock<T> = Arc<Mutex<T>>;
 pub type CallbackFn = fn(
     _camera: &Arc<Mutex<Camera>>,
-    _frame_callback: &Arc<
-        Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>,
-    >,
+    _frame_callback: &Arc<Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>>,
     _last_frame_captured: &Arc<Mutex<Buffer>>,
     _die_bool: &Arc<AtomicBool>,
 );
-type HeldCallbackType =
-    Arc<Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>>;
+type HeldCallbackType = Arc<Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>>;
 
 /// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
 /// It uses a `Arc` and a `Mutex` to ensure that this feels like a normal camera, but callback based.
@@ -201,7 +198,8 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() = Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
+        *self.last_frame_captured.lock() =
+            Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
         self.camera.lock().set_camera_format(new_fmt)
     }
 
@@ -233,7 +231,8 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() = Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
+        *self.last_frame_captured.lock() =
+            Buffer::new(new_res, Vec::default(), self.camera_format()?.format());
         self.camera.lock().set_resolution(new_res)
     }
 
@@ -268,7 +267,7 @@ impl CallbackCamera {
     /// Gets the current supported list of [`KnownCameraControls`]
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         self.camera.lock().supported_camera_controls()
     }
 
@@ -312,14 +311,14 @@ impl CallbackCamera {
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn camera_controls_known_camera_controls(
         &self,
-    ) -> Result<HashMap<KnownCameraControls, CameraControl>, NokhwaError> {
+    ) -> Result<HashMap<KnownCameraControl, CameraControl>, NokhwaError> {
         let known_controls = self.supported_camera_controls()?;
         let maybe_camera_controls = known_controls
             .iter()
             .map(|x| (*x, self.camera_control(*x)))
             .filter(|(_, x)| x.is_ok())
             .map(|(c, x)| (c, Result::unwrap(x)))
-            .collect::<Vec<(KnownCameraControls, CameraControl)>>();
+            .collect::<Vec<(KnownCameraControl, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
         for (kc, cc) in maybe_camera_controls {
@@ -335,7 +334,7 @@ impl CallbackCamera {
     /// this will error.
     pub fn camera_control(
         &self,
-        control: KnownCameraControls,
+        control: KnownCameraControl,
     ) -> Result<CameraControl, NokhwaError> {
         self.camera.lock().camera_control(control)
     }
@@ -391,10 +390,7 @@ impl CallbackCamera {
     where
         F: (FnMut(Buffer)) + Send + 'static,
     {
-        *self.frame_callback.lock() =
-            Some(Box::new(move |image: Buffer| {
-                callback(image)
-            }));
+        *self.frame_callback.lock() = Some(Box::new(move |image: Buffer| callback(image)));
         self.camera.lock().open_stream()
     }
 
@@ -403,10 +399,7 @@ impl CallbackCamera {
     where
         F: (FnMut(Buffer)) + Send + 'static,
     {
-        *self.frame_callback.lock() =
-            Some(Box::new(move |image: Buffer| {
-                callback(image)
-            }));
+        *self.frame_callback.lock() = Some(Box::new(move |image: Buffer| callback(image)));
     }
 
     /// Polls the camera for a frame, analogous to [`Camera::frame`](crate::Camera::frame)

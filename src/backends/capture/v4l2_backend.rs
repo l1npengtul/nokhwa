@@ -15,153 +15,74 @@
  */
 
 use crate::{
+    buffer::Buffer,
     error::NokhwaError,
     mjpeg_to_rgb,
+    pixel_format::PixelFormat,
     utils::{CameraFormat, CameraInfo},
-    yuyv422_to_rgb, CameraControl, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControlFlag, KnownCameraControls, Resolution,
+    yuyv422_to_rgb, CameraControl, CaptureAPIBackend, CaptureBackendTrait, ControlDescription,
+    ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
 };
-use image::{ImageBuffer, Rgb};
-use std::{borrow::Cow, collections::HashMap};
+use image::ImageBuffer;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    io::{self, ErrorKind},
+};
 use v4l::{
     buffer::Type,
+    control::{Control, Description, Flags, Value},
     frameinterval::FrameIntervalEnum,
     framesize::FrameSizeEnum,
     io::traits::CaptureStream,
+    prelude::MmapStream,
     video::{capture::Parameters, Capture},
-    Format, FourCC,
-    Device,
+    Device, Format, FourCC,
 };
-
-use crate::pixel_format::PixelFormat;
-use std::any::Any;
-pub use v4l::control::{Control, Description, Flags};
-use v4l::prelude::MmapStream;
-use v4l::video::Output;
-use crate::buffer::Buffer;
-
-/// Generates a camera control from a device and a description of control
-/// # Error
-/// If the control is not supported, the value is invalid or string, or the control is write only/the control cannot be read from,
-/// this will error.
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_lossless)]
-pub fn to_camera_control(
-    device: &Device,
-    value: &Description,
-) -> Result<CameraControl, NokhwaError> {
-    // make sure flags is valid
-    if value.flags.contains(Flags::from(0x0040)) {
-        return Err(NokhwaError::NotImplementedError(
-            "Control Write Only!".to_string(),
-        ));
-    }
-
-    let control: KnownCameraControls = match try_id_to_known_camera_control(value.id) {
-        Some(kcc) => kcc,
-        None => {
-            return Err(NokhwaError::StructureError {
-                structure: "KnownCameraControl".to_string(),
-                error: "Unsupported V4L2 ID".to_string(),
-            })
-        }
-    };
-
-    // value
-    let current_value = match device.control(value.id) {
-        Ok(val) => match val {
-            Control::Value(v) => v,
-            Control::Value64(v64) => {
-                if v64 <= i32::MAX as i64 {
-                    v64 as i32
-                } else {
-                    return Err(NokhwaError::GetPropertyError {
-                        property: format!("Control V4L2ID: {}", value.id),
-                        error: "Too large!".to_string(),
-                    });
-                }
-            }
-            Control::String(_) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: format!("Control V4L2ID: {}", value.id),
-                    error: "Unsupported Type String".to_string(),
-                })
-            }
-        },
-        Err(why) => {
-            return Err(NokhwaError::GetPropertyError {
-                property: format!("Control V4L2ID: {}", value.id),
-                error: why.to_string(),
-            })
-        }
-    };
-
-    let active =
-        value.flags.contains(Flags::from(0x0001)) || value.flags.contains(Flags::from(0x0010));
-
-    CameraControl::new(
-        control,
-        value.minimum,
-        value.maximum,
-        current_value,
-        value.step,
-        value.default,
-        KnownCameraControlFlag::Manual,
-        active,
-    )
-}
 
 /// Attempts to convert a [`KnownCameraControls`] into a V4L2 Control ID.
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
-pub fn try_known_camera_control_to_id(ctrl: KnownCameraControls) -> Option<u32> {
+pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
     match ctrl {
-        KnownCameraControls::Brightness => Some(9_963_776),
-        KnownCameraControls::Contrast => Some(9_963_777),
-        KnownCameraControls::Hue => Some(9_963_779),
-        KnownCameraControls::Saturation => Some(9_963_778),
-        KnownCameraControls::Sharpness => Some(9_963_803),
-        KnownCameraControls::Gamma => Some(9_963_792),
-        KnownCameraControls::WhiteBalance => Some(9_963_802),
-        KnownCameraControls::BacklightComp => Some(9_963_804),
-        KnownCameraControls::Gain => Some(9_963_795),
-        KnownCameraControls::Pan => Some(10_094_852),
-        KnownCameraControls::Tilt => Some(100_948_530),
-        KnownCameraControls::Zoom => Some(10_094_862),
-        KnownCameraControls::Exposure => Some(10_094_850),
-        KnownCameraControls::Iris => Some(10_094_866),
-        KnownCameraControls::Focus => Some(10_094_859),
-        _ => None,
+        KnownCameraControl::Brightness => 9_963_776,
+        KnownCameraControl::Contrast => 9_963_777,
+        KnownCameraControl::Hue => 9_963_779,
+        KnownCameraControl::Saturation => 9_963_778,
+        KnownCameraControl::Sharpness => 9_963_803,
+        KnownCameraControl::Gamma => 9_963_792,
+        KnownCameraControl::WhiteBalance => 9_963_802,
+        KnownCameraControl::BacklightComp => 9_963_804,
+        KnownCameraControl::Gain => 9_963_795,
+        KnownCameraControl::Pan => 10_094_852,
+        KnownCameraControl::Tilt => 100_948_530,
+        KnownCameraControl::Zoom => 10_094_862,
+        KnownCameraControl::Exposure => 10_094_850,
+        KnownCameraControl::Iris => 10_094_866,
+        KnownCameraControl::Focus => 10_094_859,
+        KnownCameraControl::Other(id) => id as u32,
     }
 }
 
 /// Attempts to convert a [`u32`] V4L2 Control ID into a [`KnownCameraControls`]
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
-pub fn try_id_to_known_camera_control(id: u32) -> Option<KnownCameraControls> {
+pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
     match id {
-        9_963_776 => Some(KnownCameraControls::Brightness),
-        9_963_777 => Some(KnownCameraControls::Contrast),
-        9_963_779 => Some(KnownCameraControls::Hue),
-        9_963_778 => Some(KnownCameraControls::Saturation),
-        9_963_803 => Some(KnownCameraControls::Sharpness),
-        9_963_792 => Some(KnownCameraControls::Gamma),
-        9_963_802 => Some(KnownCameraControls::WhiteBalance),
-        9_963_804 => Some(KnownCameraControls::BacklightComp),
-        9_963_795 => Some(KnownCameraControls::Gain),
-        10_094_852 => Some(KnownCameraControls::Pan),
-        100_948_530 => Some(KnownCameraControls::Tilt),
-        10_094_862 => Some(KnownCameraControls::Zoom),
-        10_094_850 => Some(KnownCameraControls::Exposure),
-        10_094_866 => Some(KnownCameraControls::Iris),
-        10_094_859 => Some(KnownCameraControls::Focus),
-        _ => None,
-    }
-}
-
-fn clone_control(ctrl: &Control) -> Control {
-    match ctrl {
-        Control::Value(v) => Control::Value(*v),
-        Control::Value64(v) => Control::Value64(*v),
-        Control::String(v) => Control::String(v.clone()),
+        9_963_776 => KnownCameraControl::Brightness,
+        9_963_777 => KnownCameraControl::Contrast,
+        9_963_779 => KnownCameraControl::Hue,
+        9_963_778 => KnownCameraControl::Saturation,
+        9_963_803 => KnownCameraControl::Sharpness,
+        9_963_792 => KnownCameraControl::Gamma,
+        9_963_802 => KnownCameraControl::WhiteBalance,
+        9_963_804 => KnownCameraControl::BacklightComp,
+        9_963_795 => KnownCameraControl::Gain,
+        10_094_852 => KnownCameraControl::Pan,
+        100_948_530 => KnownCameraControl::Tilt,
+        10_094_862 => KnownCameraControl::Zoom,
+        10_094_850 => KnownCameraControl::Exposure,
+        10_094_866 => KnownCameraControl::Iris,
+        10_094_859 => KnownCameraControl::Focus,
+        id => KnownCameraControl::Other(id as u128),
     }
 }
 
@@ -344,12 +265,10 @@ impl<'a> V4LCaptureDevice<'a> {
                 );
                 Ok(())
             }
-            (_, _) => {
-                Err(NokhwaError::GetPropertyError {
-                    property: "parameters".to_string(),
-                    error: why.to_string(),
-                })
-            }
+            (_, _) => Err(NokhwaError::GetPropertyError {
+                property: "parameters".to_string(),
+                error: why.to_string(),
+            }),
         }
     }
 }
@@ -359,11 +278,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let camera_format = self.camera_format;
         let compatible = self.compatible_camera_formats()?;
         if compatible.len() == 0 {
-            return Err(NokhwaError::InitializeError { backend: self.backend(), error: "Could not find any compatible camera formats!".to_string() })
+            return Err(NokhwaError::InitializeError {
+                backend: self.backend(),
+                error: "Could not find any compatible camera formats!".to_string(),
+            });
         }
         if compatible.contains(&camera_format) {
             self.initialized = true;
-            return Ok(camera_format)
+            return Ok(camera_format);
         } else {
             self.initialized = true;
             let new_fmt = compatible[0];
@@ -378,6 +300,10 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
 
     fn camera_info(&self) -> &CameraInfo {
         &self.camera_info
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        self.force_refresh_camera_format()
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -447,6 +373,16 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             };
         }
         self.camera_format = new_fmt;
+
+        self.force_refresh_camera_format()?;
+        if self.camera_format != new_fmt {
+            return Err(NokhwaError::SetPropertyError {
+                property: "CameraFormat".to_string(),
+                value: new_fmt.to_string(),
+                error: "Rejected".to_string(),
+            });
+        }
+
         Ok(())
     }
 
@@ -550,173 +486,153 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         self.set_camera_format(new_fmt)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
-        let v4l2_controls = match self.device.query_controls() {
-            Ok(controls) => controls,
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "Controls".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        let mut camera_controls = vec![];
-        for ctrl in v4l2_controls {
-            if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
-                camera_controls.push(cam_control.control());
-            }
-        }
-        Ok(camera_controls)
-    }
-
-    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
-        let id = match try_known_camera_control_to_id(control) {
-            Some(id) => id,
-            None => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "KnownCameraControls V4L2ID".to_string(),
-                    error: "Invalid".to_string(),
-                })
-            }
-        };
-
-        match self.device.control(id) {
-            Ok(_) => {
-                let v4l2_controls = match self.device.query_controls() {
-                    Ok(controls) => controls,
-                    Err(why) => {
-                        return Err(NokhwaError::GetPropertyError {
-                            property: "Controls".to_string(),
-                            error: why.to_string(),
-                        })
-                    }
-                };
-
-                for ctrl in v4l2_controls {
-                    if ctrl.id != id {
-                        continue;
-                    }
-
-                    if let Ok(cam_control) = to_camera_control(&self.device, &ctrl) {
-                        if Some(ctrl.id) == try_known_camera_control_to_id(cam_control.control()) {
-                            return Ok(cam_control);
-                        }
-                    }
-                }
-            }
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "Camera Control".to_string(),
-                    error: why.to_string(),
-                })
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        let controls = self.camera_controls()?;
+        for supported_control in controls {
+            if supported_control.control() == control {
+                return Ok(supported_control);
             }
         }
         Err(NokhwaError::GetPropertyError {
-            property: "Camera Control".to_string(),
-            error: "Not Found".to_string(),
+            property: control.to_string(),
+            error: "not found/not supported".to_string(),
         })
     }
 
-    fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
-        let id = match try_known_camera_control_to_id(control.control()) {
-            Some(id) => id,
-            None => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "KnownCameraControls V4L2ID".to_string(),
-                    error: "Invalid".to_string(),
-                })
-            }
-        };
-
-        if let Err(why) = self.device.set_control(Control { id, value: Value }) {
-            return Err(NokhwaError::SetPropertyError {
-                property: format!("{} V4L2ID {}", control.control(), id),
-                value: control.value().to_string(),
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        self.device
+            .query_controls()
+            .map_err(|why| NokhwaError::GetPropertyError {
+                property: "V4L2 Controls".to_string(),
                 error: why.to_string(),
-            });
-        }
-        Ok(())
-    }
-
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        let v4l2_controls = match self.device.query_controls() {
-            Ok(controls) => controls,
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: "Controls".to_string(),
-                    error: why.to_string(),
-                })
-            }
-        };
-
-        Ok(v4l2_controls
+            })?
             .into_iter()
-            .map(|c| {
-                let a: Box<dyn Any> = Box::new(c);
-                a
+            .map(|desc| {
+                let id_as_kcc = id_to_known_camera_control(desc.id);
+                let ctrl_current = self.device.control(desc.id)?.value;
+
+                let ctrl_value_desc = match (desc.typ, ctrl_current) {
+                    (
+                        Type::Integer
+                        | Type::Integer64
+                        | Type::Menu
+                        | Type::U8
+                        | Type::U16
+                        | Type::U32
+                        | Type::IntegerMenu,
+                        Value::Integer(current),
+                    ) => ControlDescription::IntegerRange {
+                        min: desc.minimum as i64,
+                        max: desc.maximum,
+                        value: current,
+                        step: desc.step as i64,
+                        default: desc.default,
+                    },
+                    (Type::Boolean, Value::Boolean(current)) => ControlDescription::Boolean {
+                        value: current,
+                        default: desc.default != 0,
+                    },
+
+                    (Type::String, Value::String(current)) => ControlDescription::String {
+                        value: current,
+                        default: None,
+                    },
+                    _ => {
+                        return Err(io::Error::new(
+                            ErrorKind::Unsupported,
+                            "what is this?????? todo: support ig",
+                        ))
+                    }
+                };
+
+                let is_readonly = desc
+                    .flags
+                    .intersects(Flags::READ_ONLY)
+                    .then(|| KnownCameraControlFlag::ReadOnly);
+                let is_writeonly = desc
+                    .flags
+                    .intersects(Flags::WRITE_ONLY)
+                    .then(|| KnownCameraControlFlag::WriteOnly);
+                let is_disabled = desc
+                    .flags
+                    .intersects(Flags::DISABLED)
+                    .then(|| KnownCameraControlFlag::Disabled);
+                let is_volatile = desc
+                    .flags
+                    .intersects(Flags::VOLATILE)
+                    .then(|| KnownCameraControlFlag::Volatile);
+                let is_inactive = desc
+                    .flags
+                    .intersects(Flags::INACTIVE)
+                    .then(|| KnownCameraControlFlag::Inactive);
+                let flags_vec = vec![
+                    is_inactive,
+                    is_readonly,
+                    is_volatile,
+                    is_disabled,
+                    is_writeonly,
+                ]
+                .into_iter()
+                .filter(|x| x.is_some())
+                .collect::<Option<Vec<KnownCameraControlFlag>>>()
+                .unwrap_or_default();
+
+                Ok(CameraControl::new(
+                    id_as_kcc,
+                    desc.name,
+                    ctrl_value_desc,
+                    flags_vec,
+                    !desc.flags.intersects(Flags::INACTIVE),
+                ))
             })
-            .collect())
+            .filter(|x| x.is_ok())
+            .collect::<Result<Vec<CameraControl>, io::Error>>()
+            .map_err(|x| NokhwaError::GetPropertyError {
+                property: "www".to_string(),
+                error: x.to_string(),
+            })
     }
 
-    fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        let id = match control.downcast_ref::<u32>() {
-            Some(id) => *id,
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "V4L2 ID".to_string(),
-                    error: "Failed Any Cast".to_string(),
-                })
-            }
-        };
-
-        match self.device.control(id) {
-            Ok(v) => Ok(Box::new(v)),
-            Err(why) => Err(NokhwaError::GetPropertyError {
-                property: "Control V4L2".to_string(),
-                error: why.to_string(),
-            }),
-        }
-    }
-
-    fn set_raw_camera_control(
+    fn set_camera_control(
         &mut self,
-        control: &dyn Any,
-        value: &dyn Any,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        let id = match control.downcast_ref::<u32>() {
-            Some(id) => *id,
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "V4L2 ID".to_string(),
-                    error: "Failed Any Cast".to_string(),
+        let value = match value {
+            ControlValueSetter::None => Value::None,
+            ControlValueSetter::Integer(i) => Value::Integer(i),
+            ControlValueSetter::Float(f) => {
+                return Err(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: f.to_string(),
+                    error: "not supported".to_string(),
                 })
             }
+            ControlValueSetter::Boolean(b) => Value::Boolean(b),
+            ControlValueSetter::String(s) => Value::String(s),
+            ControlValueSetter::Bytes(b) => Value::CompoundU8(b),
         };
-
-        let value = match value.downcast_ref::<Control>() {
-            Some(v) => match v {
-                Control::Value(v) => Control::Value(*v),
-                Control::Value64(v64) => Control::Value64(*v64),
-                Control::String(s) => Control::String(s.clone()),
-            },
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "V4L2 Control Value".to_string(),
-                    error: "Failed Any Cast".to_string(),
-                })
-            }
-        };
-
-        if let Err(why) = self.device.set_control(id, clone_control(&value)) {
-            return Err(NokhwaError::SetPropertyError {
-                property: format!("V4L2 Control ID {}", id),
-                value: format!("{:?}", value),
+        self.device
+            .set_control(Control {
+                id: known_camera_control_to_id(id),
+                value,
+            })
+            .map_err(|why| NokhwaError::SetPropertyError {
+                property: id.to_string(),
+                value: value.to_string(),
                 error: why.to_string(),
-            });
-        }
+            })?;
+        // verify
 
-        Ok(())
+        let control = self.camera_control(id)?;
+        if control.value().value() == value {
+            return Ok(());
+        }
+        return Err(NokhwaError::SetPropertyError {
+            property: id.to_string(),
+            value: value.to_string(),
+            error: "Rejected".to_string(),
+        });
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -743,7 +659,9 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(Buffer::new(cam_fmt.resolution(), conv, cam_fmt.format()))
     }
 
-    fn frame_typed<F: PixelFormat>(&mut self) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
+    fn frame_typed<F: PixelFormat>(
+        &mut self,
+    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
         self.frame()?.to_image_with_custom_format::<F>()
     }
 

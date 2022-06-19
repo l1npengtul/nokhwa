@@ -17,7 +17,7 @@
 use crate::pixel_format::PixelFormat;
 use crate::{
     CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControls, NokhwaError, Resolution,
+    KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use opencv::{
@@ -417,13 +417,13 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.set_camera_format(current_fmt)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
             CaptureAPIBackend::UniversalVideoClass,
         ))
     }
 
-    fn camera_control(&self, _control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
             CaptureAPIBackend::UniversalVideoClass,
         ))

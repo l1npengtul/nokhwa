@@ -2,7 +2,7 @@ use crate::{
     js_camera::JSCameraResizeMode,
     js_camera::{query_js_cameras, JSCameraConstraintsBuilder},
     CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
-    FrameFormat, JSCamera, KnownCameraControls, NokhwaError, Resolution,
+    FrameFormat, JSCamera, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use std::{any::Any, borrow::Cow, collections::HashMap};
@@ -206,11 +206,11 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
         Ok(())
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Ok(vec![])
     }
 
-    fn camera_control(&self, _: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))
