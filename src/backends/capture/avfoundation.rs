@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-use crate::{mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution, PixelFormat, ControlValueSetter};
+use crate::{
+    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    CaptureBackendTrait, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError,
+    PixelFormat, Resolution,
+};
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
@@ -259,7 +263,9 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         Ok(image_buf)
     }
 
-    fn frame_typed<F: PixelFormat>(&mut self) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
+    fn frame_typed<F: PixelFormat>(
+        &mut self,
+    ) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
         todo!()
     }
 
