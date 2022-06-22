@@ -20,7 +20,7 @@ use crate::{
     utils::{
         buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
     },
-    Buffer, CameraControl, CaptureAPIBackend, KnownCameraControl, PixelFormat,
+    Buffer, CameraControl, CaptureAPIBackend, ControlValueSetter, KnownCameraControl, PixelFormat,
 };
 use enum_dispatch::enum_dispatch;
 use image::{buffer::ConvertBuffer, ImageBuffer, RgbaImage};
@@ -82,23 +82,20 @@ pub trait CaptureBackendTrait {
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
     fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
-        let mut compatible_formats = vec![];
-        frame_formats().map(|ff| {
-            if let Ok(mut fmts) = self.compatible_list_by_resolution(ff).map(|compatible| {
-                compatible
+        let compatible_formats = self
+            .compatible_fourcc()?
+            .into_iter()
+            .map(|ffmt| {
+                self.compatible_list_by_resolution(ffmt)?
                     .into_iter()
-                    .map(|(res, fps)| {
-                        fps.into_iter().map(|rate| CameraFormat {
-                            resolution: res,
-                            format: ff,
-                            frame_rate: rate,
-                        })
+                    .map(|(resolution, fpses)| {
+                        fpses
+                            .into_iter()
+                            .map(|fps| CameraFormat::new(resolution, ffmt, fps))
                     })
-                    .collect::<Vec<CameraFormat>>()
-            }) {
-                compatible_formats.append(&mut fmts)
-            }
-        })
+            })
+            .collect::<Vec<CameraFormat>>();
+        Ok(compatible_formats)
     }
 
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
@@ -227,9 +224,9 @@ pub trait CaptureBackendTrait {
             FrameFormat::GRAY8 => 1,
         };
         if alpha {
-            return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;
+            return Ok((resolution.width() * resolution.height() * (pxwidth + 1)) as usize);
         }
-        (resolution.width() * resolution.height() * pxwidth) as usize
+        Ok((resolution.width() * resolution.height() * pxwidth) as usize)
     }
 
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
@@ -243,9 +240,9 @@ pub trait CaptureBackendTrait {
         // FIXME: ??????
         let cfmt = self.camera_format()?;
         let frame = self.frame_raw()?;
-        let data = match cfmt.format() {
-            FrameFormat::MJPEG => buf_mjpeg_to_rgb(&frame, buffer, write_alpha),
-            FrameFormat::YUYV => buf_yuyv422_to_rgb(&frame, buffer, write_alpha),
+        match cfmt.format() {
+            FrameFormat::MJPEG => buf_mjpeg_to_rgb(&frame, buffer, write_alpha)?,
+            FrameFormat::YUYV => buf_yuyv422_to_rgb(&frame, buffer, write_alpha)?,
             FrameFormat::GRAY8 => {
                 let data = if write_alpha {
                     frame

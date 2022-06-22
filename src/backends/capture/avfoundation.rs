@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
-};
+use crate::{mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution, PixelFormat, ControlValueSetter};
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
@@ -97,12 +94,20 @@ impl AVFoundationCaptureDevice {
 }
 
 impl CaptureBackendTrait for AVFoundationCaptureDevice {
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
+        todo!()
+    }
+
     fn backend(&self) -> CaptureAPIBackend {
         CaptureAPIBackend::AVFoundation
     }
 
     fn camera_info(&self) -> &CameraInfo {
         &self.info
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        todo!()
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -182,37 +187,23 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         self.set_camera_format(format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
     fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))
     }
 
-    fn set_camera_control(&mut self, _: CameraControl) -> Result<(), NokhwaError> {
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))
     }
 
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn raw_camera_control(&self, _: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn set_raw_camera_control(&mut self, _: &dyn Any, _: &dyn Any) -> Result<(), NokhwaError> {
+    fn set_camera_control(
+        &mut self,
+        _: KnownCameraControl,
+        _: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(
             "Not Implemented".to_string(),
         ))
@@ -268,6 +259,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         Ok(image_buf)
     }
 
+    fn frame_typed<F: PixelFormat>(&mut self) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
+        todo!()
+    }
+
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         match &self.session {
             Some(session) => {
@@ -295,6 +290,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
                 let data = match data.1 {
                     AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb(data.0.borrow(), false)),
                     AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb(data.0.borrow(), false)),
+                    AVFourCC::GRAY8 => {}
                 };
                 Ok(data)
             }
