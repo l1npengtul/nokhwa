@@ -13,15 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#![cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "AVFoundation", kind = "framework")
-)]
-#![cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "CoreMedia", kind = "framework")
-)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -60,14 +51,6 @@ pub enum AVFError {
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-#[cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "CoreMedia", kind = "framework")
-)]
-#[cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "AVFoundation", kind = "framework")
-)]
 #[allow(non_snake_case)]
 pub mod core_media {
     // all of this is stolen from bindgen
@@ -115,20 +98,8 @@ pub mod core_media {
 
     pub type AVMediaType = NSString;
 
-    extern "C" {
-        pub static AVMediaTypeVideo: AVMediaType;
-        pub static AVMediaTypeAudio: AVMediaType;
-        pub static AVMediaTypeText: AVMediaType;
-        pub static AVMediaTypeClosedCaption: AVMediaType;
-        pub static AVMediaTypeSubtitle: AVMediaType;
-        pub static AVMediaTypeTimecode: AVMediaType;
-        pub static AVMediaTypeMetadata: AVMediaType;
-        pub static AVMediaTypeMuxed: AVMediaType;
-        pub static AVMediaTypeMetadataObject: AVMediaType;
-        pub static AVMediaTypeDepthData: AVMediaType;
-    }
-
     #[allow(non_snake_case)]
+    #[link(name = "CoreMedia", kind = "framework")]
     extern "C" {
         pub fn CMVideoFormatDescriptionGetDimensions(
             videoDesc: CMFormatDescriptionRef,
@@ -146,38 +117,16 @@ pub mod core_media {
         ) -> std::os::raw::c_int;
 
         pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
-    }
 
-    extern "C" {
         pub fn dispatch_queue_create(
             label: *const ::std::os::raw::c_char,
             attr: NSObject,
         ) -> NSObject;
-    }
 
-    extern "C" {
         pub fn dispatch_release(object: NSObject);
-    }
 
-    #[repr(C)]
-    #[derive(Debug, Copy, Clone)]
-    pub struct __CVBuffer {
-        _unused: [u8; 0],
-    }
-    pub type CVBufferRef = *mut __CVBuffer;
-
-    #[allow(non_snake_case)]
-    extern "C" {
         pub fn CMSampleBufferGetImageBuffer(sbuf: CMSampleBufferRef) -> CVImageBufferRef;
-    }
 
-    pub type CVImageBufferRef = CVBufferRef;
-    pub type CVPixelBufferRef = CVImageBufferRef;
-    pub type CVPixelBufferLockFlags = u64;
-    pub type CVReturn = i32;
-
-    #[allow(non_snake_case)]
-    extern "C" {
         pub fn CVPixelBufferLockBaseAddress(
             pixelBuffer: CVPixelBufferRef,
             lockFlags: CVPixelBufferLockFlags,
@@ -193,14 +142,28 @@ pub mod core_media {
         pub fn CVPixelBufferGetBaseAddress(
             pixelBuffer: CVPixelBufferRef,
         ) -> *mut ::std::os::raw::c_void;
+
+        pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
     }
 
-    extern "C" {
-        pub static AVVideoCodecKey: NSString;
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone)]
+    pub struct __CVBuffer {
+        _unused: [u8; 0],
     }
+    pub type CVBufferRef = *mut __CVBuffer;
+
+    pub type CVImageBufferRef = CVBufferRef;
+    pub type CVPixelBufferRef = CVImageBufferRef;
+    pub type CVPixelBufferLockFlags = u64;
+    pub type CVReturn = i32;
+
     pub type OSType = FourCharCode;
     pub type AVVideoCodecType = NSString;
+
+    #[link(name = "AVFoundation", kind = "framework")]
     extern "C" {
+        pub static AVVideoCodecKey: NSString;
         pub static AVVideoCodecTypeHEVC: AVVideoCodecType;
         pub static AVVideoCodecTypeH264: AVVideoCodecType;
         pub static AVVideoCodecTypeJPEG: AVVideoCodecType;
@@ -218,8 +181,17 @@ pub mod core_media {
         pub static AVVideoWidthKey: NSString;
         pub static AVVideoHeightKey: NSString;
         pub static AVVideoExpectedSourceFrameRateKey: NSString;
-        pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
 
+        pub static AVMediaTypeVideo: AVMediaType;
+        pub static AVMediaTypeAudio: AVMediaType;
+        pub static AVMediaTypeText: AVMediaType;
+        pub static AVMediaTypeClosedCaption: AVMediaType;
+        pub static AVMediaTypeSubtitle: AVMediaType;
+        pub static AVMediaTypeTimecode: AVMediaType;
+        pub static AVMediaTypeMetadata: AVMediaType;
+        pub static AVMediaTypeMuxed: AVMediaType;
+        pub static AVMediaTypeMetadataObject: AVMediaType;
+        pub static AVMediaTypeDepthData: AVMediaType;
     }
 }
 
