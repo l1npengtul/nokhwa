@@ -518,6 +518,15 @@ pub mod avfoundation {
             .collect::<Vec<AVCaptureDeviceDescriptor>>())
     }
 
+    pub enum AVFCameraControls {
+        Focus,
+        Exposure,
+        WhiteBalance,
+        Lighting,
+        Color,
+        Zoom,
+    }
+
     #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
     pub enum AVCaptureDeviceType {
         Dual,
@@ -1069,6 +1078,7 @@ pub mod avfoundation {
             let _: () = unsafe {
                 msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMaxFrameDuration"]
             };
+            self.unlock();
             Ok(())
         }
     }
