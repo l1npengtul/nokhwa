@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// hello, future peng here
+// whatever is written here will induce horrors uncomprehendable.
+// save yourselves. write apple code in swift and bind it to rust.
+
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -68,7 +73,7 @@ pub mod core_media {
     #[derive(Clone)]
     pub struct NSObject(pub Id);
     impl Deref for NSObject {
-        type Target = objc::runtime::Object;
+        type Target = Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
@@ -84,7 +89,7 @@ pub mod core_media {
     #[derive(Clone)]
     pub struct NSString(pub Id);
     impl Deref for NSString {
-        type Target = objc::runtime::Object;
+        type Target = Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
@@ -113,13 +118,13 @@ pub mod core_media {
             theSourceBuffer: CMBlockBufferRef,
             offsetToData: usize,
             dataLength: usize,
-            destination: *mut ::std::os::raw::c_void,
+            destination: *mut std::os::raw::c_void,
         ) -> std::os::raw::c_int;
 
         pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
 
         pub fn dispatch_queue_create(
-            label: *const ::std::os::raw::c_char,
+            label: *const std::os::raw::c_char,
             attr: NSObject,
         ) -> NSObject;
 
@@ -141,7 +146,7 @@ pub mod core_media {
 
         pub fn CVPixelBufferGetBaseAddress(
             pixelBuffer: CVPixelBufferRef,
-        ) -> *mut ::std::os::raw::c_void;
+        ) -> *mut std::os::raw::c_void;
 
         pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
     }
@@ -216,7 +221,8 @@ pub mod avfoundation {
     use core_media_sys::{
         kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
         kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML,
-        CMFormatDescriptionGetMediaSubType, CMSampleBufferRef, CMVideoDimensions,
+        CMFormatDescriptionGetMediaSubType, CMFormatDescriptionRef, CMSampleBufferRef,
+        CMVideoDimensions,
     };
     use dashmap::DashMap;
     use flume::{Receiver, Sender};
@@ -224,6 +230,7 @@ pub mod avfoundation {
         declare::ClassDecl,
         runtime::{Class, Object, Protocol, Sel, BOOL, YES},
     };
+    use std::convert::TryInto;
     use std::{
         borrow::Cow,
         cmp::Ordering,
@@ -294,7 +301,7 @@ pub mod avfoundation {
                 length:string.len()
                 encoding:UTF8_ENCODING
             ];
-            let _: *mut std::ffi::c_void = msg_send![obj, autorelease];
+            let _: *mut c_void = msg_send![obj, autorelease];
             obj
         }
     }
@@ -314,8 +321,8 @@ pub mod avfoundation {
         });
         let immutable_array: *mut Object =
             unsafe { msg_send![ns_array_cls, arrayWithArray: mutable_array] };
-        let _: *mut std::ffi::c_void = unsafe { msg_send![mutable_array, autorelease] };
-        let _: *mut std::ffi::c_void = unsafe { msg_send![immutable_array, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![mutable_array, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![immutable_array, autorelease] };
         immutable_array
     }
 
@@ -327,7 +334,7 @@ pub mod avfoundation {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::from(item));
         }
-        let _: *mut std::ffi::c_void = unsafe { msg_send![data, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         out_vec
     }
 
@@ -343,7 +350,7 @@ pub mod avfoundation {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::try_from(item)?);
         }
-        let _: *mut std::ffi::c_void = unsafe { msg_send![data, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         Ok(out_vec)
     }
 
@@ -812,7 +819,7 @@ pub mod avfoundation {
 
     #[derive(Debug)]
     pub struct AVCaptureDeviceFormat {
-        internal: *mut Object,
+        pub(crate) internal: *mut Object,
         pub resolution: CMVideoDimensions,
         pub fps_list: Vec<f64>,
         pub fourcc: AVFourCC,
@@ -854,7 +861,7 @@ pub mod avfoundation {
                     })
                 }
             };
-            let _: *mut std::ffi::c_void = unsafe { msg_send![description_obj, autorelease] };
+            let _: *mut c_void = unsafe { msg_send![description_obj, autorelease] };
             Ok(AVCaptureDeviceFormat {
                 internal: value,
                 resolution,
@@ -929,7 +936,7 @@ pub mod avfoundation {
                     index,
                 })
             }
-            let _: *mut std::ffi::c_void = unsafe { msg_send![device_ns_array, release] };
+            let _: *mut c_void = unsafe { msg_send![device_ns_array, release] };
             devices
         }
     }
@@ -1013,26 +1020,57 @@ pub mod avfoundation {
             unsafe { msg_send![self.inner, unlockForConfiguration] }
         }
 
-        pub fn set_frame_rate(&mut self, _: u32) {}
-
+        // thank you ffmpeg
         pub fn set_all(
             &mut self,
             descriptor: CaptureDeviceFormatDescriptor,
         ) -> Result<(), AVFError> {
             let format_list = self.supported_formats()?;
+            let format_description_sel = sel!(formatDescription);
+
+            let mut selected_format: *mut Object = std::ptr::null_mut();
+            let mut selected_range: *mut Object = std::ptr::null_mut();
+
             for format in format_list {
-                if descriptor.compatible_with_capture_format(&format) {
-                    unsafe {
-                        msg_send![
-                            self.inner,
-                            setActiveFormat:format.internal
-                        ]
+                let format_desc_ref: CMFormatDescriptionRef =
+                    unsafe { msg_send![format.internal, performSelector: format_description_sel] };
+                let dimensions = unsafe { CMVideoFormatDescriptionGetDimensions(format_desc_ref) };
+
+                if dimensions.height == descriptor.resolution.height
+                    && dimensions.width == descriptor.resolution.width
+                {
+                    selected_format = format.internal;
+
+                    for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
+                        msg_send![format.internal, valueForKey:"videoSupportedFrameRateRanges"]
+                    }) {
+                        let max_fps: f64 =
+                            unsafe { msg_send![range.inner, valueForKey:"maxFrameRate"] };
+
+                        if (f64::from(descriptor.fps) - max_fps).abs() < 0.01 {
+                            selected_range = range.inner;
+                            break;
+                        }
                     }
-                    self.set_frame_rate(descriptor.fps as u32);
-                    return Ok(());
                 }
             }
-            Err(AVFError::ConfigNotAccepted)
+
+            if selected_range.is_null() || selected_format.is_null() {
+                return Err(AVFError::ConfigNotAccepted);
+            }
+
+            self.lock()?;
+            let _: () =
+                unsafe { msg_send![self.inner, setValue:selected_format forKey:"activeFormat"] };
+            let min_frame_duration: *mut Object =
+                unsafe { msg_send![selected_range, valueForKey:"minFrameDuration"] };
+            let _: () = unsafe {
+                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMinFrameDuration"]
+            };
+            let _: () = unsafe {
+                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMaxFrameDuration"]
+            };
+            Ok(())
         }
     }
 

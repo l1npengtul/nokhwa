@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError,
-    PixelFormat, Resolution,
-};
+use crate::{mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError, PixelFormat, Resolution, nokhwa_initialize, nokhwa_check};
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
@@ -33,6 +29,7 @@ use std::{any::Any, borrow::Borrow, borrow::Cow, collections::HashMap, ops::Dere
 /// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
 /// - This only works on 64 bit platforms.
 /// - FPS adjustment does not work.
+/// - If permission has not been granted and you call `init()` it will error.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
@@ -99,7 +96,11 @@ impl AVFoundationCaptureDevice {
 
 impl CaptureBackendTrait for AVFoundationCaptureDevice {
     fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
-        todo!()
+        if !nokhwa_check() {
+            return Err(NokhwaError::InitializeError { backend: CaptureAPIBackend::AVFoundation, error: "User permission not granted yet.".to_string() })
+        }
+        
+        
     }
 
     fn backend(&self) -> CaptureAPIBackend {
