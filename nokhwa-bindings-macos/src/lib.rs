@@ -230,7 +230,6 @@ pub mod avfoundation {
         declare::ClassDecl,
         runtime::{Class, Object, Protocol, Sel, BOOL, YES},
     };
-    use std::convert::TryInto;
     use std::{
         borrow::Cow,
         cmp::Ordering,
