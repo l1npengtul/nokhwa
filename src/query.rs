@@ -55,6 +55,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {
+                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-v4l`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
                         ))
@@ -66,6 +67,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {
+                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-msmf`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
                         ))
@@ -77,6 +79,7 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {
+                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
                         ))
@@ -86,14 +89,18 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                     if cfg!(feature = "input-avfoundation") {
                         query_devices(CaptureAPIBackend::AVFoundation)
                     } else {
+                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(
                             CaptureAPIBackend::Auto,
                         ))
                     }
                 }
-                _ => Err(NokhwaError::UnsupportedOperationError(
-                    CaptureAPIBackend::Auto,
-                )),
+                _ => {
+                    dbg!("Error: No suitable Backends availible. You are on an unsupported platform.");
+                    Err(NokhwaError::NotImplementedError(
+                        "Bad Platform".to_string()
+                    ))
+                }
             }
         }
         CaptureAPIBackend::AVFoundation => query_avfoundation(),

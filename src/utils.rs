@@ -482,8 +482,8 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 /// # JS-WASM
 /// This is exported as a `JSCameraInfo`.
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraInfo {
     human_name: String,
@@ -627,7 +627,7 @@ impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
             human_name: dev_desc.name_as_string(),
             description: "Media Foundation Device".to_string(),
             misc: dev_desc.link_as_string(),
-            index: dev_desc.index() as usize,
+            index: dev_desc.index() as u32,
         }
     }
 }
@@ -650,7 +650,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
             human_name: descriptor.name,
             description: descriptor.description,
             misc: descriptor.misc,
-            index: descriptor.index as usize,
+            index: descriptor.index as u32,
         }
     }
 }
@@ -733,6 +733,8 @@ impl From<MediaFoundationControls> for KnownCameraControl {
             MediaFoundationControls::Exposure => KnownCameraControl::Exposure,
             MediaFoundationControls::Iris => KnownCameraControl::Iris,
             MediaFoundationControls::Focus => KnownCameraControl::Focus,
+            MediaFoundationControls::ColorEnable => KnownCameraControl::Other(0),
+            MediaFoundationControls::Roll => KnownCameraControl::Other(1),
         }
     }
 }
@@ -1104,10 +1106,12 @@ pub enum CaptureAPIBackend {
     Auto,
     AVFoundation,
     Video4Linux,
-    // UniversalVideoClass,
+    #[deprecated]
+    UniversalVideoClass,
     MediaFoundation,
     OpenCv,
-    // GStreamer,
+    #[deprecated]
+    GStreamer,
     Network,
     Browser,
 }
