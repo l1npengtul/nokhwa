@@ -11,8 +11,8 @@ repository = "https://github.com/l1npengtul/nokhwa"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows"]
-exclude = ["examples/threaded-capture", "examples/capture"]
+members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "examples/*"]
+exclude = ["examples/jscam"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

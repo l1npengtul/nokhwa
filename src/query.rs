@@ -52,10 +52,6 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                 "linux" => {
                     if cfg!(feature = "input-v4l") && cfg!(target_os = "linux") {
                         query_devices(CaptureAPIBackend::Video4Linux)
-                    } else if cfg!(feature = "input-uvc") {
-                        query_devices(CaptureAPIBackend::UniversalVideoClass)
-                    } else if cfg!(feature = "input-gstreamer") {
-                        query_devices(CaptureAPIBackend::GStreamer)
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {
@@ -67,10 +63,6 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                 "windows" => {
                     if cfg!(feature = "input-msmf") && cfg!(target_os = "windows") {
                         query_devices(CaptureAPIBackend::MediaFoundation)
-                    } else if cfg!(feature = "input-uvc") {
-                        query_devices(CaptureAPIBackend::UniversalVideoClass)
-                    } else if cfg!(feature = "input-gstreamer") {
-                        query_devices(CaptureAPIBackend::GStreamer)
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {
@@ -82,10 +74,6 @@ pub fn query_devices(api: CaptureAPIBackend) -> Result<Vec<CameraInfo>, NokhwaEr
                 "macos" => {
                     if cfg!(feature = "input-avfoundation") {
                         query_devices(CaptureAPIBackend::AVFoundation)
-                    } else if cfg!(feature = "input-uvc") {
-                        query_devices(CaptureAPIBackend::UniversalVideoClass)
-                    } else if cfg!(feature = "input-gstreamer") {
-                        query_devices(CaptureAPIBackend::GStreamer)
                     } else if cfg!(feature = "input-opencv") {
                         query_devices(CaptureAPIBackend::OpenCv)
                     } else {

@@ -31,7 +31,7 @@ use std::{
 };
 use v4l::{
     buffer::Type,
-    control::{Control, Description, Flags, Value},
+    control::{Control, Flags, Value},
     frameinterval::FrameIntervalEnum,
     framesize::FrameSizeEnum,
     io::traits::CaptureStream,

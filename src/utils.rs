@@ -37,7 +37,7 @@ use nokhwa_bindings_windows::{
     MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
     MediaFoundationDeviceDescriptor,
 };
-#[cfg(feature = serde)]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Borrow,
@@ -502,16 +502,11 @@ impl CameraInfo {
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
     // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
-    pub fn new(
-        human_name: impl AsRef<str>,
-        description: impl AsRef<str>,
-        misc: impl AsRef<str>,
-        index: u32,
-    ) -> Self {
+    pub fn new(human_name: &str, description: &str, misc: &str, index: u32) -> Self {
         CameraInfo {
-            human_name: human_name.as_ref().to_string(),
-            description: description.as_ref().to_string(),
-            misc: misc.as_ref().to_string(),
+            human_name: human_name.to_string(),
+            description: description.to_string(),
+            misc: misc.to_string(),
             index,
         }
     }
@@ -524,8 +519,10 @@ impl CameraInfo {
         feature = "output-wasm",
         wasm_bindgen(getter = HumanReadableName)
     )]
-    pub fn human_name(&self) -> &'_ str {
-        self.human_name.borrow()
+    // yes, i know, unnecessary alloc this, unnecessary alloc that
+    // but wasm bindgen
+    pub fn human_name(&self) -> String {
+        self.human_name.clone()
     }
 
     /// Set the device info's human name.
@@ -535,8 +532,8 @@ impl CameraInfo {
         feature = "output-wasm",
         wasm_bindgen(setter = HumanReadableName)
     )]
-    pub fn set_human_name<S: AsRef<str>>(&mut self, human_name: S) {
-        self.human_name = human_name.as_ref().to_string();
+    pub fn set_human_name(&mut self, human_name: &str) {
+        self.human_name = human_name.to_string();
     }
 
     /// Get a reference to the device info's description.
@@ -544,7 +541,7 @@ impl CameraInfo {
     /// This is exported as a `get_Description`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Description))]
-    pub fn description(&self) -> &'_ str {
+    pub fn description(&self) -> &str {
         self.description.borrow()
     }
 
@@ -552,8 +549,8 @@ impl CameraInfo {
     /// # JS-WASM
     /// This is exported as a `set_Description`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Description))]
-    pub fn set_description<S: AsRef<str>>(&mut self, description: S) {
-        self.description = description.as_ref().to_string();
+    pub fn set_description(&mut self, description: &str) {
+        self.description = description.to_string();
     }
 
     /// Get a reference to the device info's misc.
@@ -561,16 +558,16 @@ impl CameraInfo {
     /// This is exported as a `get_MiscString`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = MiscString))]
-    pub fn misc(&self) -> &'_ str {
-        self.misc.borrow()
+    pub fn misc(&self) -> String {
+        self.misc.clone()
     }
 
     /// Set the device info's misc.
     /// # JS-WASM
     /// This is exported as a `set_MiscString`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = MiscString))]
-    pub fn set_misc<S: AsRef<str>>(&mut self, misc: S) {
-        self.misc = misc.as_ref().to_string();
+    pub fn set_misc(&mut self, misc: &str) {
+        self.misc = misc.to_string();
     }
 
     /// Get a reference to the device info's index.

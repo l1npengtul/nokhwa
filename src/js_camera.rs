@@ -21,6 +21,7 @@
 //! This assumes that you are running a modern browser on the desktop.
 
 use crate::{CameraIndex, CameraInfo, NokhwaError, Resolution};
+use gstreamer::Array;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
 #[cfg(feature = "output-wasm")]
 use js_sys::{Array, JsString, Map, Object, Promise};
@@ -1678,7 +1679,7 @@ impl Deref for JSCameraConstraints {
 /// # JS-WASM
 /// This is exported as `NokhwaCamera`.
 #[cfg(feature = "output-wasm")]
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))#[cfg(feature = "output-wasm")]]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub struct JSCamera {
     media_stream: MediaStream,
