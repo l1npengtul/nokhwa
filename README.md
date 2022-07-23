@@ -46,7 +46,7 @@ The table below lists current Nokhwa API support.
  |----------------------------------------|--------------------|-------------------|--------------------|---------------------|
  | Video4Linux(`input-v4l`)               | ✅                 | ✅                 | ✅                 | Linux               |
  | MSMF(`input-msmf`)                     | ✅                 | ✅                 | ✅                 | Windows             |
- | AVFoundation(`input-avfoundatuin`)^^   | ✅                 | ✅                 | ✅                 | Mac                 |
+ | AVFoundation(`input-avfoundation`)^^   | ✅                 | ✅                 | ✅                 | Mac                 |
  | libuvc(`input-uvc`) (**DEPRECATED**)^^^| ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^                | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
  | IPCamera(`input-ipcam`/OpenCV)^        | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,14 +56,6 @@ pub enum AVFError {
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-#[cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "CoreMedia", kind = "framework")
-)]
-#[cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link(name = "AVFoundation", kind = "framework")
-)]
 #[allow(non_snake_case)]
 pub mod core_media {
     // all of this is stolen from bindgen
@@ -81,7 +73,7 @@ pub mod core_media {
     #[derive(Clone)]
     pub struct NSObject(pub Id);
     impl Deref for NSObject {
-        type Target = objc::runtime::Object;
+        type Target = Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
@@ -97,7 +89,7 @@ pub mod core_media {
     #[derive(Clone)]
     pub struct NSString(pub Id);
     impl Deref for NSString {
-        type Target = objc::runtime::Object;
+        type Target = Object;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.0 }
         }
@@ -111,20 +103,8 @@ pub mod core_media {
 
     pub type AVMediaType = NSString;
 
-    extern "C" {
-        pub static AVMediaTypeVideo: AVMediaType;
-        pub static AVMediaTypeAudio: AVMediaType;
-        pub static AVMediaTypeText: AVMediaType;
-        pub static AVMediaTypeClosedCaption: AVMediaType;
-        pub static AVMediaTypeSubtitle: AVMediaType;
-        pub static AVMediaTypeTimecode: AVMediaType;
-        pub static AVMediaTypeMetadata: AVMediaType;
-        pub static AVMediaTypeMuxed: AVMediaType;
-        pub static AVMediaTypeMetadataObject: AVMediaType;
-        pub static AVMediaTypeDepthData: AVMediaType;
-    }
-
     #[allow(non_snake_case)]
+    #[link(name = "CoreMedia", kind = "framework")]
     extern "C" {
         pub fn CMVideoFormatDescriptionGetDimensions(
             videoDesc: CMFormatDescriptionRef,
@@ -138,42 +118,20 @@ pub mod core_media {
             theSourceBuffer: CMBlockBufferRef,
             offsetToData: usize,
             dataLength: usize,
-            destination: *mut ::std::os::raw::c_void,
+            destination: *mut std::os::raw::c_void,
         ) -> std::os::raw::c_int;
 
         pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
-    }
 
-    extern "C" {
         pub fn dispatch_queue_create(
-            label: *const ::std::os::raw::c_char,
+            label: *const std::os::raw::c_char,
             attr: NSObject,
         ) -> NSObject;
-    }
 
-    extern "C" {
         pub fn dispatch_release(object: NSObject);
-    }
 
-    #[repr(C)]
-    #[derive(Debug, Copy, Clone)]
-    pub struct __CVBuffer {
-        _unused: [u8; 0],
-    }
-    pub type CVBufferRef = *mut __CVBuffer;
-
-    #[allow(non_snake_case)]
-    extern "C" {
         pub fn CMSampleBufferGetImageBuffer(sbuf: CMSampleBufferRef) -> CVImageBufferRef;
-    }
 
-    pub type CVImageBufferRef = CVBufferRef;
-    pub type CVPixelBufferRef = CVImageBufferRef;
-    pub type CVPixelBufferLockFlags = u64;
-    pub type CVReturn = i32;
-
-    #[allow(non_snake_case)]
-    extern "C" {
         pub fn CVPixelBufferLockBaseAddress(
             pixelBuffer: CVPixelBufferRef,
             lockFlags: CVPixelBufferLockFlags,
@@ -188,15 +146,29 @@ pub mod core_media {
 
         pub fn CVPixelBufferGetBaseAddress(
             pixelBuffer: CVPixelBufferRef,
-        ) -> *mut ::std::os::raw::c_void;
+        ) -> *mut std::os::raw::c_void;
+
+        pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
     }
 
-    extern "C" {
-        pub static AVVideoCodecKey: NSString;
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone)]
+    pub struct __CVBuffer {
+        _unused: [u8; 0],
     }
+    pub type CVBufferRef = *mut __CVBuffer;
+
+    pub type CVImageBufferRef = CVBufferRef;
+    pub type CVPixelBufferRef = CVImageBufferRef;
+    pub type CVPixelBufferLockFlags = u64;
+    pub type CVReturn = i32;
+
     pub type OSType = FourCharCode;
     pub type AVVideoCodecType = NSString;
+
+    #[link(name = "AVFoundation", kind = "framework")]
     extern "C" {
+        pub static AVVideoCodecKey: NSString;
         pub static AVVideoCodecTypeHEVC: AVVideoCodecType;
         pub static AVVideoCodecTypeH264: AVVideoCodecType;
         pub static AVVideoCodecTypeJPEG: AVVideoCodecType;
@@ -214,8 +186,17 @@ pub mod core_media {
         pub static AVVideoWidthKey: NSString;
         pub static AVVideoHeightKey: NSString;
         pub static AVVideoExpectedSourceFrameRateKey: NSString;
-        pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
 
+        pub static AVMediaTypeVideo: AVMediaType;
+        pub static AVMediaTypeAudio: AVMediaType;
+        pub static AVMediaTypeText: AVMediaType;
+        pub static AVMediaTypeClosedCaption: AVMediaType;
+        pub static AVMediaTypeSubtitle: AVMediaType;
+        pub static AVMediaTypeTimecode: AVMediaType;
+        pub static AVMediaTypeMetadata: AVMediaType;
+        pub static AVMediaTypeMuxed: AVMediaType;
+        pub static AVMediaTypeMetadataObject: AVMediaType;
+        pub static AVMediaTypeDepthData: AVMediaType;
     }
 }
 
@@ -240,7 +221,8 @@ pub mod avfoundation {
     use core_media_sys::{
         kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
         kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML,
-        CMFormatDescriptionGetMediaSubType, CMSampleBufferRef, CMVideoDimensions,
+        CMFormatDescriptionGetMediaSubType, CMFormatDescriptionRef, CMSampleBufferRef,
+        CMVideoDimensions,
     };
     use dashmap::DashMap;
     use flume::{Receiver, Sender};
@@ -318,7 +300,7 @@ pub mod avfoundation {
                 length:string.len()
                 encoding:UTF8_ENCODING
             ];
-            let _: *mut std::ffi::c_void = msg_send![obj, autorelease];
+            let _: *mut c_void = msg_send![obj, autorelease];
             obj
         }
     }
@@ -338,8 +320,8 @@ pub mod avfoundation {
         });
         let immutable_array: *mut Object =
             unsafe { msg_send![ns_array_cls, arrayWithArray: mutable_array] };
-        let _: *mut std::ffi::c_void = unsafe { msg_send![mutable_array, autorelease] };
-        let _: *mut std::ffi::c_void = unsafe { msg_send![immutable_array, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![mutable_array, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![immutable_array, autorelease] };
         immutable_array
     }
 
@@ -351,7 +333,7 @@ pub mod avfoundation {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::from(item));
         }
-        let _: *mut std::ffi::c_void = unsafe { msg_send![data, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         out_vec
     }
 
@@ -367,7 +349,7 @@ pub mod avfoundation {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::try_from(item)?);
         }
-        let _: *mut std::ffi::c_void = unsafe { msg_send![data, autorelease] };
+        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         Ok(out_vec)
     }
 
@@ -534,6 +516,15 @@ pub mod avfoundation {
             .enumerate()
             .map(|(idx, dev)| AVCaptureDeviceDescriptor::from_capture_device(dev, idx))
             .collect::<Vec<AVCaptureDeviceDescriptor>>())
+    }
+
+    pub enum AVFCameraControls {
+        Focus,
+        Exposure,
+        WhiteBalance,
+        Lighting,
+        Color,
+        Zoom,
     }
 
     #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -836,7 +827,7 @@ pub mod avfoundation {
 
     #[derive(Debug)]
     pub struct AVCaptureDeviceFormat {
-        internal: *mut Object,
+        pub(crate) internal: *mut Object,
         pub resolution: CMVideoDimensions,
         pub fps_list: Vec<f64>,
         pub fourcc: AVFourCC,
@@ -878,7 +869,7 @@ pub mod avfoundation {
                     })
                 }
             };
-            let _: *mut std::ffi::c_void = unsafe { msg_send![description_obj, autorelease] };
+            let _: *mut c_void = unsafe { msg_send![description_obj, autorelease] };
             Ok(AVCaptureDeviceFormat {
                 internal: value,
                 resolution,
@@ -953,7 +944,7 @@ pub mod avfoundation {
                     index,
                 })
             }
-            let _: *mut std::ffi::c_void = unsafe { msg_send![device_ns_array, release] };
+            let _: *mut c_void = unsafe { msg_send![device_ns_array, release] };
             devices
         }
     }
@@ -1037,26 +1028,58 @@ pub mod avfoundation {
             unsafe { msg_send![self.inner, unlockForConfiguration] }
         }
 
-        pub fn set_frame_rate(&mut self, _: u32) {}
-
+        // thank you ffmpeg
         pub fn set_all(
             &mut self,
             descriptor: CaptureDeviceFormatDescriptor,
         ) -> Result<(), AVFError> {
             let format_list = self.supported_formats()?;
+            let format_description_sel = sel!(formatDescription);
+
+            let mut selected_format: *mut Object = std::ptr::null_mut();
+            let mut selected_range: *mut Object = std::ptr::null_mut();
+
             for format in format_list {
-                if descriptor.compatible_with_capture_format(&format) {
-                    unsafe {
-                        msg_send![
-                            self.inner,
-                            setActiveFormat:format.internal
-                        ]
+                let format_desc_ref: CMFormatDescriptionRef =
+                    unsafe { msg_send![format.internal, performSelector: format_description_sel] };
+                let dimensions = unsafe { CMVideoFormatDescriptionGetDimensions(format_desc_ref) };
+
+                if dimensions.height == descriptor.resolution.height
+                    && dimensions.width == descriptor.resolution.width
+                {
+                    selected_format = format.internal;
+
+                    for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
+                        msg_send![format.internal, valueForKey:"videoSupportedFrameRateRanges"]
+                    }) {
+                        let max_fps: f64 =
+                            unsafe { msg_send![range.inner, valueForKey:"maxFrameRate"] };
+
+                        if (f64::from(descriptor.fps) - max_fps).abs() < 0.01 {
+                            selected_range = range.inner;
+                            break;
+                        }
                     }
-                    self.set_frame_rate(descriptor.fps as u32);
-                    return Ok(());
                 }
             }
-            Err(AVFError::ConfigNotAccepted)
+
+            if selected_range.is_null() || selected_format.is_null() {
+                return Err(AVFError::ConfigNotAccepted);
+            }
+
+            self.lock()?;
+            let _: () =
+                unsafe { msg_send![self.inner, setValue:selected_format forKey:"activeFormat"] };
+            let min_frame_duration: *mut Object =
+                unsafe { msg_send![selected_range, valueForKey:"minFrameDuration"] };
+            let _: () = unsafe {
+                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMinFrameDuration"]
+            };
+            let _: () = unsafe {
+                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMaxFrameDuration"]
+            };
+            self.unlock();
+            Ok(())
         }
     }
 
