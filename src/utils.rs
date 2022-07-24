@@ -798,7 +798,7 @@ impl Display for KnownCameraControlFlag {
 /// The values for a [`CameraControl`].
 ///
 /// This provides a wide range of values that can be used to control a camera.
-pub enum ControlDescription {
+pub enum ControlValueDescription {
     None,
     Integer {
         value: i64,
@@ -838,28 +838,141 @@ pub enum ControlDescription {
     },
 }
 
-impl ControlDescription {
-    pub(crate) fn value(&self) -> ControlValueSetter {
+impl ControlValueDescription {
+    /// Get the value of this [`ControlValueDescription`]
+    pub fn value(&self) -> ControlValueSetter {
         match self {
-            ControlDescription::None => ControlValueSetter::None,
-            ControlDescription::Integer { value, .. } => ControlValueSetter::Integer(*value),
-            ControlDescription::IntegerRange { value, .. } => ControlValueSetter::Integer(*value),
-            ControlDescription::Float { value, .. } => ControlValueSetter::Float(*value),
-            ControlDescription::FloatRange { value, .. } => ControlValueSetter::Float(*value),
-            ControlDescription::Boolean { value, .. } => ControlValueSetter::Boolean(*value),
-            ControlDescription::String { value, .. } => ControlValueSetter::String(value.clone()),
-            ControlDescription::Bytes { value, .. } => ControlValueSetter::Bytes(value.clone()),
+            ControlValueDescription::None => ControlValueSetter::None,
+            ControlValueDescription::Integer { value, .. } => ControlValueSetter::Integer(*value),
+            ControlValueDescription::IntegerRange { value, .. } => {
+                ControlValueSetter::Integer(*value)
+            }
+            ControlValueDescription::Float { value, .. } => ControlValueSetter::Float(*value),
+            ControlValueDescription::FloatRange { value, .. } => ControlValueSetter::Float(*value),
+            ControlValueDescription::Boolean { value, .. } => ControlValueSetter::Boolean(*value),
+            ControlValueDescription::String { value, .. } => {
+                ControlValueSetter::String(value.clone())
+            }
+            ControlValueDescription::Bytes { value, .. } => {
+                ControlValueSetter::Bytes(value.clone())
+            }
+        }
+    }
+
+    /// Verifies if the [setter](crate::utils::ControlValueSetter) is valid for the provided [`ControlValueDescription`].
+    /// - `true` => Is valid.
+    /// - `false` => Is not valid.
+    pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
+        match setter {
+            ControlValueSetter::None => {
+                if let ControlValueDescription::None = self {
+                    true
+                } else {
+                    false
+                }
+            }
+            ControlValueSetter::Integer(i) => match self {
+                ControlValueDescription::Integer {
+                    value,
+                    default,
+                    step,
+                } => {
+                    if (i - default).abs() % step == 0 {
+                        true
+                    } else if (i - value) % step == 0 {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                ControlValueDescription::IntegerRange {
+                    min,
+                    max,
+                    value,
+                    step,
+                    default,
+                } => {
+                    if value > max || value < min {
+                        return false;
+                    }
+
+                    if (i - default).abs() % step == 0 {
+                        true
+                    } else if (i - value) % step == 0 {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            },
+            ControlValueSetter::Float(f) => match self {
+                ControlValueDescription::Float {
+                    value,
+                    default,
+                    step,
+                } => {
+                    if (f - default).abs() % step == 0_f64 {
+                        true
+                    } else if (f - value) % step == 0_f64 {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                ControlValueDescription::FloatRange {
+                    min,
+                    max,
+                    value,
+                    step,
+                    default,
+                } => {
+                    if value > max || value < min {
+                        return false;
+                    }
+
+                    if (f - default).abs() % step == 0_f64 {
+                        true
+                    } else if (f - value) % step == 0_f64 {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            },
+            ControlValueSetter::Boolean(_) => {
+                if let ControlValueDescription::Boolean { .. } = self {
+                    true
+                } else {
+                    false
+                }
+            }
+            ControlValueSetter::String(_) => {
+                if let ControlValueDescription::String { .. } = self {
+                    true
+                } else {
+                    false
+                }
+            }
+            ControlValueSetter::Bytes(_) => {
+                if let ControlValueDescription::Bytes { .. } = self {
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 }
 
-impl Display for ControlDescription {
+impl Display for ControlValueDescription {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ControlDescription::None => {
+            ControlValueDescription::None => {
                 write!(f, "(None)")
             }
-            ControlDescription::Integer {
+            ControlValueDescription::Integer {
                 value,
                 default,
                 step,
@@ -870,7 +983,7 @@ impl Display for ControlDescription {
                     value, default, step
                 )
             }
-            ControlDescription::IntegerRange {
+            ControlValueDescription::IntegerRange {
                 min,
                 max,
                 value,
@@ -883,7 +996,7 @@ impl Display for ControlDescription {
                     value, default, step, min, max
                 )
             }
-            ControlDescription::Float {
+            ControlValueDescription::Float {
                 value,
                 default,
                 step,
@@ -894,7 +1007,7 @@ impl Display for ControlDescription {
                     value, default, step
                 )
             }
-            ControlDescription::FloatRange {
+            ControlValueDescription::FloatRange {
                 min,
                 max,
                 value,
@@ -907,13 +1020,13 @@ impl Display for ControlDescription {
                     value, default, step, min, max
                 )
             }
-            ControlDescription::Boolean { value, default } => {
+            ControlValueDescription::Boolean { value, default } => {
                 write!(f, "(Current: {}, Default: {})", value, default)
             }
-            ControlDescription::String { value, default } => {
+            ControlValueDescription::String { value, default } => {
                 write!(f, "(Current: {}, Default: {:?})", value, default)
             }
-            ControlDescription::Bytes { value, default } => {
+            ControlValueDescription::Bytes { value, default } => {
                 write!(f, "(Current: {:x?}, Default: {:x?})", value, default)
             }
         }
@@ -936,12 +1049,13 @@ fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
 /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraControl {
     control: KnownCameraControl,
     name: String,
-    value: ControlDescription,
+    description: ControlValueDescription,
+    value: ControlValueSetter,
     flag: Vec<KnownCameraControlFlag>,
     active: bool,
 }
@@ -951,13 +1065,15 @@ impl CameraControl {
     pub fn new(
         control: KnownCameraControl,
         name: String,
-        value: ControlDescription,
+        description: ControlValueDescription,
         flag: Vec<KnownCameraControlFlag>,
         active: bool,
     ) -> Self {
+        let value = description.value();
         CameraControl {
             control,
             name,
+            description,
             value,
             flag,
             active,
@@ -970,34 +1086,26 @@ impl CameraControl {
         self.control
     }
 
-    /// Gets the current value of this [`CameraControl`]
+    /// Gets the current value description of this [`CameraControl`]
     #[must_use]
-    pub fn value(&self) -> &ControlDescription {
-        &self.value
+    pub fn value(&self) -> &ControlValueDescription {
+        &self.description
     }
 
     /// Sets the value of this [`CameraControl`]
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    pub fn set_value(&mut self, value: ControlValue) -> Result<(), NokhwaError> {
-        value.verify_value()?;
+    pub fn set_value(&mut self, value: ControlValueSetter) -> Result<(), NokhwaError> {
+        if !self.description.verify_setter(&value) {
+            return Err(NokhwaError::SetPropertyError {
+                property: format!("ControlValueDescription: {}", self.description),
+                value: format!("ControlValueSetter: {}", self.value),
+                error: "Invalid Value.".to_string(),
+            });
+        }
 
         self.value = value;
         Ok(())
-    }
-
-    /// Creates a new [`CameraControl`] but with `value`
-    /// # Errors
-    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    pub fn with_value(self, value: ControlValue) -> Result<Self, NokhwaError> {
-        value.verify_value()?;
-
-        Ok(ControlDescription {
-            control: self.control(),
-            value,
-            flag: self.flag(),
-            active: true,
-        })
     }
 
     /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
@@ -1019,16 +1127,6 @@ impl CameraControl {
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
     }
-
-    /// Returns a list of i32s that are valid to be set.
-    #[allow(clippy::cast_sign_loss)]
-    #[must_use]
-    pub fn valid_values(&self) -> Vec<i32> {
-        (self.minimum_value()..=self.maximum_value())
-            .step_by(self.step() as usize)
-            .into_iter()
-            .collect()
-    }
 }
 
 impl Display for CameraControl {
@@ -1036,7 +1134,7 @@ impl Display for CameraControl {
         write!(
             f,
             "Control: {}, Name: {}, Value: {}, Flag: {:?}, Active: {}",
-            self.control, self.name, self.value, self.flag, self.active
+            self.control, self.name, self.description, self.flag, self.active
         )
     }
 }
@@ -1093,16 +1191,16 @@ impl Display for ControlValueSetter {
 /// The list of known capture backends to the library. <br>
 /// - `AUTO` is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
-/// - `V4L2` - `Video4Linux2`, a linux specific backend.
-/// - `UVC` - Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
+/// - `Video4Linux` - `Video4Linux2`, a linux specific backend.
+/// - `UniversalVideoClass` -  ***[DEPRECATED]*** Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
-/// - `OpenCV` - Uses `OpenCV` to capture. Platform agnostic.
-/// - `GStreamer` - Uses `GStreamer` RTP to capture. Platform agnostic.
+/// - `OpenCv` - Uses `OpenCV` to capture. Platform agnostic.
+/// - `GStreamer` - ***[DEPRECATED]*** Uses `GStreamer` RTP to capture. Platform agnostic.
 /// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum CaptureAPIBackend {
+pub enum ApiBackend {
     Auto,
     AVFoundation,
     Video4Linux,
@@ -1116,7 +1214,7 @@ pub enum CaptureAPIBackend {
     Browser,
 }
 
-impl Display for CaptureAPIBackend {
+impl Display for ApiBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_str = format!("{:?}", self);
         write!(f, "{}", self_str)
@@ -1227,7 +1325,14 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     };
 
     let scanlines_res: Option<Vec<u8>> = jpeg_decompress.read_scanlines_flat();
-    assert!(jpeg_decompress.finish_decompress());
+    // assert!(jpeg_decompress.finish_decompress());
+    if !jpeg_decompress.finish_decompress() {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::MJPEG,
+            destination: "RGB888".to_string(),
+            error: "JPEG Decompressor did not finish.".to_string(),
+        });
+    }
 
     match scanlines_res {
         Some(pixels) => Ok(pixels),
@@ -1246,6 +1351,7 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     ))
 }
 
+/// Equivalent to [`mjpeg_to_rgb`] except with a destination buffer.
 #[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
@@ -1278,11 +1384,24 @@ pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), 
         }
     };
 
-    assert_eq!(dest.len(), jpeg_decompress.min_flat_buffer_size());
+    // assert_eq!(dest.len(), jpeg_decompress.min_flat_buffer_size());
+    if dest.len() != jpeg_decompress.min_flat_buffer_size() {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::MJPEG,
+            destination: "RGB888".to_string(),
+            error: "Bad decoded buffer size".to_string(),
+        });
+    }
 
     jpeg_decompress.read_scanlines_flat_into(dest);
-    assert!(jpeg_decompress.finish_decompress());
-
+    // assert!(jpeg_decompress.finish_decompress());
+    if !jpeg_decompress.finish_decompress() {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::MJPEG,
+            destination: "RGB888".to_string(),
+            error: "JPEG Decompressor did not finish.".to_string(),
+        });
+    }
     Ok(())
 }
 
@@ -1302,7 +1421,6 @@ pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), 
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
-#[inline]
 pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
@@ -1323,7 +1441,7 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     Ok(dest)
 }
 
-/// Same as yuyv422_to_rgb(&data) but with a destination buffer
+/// Same as [`yuyv422_to_rgb`] but with a destination buffer instead of a return `Vec<u8>`
 pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
@@ -1401,6 +1519,12 @@ pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
     [r, g, b]
 }
 
+// equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
+/// Convert `YCbCr` 4:4:4 to a RGBA8888. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
+///
+/// Equivalent to [`yuyv444_to_rgb`] but with an alpha channel attached.
+#[allow(clippy::many_single_char_names)]
+#[must_use]
 #[inline]
 pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
     let [r, g, b] = yuyv444_to_rgb(y, u, v);

@@ -16,14 +16,11 @@
 
 use crate::{
     error::NokhwaError,
-    frame_formats,
     utils::{
         buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
     },
-    Buffer, CameraControl, CaptureAPIBackend, ControlValueSetter, KnownCameraControl, PixelFormat,
+    Buffer, CameraControl, ControlValueSetter, KnownCameraControl, PixelFormat,
 };
-use enum_dispatch::enum_dispatch;
-use image::{buffer::ConvertBuffer, ImageBuffer, RgbaImage};
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
@@ -32,14 +29,6 @@ use wgpu::{
     TextureUsages,
 };
 
-#[enum_dispatch]
-pub enum BackendsEnum {
-    MSMF,
-    AVF,
-    V4L2,
-    OCV,
-}
-
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
 ///
@@ -47,13 +36,12 @@ pub enum BackendsEnum {
 /// - Backends, if not provided with a camera format, will be spawned with 640x480@15 FPS, MJPEG [`CameraFormat`].
 /// - Behaviour can differ from backend to backend. While the [`Camera`](crate::camera::Camera) struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
-#[enum_dispatch(BackendsEnum)]
 pub trait CaptureBackendTrait {
     /// Initializes the camera. You must call this before any other function.
     fn init(&mut self) -> Result<CameraFormat, NokhwaError>;
 
     /// Returns the current backend used.
-    fn backend(&self) -> CaptureAPIBackend;
+    fn backend(&self) -> crate::ApiBackend;
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     fn camera_info(&self) -> &CameraInfo;
@@ -82,19 +70,15 @@ pub trait CaptureBackendTrait {
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
     fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
-        let compatible_formats = self
-            .compatible_fourcc()?
-            .into_iter()
-            .map(|ffmt| {
-                self.compatible_list_by_resolution(ffmt)?
-                    .into_iter()
-                    .map(|(resolution, fpses)| {
-                        fpses
-                            .into_iter()
-                            .map(|fps| CameraFormat::new(resolution, ffmt, fps))
-                    })
-            })
-            .collect::<Vec<CameraFormat>>();
+        let mut compatible_formats = vec![];
+        for fourcc in self.compatible_fourcc()? {
+            for (resolution, fps_list) in self.compatible_list_by_resolution(fourcc)? {
+                for fps in fps_list {
+                    compatible_formats.push(CameraFormat::new(resolution, fourcc, fps))
+                }
+            }
+        }
+
         Ok(compatible_formats)
     }
 
@@ -159,33 +143,6 @@ pub trait CaptureBackendTrait {
         value: ControlValueSetter,
     ) -> Result<(), NokhwaError>;
 
-    // /// Gets the current supported list of Controls as an `Any` from the backend.
-    // /// The `Any`'s type is defined by the backend itself, please check each of the backend's documentation.
-    // /// # Errors
-    // /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    // fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError>;
-    //
-    // /// Sets the control to `control` in the camera.
-    // /// The control's type is defined the backend itself. It may be a string, or more likely its a integer ID.
-    // /// The backend itself has documentation of the proper input/return values, please check each of the backend's documentation.
-    // /// # Errors
-    // /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, wrong Any type)
-    // /// this will error.
-    // fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError>;
-    //
-    // /// Sets the control to `control` in the camera.
-    // /// The `control`/`value`'s type is defined the backend itself. It may be a string, or more likely its a integer ID/Value.
-    // /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
-    // /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
-    // /// # Errors
-    // /// If the `control` is not supported, the value is invalid (wrong Any type, backend refusal), or there was an error setting the control,
-    // /// this will error.
-    // fn set_raw_camera_control(
-    //     &mut self,
-    //     control: &dyn Any,
-    //     value: &dyn Any,
-    // ) -> Result<(), NokhwaError>;
-
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
@@ -201,15 +158,6 @@ pub trait CaptureBackendTrait {
     /// this will error.
     fn frame(&mut self) -> Result<Buffer, NokhwaError>;
 
-    /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
-    /// it will either return an error.
-    /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
-    /// or if the PixelFormat is invalid, this will error.
-    fn frame_typed<F: PixelFormat>(
-        &mut self,
-    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError>;
-
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
@@ -217,7 +165,7 @@ pub trait CaptureBackendTrait {
 
     /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the RGBA buffer needed.
     fn decoded_buffer_size(&self, alpha: bool) -> Result<usize, NokhwaError> {
-        let cfmt = self.camera_format()?;
+        let cfmt = self.camera_format();
         let resolution = cfmt.resolution();
         let pxwidth = match cfmt.format() {
             FrameFormat::MJPEG | FrameFormat::YUYV => 3,
@@ -238,7 +186,7 @@ pub trait CaptureBackendTrait {
         write_alpha: bool,
     ) -> Result<usize, NokhwaError> {
         // FIXME: ??????
-        let cfmt = self.camera_format()?;
+        let cfmt = self.camera_format();
         let frame = self.frame_raw()?;
         match cfmt.format() {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(&frame, buffer, write_alpha)?,
@@ -264,7 +212,7 @@ pub trait CaptureBackendTrait {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    fn frame_texture<'a, F: PixelFormat>(
+    fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
@@ -272,7 +220,7 @@ pub trait CaptureBackendTrait {
     ) -> Result<WgpuTexture, NokhwaError> {
         use image::RgbaImage;
         use std::{convert::TryFrom, num::NonZeroU32};
-        let frame = RgbaImage::from(elf.frame()?.to_image_with_custom_format::<F>()?);
+        let frame = self.frame()?.to_image();
 
         let texture_size = Extent3d {
             width: frame.width(),

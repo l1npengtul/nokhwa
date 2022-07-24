@@ -15,8 +15,8 @@
  */
 
 use crate::{
-    Buffer, Camera, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
+    ApiBackend, Buffer, Camera, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait,
+    FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use parking_lot::Mutex;
@@ -63,7 +63,7 @@ impl CallbackCamera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(index: usize, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        CallbackCamera::with_backend(index, format, CaptureAPIBackend::Auto)
+        CallbackCamera::with_backend(index, format, ApiBackend::Auto)
     }
 
     /// Create a new camera from an `index`, `format`, and `backend`. `format` can be `None`.
@@ -72,7 +72,7 @@ impl CallbackCamera {
     pub fn with_backend(
         index: usize,
         format: Option<CameraFormat>,
-        backend: CaptureAPIBackend,
+        backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
         Self::customized_all(index, format, backend, None)
     }
@@ -86,7 +86,7 @@ impl CallbackCamera {
         height: u32,
         fps: u32,
         fourcc: FrameFormat,
-        backend: CaptureAPIBackend,
+        backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
         CallbackCamera::with_backend(index, Some(camera_format), backend)
@@ -102,7 +102,7 @@ impl CallbackCamera {
     pub fn customized_all(
         index: usize,
         format: Option<CameraFormat>,
-        backend: CaptureAPIBackend,
+        backend: ApiBackend,
         func: Option<CallbackFn>,
     ) -> Result<Self, NokhwaError> {
         let format = match format {
@@ -170,14 +170,14 @@ impl CallbackCamera {
 
     /// Gets the current Camera's backend
     #[must_use]
-    pub fn backend(&self) -> CaptureAPIBackend {
+    pub fn backend(&self) -> ApiBackend {
         self.camera.lock().backend()
     }
 
     /// Sets the current Camera's backend. Note that this re-initializes the camera.
     /// # Errors
     /// The new backend may not exist or may fail to initialize the new camera.
-    pub fn set_backend(&mut self, new_backend: CaptureAPIBackend) -> Result<(), NokhwaError> {
+    pub fn set_backend(&mut self, new_backend: ApiBackend) -> Result<(), NokhwaError> {
         self.camera.lock().set_backend(new_backend)
     }
 

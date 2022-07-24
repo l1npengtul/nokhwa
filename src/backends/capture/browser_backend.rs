@@ -17,7 +17,7 @@
 use crate::{
     js_camera::JSCameraResizeMode,
     js_camera::{query_js_cameras, JSCameraConstraintsBuilder},
-    CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureAPIBackend, CaptureBackendTrait,
+    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
     FrameFormat, JSCamera, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
@@ -143,8 +143,8 @@ impl BrowserCaptureDevice {
 }
 
 impl CaptureBackendTrait for BrowserCaptureDevice {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::Browser
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::Browser
     }
 
     fn camera_info(&self) -> &CameraInfo {

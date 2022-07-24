@@ -25,7 +25,7 @@ input-v4l = ["v4l", "v4l2-sys-mit"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
-# input-uvc = ["uvc", "uvc/vendor", "ouroboros", "usb_enumeration", "lazy_static"]
+# input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb"]
 input-ipcam = ["input-opencv"]
 input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex", "parking_lot"]
@@ -74,7 +74,7 @@ version = "0.1.2"
 optional = true
 
 [dependencies.wgpu]
-version = "^0.12"
+version = "0.13"
 optional = true
 
 [dependencies.opencv]

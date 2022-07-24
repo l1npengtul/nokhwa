@@ -17,7 +17,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
-    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat,
     KnownCameraControl, KnownCameraControlFlag, NokhwaError, Resolution,
 };
 use flume::{Receiver, Sender};
@@ -203,8 +203,8 @@ impl<'a> UVCCaptureDevice<'a> {
 // IDE Autocomplete ends here. Do not be afraid it your IDE does not show completion.
 // Here are some docs to help you out: https://docs.rs/ouroboros/0.9.3/ouroboros/attr.self_referencing.html
 impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::UniversalVideoClass
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::UniversalVideoClass
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -372,19 +372,19 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
     fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
@@ -394,7 +394,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         _value: &dyn Any,
     ) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 

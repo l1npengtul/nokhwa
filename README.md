@@ -64,14 +64,16 @@ The table below lists current Nokhwa API support.
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.
 
+### ***NOTE: It is safe to have `input-v4l`, `input-msmf`, and `input-avfoundation` all enabled at the same time since it is platform gated as well!***
+
 `input-*` features:
  - `input-v4l`: Enables the `Video4Linux` backend. (linux)
  - `input-msmf`: Enables the `MediaFoundation` backennd. (Windows 7 or newer)
  - `input-avfoundation`: Enables the `AVFoundation` backend. (MacOSX 10.7)
- - `input-uvc`: Enables the `libuvc` backend. (cross-platform, libuvc statically-linked) (**DEPRECATED**)
+ - `input-uvc`: **[DEPRECATED]** Enables the `libuvc` backend. (cross-platform, libuvc statically-linked) 
  - `input-opencv`: Enables the `opencv` backend. (cross-platform) 
  - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
- - `input-gst`: Enables the `gstreamer` backend. (**DEPRECATED**)
+ - `input-gst`: **[DEPRECATED]** Enables the `gstreamer` backend. 
  - `input-jscam`: Enables the use of the `JSCamera` struct, which uses browser APIs. (Web)
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)

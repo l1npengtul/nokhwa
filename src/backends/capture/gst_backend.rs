@@ -15,7 +15,7 @@
  */
 
 use crate::{
-    mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
+    mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, CameraFormat, CameraInfo,
     CaptureBackendTrait, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use glib::Quark;
@@ -72,7 +72,7 @@ impl GStreamerCaptureDevice {
 
         if let Err(why) = gstreamer::init() {
             return Err(NokhwaError::InitializeError {
-                backend: CaptureAPIBackend::GStreamer,
+                backend: ApiBackend::GStreamer,
                 error: why.to_string(),
             });
         }
@@ -150,8 +150,8 @@ impl GStreamerCaptureDevice {
 }
 
 impl GStreamerCaptureDevice {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::GStreamer
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::GStreamer
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -439,37 +439,37 @@ impl GStreamerCaptureDevice {
 
     fn set_frame_format(&mut self, _fourcc: FrameFormat) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::GStreamer,
+            ApiBackend::GStreamer,
         ))
     }
 
     fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 
     fn camera_control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 
     fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 
     fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 
@@ -479,7 +479,7 @@ impl GStreamerCaptureDevice {
         _value: &dyn Any,
     ) -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(
-            CaptureAPIBackend::GStreamer.to_string(),
+            ApiBackend::GStreamer.to_string(),
         ))
     }
 

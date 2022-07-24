@@ -16,7 +16,7 @@
 
 use crate::pixel_format::PixelFormat;
 use crate::{
-    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
+    ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat,
     KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
@@ -329,8 +329,8 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         todo!()
     }
 
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::OpenCv
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::OpenCv
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -375,15 +375,11 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         &mut self,
         _fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::OpenCv,
-        ))
+        Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv))
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::OpenCv,
-        ))
+        Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv))
     }
 
     fn resolution(&self) -> Resolution {
@@ -419,25 +415,25 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
     fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn camera_control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{CaptureAPIBackend, FrameFormat};
+use crate::{ApiBackend, FrameFormat};
 use thiserror::Error;
 
 /// All errors in `nokhwa`.
@@ -24,15 +24,9 @@ pub enum NokhwaError {
     #[error("Unitialized Camera. Call `init()` first!")]
     UnitializedError,
     #[error("Could not initialize {backend}: {error}")]
-    InitializeError {
-        backend: CaptureAPIBackend,
-        error: String,
-    },
+    InitializeError { backend: ApiBackend, error: String },
     #[error("Could not shutdown {backend}: {error}")]
-    ShutdownError {
-        backend: CaptureAPIBackend,
-        error: String,
-    },
+    ShutdownError { backend: ApiBackend, error: String },
     #[error("Error: {0}")]
     GeneralError(String),
     #[error("Could not generate required structure {structure}: {error}")]
@@ -60,7 +54,7 @@ pub enum NokhwaError {
     #[error("Could not stop stream: {0}")]
     StreamShutdownError(String),
     #[error("This operation is not supported by backend {0}.")]
-    UnsupportedOperationError(CaptureAPIBackend),
+    UnsupportedOperationError(ApiBackend),
     #[error("This operation is not implemented yet: {0}")]
     NotImplementedError(String),
 }
@@ -79,11 +73,11 @@ impl From<BindingError> for NokhwaError {
     fn from(err: BindingError) -> Self {
         match err {
             BindingError::InitializeError(error) => NokhwaError::InitializeError {
-                backend: CaptureAPIBackend::MediaFoundation,
+                backend: ApiBackend::MediaFoundation,
                 error,
             },
             BindingError::DeInitializeError(error) => NokhwaError::ShutdownError {
-                backend: CaptureAPIBackend::MediaFoundation,
+                backend: ApiBackend::MediaFoundation,
                 error,
             },
             BindingError::GUIDSetError(property, value, error) => NokhwaError::SetPropertyError {
@@ -171,7 +165,7 @@ impl From<AVFError> for NokhwaError {
             AVFError::StreamOpen(why) => NokhwaError::OpenStreamError(why),
             AVFError::ReadFrame(why) => NokhwaError::ReadFrameError(why),
             AVFError::NotSupported => {
-                NokhwaError::UnsupportedOperationError(CaptureAPIBackend::AVFoundation)
+                NokhwaError::UnsupportedOperationError(ApiBackend::AVFoundation)
             }
         }
     }

@@ -15,8 +15,8 @@
  */
 
 use crate::{
-    all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, CameraControl, CameraFormat,
-    CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat, KnownCameraControl,
+    all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl,
+    CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat, KnownCameraControl,
     KnownCameraControlFlag, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
@@ -79,8 +79,8 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
 }
 
 impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::MediaFoundation
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::MediaFoundation
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -303,13 +303,13 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::MediaFoundation,
+            ApiBackend::MediaFoundation,
         ))
     }
 
     fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::MediaFoundation,
+            ApiBackend::MediaFoundation,
         ))
     }
 
@@ -319,7 +319,7 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         _value: &dyn Any,
     ) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::MediaFoundation,
+            ApiBackend::MediaFoundation,
         ))
     }
 

@@ -20,7 +20,7 @@ use crate::{
     mjpeg_to_rgb,
     pixel_format::PixelFormat,
     utils::{CameraFormat, CameraInfo},
-    yuyv422_to_rgb, CameraControl, CaptureAPIBackend, CaptureBackendTrait, ControlDescription,
+    yuyv422_to_rgb, ApiBackend, CameraControl, CaptureBackendTrait, ControlValueDescription,
     ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
 };
 use image::ImageBuffer;
@@ -294,8 +294,8 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         }
     }
 
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::Video4Linux
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::Video4Linux
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -521,19 +521,19 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                         | Type::U32
                         | Type::IntegerMenu,
                         Value::Integer(current),
-                    ) => ControlDescription::IntegerRange {
+                    ) => ControlValueDescription::IntegerRange {
                         min: desc.minimum as i64,
                         max: desc.maximum,
                         value: current,
                         step: desc.step as i64,
                         default: desc.default,
                     },
-                    (Type::Boolean, Value::Boolean(current)) => ControlDescription::Boolean {
+                    (Type::Boolean, Value::Boolean(current)) => ControlValueDescription::Boolean {
                         value: current,
                         default: desc.default != 0,
                     },
 
-                    (Type::String, Value::String(current)) => ControlDescription::String {
+                    (Type::String, Value::String(current)) => ControlValueDescription::String {
                         value: current,
                         default: None,
                     },

@@ -27,7 +27,7 @@ use glutin::{
     window::WindowBuilder,
     ContextBuilder,
 };
-use nokhwa::{nokhwa_initialize, query_devices, Camera, CaptureAPIBackend, FrameFormat};
+use nokhwa::{nokhwa_initialize, query, ApiBackend, Camera, FrameFormat};
 use std::time::Instant;
 
 #[derive(Copy, Clone)]
@@ -116,26 +116,26 @@ fn main() {
     // Query example
     if matches.is_present("query") {
         let backend_value = matches.value_of("query").unwrap();
-        let mut use_backend = CaptureAPIBackend::Auto;
+        let mut use_backend = ApiBackend::Auto;
         // AUTO
         if backend_value == "AUTO" {
-            use_backend = CaptureAPIBackend::Auto;
+            use_backend = ApiBackend::Auto;
         } else if backend_value == "UVC" {
-            use_backend = CaptureAPIBackend::UniversalVideoClass;
+            use_backend = ApiBackend::UniversalVideoClass;
         } else if backend_value == "GST" {
-            use_backend = CaptureAPIBackend::GStreamer;
+            use_backend = ApiBackend::GStreamer;
         } else if backend_value == "V4L" {
-            use_backend = CaptureAPIBackend::Video4Linux;
+            use_backend = ApiBackend::Video4Linux;
         } else if backend_value == "MSMF" {
-            use_backend = CaptureAPIBackend::MediaFoundation;
+            use_backend = ApiBackend::MediaFoundation;
         } else if backend_value == "AVF" {
             nokhwa_initialize(|x| {
                 println!("{}", x);
             });
-            use_backend = CaptureAPIBackend::AVFoundation;
+            use_backend = ApiBackend::AVFoundation;
         }
 
-        match query_devices(use_backend) {
+        match query(use_backend) {
             Ok(devs) => {
                 for (idx, camera) in devs.iter().enumerate() {
                     println!("Device at index {}: {}", idx, camera)
@@ -150,13 +150,13 @@ fn main() {
     if matches.is_present("capture") {
         let backend_value = {
             match matches.value_of("capture-backend").unwrap() {
-                "UVC" => CaptureAPIBackend::UniversalVideoClass,
-                "GST" => CaptureAPIBackend::GStreamer,
-                "V4L" => CaptureAPIBackend::Video4Linux,
-                "OPENCV" => CaptureAPIBackend::OpenCv,
-                "MSMF" => CaptureAPIBackend::MediaFoundation,
-                "AVF" => CaptureAPIBackend::AVFoundation,
-                _ => CaptureAPIBackend::Auto,
+                "UVC" => ApiBackend::UniversalVideoClass,
+                "GST" => ApiBackend::GStreamer,
+                "V4L" => ApiBackend::Video4Linux,
+                "OPENCV" => ApiBackend::OpenCv,
+                "MSMF" => ApiBackend::MediaFoundation,
+                "AVF" => ApiBackend::AVFoundation,
+                _ => ApiBackend::Auto,
             }
         };
         let width = matches

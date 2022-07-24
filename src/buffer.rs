@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::{PixelFormat};
-use crate::{FrameFormat, NokhwaError, Resolution};
-use image::ImageBuffer;
+use crate::pixel_format::PixelFormat;
+use crate::{mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat, NokhwaError, Resolution};
+use image::{ImageBuffer, Pixel};
 #[cfg(feature = "input-opencv")]
 use opencv::core::Mat;
 #[cfg(feature = "input-opencv")]
@@ -41,42 +41,33 @@ impl Buffer {
         }
     }
 
-    pub fn to_image_with_custom_format<F>(
-        self,
-    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError>
-    where
-        F: PixelFormat,
-    {
-        if self.source_frame_format != F::CODE {
-            return Err(NokhwaError::ProcessFrameError {
-                src: self.source_frame_format,
-                destination: F::CODE.to_string(),
-                error: "Assertion failed, wrong source!".to_string(),
-            });
-        }
-        ImageBuffer::from_raw(
-            self.resolution.width_x,
-            self.resolution.height_y,
-            self.buffer,
-        )
-        .ok_or(NokhwaError::ProcessFrameError {
-            src: F::CODE,
-            destination: stringify!(I::Output).to_string(),
-            error: "Buffer too small".to_string(),
-        })
+    pub fn to_image<F: PixelFormat>(self) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
+        let new_data = F::buffer_to_output(self.source_frame_format, &self.buffer)?;
     }
 
     #[cfg(feature = "input-opencv")]
     pub fn to_opencv_mat(self) -> Result<Mat, NokhwaError> {
+        let buffer = match self.source_frame_format {
+            FrameFormat::MJPEG => mjpeg_to_rgb(&self.buffer, use_alpha)?,
+            FrameFormat::YUYV => yuyv422_to_rgb(&self.buffer, use_alpha)?,
+            FrameFormat::GRAY8 => {
+                if use_alpha {
+                    self.buffer.into_iter().flat_map(|x| [x, 255])
+                } else {
+                    self.buffer
+                }
+            }
+        };
+
         Ok(match self.source_frame_format {
             FrameFormat::MJPEG | FrameFormat::YUYV => Mat::from_slice_2d(
-                self.buffer
+                buffer
                     .as_rgb()
                     .chunks(self.resolution.height_y as usize)
                     .collect::<&[&[RGB<u8>]]>(),
             ),
             FrameFormat::GRAY8 => Mat::from_slice_2d(
-                self.buffer
+                buffer
                     .chunks(self.resolution.height_y as usize)
                     .collect::<&[&[u8]]>(),
             ),
