@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{pixel_format::PixelFormat, NokhwaError};
+use crate::{pixel_format::FormatDecoder, NokhwaError};
 #[cfg(any(
     all(
         feature = "input-avfoundation",
@@ -82,7 +82,7 @@ impl Display for FrameFormat {
 
 impl<P> From<P> for FrameFormat
 where
-    P: PixelFormat,
+    P: FormatDecoder,
 {
     fn from(_: P) -> Self {
         P::CODE

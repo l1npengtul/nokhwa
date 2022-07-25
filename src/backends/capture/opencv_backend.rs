@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::PixelFormat;
+use crate::pixel_format::FormatDecoder;
 use crate::{
     ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat,
     KnownCameraControl, NokhwaError, Resolution,
@@ -584,7 +584,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         Ok(image_buf)
     }
 
-    fn frame_typed<F: PixelFormat>(
+    fn frame_typed<F: FormatDecoder>(
         &mut self,
     ) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
         todo!()

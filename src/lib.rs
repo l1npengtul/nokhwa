@@ -42,7 +42,7 @@ pub mod js_camera;
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub mod network_camera;
 mod pixel_format;
-pub use pixel_format::PixelFormat;
+pub use pixel_format::FormatDecoder;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]

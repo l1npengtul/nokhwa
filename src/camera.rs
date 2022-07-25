@@ -16,7 +16,7 @@
 
 use crate::{
     buffer::Buffer, ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait,
-    ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
+    ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -347,12 +347,11 @@ impl Camera {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn write_frame_to_buffer(
+    pub fn write_frame_to_buffer<F: FormatDecoder>(
         &mut self,
         buffer: &mut [u8],
-        write_alpha: bool,
     ) -> Result<usize, NokhwaError> {
-        self.device.write_frame_to_buffer(buffer, write_alpha)
+        let buffer = self.device.frame()?;
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -360,7 +359,7 @@ impl Camera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a, F: crate::PixelFormat>(
+    pub fn frame_texture<'a, F: crate::FormatDecoder>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,

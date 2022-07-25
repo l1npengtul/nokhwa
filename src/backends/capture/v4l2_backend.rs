@@ -18,7 +18,7 @@ use crate::{
     buffer::Buffer,
     error::NokhwaError,
     mjpeg_to_rgb,
-    pixel_format::PixelFormat,
+    pixel_format::FormatDecoder,
     utils::{CameraFormat, CameraInfo},
     yuyv422_to_rgb, ApiBackend, CameraControl, CaptureBackendTrait, ControlValueDescription,
     ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
@@ -659,7 +659,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         Ok(Buffer::new(cam_fmt.resolution(), conv, cam_fmt.format()))
     }
 
-    fn frame_typed<F: PixelFormat>(
+    fn frame_typed<F: FormatDecoder>(
         &mut self,
     ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
         self.frame()?.to_image_with_custom_format::<F>()

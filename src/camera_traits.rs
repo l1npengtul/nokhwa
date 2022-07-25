@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+use crate::pixel_format::RgbAFormat;
 use crate::{
     error::NokhwaError,
     utils::{
         buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
     },
-    Buffer, CameraControl, ControlValueSetter, KnownCameraControl, PixelFormat,
+    Buffer, CameraControl, ControlValueSetter, FormatDecoder, KnownCameraControl,
 };
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -151,19 +152,19 @@ pub trait CaptureBackendTrait {
     /// Checks if stream if open. If it is, it will return true.
     fn is_stream_open(&self) -> bool;
 
-    /// Will get a frame from the camera as a Raw RGB image buffer. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
+    /// Will get a frame from the camera as a [`Buffer`]. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
     /// it will either return an error.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    fn frame(&mut self) -> Result<Buffer, NokhwaError>;
+    fn frame<'a>(&mut self) -> Result<Buffer<'a>, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
-    /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the RGBA buffer needed.
+    /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the buffer with an alpha channel as well.
     fn decoded_buffer_size(&self, alpha: bool) -> Result<usize, NokhwaError> {
         let cfmt = self.camera_format();
         let resolution = cfmt.resolution();
@@ -177,34 +178,20 @@ pub trait CaptureBackendTrait {
         Ok((resolution.width() * resolution.height() * pxwidth) as usize)
     }
 
-    /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
+    /// Directly writes the current frame into said `buffer` when provided a [`decoder`](crate::pixel_format::FormatDecoder).
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn write_frame_to_buffer(
         &mut self,
         buffer: &mut [u8],
-        write_alpha: bool,
+        decoder: &dyn FormatDecoder,
     ) -> Result<usize, NokhwaError> {
         // FIXME: ??????
-        let cfmt = self.camera_format();
-        let frame = self.frame_raw()?;
-        match cfmt.format() {
-            FrameFormat::MJPEG => buf_mjpeg_to_rgb(&frame, buffer, write_alpha)?,
-            FrameFormat::YUYV => buf_yuyv422_to_rgb(&frame, buffer, write_alpha)?,
-            FrameFormat::GRAY8 => {
-                let data = if write_alpha {
-                    frame
-                        .into_iter()
-                        .flat_map(|px| [*px, u8::MAX])
-                        .collect::<Cow<[u8]>>()
-                } else {
-                    frame
-                };
+        let data = &self.frame_raw()?;
+        let data_length = data.len();
+        decoder.write_output_buffer(self.frame_format(), data, buffer)?;
 
-                buffer.copy_from_slice(&data)
-            }
-        };
-        Ok(frame.len())
+        Ok(data_length)
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -218,9 +205,9 @@ pub trait CaptureBackendTrait {
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use image::RgbaImage;
+        use crate::pixel_format::RgbAFormat;
         use std::{convert::TryFrom, num::NonZeroU32};
-        let frame = self.frame()?.to_image();
+        let frame = self.frame()?.decode_image::<RgbAFormat>()?;
 
         let texture_size = Extent3d {
             width: frame.width(),
@@ -255,7 +242,7 @@ pub trait CaptureBackendTrait {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &rgba_frame.to_vec(),
+            &frame.to_vec(),
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: width_nonzero,

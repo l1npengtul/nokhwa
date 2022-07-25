@@ -14,77 +14,182 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::PixelFormat;
-use crate::{mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat, NokhwaError, Resolution};
+use crate::{
+    mjpeg_to_rgb, pixel_format::FormatDecoder, yuyv422_to_rgb, FrameFormat, NokhwaError, Resolution,
+};
 use image::{ImageBuffer, Pixel};
 #[cfg(feature = "input-opencv")]
-use opencv::core::Mat;
-#[cfg(feature = "input-opencv")]
-use rgb::{FromSlice, RGB};
+use opencv::core::{Mat, Mat_AUTO_STEP, CV_8U, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
+/// A buffer returned by a camera to accomodate custom decoding.
+/// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
 #[derive(Clone, Debug, Default, Hash, PartialOrd, PartialEq)]
-#[cfg_attr(feature = "serde", Serialize, Deserialize)]
-pub struct Buffer {
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Buffer<'a> {
     resolution: Resolution,
-    buffer: Vec<u8>,
+    buffer: Cow<'a, [u8]>,
     source_frame_format: FrameFormat,
 }
 
-impl Buffer {
-    pub fn new(res: Resolution, buf: Vec<u8>, source_frame_format: FrameFormat) -> Self {
+impl<'a> Buffer<'a> {
+    /// Creates a new buffer with a [`Vec`].
+    pub fn new_with_vec(res: Resolution, buf: Vec<u8>, source_frame_format: FrameFormat) -> Self {
         Self {
             resolution: res,
-            buffer: buf,
+            buffer: Cow::Owned(buf),
+            source_frame_format,
+        }
+    }
+    /// Creates a new buffer with a [`&[u8]`].
+    pub fn new_with_slice(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
+        Self {
+            resolution: res,
+            buffer: Cow::Borrowed(buf),
             source_frame_format,
         }
     }
 
-    pub fn to_image<F: PixelFormat>(self) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
-        let new_data = F::buffer_to_output(self.source_frame_format, &self.buffer)?;
-    }
-
-    #[cfg(feature = "input-opencv")]
-    pub fn to_opencv_mat(self) -> Result<Mat, NokhwaError> {
-        let buffer = match self.source_frame_format {
-            FrameFormat::MJPEG => mjpeg_to_rgb(&self.buffer, use_alpha)?,
-            FrameFormat::YUYV => yuyv422_to_rgb(&self.buffer, use_alpha)?,
-            FrameFormat::GRAY8 => {
-                if use_alpha {
-                    self.buffer.into_iter().flat_map(|x| [x, 255])
-                } else {
-                    self.buffer
-                }
-            }
-        };
-
-        Ok(match self.source_frame_format {
-            FrameFormat::MJPEG | FrameFormat::YUYV => Mat::from_slice_2d(
-                buffer
-                    .as_rgb()
-                    .chunks(self.resolution.height_y as usize)
-                    .collect::<&[&[RGB<u8>]]>(),
-            ),
-            FrameFormat::GRAY8 => Mat::from_slice_2d(
-                buffer
-                    .chunks(self.resolution.height_y as usize)
-                    .collect::<&[&[u8]]>(),
-            ),
-        }
-        .map_err(|why| NokhwaError::ProcessFrameError {
-            src: self.source_frame_format,
-            destination: "OpenCV Mat".to_string(),
-            error: why.to_string(),
-        })?)
-    }
+    /// Get the [`Resolution`] of this buffer.
     pub fn resolution(&self) -> Resolution {
         self.resolution
     }
+
+    /// Get the data of this buffer.
     pub fn buffer(&self) -> &[u8] {
         &self.buffer
     }
+
+    /// Get a mutable reference to this buffer.
+    ///
+    /// NOTE: Editing this may lead to decoding failure or unsafety!
+    pub fn buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer
+    }
+
+    /// Get the [`FrameFormat`] of this buffer.
     pub fn source_frame_format(&self) -> FrameFormat {
         self.source_frame_format
+    }
+
+    /// Decodes a image with allocation using the provided [`FormatDecoder`].
+    /// # Errors
+    /// Will error when the decoding fails.
+    pub fn decode_image<F: FormatDecoder>(
+        &self,
+    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
+        let new_data = F::write_output(self.source_frame_format, &self.buffer)?;
+        let image =
+            ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
+                .ok_or(Err(NokhwaError::ProcessFrameError {
+                    src: self.source_frame_format,
+                    destination: stringify!(F).to_string(),
+                    error: "Failed to create buffer".to_string(),
+                }))?;
+        Ok(image)
+    }
+
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a `buffer`.
+    /// # Errors
+    /// Will error when the decoding fails, or the provided buffer is too small.
+    pub fn decode_image_to_buffer<F: FormatDecoder>(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        F::write_output_buffer(self.source_frame_format, &self.buffer, buffer)
+    }
+
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    ///
+    /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_as_opencv_mat`](Self::decode_as_opencv_mat).
+    /// # Errors
+    /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    /// # Safety
+    /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
+    #[cfg(feature = "input-opencv")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
+    pub fn decode_opencv_mat<F: FormatDecoder>(&self) -> Result<Mat, NokhwaError> {
+        let mut buffer = F::write_output(self.source_frame_format, &self.buffer)?;
+
+        let array_type = match F::Output::CHANNEL_COUNT {
+            1 => CV_8UC1,
+            2 => CV_8UC2,
+            3 => CV_8UC3,
+            4 => CV_8UC4,
+            _ => {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: self.source_frame_format,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Invalid Decoder FormatDecoder Channel Count".to_string(),
+                })
+            }
+        };
+
+        unsafe {
+            // TODO: Look into removing this unnecessary copy.
+            let mat1 = Mat::new_rows_cols_with_data(
+                self.resolution.height_y as i32,
+                self.resolution.width_x as i32,
+                array_type,
+                &mut buffer as *mut std::os::raw::c_void,
+                Mat_AUTO_STEP,
+            )
+            .map_err(|why| NokhwaError::ProcessFrameError {
+                src: self.source_frame_format,
+                destination: "OpenCV Mat".to_string(),
+                error: why.to_string(),
+            })?;
+
+            Ok(mat1.clone().map_err(|why| NokhwaError::ProcessFrameError {
+                src: self.source_frame_format,
+                destination: "OpenCV Mat".to_string(),
+                error: why.to_string(),
+            })?)
+        }
+    }
+
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    /// # Errors
+    /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    /// # Safety
+    /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
+    ///
+    /// THIS WILL CAUSE UNSOUNDNESS IF YOU USE THE MAT WHILE THE BUFFER ITSELF IS DROPPED.
+    #[cfg(feature = "input-opencv")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
+    pub unsafe fn decode_as_opencv_mat<F: FormatDecoder>(&mut self) -> Result<Mat, NokhwaError> {
+        let resolution = self.resolution();
+        let frame_format = self.source_frame_format();
+
+        let array_type = match F::Output::CHANNEL_COUNT {
+            1 => CV_8UC1,
+            2 => CV_8UC2,
+            3 => CV_8UC3,
+            4 => CV_8UC4,
+            _ => {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: frame_format,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Invalid Decoder FormatDecoder Channel Count".to_string(),
+                })
+            }
+        };
+
+        unsafe {
+            Ok(Mat::new_rows_cols_with_data(
+                resolution.height_y as i32,
+                resolution.width_x as i32,
+                array_type,
+                self.buffer_mut() as *mut std::os::raw::c_void,
+                Mat_AUTO_STEP,
+            )
+            .map_err(|why| NokhwaError::ProcessFrameError {
+                src: frame_format,
+                destination: "OpenCV Mat".to_string(),
+                error: why.to_string(),
+            })?)
+        }
     }
 }

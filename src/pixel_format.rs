@@ -22,11 +22,18 @@ use image::{Luma, LumaA, Primitive};
 use image::{Pixel, Rgb, Rgba};
 use std::{fmt::Debug, hash::Hash};
 
-pub trait PixelFormat: Copy + Clone + Debug + Default + Hash + Send + Sync {
+/// Trait that has methods to convert raw data from the webcam to a proper raw image.
+pub trait FormatDecoder: Copy + Clone + Debug + Default + Hash + Send + Sync {
     type Output: Pixel;
 
+    /// Allocates and returns a `Vec`
+    /// # Errors
+    /// If the data is malformed, or the source [`FrameFormat`] is incompatible, this will error.
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError>;
 
+    /// Writes to a user provided buffer.
+    /// # Errors
+    /// If the data is malformed, the source [`FrameFormat`] is incompatible, or the user-alloted buffer is not large enough, this will error.
     fn write_output_buffer(
         fcc: FrameFormat,
         data: &[u8],
@@ -34,10 +41,16 @@ pub trait PixelFormat: Copy + Clone + Debug + Default + Hash + Send + Sync {
     ) -> Result<(), NokhwaError>;
 }
 
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGB888 in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+///
+/// ```.ignore
+/// use image::{ImageBuffer, Rgb};
+/// let image: ImageBuffer<Rgb<u8>, Vec<u8>> = buffer.to_image::<RgbFormat>();
+/// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct RgbFormat;
 
-impl PixelFormat for RgbFormat {
+impl FormatDecoder for RgbFormat {
     type Output = Rgb<u8>;
 
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
@@ -62,18 +75,39 @@ impl PixelFormat for RgbFormat {
         match fcc {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, false),
             FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, false),
-            FrameFormat::GRAY8 => {}
+            FrameFormat::GRAY8 => {
+                if dest.len() != data * 3 {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: fcc,
+                        destination: "Luma => RGB".to_string(),
+                        error: "Bad buffer length".to_string(),
+                    });
+                }
+
+                data.into_iter().enumerate().for_each(|(idx, pixel_value)| {
+                    let index = idx * 3;
+                    dest[index] = *pixel_value;
+                    dest[index + 1] = *pixel_value;
+                    dest[index + 2] = *pixel_value;
+                })
+            }
         }
     }
 }
 
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGBA8888 in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+///
+/// ```.ignore
+/// use image::{ImageBuffer, Rgba};
+/// let image: ImageBuffer<Rgba<u8>, Vec<u8>> = buffer.to_image::<RgbAFormat>();
+/// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct RgbaFormat;
+pub struct RgbAFormat;
 
-impl PixelFormat for RgbaFormat {
+impl FormatDecoder for RgbAFormat {
     type Output = Rgba<u8>;
 
-    fn buffer_to_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, true),
             FrameFormat::YUYV => yuyv422_to_rgb(data, true),
@@ -86,15 +120,49 @@ impl PixelFormat for RgbaFormat {
                 .collect(),
         }
     }
+
+    fn write_output_buffer(
+        fcc: FrameFormat,
+        data: &[u8],
+        dest: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        match fcc {
+            FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, true),
+            FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, true),
+            FrameFormat::GRAY8 => {
+                if dest.len() != data * 4 {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: fcc,
+                        destination: "Luma => RGBA".to_string(),
+                        error: "Bad buffer length".to_string(),
+                    });
+                }
+
+                data.into_iter().enumerate().for_each(|(idx, pixel_value)| {
+                    let index = idx * 4;
+                    dest[index] = *pixel_value;
+                    dest[index + 1] = *pixel_value;
+                    dest[index + 2] = *pixel_value;
+                    dest[index + 3] = 255;
+                })
+            }
+        }
+    }
 }
 
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an Luma8(Grayscale 8-bit) in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+///
+/// ```.ignore
+/// use image::{ImageBuffer, Luma};
+/// let image: ImageBuffer<Luma<u8>, Vec<u8>> = buffer.to_image::<LumaFormat>();
+/// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct LumaFormat;
 
-impl PixelFormat for LumaFormat {
+impl FormatDecoder for LumaFormat {
     type Output = Luma<u8>;
 
-    fn buffer_to_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
                 .as_slice()
@@ -117,15 +185,46 @@ impl PixelFormat for LumaFormat {
             FrameFormat::GRAY8 => data.to_vec(),
         }
     }
+
+    fn write_output_buffer(
+        fcc: FrameFormat,
+        data: &[u8],
+        dest: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        match fcc {
+            FrameFormat::MJPEG => {
+                // FIXME: implement!
+                Err(NokhwaError::ProcessFrameError {
+                    src: fcc,
+                    destination: "Luma => RGB".to_string(),
+                    error: "Conversion Error".to_string(),
+                })
+            }
+            FrameFormat::YUYV => Err(NokhwaError::ProcessFrameError {
+                src: fcc,
+                destination: "Luma => RGB".to_string(),
+                error: "Conversion Error".to_string(),
+            }),
+            FrameFormat::GRAY8 => data.into_iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
+                *d = *pxv;
+            }),
+        }
+    }
 }
 
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an LumaA8(Grayscale 8-bit with 8-bit alpha) in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+///
+/// ```.ignore
+/// use image::{ImageBuffer, LumaA};
+/// let image: ImageBuffer<LumaA<u8>, Vec<u8>> = buffer.to_image::<LumaAFormat>();
+/// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct LumaAFormat;
 
-impl PixelFormat for LumaAFormat {
+impl FormatDecoder for LumaAFormat {
     type Output = LumaA<u8>;
 
-    fn buffer_to_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
                 .as_slice()
@@ -146,6 +245,46 @@ impl PixelFormat for LumaAFormat {
                 })
                 .collect()),
             FrameFormat::GRAY8 => data.into_iter().flat_map(|x| [*x, 255]).collect(),
+        }
+    }
+
+    fn write_output_buffer(
+        fcc: FrameFormat,
+        data: &[u8],
+        dest: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        match fcc {
+            FrameFormat::MJPEG => {
+                // FIXME: implement!
+                Err(NokhwaError::ProcessFrameError {
+                    src: fcc,
+                    destination: "MJPEG => LumaA".to_string(),
+                    error: "Conversion Error".to_string(),
+                })
+            }
+            FrameFormat::YUYV => Err(NokhwaError::ProcessFrameError {
+                src: fcc,
+                destination: "YUYV => LumaA".to_string(),
+                error: "Conversion Error".to_string(),
+            }),
+            FrameFormat::GRAY8 => {
+                if dest.len() != data.len() * 2 {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: fcc,
+                        destination: "GRAY8 => LumaA".to_string(),
+                        error: "Conversion Error".to_string(),
+                    });
+                }
+
+                data.into_iter()
+                    .zip(dest.chunks_exact_mut(2))
+                    .enumerate()
+                    .for_each(|(idx, (pxv, d))| {
+                        let index = idx * 2;
+                        *d[index] = pxv;
+                        *d[index + 1] = 255;
+                    })
+            }
         }
     }
 }
