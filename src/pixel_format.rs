@@ -15,16 +15,15 @@
  */
 
 use crate::{
-    buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, yuyv444_to_rgba,
-    FrameFormat, NokhwaError,
+    buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat, NokhwaError,
 };
-use image::{Luma, LumaA, Primitive};
+use image::{Luma, LumaA};
 use image::{Pixel, Rgb, Rgba};
 use std::{fmt::Debug, hash::Hash};
 
 /// Trait that has methods to convert raw data from the webcam to a proper raw image.
 pub trait FormatDecoder: Copy + Clone + Debug + Default + Hash + Send + Sync {
-    type Output: Pixel;
+    type Output: Pixel<Subpixel = u8>;
 
     /// Allocates and returns a `Vec`
     /// # Errors
@@ -57,13 +56,13 @@ impl FormatDecoder for RgbFormat {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, false),
             FrameFormat::YUYV => yuyv422_to_rgb(data, false),
-            FrameFormat::GRAY8 => data
-                .into_iter()
+            FrameFormat::GRAY8 => Ok(data
+                .iter()
                 .flat_map(|x| {
                     let pxv = *x;
                     [pxv, pxv, pxv]
                 })
-                .collect(),
+                .collect()),
         }
     }
 
@@ -76,7 +75,7 @@ impl FormatDecoder for RgbFormat {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, false),
             FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, false),
             FrameFormat::GRAY8 => {
-                if dest.len() != data * 3 {
+                if dest.len() != data.len() * 3 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,
                         destination: "Luma => RGB".to_string(),
@@ -84,12 +83,13 @@ impl FormatDecoder for RgbFormat {
                     });
                 }
 
-                data.into_iter().enumerate().for_each(|(idx, pixel_value)| {
+                data.iter().enumerate().for_each(|(idx, pixel_value)| {
                     let index = idx * 3;
                     dest[index] = *pixel_value;
                     dest[index + 1] = *pixel_value;
                     dest[index + 2] = *pixel_value;
-                })
+                });
+                Ok(())
             }
         }
     }
@@ -111,13 +111,13 @@ impl FormatDecoder for RgbAFormat {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, true),
             FrameFormat::YUYV => yuyv422_to_rgb(data, true),
-            FrameFormat::GRAY8 => data
-                .into_iter()
+            FrameFormat::GRAY8 => Ok(data
+                .iter()
                 .flat_map(|x| {
                     let pxv = *x;
                     [pxv, pxv, pxv, 255]
                 })
-                .collect(),
+                .collect()),
         }
     }
 
@@ -130,7 +130,7 @@ impl FormatDecoder for RgbAFormat {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, true),
             FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, true),
             FrameFormat::GRAY8 => {
-                if dest.len() != data * 4 {
+                if dest.len() != data.len() * 4 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,
                         destination: "Luma => RGBA".to_string(),
@@ -138,13 +138,14 @@ impl FormatDecoder for RgbAFormat {
                     });
                 }
 
-                data.into_iter().enumerate().for_each(|(idx, pixel_value)| {
+                data.iter().enumerate().for_each(|(idx, pixel_value)| {
                     let index = idx * 4;
                     dest[index] = *pixel_value;
                     dest[index + 1] = *pixel_value;
                     dest[index + 2] = *pixel_value;
                     dest[index + 3] = 255;
-                })
+                });
+                Ok(())
             }
         }
     }
@@ -162,27 +163,28 @@ pub struct LumaFormat;
 impl FormatDecoder for LumaFormat {
     type Output = Luma<u8>;
 
+    #[allow(clippy::cast_possible_truncation)]
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
                 .as_slice()
                 .chunks_exact(3)
-                .flat_map(|x| {
+                .map(|x| {
                     let mut avg = 0;
-                    x.into_iter().for_each(|v| avg += v as u16);
+                    x.iter().for_each(|v| avg += u16::from(*v));
                     (avg / 3) as u8
                 })
                 .collect()),
             FrameFormat::YUYV => Ok(yuyv422_to_rgb(data, false)?
                 .as_slice()
                 .chunks_exact(3)
-                .flat_map(|x| {
+                .map(|x| {
                     let mut avg = 0;
-                    x.into_iter().for_each(|v| avg += v as u16);
+                    x.iter().for_each(|v| avg += u16::from(*v));
                     (avg / 3) as u8
                 })
                 .collect()),
-            FrameFormat::GRAY8 => data.to_vec(),
+            FrameFormat::GRAY8 => Ok(data.to_vec()),
         }
     }
 
@@ -205,9 +207,12 @@ impl FormatDecoder for LumaFormat {
                 destination: "Luma => RGB".to_string(),
                 error: "Conversion Error".to_string(),
             }),
-            FrameFormat::GRAY8 => data.into_iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
-                *d = *pxv;
-            }),
+            FrameFormat::GRAY8 => {
+                data.iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
+                    *d = *pxv;
+                });
+                Ok(())
+            }
         }
     }
 }
@@ -224,6 +229,7 @@ pub struct LumaAFormat;
 impl FormatDecoder for LumaAFormat {
     type Output = LumaA<u8>;
 
+    #[allow(clippy::cast_possible_truncation)]
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
@@ -231,7 +237,7 @@ impl FormatDecoder for LumaAFormat {
                 .chunks_exact(3)
                 .flat_map(|x| {
                     let mut avg = 0;
-                    x.into_iter().for_each(|v| avg += v as u16);
+                    x.iter().for_each(|v| avg += u16::from(*v));
                     [(avg / 3) as u8, 255]
                 })
                 .collect()),
@@ -240,11 +246,11 @@ impl FormatDecoder for LumaAFormat {
                 .chunks_exact(3)
                 .flat_map(|x| {
                     let mut avg = 0;
-                    x.into_iter().for_each(|v| avg += v as u16);
+                    x.iter().for_each(|v| avg += u16::from(*v));
                     [(avg / 3) as u8, 255]
                 })
                 .collect()),
-            FrameFormat::GRAY8 => data.into_iter().flat_map(|x| [*x, 255]).collect(),
+            FrameFormat::GRAY8 => Ok(data.iter().flat_map(|x| [*x, 255]).collect()),
         }
     }
 
@@ -276,14 +282,15 @@ impl FormatDecoder for LumaAFormat {
                     });
                 }
 
-                data.into_iter()
+                data.iter()
                     .zip(dest.chunks_exact_mut(2))
                     .enumerate()
                     .for_each(|(idx, (pxv, d))| {
                         let index = idx * 2;
-                        *d[index] = pxv;
-                        *d[index + 1] = 255;
-                    })
+                        d[index] = *pxv;
+                        d[index + 1] = 255;
+                    });
+                Ok(())
             }
         }
     }

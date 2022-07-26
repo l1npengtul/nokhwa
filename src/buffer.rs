@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb, pixel_format::FormatDecoder, yuyv422_to_rgb, FrameFormat, NokhwaError, Resolution,
-};
-use image::{ImageBuffer, Pixel};
+use crate::{pixel_format::FormatDecoder, FrameFormat, NokhwaError, Resolution};
+use image::ImageBuffer;
 #[cfg(feature = "input-opencv")]
 use opencv::core::{Mat, Mat_AUTO_STEP, CV_8U, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
 #[cfg(feature = "serde")]
@@ -26,7 +24,7 @@ use std::borrow::Cow;
 
 /// A buffer returned by a camera to accomodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
-#[derive(Clone, Debug, Default, Hash, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialOrd, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Buffer<'a> {
     resolution: Resolution,
@@ -36,6 +34,7 @@ pub struct Buffer<'a> {
 
 impl<'a> Buffer<'a> {
     /// Creates a new buffer with a [`Vec`].
+    #[must_use]
     pub fn new_with_vec(res: Resolution, buf: Vec<u8>, source_frame_format: FrameFormat) -> Self {
         Self {
             resolution: res,
@@ -44,7 +43,12 @@ impl<'a> Buffer<'a> {
         }
     }
     /// Creates a new buffer with a [`&[u8]`].
-    pub fn new_with_slice(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
+    #[must_use]
+    pub fn new_with_slice(
+        res: Resolution,
+        buf: &'a [u8],
+        source_frame_format: FrameFormat,
+    ) -> Self {
         Self {
             resolution: res,
             buffer: Cow::Borrowed(buf),
@@ -53,23 +57,19 @@ impl<'a> Buffer<'a> {
     }
 
     /// Get the [`Resolution`] of this buffer.
+    #[must_use]
     pub fn resolution(&self) -> Resolution {
         self.resolution
     }
 
     /// Get the data of this buffer.
+    #[must_use]
     pub fn buffer(&self) -> &[u8] {
         &self.buffer
     }
 
-    /// Get a mutable reference to this buffer.
-    ///
-    /// NOTE: Editing this may lead to decoding failure or unsafety!
-    pub fn buffer_mut(&mut self) -> &mut [u8] {
-        &mut self.buffer
-    }
-
     /// Get the [`FrameFormat`] of this buffer.
+    #[must_use]
     pub fn source_frame_format(&self) -> FrameFormat {
         self.source_frame_format
     }
@@ -83,11 +83,11 @@ impl<'a> Buffer<'a> {
         let new_data = F::write_output(self.source_frame_format, &self.buffer)?;
         let image =
             ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
-                .ok_or(Err(NokhwaError::ProcessFrameError {
+                .ok_or(NokhwaError::ProcessFrameError {
                     src: self.source_frame_format,
                     destination: stringify!(F).to_string(),
                     error: "Failed to create buffer".to_string(),
-                }))?;
+                })?;
         Ok(image)
     }
 

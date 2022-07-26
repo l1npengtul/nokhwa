@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::RgbAFormat;
 use crate::{
     error::NokhwaError,
-    utils::{
-        buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, CameraFormat, CameraInfo, FrameFormat, Resolution,
-    },
-    Buffer, CameraControl, ControlValueSetter, FormatDecoder, KnownCameraControl,
+    utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
+    Buffer, CameraControl, ControlValueSetter, KnownCameraControl,
 };
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -39,6 +36,8 @@ use wgpu::{
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureBackendTrait {
     /// Initializes the camera. You must call this before any other function.
+    /// # Errors
+    /// If the camera fails to initialize and/or get its current(not requested) [`CameraFormat`], this will error.
     fn init(&mut self) -> Result<CameraFormat, NokhwaError>;
 
     /// Returns the current backend used.
@@ -48,7 +47,8 @@ pub trait CaptureBackendTrait {
     fn camera_info(&self) -> &CameraInfo;
 
     /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
-    /// You shouldn't have to call this as it is done for you.
+    /// # Errors
+    /// If the camera can not get its most recent [`CameraFormat`]. this will error.
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError>;
 
     /// Gets the current [`CameraFormat`]. This will force refresh to the current latest if it has changed.
@@ -70,12 +70,15 @@ pub trait CaptureBackendTrait {
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
+    /// Gets the compatible [`CameraFormats`] of the camera
+    /// # Errors
+    /// If it fails to get, this will error.
     fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
         let mut compatible_formats = vec![];
         for fourcc in self.compatible_fourcc()? {
             for (resolution, fps_list) in self.compatible_list_by_resolution(fourcc)? {
                 for fps in fps_list {
-                    compatible_formats.push(CameraFormat::new(resolution, fourcc, fps))
+                    compatible_formats.push(CameraFormat::new(resolution, fourcc, fps));
                 }
             }
         }
@@ -165,7 +168,9 @@ pub trait CaptureBackendTrait {
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
     /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the buffer with an alpha channel as well.
-    fn decoded_buffer_size(&self, alpha: bool) -> Result<usize, NokhwaError> {
+    /// This assumes that you are decoding to RGB/RGBA for [`FrameFormat::MJPEG`] or [`FrameFormat::YUYV`] and Luma8/LumaA8 for [`FrameFormat::GRAY8`]
+    #[must_use]
+    fn decoded_buffer_size(&self, alpha: bool) -> usize {
         let cfmt = self.camera_format();
         let resolution = cfmt.resolution();
         let pxwidth = match cfmt.format() {
@@ -173,25 +178,9 @@ pub trait CaptureBackendTrait {
             FrameFormat::GRAY8 => 1,
         };
         if alpha {
-            return Ok((resolution.width() * resolution.height() * (pxwidth + 1)) as usize);
+            return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;
         }
-        Ok((resolution.width() * resolution.height() * pxwidth) as usize)
-    }
-
-    /// Directly writes the current frame into said `buffer` when provided a [`decoder`](crate::pixel_format::FormatDecoder).
-    /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    fn write_frame_to_buffer(
-        &mut self,
-        buffer: &mut [u8],
-        decoder: &dyn FormatDecoder,
-    ) -> Result<usize, NokhwaError> {
-        // FIXME: ??????
-        let data = &self.frame_raw()?;
-        let data_length = data.len();
-        decoder.write_output_buffer(self.frame_format(), data, buffer)?;
-
-        Ok(data_length)
+        (resolution.width() * resolution.height() * pxwidth) as usize
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -206,7 +195,7 @@ pub trait CaptureBackendTrait {
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
         use crate::pixel_format::RgbAFormat;
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?.decode_image::<RgbAFormat>()?;
 
         let texture_size = Extent3d {

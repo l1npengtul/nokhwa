@@ -82,7 +82,7 @@ impl Camera {
         {
             self.device.stop_stream()?;
         }
-        let new_camera_format = self.device.camera_format()?;
+        let new_camera_format = self.device.camera_format();
         let new_camera = init_camera(new_idx, Some(new_camera_format), self.api)?;
         self.device = new_camera;
         Ok(())
@@ -91,7 +91,7 @@ impl Camera {
     /// Gets the current Camera's backend
     #[must_use]
     pub fn backend(&self) -> ApiBackend {
-        self.backend_api
+        self.api
     }
 
     /// Sets the current Camera's backend. Note that this re-initializes the camera.
@@ -101,7 +101,7 @@ impl Camera {
         {
             self.device.stop_stream()?;
         }
-        let new_camera_format = self.device.camera_format()?;
+        let new_camera_format = self.device.camera_format();
         let new_camera = init_camera(self.idx, Some(new_camera_format), new_backend)?;
         self.device = new_camera;
         Ok(())
@@ -114,14 +114,17 @@ impl Camera {
     }
 
     /// Gets the current [`CameraFormat`].
-    pub fn cached_camera_format(&self) -> CameraFormat {
-        self.device.cached_camera_format()
+    #[must_use]
+    pub fn camera_format(&self) -> CameraFormat {
+        self.device.camera_format()
     }
 
     /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
-    /// You shouldn't have to call this as it is done for you.
-    pub fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        self.device.refresh_camera_format()
+    /// # Errors
+    /// If the camera can not get its most recent [`CameraFormat`]. this will error.
+    pub fn refresh_camera_format(&mut self) -> Result<CameraFormat, NokhwaError> {
+        self.device.refresh_camera_format()?;
+        Ok(self.device.camera_format())
     }
 
     /// Will set the current [`CameraFormat`]
@@ -161,7 +164,7 @@ impl Camera {
                 self.compatible_list_by_resolution(foramt)?;
             for (res, rates) in resolution_and_fps {
                 for fps in rates {
-                    camera_formats.push(CameraFormat::new(res, foramt, fps))
+                    camera_formats.push(CameraFormat::new(res, foramt, fps));
                 }
             }
         }
@@ -169,6 +172,7 @@ impl Camera {
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
+    #[must_use]
     pub fn resolution(&self) -> Resolution {
         self.device.resolution()
     }
@@ -184,11 +188,7 @@ impl Camera {
     }
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
-    pub fn cached_frame_rate(&self) -> u32 {
-        self.device.cached_frame_rate()
-    }
-
-    /// Gets the current camera framerate (See: [`CameraFormat`]).
+    #[must_use]
     pub fn frame_rate(&self) -> u32 {
         self.device.frame_rate()
     }
@@ -203,12 +203,8 @@ impl Camera {
         self.device.set_frame_rate(new_fps)
     }
 
-    /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
-    pub fn cached_frame_format(&self) -> FrameFormat {
-        self.device.cached_frame_format()
-    }
-
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
+    #[must_use]
     pub fn frame_format(&self) -> FrameFormat {
         self.device.frame_format()
     }
@@ -227,7 +223,12 @@ impl Camera {
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        self.device.supported_camera_controls()
+        Ok(self
+            .device
+            .camera_controls()?
+            .iter()
+            .map(CameraControl::control)
+            .collect())
     }
 
     /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
@@ -258,7 +259,7 @@ impl Camera {
             .collect::<Vec<(String, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
-        for (kc, cc) in maybe_camera_controls.into_iter() {
+        for (kc, cc) in maybe_camera_controls {
             control_map.insert(kc, cc);
         }
 
@@ -280,7 +281,7 @@ impl Camera {
             .collect::<Vec<(KnownCameraControl, CameraControl)>>();
         let mut control_map = HashMap::with_capacity(maybe_camera_controls.len());
 
-        for (kc, cc) in maybe_camera_controls.into_iter() {
+        for (kc, cc) in maybe_camera_controls {
             control_map.insert(kc, cc);
         }
 
@@ -344,14 +345,14 @@ impl Camera {
         }
     }
 
-    /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
+    /// Directly writes the current frame into said `buffer`.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     pub fn write_frame_to_buffer<F: FormatDecoder>(
         &mut self,
         buffer: &mut [u8],
-    ) -> Result<usize, NokhwaError> {
-        let buffer = self.device.frame()?;
+    ) -> Result<(), NokhwaError> {
+        self.device.frame()?.decode_image_to_buffer::<F>(buffer)
     }
 
     #[cfg(feature = "output-wgpu")]
@@ -359,7 +360,7 @@ impl Camera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a, F: crate::FormatDecoder>(
+    pub fn frame_texture<'a, F: FormatDecoder>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,

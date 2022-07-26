@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{pixel_format::FormatDecoder, NokhwaError};
+use crate::NokhwaError;
 #[cfg(any(
     all(
         feature = "input-avfoundation",
@@ -77,15 +77,6 @@ impl Display for FrameFormat {
                 write!(f, "GRAY8")
             }
         }
-    }
-}
-
-impl<P> From<P> for FrameFormat
-where
-    P: FormatDecoder,
-{
-    fn from(_: P) -> Self {
-        P::CODE
     }
 }
 
@@ -169,6 +160,7 @@ impl From<FrameFormat> for AVFourCC {
     }
 }
 
+#[must_use]
 pub const fn frame_formats() -> [FrameFormat; 3] {
     [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY8]
 }
@@ -792,7 +784,7 @@ impl Display for KnownCameraControlFlag {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 // TODO: use in CameraControl
 /// The values for a [`CameraControl`].
@@ -840,15 +832,18 @@ pub enum ControlValueDescription {
 
 impl ControlValueDescription {
     /// Get the value of this [`ControlValueDescription`]
+    #[must_use]
     pub fn value(&self) -> ControlValueSetter {
         match self {
             ControlValueDescription::None => ControlValueSetter::None,
-            ControlValueDescription::Integer { value, .. } => ControlValueSetter::Integer(*value),
-            ControlValueDescription::IntegerRange { value, .. } => {
+            ControlValueDescription::Integer { value, .. }
+            | ControlValueDescription::IntegerRange { value, .. } => {
                 ControlValueSetter::Integer(*value)
             }
-            ControlValueDescription::Float { value, .. } => ControlValueSetter::Float(*value),
-            ControlValueDescription::FloatRange { value, .. } => ControlValueSetter::Float(*value),
+            ControlValueDescription::Float { value, .. }
+            | ControlValueDescription::FloatRange { value, .. } => {
+                ControlValueSetter::Float(*value)
+            }
             ControlValueDescription::Boolean { value, .. } => ControlValueSetter::Boolean(*value),
             ControlValueDescription::String { value, .. } => {
                 ControlValueSetter::String(value.clone())
@@ -862,29 +857,18 @@ impl ControlValueDescription {
     /// Verifies if the [setter](crate::utils::ControlValueSetter) is valid for the provided [`ControlValueDescription`].
     /// - `true` => Is valid.
     /// - `false` => Is not valid.
+    #[must_use]
     pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
         match setter {
             ControlValueSetter::None => {
-                if let ControlValueDescription::None = self {
-                    true
-                } else {
-                    false
-                }
+                matches!(self, ControlValueDescription::None)
             }
             ControlValueSetter::Integer(i) => match self {
                 ControlValueDescription::Integer {
                     value,
                     default,
                     step,
-                } => {
-                    if (i - default).abs() % step == 0 {
-                        true
-                    } else if (i - value) % step == 0 {
-                        true
-                    } else {
-                        false
-                    }
-                }
+                } => (i - default).abs() % step == 0 || (i - value) % step == 0,
                 ControlValueDescription::IntegerRange {
                     min,
                     max,
@@ -896,13 +880,7 @@ impl ControlValueDescription {
                         return false;
                     }
 
-                    if (i - default).abs() % step == 0 {
-                        true
-                    } else if (i - value) % step == 0 {
-                        true
-                    } else {
-                        false
-                    }
+                    (i - default) % step == 0 || (i - value) % step == 0
                 }
                 _ => false,
             },
@@ -911,15 +889,7 @@ impl ControlValueDescription {
                     value,
                     default,
                     step,
-                } => {
-                    if (f - default).abs() % step == 0_f64 {
-                        true
-                    } else if (f - value) % step == 0_f64 {
-                        true
-                    } else {
-                        false
-                    }
-                }
+                } => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
                 ControlValueDescription::FloatRange {
                     min,
                     max,
@@ -931,36 +901,18 @@ impl ControlValueDescription {
                         return false;
                     }
 
-                    if (f - default).abs() % step == 0_f64 {
-                        true
-                    } else if (f - value) % step == 0_f64 {
-                        true
-                    } else {
-                        false
-                    }
+                    (f - default) % step == 0_f64 || (f - value) % step == 0_f64
                 }
                 _ => false,
             },
             ControlValueSetter::Boolean(_) => {
-                if let ControlValueDescription::Boolean { .. } = self {
-                    true
-                } else {
-                    false
-                }
+                matches!(self, ControlValueDescription::Boolean { .. })
             }
             ControlValueSetter::String(_) => {
-                if let ControlValueDescription::String { .. } = self {
-                    true
-                } else {
-                    false
-                }
+                matches!(self, ControlValueDescription::String { .. })
             }
             ControlValueSetter::Bytes(_) => {
-                if let ControlValueDescription::Bytes { .. } = self {
-                    true
-                } else {
-                    false
-                }
+                matches!(self, ControlValueDescription::Bytes { .. })
             }
         }
     }
@@ -1033,15 +985,15 @@ impl Display for ControlValueDescription {
     }
 }
 
-fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
-    if (val - default) % step != 0 {
-        return Err(NokhwaError::StructureError {
-            structure: "Value".to_string(),
-            error: "Doesnt fit step".to_string(),
-        });
-    }
-    Ok(())
-}
+// fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
+//     if (val - default) % step != 0 {
+//         return Err(NokhwaError::StructureError {
+//             structure: "Value".to_string(),
+//             error: "Doesnt fit step".to_string(),
+//         });
+//     }
+//     Ok(())
+// }
 
 /// This struct tells you everything about a particular [`KnownCameraControls`].
 ///
@@ -1049,7 +1001,7 @@ fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
 /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraControl {
     control: KnownCameraControl,
@@ -1062,6 +1014,7 @@ pub struct CameraControl {
 
 impl CameraControl {
     /// Creates a new [`CameraControl`]
+    #[must_use]
     pub fn new(
         control: KnownCameraControl,
         name: String,
@@ -1139,20 +1092,8 @@ impl Display for CameraControl {
     }
 }
 
-impl PartialOrd for CameraControl {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CameraControl {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.control().cmp(&other.control())
-    }
-}
-
 /// The setter for a control value
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlValueSetter {
     None,
@@ -1172,8 +1113,8 @@ impl Display for ControlValueSetter {
             ControlValueSetter::Integer(i) => {
                 write!(f, "Value: {}", i)
             }
-            ControlValueSetter::Float(f) => {
-                write!(f, "Value: {}", f)
+            ControlValueSetter::Float(d) => {
+                write!(f, "Value: {}", d)
             }
             ControlValueSetter::Boolean(b) => {
                 write!(f, "Value: {}", b)
@@ -1352,6 +1293,8 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 }
 
 /// Equivalent to [`mjpeg_to_rgb`] except with a destination buffer.
+/// # Errors
+/// If the decoding fails (e.g. invalid MJPEG stream), the buffer is not large enough, or you are doing this on `WebAssembly`, this will error.
 #[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
@@ -1442,6 +1385,8 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 }
 
 /// Same as [`yuyv422_to_rgb`] but with a destination buffer instead of a return `Vec<u8>`
+/// # Errors
+/// If the stream is invalid YUYV, or the destination buffer is not large enough, this will error.
 pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
@@ -1469,33 +1414,51 @@ pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<()
     if rgba {
         let mut iter = iter
             .flat_map(|yuyv| {
-                let y1 = yuyv[0] as i32;
-                let u = yuyv[1] as i32;
-                let y2 = yuyv[2] as i32;
-                let v = yuyv[3] as i32;
+                let y1 = i32::from(yuyv[0]);
+                let u = i32::from(yuyv[1]);
+                let y2 = i32::from(yuyv[2]);
+                let v = i32::from(yuyv[3]);
                 let pixel1 = yuyv444_to_rgba(y1, u, v);
                 let pixel2 = yuyv444_to_rgba(y2, u, v);
                 [pixel1, pixel2]
             })
             .flatten();
-        for i in 0..rgb_buf_size {
-            dest[i] = iter.next().unwrap();
+        for i in dest.iter_mut().take(rgb_buf_size) {
+            *i = match iter.next() {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::YUYV,
+                        destination: "RGBA8888".to_string(),
+                        error: "Ran out of RGBA YUYV values! (this should not happen, please file an issue: l1npengtul/nokhwa)".to_string()
+                    })
+                }
+            }
         }
     } else {
         let mut iter = iter
             .flat_map(|yuyv| {
-                let y1 = yuyv[0] as i32;
-                let u = yuyv[1] as i32;
-                let y2 = yuyv[2] as i32;
-                let v = yuyv[3] as i32;
+                let y1 = i32::from(yuyv[0]);
+                let u = i32::from(yuyv[1]);
+                let y2 = i32::from(yuyv[2]);
+                let v = i32::from(yuyv[3]);
                 let pixel1 = yuyv444_to_rgb(y1, u, v);
                 let pixel2 = yuyv444_to_rgb(y2, u, v);
                 [pixel1, pixel2]
             })
             .flatten();
 
-        for i in 0..rgb_buf_size {
-            dest[i] = iter.next().unwrap();
+        for i in dest.iter_mut().take(rgb_buf_size) {
+            *i = match iter.next() {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::YUYV,
+                        destination: "RGB888".to_string(),
+                        error: "Ran out of RGB YUYV values! (this should not happen, please file an issue: l1npengtul/nokhwa)".to_string()
+                    })
+                }
+            }
         }
     }
 
