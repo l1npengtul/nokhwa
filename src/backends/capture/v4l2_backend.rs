@@ -40,7 +40,7 @@ use v4l::{
     Device, Format, FourCC,
 };
 
-/// Attempts to convert a [`KnownCameraControls`] into a V4L2 Control ID.
+/// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
 pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
     match ctrl {
@@ -63,7 +63,7 @@ pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
     }
 }
 
-/// Attempts to convert a [`u32`] V4L2 Control ID into a [`KnownCameraControls`]
+/// Attempts to convert a [`u32`] V4L2 Control ID into a [`KnownCameraControl`]
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
 pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
     match id {

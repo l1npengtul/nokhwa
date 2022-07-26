@@ -219,7 +219,7 @@ impl Camera {
         self.device.set_frame_format(fourcc)
     }
 
-    /// Gets the current supported list of [`KnownCameraControls`]
+    /// Gets the current supported list of [`KnownCameraControl`](crate::utils::KnownCameraControl)
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
@@ -288,7 +288,7 @@ impl Camera {
         Ok(control_map)
     }
 
-    /// Gets the value of [`KnownCameraControls`].
+    /// Gets the value of [`KnownCameraControl`].
     /// # Errors
     /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
     /// this will error.
@@ -301,7 +301,7 @@ impl Camera {
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
-    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// then calling [`set_value()`](CameraControl::set_value())
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.

@@ -264,7 +264,7 @@ impl CallbackCamera {
         self.camera.lock().set_frame_format(fourcc)
     }
 
-    /// Gets the current supported list of [`KnownCameraControls`]
+    /// Gets the current supported list of [`KnownCameraControl`]
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
@@ -328,7 +328,7 @@ impl CallbackCamera {
         Ok(control_map)
     }
 
-    /// Gets the value of [`KnownCameraControls`].
+    /// Gets the value of [`KnownCameraControl`].
     /// # Errors
     /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
     /// this will error.

@@ -649,7 +649,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
 
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
-/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::supported_camera_controls) to see which ones can be set.
+/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KnownCameraControl {
@@ -765,7 +765,7 @@ impl From<Description> for KnownCameraControl {
     }
 }
 
-/// This tells you weather a [`KnownCameraControls`] is automatically managed by the OS/Driver
+/// This tells you weather a [`KnownCameraControl`] is automatically managed by the OS/Driver
 /// or manually managed by you, the programmer.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum KnownCameraControlFlag {
@@ -995,7 +995,7 @@ impl Display for ControlValueDescription {
 //     Ok(())
 // }
 
-/// This struct tells you everything about a particular [`KnownCameraControls`].
+/// This struct tells you everything about a particular [`KnownCameraControl`].
 ///
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
@@ -1033,7 +1033,7 @@ impl CameraControl {
         }
     }
 
-    /// Gets the [`KnownCameraControls`] of this [`CameraControl`]
+    /// Gets the [`KnownCameraControl`] of this [`CameraControl`]
     #[must_use]
     pub fn control(&self) -> KnownCameraControl {
         self.control
@@ -1133,10 +1133,10 @@ impl Display for ControlValueSetter {
 /// - `AUTO` is special - it tells the Camera struct to automatically choose a backend most suited for the current platform.
 /// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
 /// - `Video4Linux` - `Video4Linux2`, a linux specific backend.
-/// - `UniversalVideoClass` -  ***[DEPRECATED]*** Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
+/// - `UniversalVideoClass` -  ***DEPRECATED*** Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
 /// - `OpenCv` - Uses `OpenCV` to capture. Platform agnostic.
-/// - `GStreamer` - ***[DEPRECATED]*** Uses `GStreamer` RTP to capture. Platform agnostic.
+/// - `GStreamer` - ***DEPRECATED*** Uses `GStreamer` RTP to capture. Platform agnostic.
 /// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]

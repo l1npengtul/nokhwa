@@ -70,7 +70,7 @@ pub trait CaptureBackendTrait {
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
-    /// Gets the compatible [`CameraFormats`] of the camera
+    /// Gets the compatible [`CameraFormat`] of the camera
     /// # Errors
     /// If it fails to get, this will error.
     fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
@@ -124,20 +124,20 @@ pub trait CaptureBackendTrait {
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
 
-    /// Gets the value of [`KnownCameraControls`].
+    /// Gets the value of [`KnownCameraControl`].
     /// # Errors
     /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
     /// this will error.
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError>;
 
-    /// Gets the current supported list of [`KnownCameraControls`]
+    /// Gets the current supported list of [`KnownCameraControl`]
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError>;
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
-    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// then calling [`set_value()`](CameraControl::set_value())
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.
