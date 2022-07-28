@@ -1,5 +1,6 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
+#![forbid(missing_docs)]
 /*
  * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
@@ -37,10 +38,6 @@ mod init;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub mod js_camera;
-/// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
-#[cfg(feature = "input-ipcam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-pub mod network_camera;
 mod pixel_format;
 pub use pixel_format::FormatDecoder;
 mod query;
@@ -50,6 +47,9 @@ mod query;
 mod threaded;
 mod utils;
 
+#[cfg(feature = "input-ipcam")]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+pub use backends::capture::network_camera::NetworkCamera;
 pub use buffer::Buffer;
 pub use camera::Camera;
 pub use camera_traits::*;
@@ -58,9 +58,6 @@ pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub use js_camera::JSCamera;
-#[cfg(feature = "input-ipcam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-pub use network_camera::NetworkCamera;
 pub use query::*;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]

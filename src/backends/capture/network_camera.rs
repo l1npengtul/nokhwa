@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
-use crate::{backends::capture::OpenCvCaptureDevice, CaptureBackendTrait, NokhwaError};
+use crate::{
+    backends::capture::OpenCvCaptureDevice, ApiBackend, Buffer, CameraControl, CameraFormat,
+    CameraInfo, CaptureBackendTrait, ControlValueSetter, FrameFormat, KnownCameraControl,
+    NokhwaError, Resolution,
+};
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
+use std::borrow::Cow;
 use std::cell::RefCell;
+use std::collections::HashMap;
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -60,19 +66,19 @@ impl NetworkCamera {
     /// Opens stream.
     /// # Errors
     /// If the backend fails to capture the stream this will error
-    pub fn open_stream(&self) -> Result<(), NokhwaError> {
+    fn open_stream(&self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().open_stream()
     }
 
     /// Gets the frame decoded as a RGB24 frame
     /// # Errors
     /// If the backend fails to capture the stream, or if the decoding fails this will error
-    pub fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         self.opencv_backend.borrow_mut().frame()
     }
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
-    pub fn min_buffer_size(&self, rgba: bool) -> usize {
+    fn min_buffer_size(&self, rgba: bool) -> usize {
         let resolution = self.opencv_backend.borrow().resolution();
         if rgba {
             return (resolution.width() * resolution.height() * 4) as usize;
@@ -82,11 +88,7 @@ impl NetworkCamera {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn frame_to_buffer(
-        &self,
-        buffer: &mut [u8],
-        convert_rgba: bool,
-    ) -> Result<usize, NokhwaError> {
+    fn frame_to_buffer(&self, buffer: &mut [u8], convert_rgba: bool) -> Result<usize, NokhwaError> {
         let frame = self.frame()?;
         let mut frame_data = frame.to_vec();
         if convert_rgba {
@@ -102,7 +104,7 @@ impl NetworkCamera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a>(
+    fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
@@ -160,8 +162,105 @@ impl NetworkCamera {
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
-    pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().stop_stream()
+    }
+}
+
+impl CaptureBackendTrait for NetworkCamera {
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
+        todo!()
+    }
+
+    fn backend(&self) -> ApiBackend {
+        todo!()
+    }
+
+    fn camera_info(&self) -> &CameraInfo {
+        todo!()
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn camera_format(&self) -> CameraFormat {
+        todo!()
+    }
+
+    fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn compatible_list_by_resolution(
+        &mut self,
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+        todo!()
+    }
+
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+        todo!()
+    }
+
+    fn resolution(&self) -> Resolution {
+        todo!()
+    }
+
+    fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn frame_rate(&self) -> u32 {
+        todo!()
+    }
+
+    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn frame_format(&self) -> FrameFormat {
+        todo!()
+    }
+
+    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        todo!()
+    }
+
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        todo!()
+    }
+
+    fn set_camera_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn open_stream(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn is_stream_open(&self) -> bool {
+        todo!()
+    }
+
+    fn frame<'a>(&mut self) -> Result<Buffer<'a>, NokhwaError> {
+        todo!()
+    }
+
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        todo!()
+    }
+
+    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+        todo!()
     }
 }
 

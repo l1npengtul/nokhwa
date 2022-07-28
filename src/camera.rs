@@ -410,7 +410,7 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>](idx: u32, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](idx: CameraInfo, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
                         Ok(cap) => Some(Ok(cp.into())),
@@ -418,7 +418,7 @@ macro_rules! cap_impl_fn {
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>](_idx: u32, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](_idx: CameraInfo, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     None
                 }
             }
@@ -511,6 +511,7 @@ macro_rules! cap_impl_matches {
 cap_impl_fn! {
     // (GStreamerCaptureDevice, new, feature = "input-gst", gst),
     (OpenCvCaptureDevice, new_autopref, feature = "input-opencv", opencv),
+    (NetworkCamera, new_autopref, feature = "input-opencv", opencv),
     // (UVCCaptureDevice, create, feature = "input-uvc", uvc),
     (V4LCaptureDevice, new, all(feature = "input-v4l", target_os = "linux"), v4l),
     (MediaFoundationCaptureDevice, new, all(feature = "input-msmf", target_os = "windows"), msmf),
@@ -518,7 +519,7 @@ cap_impl_fn! {
 }
 
 fn init_camera(
-    index: u32,
+    index: CameraInfo,
     format: Option<CameraFormat>,
     backend: ApiBackend,
 ) -> Result<Box<dyn CaptureBackendTrait>, NokhwaError> {

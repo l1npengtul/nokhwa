@@ -38,7 +38,8 @@ pub trait CaptureBackendTrait {
     /// Initializes the camera. You must call this before any other function.
     /// # Errors
     /// If the camera fails to initialize and/or get its current(not requested) [`CameraFormat`], this will error.
-    fn init(&mut self) -> Result<CameraFormat, NokhwaError>;
+    fn init(&mut self, requested_format: Option<CameraFormat>)
+        -> Result<CameraFormat, NokhwaError>;
 
     /// Returns the current backend used.
     fn backend(&self) -> crate::ApiBackend;
@@ -175,7 +176,7 @@ pub trait CaptureBackendTrait {
         let resolution = cfmt.resolution();
         let pxwidth = match cfmt.format() {
             FrameFormat::MJPEG | FrameFormat::YUYV => 3,
-            FrameFormat::GRAY8 => 1,
+            FrameFormat::GRAY => 1,
         };
         if alpha {
             return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;

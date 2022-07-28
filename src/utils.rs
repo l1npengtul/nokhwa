@@ -40,7 +40,7 @@ use nokhwa_bindings_windows::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
@@ -51,17 +51,107 @@ use v4l::{control::Description, Format, FourCC};
 #[cfg(feature = "output-wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+/// Tells the init function what camera format to pick.
+/// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
+/// - `HighestFrameRate(Option<Resolution>)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`). If it is `None`, it will pick the highest possinle framerate.
+/// - `Exact`: Pick the exact [`CameraFormat`] provided.
+/// - `None`: Pick a random [`CameraFormat`]
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
+pub enum BestEffort {
+    HighestResolution(Option<u32>),
+    HighestFrameRate(Option<Resolution>),
+    Exact(CameraFormat),
+    None,
+}
+
+/// Describes the index of the camera.
+/// - Index: A numbered index
+/// - String: A string, used for IPCameras.
+#[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CameraIndex {
+    Index(u32),
+    String(String),
+}
+
+impl CameraIndex {
+    /// Turns this value into a number. If it is a string, it will attempt to parse it as a `u32`.
+    /// # Errors
+    /// Fails if the value is not a number.
+    pub fn as_index(&self) -> Result<u32, NokhwaError> {
+        match self {
+            CameraIndex::Index(i) => Ok(*i),
+            CameraIndex::String(s) => s
+                .parse::<u32>()
+                .map_err(|why| NokhwaError::GeneralError(why.to_string())),
+        }
+    }
+
+    /// Turns this value into a `String`. If it is a number, it will be automatically converted.
+    #[must_use]
+    pub fn as_string(&self) -> String {
+        match self {
+            CameraIndex::Index(i) => i.to_string(),
+            CameraIndex::String(s) => s.to_string(),
+        }
+    }
+
+    /// Returns true if this [`CameraIndex`] contains an [`CameraIndex::Index`]
+    #[must_use]
+    pub fn is_index(&self) -> bool {
+        match self {
+            CameraIndex::Index(_) => true,
+            CameraIndex::String(_) => false,
+        }
+    }
+
+    /// Returns true if this [`CameraIndex`] contains an [`CameraIndex::String`]
+    #[must_use]
+    pub fn is_string(&self) -> bool {
+        !self.is_index()
+    }
+}
+
+impl Display for CameraIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+
+impl AsRef<str> for CameraIndex {
+    fn as_ref(&self) -> &str {
+        self.to_string().as_str()
+    }
+}
+
+impl TryFrom<CameraIndex> for u32 {
+    type Error = NokhwaError;
+
+    fn try_from(value: CameraIndex) -> Result<Self, Self::Error> {
+        value.as_index()
+    }
+}
+
+impl TryFrom<CameraIndex> for usize {
+    type Error = NokhwaError;
+
+    fn try_from(value: CameraIndex) -> Result<Self, Self::Error> {
+        value.as_index().map(|i| i as usize)
+    }
+}
+
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
 /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
-/// # JS-WASM
-/// This is exported as `FrameFormat`
+/// - GRAY is a grayscale image format, usually for specialized cameras such as IR Cameras.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
-    GRAY8,
+    GRAY,
 }
 
 impl Display for FrameFormat {
@@ -73,7 +163,7 @@ impl Display for FrameFormat {
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
             }
-            FrameFormat::GRAY8 => {
+            FrameFormat::GRAY => {
                 write!(f, "GRAY8")
             }
         }
@@ -99,7 +189,7 @@ impl From<MFFrameFormat> for FrameFormat {
         match mf_ff {
             MFFrameFormat::MJPEG => FrameFormat::MJPEG,
             MFFrameFormat::YUYV => FrameFormat::YUYV,
-            MFFrameFormat::GRAY8 => FrameFormat::GRAY8,
+            MFFrameFormat::GRAY8 => FrameFormat::GRAY,
         }
     }
 }
@@ -113,7 +203,7 @@ impl From<FrameFormat> for MFFrameFormat {
         match ff {
             FrameFormat::MJPEG => MFFrameFormat::MJPEG,
             FrameFormat::YUYV => MFFrameFormat::YUYV,
-            FrameFormat::GRAY8 => MFFrameFormat::GRAY8, //FIXME
+            FrameFormat::GRAY => MFFrameFormat::GRAY8, //FIXME
         }
     }
 }
@@ -134,7 +224,7 @@ impl From<AVFourCC> for FrameFormat {
         match av_fcc {
             AVFourCC::YUV2 => FrameFormat::YUYV,
             AVFourCC::MJPEG => FrameFormat::MJPEG,
-            AVFourCC::GRAY8 => FrameFormat::GRAY8,
+            AVFourCC::GRAY8 => FrameFormat::GRAY,
         }
     }
 }
@@ -155,14 +245,14 @@ impl From<FrameFormat> for AVFourCC {
         match ff {
             FrameFormat::MJPEG => AVFourCC::MJPEG,
             FrameFormat::YUYV => AVFourCC::YUV2,
-            FrameFormat::GRAY8 => AVFourCC::GRAY8,
+            FrameFormat::GRAY => AVFourCC::GRAY8,
         }
     }
 }
 
 #[must_use]
 pub const fn frame_formats() -> [FrameFormat; 3] {
-    [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY8]
+    [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY]
 }
 
 /// Describes a Resolution.
@@ -170,7 +260,7 @@ pub const fn frame_formats() -> [FrameFormat; 3] {
 /// Note: the [`Ord`] implementation of this struct is flipped from highest to lowest.
 /// # JS-WASM
 /// This is exported as `JSResolution`
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSResolution))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
@@ -178,7 +268,7 @@ pub struct Resolution {
     pub height_y: u32,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSResolution))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     /// # JS-WASM
@@ -436,7 +526,7 @@ impl From<CameraFormat> for Format {
         let pxfmt = match cam_fmt.format() {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => FourCC::new(b"GREY"),
+            FrameFormat::GRAY => FourCC::new(b"GREY"),
         };
 
         Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
@@ -472,19 +562,17 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// Information about a Camera e.g. its name.
 /// `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
-/// # JS-WASM
-/// This is exported as a `JSCameraInfo`.
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = JSCameraInfo))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CameraInfo {
     human_name: String,
     description: String,
     misc: String,
-    index: u32,
+    index: CameraIndex,
 }
 
-#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = JSCameraInfo))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = CameraInfo))]
 impl CameraInfo {
     /// Create a new [`CameraInfo`].
     /// # JS-WASM
@@ -494,7 +582,7 @@ impl CameraInfo {
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
     // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
-    pub fn new(human_name: &str, description: &str, misc: &str, index: u32) -> Self {
+    pub fn new(human_name: &str, description: &str, misc: &str, index: CameraIndex) -> Self {
         CameraInfo {
             human_name: human_name.to_string(),
             description: description.to_string(),
@@ -567,15 +655,15 @@ impl CameraInfo {
     /// This is exported as a `get_Index`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index))]
-    pub fn index(&self) -> u32 {
-        self.index
+    pub fn index(&self) -> &CameraIndex {
+        &self.index
     }
 
     /// Set the device info's index.
     /// # JS-WASM
     /// This is exported as a `set_Index`.
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(setter = Index))]
-    pub fn set_index(&mut self, index: u32) {
+    pub fn set_index(&mut self, index: CameraIndex) {
         self.index = index;
     }
 

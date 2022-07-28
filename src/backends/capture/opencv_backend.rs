@@ -16,8 +16,8 @@
 
 use crate::pixel_format::FormatDecoder;
 use crate::{
-    ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat,
-    KnownCameraControl, NokhwaError, Resolution,
+    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
+    ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use opencv::{
@@ -71,7 +71,7 @@ macro_rules! tryinto_num {
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
 pub struct OpenCvCaptureDevice {
     camera_format: CameraFormat,
-    camera_location: usize,
+    camera_location: CameraIndex,
     camera_info: CameraInfo,
     api_preference: i32,
     video_capture: VideoCapture,
@@ -94,39 +94,37 @@ impl OpenCvCaptureDevice {
     /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
     /// # Panics
     /// If the API u32 -> i32 fails this will error
-    pub fn new(
-        index: usize,
-        cfmt: Option<CameraFormat>,
-        api_pref: Option<u32>,
-    ) -> Result<Self, NokhwaError> {
-        let api = if let Some(a) = api_pref {
-            tryinto_num!(i32, a)
-        } else {
-            tryinto_num!(i32, get_api_pref_int())
-        };
-
+    pub fn new(index: CameraIndex, cfmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
         let camera_format = match cfmt {
             Some(cam_fmt) => cam_fmt,
             None => CameraFormat::default(),
         };
 
-        let mut video_capture = match VideoCapture::new(tryinto_num!(i32, idx), api) {
-            Ok(vc) => vc,
-            Err(why) => {
-                return Err(NokhwaError::OpenDeviceError(
-                    idx.to_string(),
-                    why.to_string(),
-                ))
-            }
+        let api_pref = if index.is_string() {
+            CAP_ANY
+        } else {
+            get_api_pref_int()
         };
 
-        set_properties(&mut video_capture, camera_format, index)?;
+        let mut video_capture = match &index {
+            CameraIndex::Index(idx) => VideoCapture::new(*idx as i32, api_pref),
+            CameraIndex::String(ip) => VideoCapture::from_file(ip.as_str(), api_pref),
+        }
+        .map_err(|why| {
+            NokhwaError::OpenDeviceError(format!("Failed to open {}", index), why.to_string())
+        })?;
+
+        set_properties(
+            &mut video_capture,
+            camera_format,
+            index.as_index()? as usize,
+        )?;
 
         let camera_info = CameraInfo::new(
-            format!("OpenCV Capture Device {}", index),
-            index.to_string(),
-            "".to_string(),
-            index as usize,
+            format!("OpenCV Capture Device {}", index).as_str(),
+            index.to_string().as_str(),
+            "",
+            index.clone(),
         );
 
         Ok(OpenCvCaptureDevice {
@@ -138,67 +136,25 @@ impl OpenCvCaptureDevice {
         })
     }
 
-    /// Creates a new capture device using the `OpenCV` backend.
-    ///
-    /// `IPCameras` follow the format
-    /// ```.ignore
-    /// <protocol>://<IP>:<port>/
-    /// ```
-    /// , but please refer to the manufacturer for the actual IP format.
-    ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera.
-    /// # Errors
-    /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
-    pub fn new_ip_camera(ip: String) -> Result<Self, NokhwaError> {
-        let camera_location = CameraIndexType::IPCamera(ip);
-        OpenCvCaptureDevice::new(camera_location, None, None)
-    }
-
-    /// Creates a new capture device using the `OpenCV` backend.
-    /// Indexes are gives to devices by the OS, and usually numbered by order of discovery.
-    ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera.
-    /// # Errors
-    /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
-    pub fn new_index_camera(
-        index: usize,
-        cfmt: Option<CameraFormat>,
-        api_pref: Option<u32>,
-    ) -> Result<Self, NokhwaError> {
-        let camera_location = CameraIndexType::Index(tryinto_num!(u32, index));
-        OpenCvCaptureDevice::new(camera_location, cfmt, api_pref)
-    }
-
-    /// Creates a new capture device using the `OpenCV` backend.
-    /// Indexes are gives to devices by the OS, and usually numbered by order of discovery.
-    ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera.
-    /// # Errors
-    /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
-    pub fn new_autopref(index: usize, cfmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let camera_location = CameraIndexType::Index(tryinto_num!(u32, index));
-        OpenCvCaptureDevice::new(camera_location, cfmt, None)
-    }
-
     /// Gets weather said capture device is an `IPCamera`.
     pub fn is_ip_camera(&self) -> bool {
         match self.camera_location {
-            CameraIndexType::Index(_) => false,
-            CameraIndexType::IPCamera(_) => true,
+            CameraIndex::Index(_) => false,
+            CameraIndex::String(_) => true,
         }
     }
 
     /// Gets weather said capture device is an OS-based indexed camera.
     pub fn is_index_camera(&self) -> bool {
         match self.camera_location {
-            CameraIndexType::Index(_) => true,
-            CameraIndexType::IPCamera(_) => false,
+            CameraIndex::Index(_) => true,
+            CameraIndex::String(_) => false,
         }
     }
 
     /// Gets the camera location
-    pub fn camera_location(&self) -> CameraIndexType {
-        self.camera_location.clone()
+    pub fn camera_location(&self) -> &CameraIndex {
+        &self.camera_location
     }
 
     /// Gets the `OpenCV` API Preference number. Please refer to [`OpenCV VideoCapture Flag Docs`](https://docs.opencv.org/4.5.2/d4/d15/group__videoio__flags__base.html).
@@ -325,9 +281,7 @@ impl OpenCvCaptureDevice {
 }
 
 impl CaptureBackendTrait for OpenCvCaptureDevice {
-    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
-        todo!()
-    }
+    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {}
 
     fn backend(&self) -> ApiBackend {
         ApiBackend::OpenCv
@@ -335,6 +289,10 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
     fn camera_info(&self) -> &CameraInfo {
         &self.camera_info
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        todo!()
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -355,7 +313,11 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
         self.camera_format = new_fmt;
 
-        if let Err(why) = set_properties(&mut self.video_capture, new_fmt, self.camera_location) {
+        if let Err(why) = set_properties(
+            &mut self.video_capture,
+            new_fmt,
+            self.camera_location.as_index() as usize,
+        ) {
             self.camera_format = current_format;
             return Err(why);
         }
@@ -413,128 +375,49 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.set_camera_format(current_fmt)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::UniversalVideoClass,
-        ))
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        todo!()
     }
 
-    fn camera_control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::UniversalVideoClass,
-        ))
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        todo!()
     }
 
-    fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::UniversalVideoClass,
-        ))
-    }
-
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::UniversalVideoClass,
-        ))
-    }
-
-    fn raw_camera_control(&self, control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        let id = match control.downcast_ref::<i32>() {
-            Some(id) => *id,
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "OpenCV ID".to_string(),
-                    error: "Failed Any Cast".to_string(),
-                })
-            }
-        };
-
-        match self.video_capture.get(id) {
-            Ok(v) => Ok(Box::new(v)),
-            Err(why) => {
-                return Err(NokhwaError::GetPropertyError {
-                    property: format!("OpenCV PROP ID {}", id),
-                    error: why.to_string(),
-                })
-            }
-        }
-    }
-
-    fn set_raw_camera_control(
+    fn set_camera_control(
         &mut self,
-        control: &dyn Any,
-        value: &dyn Any,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        let id = match control.downcast_ref::<i32>() {
-            Some(id) => *id,
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "OpenCV ID".to_string(),
-                    error: "Failed Any Cast".to_string(),
-                })
-            }
-        };
-
-        let value = match value.downcast_ref::<f64>() {
-            Some(id) => *id,
-            None => {
-                return Err(NokhwaError::StructureError {
-                    structure: "OpenCV Value".to_string(),
-                    error: "Failed Any Cast".to_string(),
-                })
-            }
-        };
-
-        match self.video_capture.set(id, value) {
-            Ok(b) => {
-                if b {
-                    return Ok(());
-                }
-                Err(NokhwaError::SetPropertyError {
-                    property: format!("OpenCV PROP ID {}", id),
-                    value: value.to_string(),
-                    error: "OpenCV returned false".to_string(),
-                })
-            }
-            Err(why) => Err(NokhwaError::SetPropertyError {
-                property: format!("OpenCV PROP ID {}", id),
-                value: value.to_string(),
-                error: why.to_string(),
-            }),
-        }
+        todo!()
     }
 
     #[allow(clippy::cast_possible_wrap)]
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         match self.camera_location.clone() {
-            CameraIndexType::Index(idx) => {
+            CameraIndex::Index(idx) => {
                 match self
                     .video_capture
                     .open_1(idx as i32, get_api_pref_int() as i32)
                 {
-                    Ok(_) => {}
-                    Err(why) => {
-                        return Err(NokhwaError::OpenDeviceError(
-                            idx.to_string(),
-                            format!("Failed to open device: {}", why),
+                    Ok(open) => {
+                        if open {
+                            return Ok(());
+                        }
+                        Err(NokhwaError::OpenStreamError(
+                            "Stream is not opened after stream open attempt opencv".to_string(),
                         ))
                     }
+                    Err(why) => Err(NokhwaError::OpenDeviceError(
+                        idx.to_string(),
+                        format!("Failed to open device: {}", why),
+                    )),
                 }
             }
-            CameraIndexType::IPCamera(ip) => {
-                match self
-                    .video_capture
-                    .open_file(&*ip, get_api_pref_int() as i32)
-                {
-                    Ok(_) => {}
-                    Err(why) => {
-                        return Err(NokhwaError::OpenDeviceError(
-                            ip,
-                            format!("Failed to open device: {}", why),
-                        ))
-                    }
-                }
-            }
-        };
+            CameraIndex::String(_) => Err(NokhwaError::OpenDeviceError(
+                "Cannot open".to_string(),
+                "String index not supported (try NetworkCamera instead)".to_string(),
+            )),
+        }?;
 
         match self.video_capture.is_opened() {
             Ok(open) => {
@@ -584,12 +467,6 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         Ok(image_buf)
     }
 
-    fn frame_typed<F: FormatDecoder>(
-        &mut self,
-    ) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
-        todo!()
-    }
-
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         let cow = self.raw_frame_vec()?;
         Ok(cow)
@@ -603,12 +480,12 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 }
 
-fn get_api_pref_int() -> u32 {
+fn get_api_pref_int() -> i32 {
     match std::env::consts::OS {
-        "linux" => CAP_V4L2 as u32,
-        "windows" => CAP_MSMF as u32,
-        "mac" => CAP_AVFOUNDATION as u32,
-        &_ => CAP_ANY as u32,
+        "linux" => CAP_V4L2,
+        "windows" => CAP_MSMF,
+        "mac" => CAP_AVFOUNDATION,
+        &_ => CAP_ANY,
     }
 }
 

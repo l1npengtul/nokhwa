@@ -20,8 +20,9 @@ use crate::{
     mjpeg_to_rgb,
     pixel_format::FormatDecoder,
     utils::{CameraFormat, CameraInfo},
-    yuyv422_to_rgb, ApiBackend, CameraControl, CaptureBackendTrait, ControlValueDescription,
-    ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
+    yuyv422_to_rgb, ApiBackend, CameraControl, CameraIndex, CaptureBackendTrait,
+    ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
+    KnownCameraControlFlag, Resolution,
 };
 use image::ImageBuffer;
 use std::{
@@ -110,8 +111,8 @@ impl<'a> V4LCaptureDevice<'a> {
     /// If `camera_format` is not `None`, the camera will try to use it when you call [`init()`](crate::CaptureBackendTrait::init).
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
-    pub fn new(index: usize, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let device = match Device::new(index as usize) {
+    pub fn new(index: CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+        let device = match Device::new(index.as_index()? as usize) {
             Ok(dev) => dev,
             Err(why) => {
                 return Err(NokhwaError::OpenDeviceError(
@@ -139,7 +140,7 @@ impl<'a> V4LCaptureDevice<'a> {
         let fourcc = match camera_format.format() {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
+            FrameFormat::GRAY => FourCC::new(b"GRAY"),
         };
 
         let new_param = Parameters::with_fps(camera_format.frame_rate());
@@ -199,7 +200,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     pub fn new_with(
-        index: usize,
+        index: CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
@@ -213,7 +214,7 @@ impl<'a> V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
+            FrameFormat::GRAY => FourCC::new(b"GRAY"),
         };
 
         // match Capture::enum_framesizes(&self.device, format) {
@@ -394,7 +395,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let format = match fourcc {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY8 => FourCC::new(b"GRAY"),
+            FrameFormat::GRAY => FourCC::new(b"GRAY"),
         };
         let mut res_map = HashMap::new();
         for res in resolutions {
@@ -654,7 +655,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         let conv = match cam_fmt.format() {
             FrameFormat::MJPEG => mjpeg_to_rgb(&raw_frame, false)?,
             FrameFormat::YUYV => yuyv422_to_rgb(&raw_frame, false)?,
-            FrameFormat::GRAY8 => raw_frame.to_vec(),
+            FrameFormat::GRAY => raw_frame.to_vec(),
         };
         Ok(Buffer::new(cam_fmt.resolution(), conv, cam_fmt.format()))
     }

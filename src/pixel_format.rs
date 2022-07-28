@@ -56,7 +56,7 @@ impl FormatDecoder for RgbFormat {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, false),
             FrameFormat::YUYV => yuyv422_to_rgb(data, false),
-            FrameFormat::GRAY8 => Ok(data
+            FrameFormat::GRAY => Ok(data
                 .iter()
                 .flat_map(|x| {
                     let pxv = *x;
@@ -74,7 +74,7 @@ impl FormatDecoder for RgbFormat {
         match fcc {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, false),
             FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, false),
-            FrameFormat::GRAY8 => {
+            FrameFormat::GRAY => {
                 if dest.len() != data.len() * 3 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,
@@ -111,7 +111,7 @@ impl FormatDecoder for RgbAFormat {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, true),
             FrameFormat::YUYV => yuyv422_to_rgb(data, true),
-            FrameFormat::GRAY8 => Ok(data
+            FrameFormat::GRAY => Ok(data
                 .iter()
                 .flat_map(|x| {
                     let pxv = *x;
@@ -129,7 +129,7 @@ impl FormatDecoder for RgbAFormat {
         match fcc {
             FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, true),
             FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, true),
-            FrameFormat::GRAY8 => {
+            FrameFormat::GRAY => {
                 if dest.len() != data.len() * 4 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,
@@ -184,7 +184,7 @@ impl FormatDecoder for LumaFormat {
                     (avg / 3) as u8
                 })
                 .collect()),
-            FrameFormat::GRAY8 => Ok(data.to_vec()),
+            FrameFormat::GRAY => Ok(data.to_vec()),
         }
     }
 
@@ -207,7 +207,7 @@ impl FormatDecoder for LumaFormat {
                 destination: "Luma => RGB".to_string(),
                 error: "Conversion Error".to_string(),
             }),
-            FrameFormat::GRAY8 => {
+            FrameFormat::GRAY => {
                 data.iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
                     *d = *pxv;
                 });
@@ -250,7 +250,7 @@ impl FormatDecoder for LumaAFormat {
                     [(avg / 3) as u8, 255]
                 })
                 .collect()),
-            FrameFormat::GRAY8 => Ok(data.iter().flat_map(|x| [*x, 255]).collect()),
+            FrameFormat::GRAY => Ok(data.iter().flat_map(|x| [*x, 255]).collect()),
         }
     }
 
@@ -273,7 +273,7 @@ impl FormatDecoder for LumaAFormat {
                 destination: "YUYV => LumaA".to_string(),
                 error: "Conversion Error".to_string(),
             }),
-            FrameFormat::GRAY8 => {
+            FrameFormat::GRAY => {
                 if dest.len() != data.len() * 2 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,
