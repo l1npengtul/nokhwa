@@ -39,6 +39,7 @@ use nokhwa_bindings_windows::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::{
     borrow::{Borrow, Cow},
     cmp::Ordering,
@@ -55,15 +56,88 @@ use wasm_bindgen::prelude::wasm_bindgen;
 /// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
 /// - `HighestFrameRate(Option<Resolution>)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`). If it is `None`, it will pick the highest possinle framerate.
 /// - `Exact`: Pick the exact [`CameraFormat`] provided.
+/// - `Closest`: Pick the closest [`CameraFormat`] provided in order of [`FrameFormat`], [`Resolution`], and FPS. Note that if the [`FrameFormat`] does not exist, this will fail to resolve.
 /// - `None`: Pick a random [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "output-wasm", wasm_bindgen)]
-pub enum BestEffort {
-    HighestResolution(Option<u32>),
-    HighestFrameRate(Option<Resolution>),
+pub enum RequestedFormat {
+    HighestResolution,
+    HighestFrameRate,
     Exact(CameraFormat),
+    Closest(CameraFormat),
     None,
+}
+
+impl RequestedFormat {
+    /// Fufill the requested using a list of all availible formats.
+    pub fn fufill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
+        match request {
+            RequestedFormat::HighestResolution => {
+                let mut formats = all_formats.to_vec();
+                formats.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
+                let resolution = formats.iter().last()?;
+                let mut format_resolutions = formats
+                    .into_iter()
+                    .filter(|fmt| fmt.resolution() == resolution.resolution())
+                    .collect::<Vec<CameraFormat>>();
+                format_resolutions.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
+                format_resolutions.last().map(|x| *x)
+            }
+            RequestedFormat::HighestFrameRate => {
+                let mut formats = all_formats.to_vec();
+                formats.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
+                let frame_rate = formats.iter().last()?;
+                let mut format_framerates = formats
+                    .into_iter()
+                    .filter(|fmt| fmt.frame_rate() == frame_rate.frame_rate())
+                    .collect::<Vec<CameraFormat>>();
+                format_framerates.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
+                format_framerates.last().map(|x| *x)
+            }
+            RequestedFormat::Exact(fmt) => fmt,
+            RequestedFormat::Closest(c) => {
+                let mut same_fmt_formats = all_formats
+                    .iter()
+                    .filter(|x| x.format() == c.format())
+                    .collect::<Vec<CameraFormat>>();
+                let mut resolution_map = same_fmt_formats
+                    .iter()
+                    .map(|x| {
+                        let res = x.resolution();
+                        let x_diff = res.x() as i32 - c.resolution().x() as i32;
+                        let y_diff = res.y() as i32 - c.resolution().y() as i32;
+                        let dist_no_sqrt = (x_diff.abs()).pow(2) + (y_diff.abs()).pow(2);
+                        (dist_no_sqrt, res)
+                    })
+                    .collect::<Vec<(u32, Resolution)>>();
+                resolution_map.sort_by(|a, b| a.0.cmp(*b.0.cmp()));
+                resolution_map.dedup_by(|a, b| a.0.eq(&b.0));
+                let resolution = resolution_map.first()?.1;
+
+                let frame_rates = all_formats
+                    .iter()
+                    .filter_map(|cfmt| {
+                        if cfmt.format() == c.format() && cfmt.resolution() == c.resolution() {
+                            return Some(cfmt.frame_rate());
+                        }
+                        None
+                    })
+                    .collect::<Vec<u32>>();
+                // sort FPSes
+                let mut framerate_map = frame_rates
+                    .iter()
+                    .map(|x| {
+                        let abs = x as i32 - c.frame_rate() as i32;
+                        (abs.abs(), *x)
+                    })
+                    .collect::<Vec<(u32, u32)>>();
+                framerate_map.sort();
+                let frame_rate = framerate_map.first()?.1;
+                Some(CameraFormat::new(resolution, c.format(), frame_rate))
+            }
+            RequestedFormat::None => all_formats.first().map(|x| *x),
+        }
+    }
 }
 
 /// Describes the index of the camera.
@@ -158,13 +232,13 @@ impl Display for FrameFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FrameFormat::MJPEG => {
-                write!(f, "MJPEG")
+                write!(f, "MJPG")
             }
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
             }
             FrameFormat::GRAY => {
-                write!(f, "GRAY8")
+                write!(f, "GRAY")
             }
         }
     }
@@ -849,6 +923,57 @@ impl From<Description> for KnownCameraControl {
             10_094_866 => KnownCameraControl::Iris,
             10_094_859 => KnownCameraControl::Focus,
             id => KnownCameraControl::Other(id as u128),
+        }
+    }
+}
+
+#[cfg(all(feature = "input-opencv"))]
+impl From<i32> for KnownCameraControl {
+    fn from(id: i32) -> Self {
+        use opencv::videoio::*;
+        match id {
+            CAP_PROP_BRIGHTNESS => KnownCameraControl::Brightness,
+            CAP_PROP_CONTRAST => KnownCameraControl::Contrast,
+            CAP_PROP_HUE => KnownCameraControl::Hue,
+            CAP_PROP_SATURATION => KnownCameraControl::Saturation,
+            CAP_PROP_SHARPNESS => KnownCameraControl::Sharpness,
+            CAP_PROP_GAMMA => KnownCameraControl::Gamma,
+            CAP_PROP_WB_TEMPERATURE => KnownCameraControl::WhiteBalance,
+            CAP_PROP_BACKLIGHT => KnownCameraControl::BacklightComp,
+            CAP_PROP_GAIN => KnownCameraControl::Gain,
+            CAP_PROP_PAN => KnownCameraControl::Pan,
+            CAP_PROP_TILT => KnownCameraControl::Tilt,
+            CAP_PROP_ZOOM => KnownCameraControl::Zoom,
+            CAP_PROP_EXPOSURE => KnownCameraControl::Exposure,
+            CAP_PROP_IRIS => KnownCameraControl::Iris,
+            CAP_PROP_FOCUS => KnownCameraControl::Focus,
+            id => KnownCameraControl::Other(id as u128),
+        }
+    }
+}
+
+#[cfg(all(feature = "input-opencv"))]
+impl From<KnownCameraControl> for i32 {
+    fn from(kcc: KnownCameraControl) -> Self {
+        use opencv::videoio::*;
+
+        match kcc {
+            KnownCameraControl::Brightness => CAP_PROP_BRIGHTNESS,
+            KnownCameraControl::Contrast => CAP_PROP_CONTRAST,
+            KnownCameraControl::Hue => CAP_PROP_HUE,
+            KnownCameraControl::Saturation => CAP_PROP_SATURATION,
+            KnownCameraControl::Sharpness => CAP_PROP_SHARPNESS,
+            KnownCameraControl::Gamma => CAP_PROP_GAMMA,
+            KnownCameraControl::WhiteBalance => CAP_PROP_WB_TEMPERATURE,
+            KnownCameraControl::BacklightComp => CAP_PROP_BACKLIGHT,
+            KnownCameraControl::Gain => CAP_PROP_GAIN,
+            KnownCameraControl::Pan => CAP_PROP_PAN,
+            KnownCameraControl::Tilt => CAP_PROP_TILT,
+            KnownCameraControl::Zoom => CAP_PROP_ZOOM,
+            KnownCameraControl::Exposure => CAP_PROP_EXPOSURE,
+            KnownCameraControl::Iris => CAP_PROP_IRIS,
+            KnownCameraControl::Focus => CAP_PROP_FOCUS,
+            KnownCameraControl::Other(id) => id as i32,
         }
     }
 }

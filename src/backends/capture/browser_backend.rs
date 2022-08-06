@@ -133,11 +133,7 @@ impl BrowserCaptureDevice {
     ) -> Result<Self, NokhwaError> {
         Self::new(
             index,
-            Some(CameraFormat::new(
-                Resolution::new(width, height),
-                fourcc,
-                fps,
-            )),
+            Some(CameraFormat::new(Resolution::new(width, height))),
         )
     }
 }
@@ -152,11 +148,7 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
     }
 
     fn camera_format(&self) -> CameraFormat {
-        CameraFormat::new(
-            self.camera.resolution(),
-            FrameFormat::MJPEG,
-            self.camera.constraints().frame_rate(),
-        )
+        CameraFormat::new(self.camera.resolution())
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {

@@ -17,9 +17,11 @@
 use crate::pixel_format::FormatDecoder;
 use crate::{
     ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
-    ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
+    ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError,
+    RequestedFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
+use opencv::videoio::CAP_PROP_FOURCC;
 use opencv::{
     core::{Mat, MatTraitConst, MatTraitConstManual, Vec3b},
     videoio::{
@@ -89,17 +91,13 @@ impl OpenCvCaptureDevice {
     /// ```
     /// , but please refer to the manufacturer for the actual IP format.
     ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera.
+    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera. This camera **cannot** resolve any request that is not
+    /// [`RequestedFormat::Exact`] or [`RequestedFormat::None`].
     /// # Errors
     /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
     /// # Panics
     /// If the API u32 -> i32 fails this will error
-    pub fn new(index: CameraIndex, cfmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let camera_format = match cfmt {
-            Some(cam_fmt) => cam_fmt,
-            None => CameraFormat::default(),
-        };
-
+    pub fn new(index: CameraIndex, cfmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let api_pref = if index.is_string() {
             CAP_ANY
         } else {
@@ -114,11 +112,13 @@ impl OpenCvCaptureDevice {
             NokhwaError::OpenDeviceError(format!("Failed to open {}", index), why.to_string())
         })?;
 
-        set_properties(
-            &mut video_capture,
-            camera_format,
-            index.as_index()? as usize,
-        )?;
+        let real = match cfmt {
+            RequestedFormat::Exact(e) => e,
+            RequestedFormat::None => CameraFormat::default(),
+            _ => return Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv)),
+        };
+
+        set_properties(&mut video_capture, real)?;
 
         let camera_info = CameraInfo::new(
             format!("OpenCV Capture Device {}", index).as_str(),
@@ -281,8 +281,6 @@ impl OpenCvCaptureDevice {
 }
 
 impl CaptureBackendTrait for OpenCvCaptureDevice {
-    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {}
-
     fn backend(&self) -> ApiBackend {
         ApiBackend::OpenCv
     }
@@ -292,7 +290,32 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        todo!()
+        let width = vc
+            .set(CAP_PROP_FRAME_WIDTH, camera_format.width() as f64)
+            .map_err(|why| NokhwaError::SetPropertyError {
+                property: "Resolution Width".to_string(),
+                value: camera_format.to_string(),
+                error: why.to_string(),
+            })? as u32;
+        let height = vc
+            .set(CAP_PROP_FRAME_HEIGHT, camera_format.height() as f64)
+            .map_err(|why| NokhwaError::SetPropertyError {
+                property: "Resolution Height".to_string(),
+                value: camera_format.to_string(),
+                error: why.to_string(),
+            })? as u32;
+        let fps = vc
+            .get(CAP_PROP_FPS, camera_format.frame_rate() as f64)
+            .map_err(|why| NokhwaError::SetPropertyError {
+                property: "FPS".to_string(),
+                value: camera_format.to_string(),
+                error: why.to_string(),
+            })? as u32;
+
+        let ffmt = self.frame_format();
+        self.set_camera_format(CameraFormat::new_from(width, height, ffmt, fps))?;
+
+        Ok(())
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -313,11 +336,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
         self.camera_format = new_fmt;
 
-        if let Err(why) = set_properties(
-            &mut self.video_capture,
-            new_fmt,
-            self.camera_location.as_index() as usize,
-        ) {
+        if let Err(why) = set_properties(&mut self.video_capture, new_fmt) {
             self.camera_format = current_format;
             return Err(why);
         }
@@ -376,11 +395,29 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        todo!()
+        let id: i32 = control.into();
+        let current = self
+            .video_capture
+            .get(id)
+            .map_err(|x| NokhwaError::GetPropertyError {
+                property: id.to_string(),
+                error: why.to_string(),
+            })?;
+        Ok(CameraControl::new(
+            control,
+            id.to_string(),
+            ControlValueDescription::Float {
+                value: current,
+                default: 0.0,
+                step: 0.0,
+            },
+            vec![],
+            true,
+        ))
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        todo!()
+        Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv))
     }
 
     fn set_camera_control(
@@ -388,7 +425,45 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         id: KnownCameraControl,
         value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        todo!()
+        let control_val = match value {
+            ControlValueSetter::Integer(i) => i as f64,
+            ControlValueSetter::Float(f) => f,
+            ControlValueSetter::Boolean(b) => b as f64,
+            val => {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "Camera Control".to_string(),
+                    value: val.to_string(),
+                    error: "unsupported value".to_string(),
+                })
+            }
+        };
+
+        if !self
+            .video_capture
+            .set(id.into(), control_val)
+            .map_err(|why| NokhwaError::SetPropertyError {
+                property: "Camera Control".to_string(),
+                value: control_val.to_string(),
+                error: why.to_string(),
+            })?
+        {
+            return Err(NokhwaError::SetPropertyError {
+                property: "Camera Control".to_string(),
+                value: control_val.to_string(),
+                error: "false".to_string(),
+            });
+        }
+
+        let set_value = self.camera_control(id)?.value();
+        if set_value == value {
+            return Err(NokhwaError::SetPropertyError {
+                property: "Camera Control".to_string(),
+                value: control_val.to_string(),
+                error: "failed to set value: rejected".to_string(),
+            });
+        }
+
+        Ok(())
     }
 
     #[allow(clippy::cast_possible_wrap)]
@@ -489,14 +564,50 @@ fn get_api_pref_int() -> i32 {
     }
 }
 
-#[allow(clippy::cast_possible_wrap)]
-#[allow(clippy::unnecessary_wraps)]
 // I'm done. This stupid POS refuses to actually do anything useful with camera settings
 // If anyone else wants to tackle this monster, please do.
-fn set_properties(
-    _vc: &mut VideoCapture,
-    _camera_format: CameraFormat,
-    _camera_location: usize,
-) -> Result<(), NokhwaError> {
+fn set_properties(vc: &mut VideoCapture, camera_format: CameraFormat) -> Result<(), NokhwaError> {
+    if !vc
+        .set(CAP_PROP_FRAME_WIDTH, camera_format.width() as f64)
+        .map_err(|why| NokhwaError::SetPropertyError {
+            property: "Resolution Width".to_string(),
+            value: camera_format.to_string(),
+            error: why.to_string(),
+        })?
+    {
+        return Err(NokhwaError::SetPropertyError {
+            property: "Resolution Width".to_string(),
+            value: camera_format.to_string(),
+            error: "false".to_string(),
+        });
+    }
+    if !vc
+        .set(CAP_PROP_FRAME_HEIGHT, camera_format.height() as f64)
+        .map_err(|why| NokhwaError::SetPropertyError {
+            property: "Resolution Height".to_string(),
+            value: camera_format.to_string(),
+            error: why.to_string(),
+        })?
+    {
+        return Err(NokhwaError::SetPropertyError {
+            property: "Resolution Height".to_string(),
+            value: camera_format.to_string(),
+            error: "false".to_string(),
+        });
+    }
+    if !vc
+        .set(CAP_PROP_FPS, camera_format.frame_rate() as f64)
+        .map_err(|why| NokhwaError::SetPropertyError {
+            property: "FPS".to_string(),
+            value: camera_format.to_string(),
+            error: why.to_string(),
+        })?
+    {
+        return Err(NokhwaError::SetPropertyError {
+            property: "FPS".to_string(),
+            value: camera_format.to_string(),
+            error: "false".to_string(),
+        });
+    }
     Ok(())
 }

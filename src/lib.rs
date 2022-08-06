@@ -1,6 +1,5 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
-#![forbid(missing_docs)]
 /*
  * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *

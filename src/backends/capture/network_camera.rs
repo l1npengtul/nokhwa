@@ -32,6 +32,7 @@ use wgpu::{
 
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+#[deprecated(since = "0.10.0", note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled.")]
 pub struct NetworkCamera {
     ip: String,
     opencv_backend: RefCell<OpenCvCaptureDevice>,
@@ -164,103 +165,6 @@ impl NetworkCamera {
     /// Please check the `Quirks` section of each backend.
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().stop_stream()
-    }
-}
-
-impl CaptureBackendTrait for NetworkCamera {
-    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
-        todo!()
-    }
-
-    fn backend(&self) -> ApiBackend {
-        todo!()
-    }
-
-    fn camera_info(&self) -> &CameraInfo {
-        todo!()
-    }
-
-    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn camera_format(&self) -> CameraFormat {
-        todo!()
-    }
-
-    fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn compatible_list_by_resolution(
-        &mut self,
-        fourcc: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        todo!()
-    }
-
-    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        todo!()
-    }
-
-    fn resolution(&self) -> Resolution {
-        todo!()
-    }
-
-    fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn frame_rate(&self) -> u32 {
-        todo!()
-    }
-
-    fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn frame_format(&self) -> FrameFormat {
-        todo!()
-    }
-
-    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        todo!()
-    }
-
-    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        todo!()
-    }
-
-    fn set_camera_control(
-        &mut self,
-        id: KnownCameraControl,
-        value: ControlValueSetter,
-    ) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        todo!()
-    }
-
-    fn is_stream_open(&self) -> bool {
-        todo!()
-    }
-
-    fn frame<'a>(&mut self) -> Result<Buffer<'a>, NokhwaError> {
-        todo!()
-    }
-
-    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        todo!()
-    }
-
-    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
-        todo!()
     }
 }
 

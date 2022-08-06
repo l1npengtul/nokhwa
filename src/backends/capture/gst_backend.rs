@@ -144,7 +144,7 @@ impl GStreamerCaptureDevice {
     /// # Errors
     /// This function will error if the camera is currently busy or if `GStreamer` can't read device information.
     pub fn new_with(index: usize, width: u32, height: u32, fps: u32) -> Result<Self, NokhwaError> {
-        let cam_fmt = CameraFormat::new(Resolution::new(width, height), FrameFormat::MJPEG, fps);
+        let cam_fmt = CameraFormat::new(Resolution::new(width, height));
         GStreamerCaptureDevice::new(index, Some(cam_fmt))
     }
 }

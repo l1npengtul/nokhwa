@@ -15,16 +15,18 @@
  */
 
 use crate::{
-    buffer::Buffer, ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait,
-    ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl, NokhwaError, Resolution,
+    buffer::Buffer, ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
+    CaptureBackendTrait, ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl,
+    NokhwaError, RequestedFormat, Resolution,
 };
+use std::fmt::format;
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{Device as WgpuDevice, Queue as WgpuQueue, Texture as WgpuTexture};
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
 pub struct Camera {
-    idx: u32,
+    idx: CameraIndex,
     api: ApiBackend,
     device: Box<dyn CaptureBackendTrait>,
 }
@@ -33,7 +35,7 @@ impl Camera {
     /// Create a new camera from an `index` and `format`
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
-    pub fn new(index: u32, format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
+    pub fn new(index: CameraIndex, format: RequestedFormat) -> Result<Self, NokhwaError> {
         Camera::with_backend(index, format, ApiBackend::Auto)
     }
 
@@ -41,11 +43,11 @@ impl Camera {
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn with_backend(
-        index: u32,
-        format: Option<CameraFormat>,
+        index: CameraIndex,
+        format: RequestedFormat,
         backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
-        let camera_backend = init_camera(index, format, backend)?;
+        let camera_backend = init_camera(&index, format, backend)?;
 
         Ok(Camera {
             idx: index,
@@ -57,8 +59,9 @@ impl Camera {
     /// Create a new `Camera` from raw values.
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
     pub fn new_with(
-        index: u32,
+        index: CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
@@ -66,24 +69,28 @@ impl Camera {
         backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        Camera::with_backend(index, Some(camera_format), backend)
+        Camera::with_backend(index, RequestedFormat::Exact(camera_format), backend)
     }
 
     /// Gets the current Camera's index.
     #[must_use]
-    pub fn index(&self) -> u32 {
-        self.idx
+    pub fn index(&self) -> &CameraIndex {
+        &self.idx
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: u32) -> Result<(), NokhwaError> {
+    pub fn set_index(&mut self, new_idx: CameraIndex) -> Result<(), NokhwaError> {
         {
             self.device.stop_stream()?;
         }
         let new_camera_format = self.device.camera_format();
-        let new_camera = init_camera(new_idx, Some(new_camera_format), self.api)?;
+        let new_camera = init_camera(
+            &new_idx,
+            RequestedFormat::Exact(new_camera_format),
+            self.api,
+        )?;
         self.device = new_camera;
         Ok(())
     }
@@ -102,7 +109,11 @@ impl Camera {
             self.device.stop_stream()?;
         }
         let new_camera_format = self.device.camera_format();
-        let new_camera = init_camera(self.idx, Some(new_camera_format), new_backend)?;
+        let new_camera = init_camera(
+            &self.idx,
+            RequestedFormat::Exact(new_camera_format),
+            new_backend,
+        )?;
         self.device = new_camera;
         Ok(())
     }
@@ -127,6 +138,29 @@ impl Camera {
         Ok(self.device.camera_format())
     }
 
+    /// Will set the current [`CameraFormat`], using a [`RequestedFormat.`]
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    ///
+    /// This will return the new [`CameraFormat`]
+    /// # Errors
+    /// If nothing fits the requested criteria, this will return an error.
+    pub fn set_camera_requset(
+        &mut self,
+        request: RequestedFormat,
+    ) -> Result<CameraFormat, NokhwaError> {
+        let new_format = request
+            .fufill(self.device.compatible_camera_formats()?.as_slice())
+            .ok_or(NokhwaError::GetPropertyError {
+                property: "Compatible Camera Format by request".to_string(),
+                error: "Failed to fufill".to_string(),
+            })?;
+        self.device.set_camera_format(new_format)?;
+        Ok(new_format)
+    }
+
+    #[deprecated(since = "0.10.0", note = "please use `set_camera_requset` instead.")]
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     ///
@@ -158,17 +192,7 @@ impl Camera {
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_camera_formats(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
-        let mut camera_formats = Vec::with_capacity(64);
-        for foramt in self.compatible_fourcc()? {
-            let resolution_and_fps: HashMap<Resolution, Vec<u32>> =
-                self.compatible_list_by_resolution(foramt)?;
-            for (res, rates) in resolution_and_fps {
-                for fps in rates {
-                    camera_formats.push(CameraFormat::new(res, foramt, fps));
-                }
-            }
-        }
-        Ok(camera_formats)
+        self.device.compatible_camera_formats()
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
@@ -410,7 +434,7 @@ macro_rules! cap_impl_fn {
         $(
             paste::paste! {
                 #[cfg ($cfg) ]
-                fn [< init_ $backend_name>](idx: CameraInfo, setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](idx: &CameraIndex, setting: RequestedFormat) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
                         Ok(cap) => Some(Ok(cp.into())),
@@ -418,7 +442,7 @@ macro_rules! cap_impl_fn {
                     }
                 }
                 #[cfg(not( $cfg ))]
-                fn [< init_ $backend_name>](_idx: CameraInfo, _setting: Option<CameraFormat>) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
+                fn [< init_ $backend_name>](_idx: &CameraIndex, _setting: RequestedFormat) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     None
                 }
             }
@@ -510,8 +534,7 @@ macro_rules! cap_impl_matches {
 
 cap_impl_fn! {
     // (GStreamerCaptureDevice, new, feature = "input-gst", gst),
-    (OpenCvCaptureDevice, new_autopref, feature = "input-opencv", opencv),
-    (NetworkCamera, new_autopref, feature = "input-opencv", opencv),
+    (OpenCvCaptureDevice, new, feature = "input-opencv", opencv),
     // (UVCCaptureDevice, create, feature = "input-uvc", uvc),
     (V4LCaptureDevice, new, all(feature = "input-v4l", target_os = "linux"), v4l),
     (MediaFoundationCaptureDevice, new, all(feature = "input-msmf", target_os = "windows"), msmf),
@@ -519,8 +542,8 @@ cap_impl_fn! {
 }
 
 fn init_camera(
-    index: CameraInfo,
-    format: Option<CameraFormat>,
+    index: &CameraIndex,
+    format: RequestedFormat,
     backend: ApiBackend,
 ) -> Result<Box<dyn CaptureBackendTrait>, NokhwaError> {
     let camera_backend = cap_impl_matches! {

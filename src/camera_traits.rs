@@ -17,7 +17,7 @@
 use crate::{
     error::NokhwaError,
     utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
-    Buffer, CameraControl, ControlValueSetter, KnownCameraControl,
+    Buffer, CameraControl, CameraIndex, ControlValueSetter, KnownCameraControl, RequestedFormat,
 };
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
@@ -35,12 +35,6 @@ use wgpu::{
 /// - Behaviour can differ from backend to backend. While the [`Camera`](crate::camera::Camera) struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureBackendTrait {
-    /// Initializes the camera. You must call this before any other function.
-    /// # Errors
-    /// If the camera fails to initialize and/or get its current(not requested) [`CameraFormat`], this will error.
-    fn init(&mut self, requested_format: Option<CameraFormat>)
-        -> Result<CameraFormat, NokhwaError>;
-
     /// Returns the current backend used.
     fn backend(&self) -> crate::ApiBackend;
 
@@ -169,7 +163,7 @@ pub trait CaptureBackendTrait {
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
     /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the buffer with an alpha channel as well.
-    /// This assumes that you are decoding to RGB/RGBA for [`FrameFormat::MJPEG`] or [`FrameFormat::YUYV`] and Luma8/LumaA8 for [`FrameFormat::GRAY8`]
+    /// This assumes that you are decoding to RGB/RGBA for [`FrameFormat::MJPEG`] or [`FrameFormat::YUYV`] and Luma8/LumaA8 for [`FrameFormat::GRAY`]
     #[must_use]
     fn decoded_buffer_size(&self, alpha: bool) -> usize {
         let cfmt = self.camera_format();
