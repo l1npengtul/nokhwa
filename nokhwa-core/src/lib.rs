@@ -52,6 +52,9 @@ use v4l::{control::Description, Format, FourCC};
 #[cfg(feature = "output-wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+pub mod traits;
+pub mod types;
+
 /// Tells the init function what camera format to pick.
 /// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
 /// - `HighestFrameRate(Option<Resolution>)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`). If it is `None`, it will pick the highest possinle framerate.

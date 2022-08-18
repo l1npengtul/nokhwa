@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-use crate::{
-    error::NokhwaError,
-    utils::{CameraFormat, CameraInfo, FrameFormat, Resolution},
-    Buffer, CameraControl, CameraIndex, ControlValueSetter, KnownCameraControl, RequestedFormat,
-};
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
