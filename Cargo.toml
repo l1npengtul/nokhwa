@@ -11,7 +11,7 @@ repository = "https://github.com/l1npengtul/nokhwa"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "examples/*"]
+members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "nokhwa-core", "examples/*"]
 exclude = ["examples/jscam"]
 
 [lib]
@@ -42,8 +42,6 @@ test-fail-warning = []
 [dependencies]
 thiserror = "1.0"
 paste = "1.0"
-anymap = "1.0.0-beta.2"
-enum_dispatch = "0.3"
 
 [dependencies.serde]
 version = "1.0"

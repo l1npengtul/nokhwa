@@ -16,11 +16,14 @@
 
 use crate::{
     all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl,
-    CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat, KnownCameraControl,
-    KnownCameraControlFlag, NokhwaError, Resolution,
+    CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait, FrameFormat, KnownCameraControl,
+    KnownCameraControlFlag, NokhwaError, RequestedFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
-use nokhwa_bindings_windows::{wmf::MediaFoundationDevice, MFControl, MediaFoundationControls};
+use nokhwa_bindings_windows::{
+    wmf::MediaFoundationDevice, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
+    MediaFoundationControls,
+};
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
 /// The backend that deals with Media Foundation on Windows.
@@ -42,20 +45,35 @@ pub struct MediaFoundationCaptureDevice<'a> {
 
 impl<'a> MediaFoundationCaptureDevice<'a> {
     /// Creates a new capture device using the Media Foundation backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
-    ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
-    pub fn new(index: usize, camera_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let format = camera_fmt.unwrap_or_default();
-        let mf_device = MediaFoundationDevice::new(index, format.into())?;
+    pub fn new(index: CameraIndex, camera_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+        let mut mf_device = MediaFoundationDevice::new(index.as_index()? as usize)?;
 
         let info = CameraInfo::new(
-            mf_device.name(),
-            "MediaFoundation Camera Device".to_string(),
-            mf_device.symlink(),
-            mf_device.index(),
+            &mf_device.name(),
+            &"MediaFoundation Camera Device".to_string(),
+            &mf_device.symlink(),
+            index,
         );
+
+        let availible = mf_device
+            .compatible_format_list()?
+            .into_iter()
+            .map(|x| {
+                let cf: CameraFormat = x.into();
+                cf
+            })
+            .collect::<Vec<CameraFormat>>();
+
+        let desired = camera_fmt
+            .fufill(&availible)
+            .ok_or(NokhwaError::InitializeError {
+                backend: ApiBackend::MediaFoundation,
+                error: "Failed to fulfill requested format".to_string(),
+            })?;
+
+        mf_device.set_format(desired.into())?;
 
         Ok(MediaFoundationCaptureDevice {
             inner: mf_device,
@@ -66,15 +84,55 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// Create a new Media Foundation Device with desired settings.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
+    #[deprecated(since = "0.10", note = "please use `new` instead.")]
     pub fn new_with(
-        index: usize,
+        index: CameraIndex,
         width: u32,
         height: u32,
         fps: u32,
         fourcc: FrameFormat,
     ) -> Result<Self, NokhwaError> {
-        let camera_format = Some(CameraFormat::new_from(width, height, fourcc, fps));
+        let camera_format =
+            RequestedFormat::Exact(CameraFormat::new_from(width, height, fourcc, fps));
         MediaFoundationCaptureDevice::new(index, camera_format)
+    }
+
+    /// Gets the list of supported [`KnownCameraControl`]s
+    /// # Errors
+    /// May error if there is an error from `MediaFoundation`.
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
+        let mut supported_camera_controls: Vec<KnownCameraControl> = vec![];
+
+        for camera_control in all_known_camera_controls() {
+            let msmf_camera_control: MediaFoundationControls = match camera_control {
+                KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
+                KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
+                KnownCameraControl::Hue => MediaFoundationControls::Hue,
+                KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
+                KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
+                KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
+                KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
+                KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
+                KnownCameraControl::Gain => MediaFoundationControls::Gain,
+                KnownCameraControl::Pan => MediaFoundationControls::Pan,
+                KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
+                KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
+                KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
+                KnownCameraControl::Iris => MediaFoundationControls::Iris,
+                KnownCameraControl::Focus => MediaFoundationControls::Focus,
+                KnownCameraControl::Other(id) => match id {
+                    0 => MediaFoundationControls::ColorEnable,
+                    1 => MediaFoundationControls::Roll,
+                    _ => continue,
+                },
+            };
+
+            if let Ok(supported) = self.inner.control(msmf_camera_control) {
+                supported_camera_controls.push(supported.control().into());
+            }
+        }
+
+        Ok(supported_camera_controls)
     }
 }
 
@@ -85,6 +143,11 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
 
     fn camera_info(&self) -> &CameraInfo {
         &self.info
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        let _ = self.inner.format_refreshed()?;
+        Ok(())
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -179,38 +242,6 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         self.set_camera_format(new_format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        let mut supported_camera_controls: Vec<KnownCameraControl> = vec![];
-
-        for camera_control in all_known_camera_controls() {
-            let msmf_camera_control: MediaFoundationControls = match camera_control {
-                KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
-                KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
-                KnownCameraControl::Hue => MediaFoundationControls::Hue,
-                KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
-                KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
-                KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
-                KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
-                KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
-                KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
-                KnownCameraControl::Gain => MediaFoundationControls::Gain,
-                KnownCameraControl::Pan => MediaFoundationControls::Pan,
-                KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
-                KnownCameraControl::Roll => MediaFoundationControls::Roll,
-                KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
-                KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
-                KnownCameraControl::Iris => MediaFoundationControls::Iris,
-                KnownCameraControl::Focus => MediaFoundationControls::Focus,
-            };
-
-            if let Ok(supported) = self.inner.control(msmf_camera_control) {
-                supported_camera_controls.push(supported.control().into());
-            }
-        }
-
-        Ok(supported_camera_controls)
-    }
-
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         let msmf_camera_control: MediaFoundationControls = match control {
             KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
@@ -219,13 +250,11 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
             KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
             KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
             KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
-            KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
             KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
             KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
             KnownCameraControl::Gain => MediaFoundationControls::Gain,
             KnownCameraControl::Pan => MediaFoundationControls::Pan,
             KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
-            KnownCameraControl::Roll => MediaFoundationControls::Roll,
             KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
             KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
             KnownCameraControl::Iris => MediaFoundationControls::Iris,
@@ -256,6 +285,10 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
             flag,
             ctrl.active(),
         )
+    }
+
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        todo!()
     }
 
     fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
@@ -299,28 +332,6 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
             return Err(why.into());
         }
         Ok(())
-    }
-
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::MediaFoundation,
-        ))
-    }
-
-    fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::MediaFoundation,
-        ))
-    }
-
-    fn set_raw_camera_control(
-        &mut self,
-        _control: &dyn Any,
-        _value: &dyn Any,
-    ) -> Result<(), NokhwaError> {
-        Err(NokhwaError::UnsupportedOperationError(
-            ApiBackend::MediaFoundation,
-        ))
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
