@@ -151,6 +151,12 @@ impl Display for CameraIndex {
     }
 }
 
+impl Default for CameraIndex {
+    fn default() -> Self {
+        CameraIndex::Index(0)
+    }
+}
+
 impl AsRef<str> for CameraIndex {
     fn as_ref(&self) -> &str {
         self.to_string().as_str()

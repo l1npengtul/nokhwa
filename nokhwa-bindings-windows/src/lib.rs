@@ -38,29 +38,6 @@ use std::{
 };
 use thiserror::Error;
 
-#[allow(clippy::module_name_repetitions)]
-#[derive(Error, Debug, Clone)]
-pub enum BindingError {
-    #[error("Failed to initialize Media Foundation: {0}")]
-    InitializeError(String),
-    #[error("Failed to de-initialize Media Foundation: {0}")]
-    DeInitializeError(String),
-    #[error("Failed to set GUID {0} to {1}: {2}")]
-    GUIDSetError(String, String, String),
-    #[error("Failed to Read GUID {0}: {1}")]
-    GUIDReadError(String, String),
-    #[error("Attribute Error: {0}")]
-    AttributeError(String),
-    #[error("Failed to enumerate: {0}")]
-    EnumerateError(String),
-    #[error("Failed to open device {0}: {1}")]
-    DeviceOpenFailError(String, String),
-    #[error("Failed to read frame: {0}")]
-    ReadFrameError(String),
-    #[error("Not Implemented!")]
-    NotImplementedError,
-}
-
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
@@ -1250,37 +1227,38 @@ pub mod wmf {
 #[allow(clippy::missing_errors_doc)]
 #[allow(clippy::unused_self)]
 pub mod wmf {
-    use crate::{
-        BindingError, MFCameraFormat, MFControl, MediaFoundationControls,
-        MediaFoundationDeviceDescriptor,
+    use nokhwa_core::error::NokhwaError;
+    use nokhwa_core::types::{
+        CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        KnownCameraControl,
     };
     use std::borrow::Cow;
 
-    pub fn initialize_mf() -> Result<(), BindingError> {
+    pub fn initialize_mf() -> Result<(), NokhwaError> {
         Err(BindingError::NotImplementedError)
     }
 
-    pub fn de_initialize_mf() -> Result<(), BindingError> {
+    pub fn de_initialize_mf() -> Result<(), NokhwaError> {
         Err(BindingError::NotImplementedError)
     }
 
-    pub fn query_msmf() -> Result<Vec<MediaFoundationDeviceDescriptor<'static>>, BindingError> {
+    pub fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
         Err(BindingError::NotImplementedError)
     }
 
-    struct Empty();
+    struct Empty;
 
     pub struct MediaFoundationDevice<'a> {
         phantom: &'a Empty,
     }
 
     impl<'a> MediaFoundationDevice<'a> {
-        pub fn new(_: usize, _: MFCameraFormat) -> Result<Self, BindingError> {
-            Ok(MediaFoundationDevice { phantom: &Empty() })
+        pub fn new(_index: CameraIndex) -> Result<Self, NokhwaError> {
+            Ok(MediaFoundationDevice { phantom: &Empty })
         }
 
-        pub fn index(&self) -> usize {
-            usize::MAX
+        pub fn index(&self) -> &CameraIndex {
+            &CameraIndex::default()
         }
 
         pub fn name(&self) -> String {
@@ -1291,44 +1269,61 @@ pub mod wmf {
             "".to_string()
         }
 
-        pub fn compatible_format_list(&mut self) -> Result<Vec<MFCameraFormat>, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn compatible_format_list(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn control(
-            &self,
-            _control: MediaFoundationControls,
-        ) -> Result<MFControl, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn set_control(&mut self, _control: MFControl) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn set_control(
+            &mut self,
+            _control: KnownCameraControl,
+            _value: ControlValueSetter,
+        ) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn format(&self) -> MFCameraFormat {
-            MFCameraFormat::default()
+        pub fn format_refreshed(&mut self) -> Result<CameraFormat, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn set_format(&mut self, _format: MFCameraFormat) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn format(&self) -> CameraFormat {
+            CameraFormat::default()
+        }
+
+        pub fn set_format(&mut self, _format: CameraFormat) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
         pub fn is_stream_open(&self) -> bool {
             false
         }
 
-        pub fn start_stream(&mut self) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn start_stream(&mut self) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn stop_stream(&mut self) {
-            self.phantom = &Empty();
-        }
+        pub fn stop_stream(&mut self) {}
     }
 
     impl<'a> Drop for MediaFoundationDevice<'a> {
