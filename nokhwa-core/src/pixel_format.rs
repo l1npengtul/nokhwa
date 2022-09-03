@@ -13,16 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-use crate::{
-    buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat, NokhwaError,
+use crate::error::NokhwaError;
+use crate::types::{
+    buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat,
 };
-use image::{Luma, LumaA};
-use image::{Pixel, Rgb, Rgba};
-use std::{fmt::Debug, hash::Hash};
+use image::{Luma, LumaA, Pixel, Rgb, Rgba};
 
 /// Trait that has methods to convert raw data from the webcam to a proper raw image.
-pub trait FormatDecoder: Copy + Clone + Debug + Default + Hash + Send + Sync {
+pub trait FormatDecoder {
     type Output: Pixel<Subpixel = u8>;
 
     /// Allocates and returns a `Vec`

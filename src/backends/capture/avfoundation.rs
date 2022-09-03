@@ -16,8 +16,8 @@
 
 use crate::{
     mjpeg_to_rgb, nokhwa_check, nokhwa_initialize, yuyv422_to_rgb, ApiBackend, CameraControl,
-    CameraFormat, CameraInfo, CaptureBackendTrait, ControlValueSetter, FrameFormat,
-    KnownCameraControl, NokhwaError, FormatDecoder, Resolution,
+    CameraFormat, CameraInfo, CaptureBackendTrait, ControlValueSetter, FormatDecoder, FrameFormat,
+    KnownCameraControl, NokhwaError, Resolution,
 };
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
@@ -271,7 +271,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
     fn frame_typed<F: FormatDecoder>(
         &mut self,
-    ) -> Result<ImageBuffer<crate::pixel_format::Output, Vec<u8>>, NokhwaError> {
+    ) -> Result<ImageBuffer<nokhwa_core::pixel_format::Output, Vec<u8>>, NokhwaError> {
         todo!()
     }
 

@@ -9,4 +9,30 @@ license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+serialize = ["serde"]
+wgpu-types = ["wgpu"]
+mjpeg = ["mozjpeg"]
+docs-features = []
+
+
 [dependencies]
+thiserror = "1.0"
+
+[dependencies.image]
+version = "0.24"
+default-features = false
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+optional = true
+
+[dependencies.wgpu]
+version = "0.13"
+optional = true
+
+[dependencies.mozjpeg]
+version = "0.9"
+optional = true

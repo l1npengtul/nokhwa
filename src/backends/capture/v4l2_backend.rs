@@ -15,16 +15,16 @@
  */
 
 use crate::{
-    buffer::Buffer,
-    error::NokhwaError,
     mjpeg_to_rgb,
-    pixel_format::FormatDecoder,
     utils::{CameraFormat, CameraInfo},
     yuyv422_to_rgb, ApiBackend, CameraControl, CameraIndex, CaptureBackendTrait,
     ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
     KnownCameraControlFlag, RequestedFormat, Resolution,
 };
 use image::ImageBuffer;
+use nokhwa_core::buffer::Buffer;
+use nokhwa_core::error::NokhwaError;
+use nokhwa_core::pixel_format::FormatDecoder;
 use std::{
     borrow::Cow,
     collections::HashMap,

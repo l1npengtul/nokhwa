@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-use crate::pixel_format::FormatDecoder;
 use crate::{
     ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
     ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError,
     RequestedFormat, Resolution,
 };
 use image::{ImageBuffer, Rgb};
+use nokhwa_core::pixel_format::FormatDecoder;
 use opencv::videoio::CAP_PROP_FOURCC;
 use opencv::{
     core::{Mat, MatTraitConst, MatTraitConstManual, Vec3b},

@@ -15,10 +15,11 @@
  */
 
 use crate::{
-    buffer::Buffer, ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-    CaptureBackendTrait, ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl,
-    NokhwaError, RequestedFormat, Resolution,
+    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
+    ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl, NokhwaError,
+    RequestedFormat, Resolution,
 };
+use nokhwa_core::buffer::Buffer;
 use std::fmt::format;
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]

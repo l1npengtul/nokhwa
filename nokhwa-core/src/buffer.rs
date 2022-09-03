@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-use crate::{pixel_format::FormatDecoder, FrameFormat, NokhwaError, Resolution};
+use crate::{
+    error::NokhwaError,
+    pixel_format::FormatDecoder,
+    types::{FrameFormat, Resolution},
+};
 use image::ImageBuffer;
-#[cfg(feature = "input-opencv")]
-use opencv::core::{Mat, Mat_AUTO_STEP, CV_8U, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
-#[cfg(feature = "serde")]
+#[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 /// A buffer returned by a camera to accomodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct Buffer<'a> {
     resolution: Resolution,
     buffer: Cow<'a, [u8]>,

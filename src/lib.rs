@@ -28,17 +28,15 @@
 
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
-pub mod buffer;
 mod camera;
 mod camera_traits;
-mod error;
 mod init;
 /// A camera that uses native browser APIs meant for WASM applications.
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub mod js_camera;
-mod pixel_format;
-pub use pixel_format::FormatDecoder;
+
+pub use nokhwa_core::pixel_format::FormatDecoder;
 mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
@@ -49,14 +47,14 @@ mod utils;
 #[cfg(feature = "input-ipcam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
 pub use backends::capture::network_camera::NetworkCamera;
-pub use buffer::Buffer;
 pub use camera::Camera;
 pub use camera_traits::*;
-pub use error::NokhwaError;
 pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub use js_camera::JSCamera;
+pub use nokhwa_core::buffer::Buffer;
+pub use nokhwa_core::error::NokhwaError;
 pub use query::*;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]

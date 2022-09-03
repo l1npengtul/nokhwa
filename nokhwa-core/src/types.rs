@@ -1,40 +1,11 @@
-use crate::NokhwaError;
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-use nokhwa_bindings_macos::avfoundation::{
-    AVCaptureDeviceDescriptor, AVFourCC, AVVideoResolution, CaptureDeviceFormatDescriptor,
-};
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-use nokhwa_bindings_windows::{
-    MFCameraFormat, MFControl, MFFrameFormat, MFResolution, MediaFoundationControls,
-    MediaFoundationDeviceDescriptor,
-};
-#[cfg(feature = "serde")]
+use crate::error::NokhwaError;
+#[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::{
-    borrow::{Borrow, Cow},
+    borrow::Borrow,
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
-#[cfg(feature = "input-uvc")]
-use uvc::StreamFormat;
-#[cfg(all(feature = "input-v4l", target_os = "linux"))]
-use v4l::{control::Description, Format, FourCC};
-#[cfg(feature = "output-wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Tells the init function what camera format to pick.
 /// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
@@ -43,7 +14,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 /// - `Closest`: Pick the closest [`CameraFormat`] provided in order of [`FrameFormat`], [`Resolution`], and FPS. Note that if the [`FrameFormat`] does not exist, this will fail to resolve.
 /// - `None`: Pick a random [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum RequestedFormat {
     HighestResolution,
     HighestFrameRate,
@@ -53,9 +24,9 @@ pub enum RequestedFormat {
 }
 
 impl RequestedFormat {
-    /// Fufill the requested using a list of all availible formats.
-    pub fn fufill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
-        match request {
+    /// Fulfill the requested using a list of all available formats.
+    pub fn fulfill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
+        match self {
             RequestedFormat::HighestResolution => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
@@ -74,15 +45,17 @@ impl RequestedFormat {
                 let mut format_framerates = formats
                     .into_iter()
                     .filter(|fmt| fmt.frame_rate() == frame_rate.frame_rate())
+                    .copied()
                     .collect::<Vec<CameraFormat>>();
                 format_framerates.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
                 format_framerates.last().map(|x| *x)
             }
-            RequestedFormat::Exact(fmt) => fmt,
+            RequestedFormat::Exact(fmt) => *fmt,
             RequestedFormat::Closest(c) => {
                 let mut same_fmt_formats = all_formats
                     .iter()
                     .filter(|x| x.format() == c.format())
+                    .copied()
                     .collect::<Vec<CameraFormat>>();
                 let mut resolution_map = same_fmt_formats
                     .iter()
@@ -90,11 +63,11 @@ impl RequestedFormat {
                         let res = x.resolution();
                         let x_diff = res.x() as i32 - c.resolution().x() as i32;
                         let y_diff = res.y() as i32 - c.resolution().y() as i32;
-                        let dist_no_sqrt = (x_diff.abs()).pow(2) + (y_diff.abs()).pow(2);
+                        let dist_no_sqrt = (x_diff.abs()).pow(2) + (y_diff.abs()).pow(2) as u32;
                         (dist_no_sqrt, res)
                     })
                     .collect::<Vec<(u32, Resolution)>>();
-                resolution_map.sort_by(|a, b| a.0.cmp(*b.0.cmp()));
+                resolution_map.sort_by(|a, b| a.0.cmp(*b.0));
                 resolution_map.dedup_by(|a, b| a.0.eq(&b.0));
                 let resolution = resolution_map.first()?.1;
 
@@ -111,8 +84,8 @@ impl RequestedFormat {
                 let mut framerate_map = frame_rates
                     .iter()
                     .map(|x| {
-                        let abs = x as i32 - c.frame_rate() as i32;
-                        (abs.abs(), *x)
+                        let abs = *x as i32 - c.frame_rate() as i32;
+                        (abs.abs() as u32, *x)
                     })
                     .collect::<Vec<(u32, u32)>>();
                 framerate_map.sort();
@@ -128,7 +101,7 @@ impl RequestedFormat {
 /// - Index: A numbered index
 /// - String: A string, used for IPCameras.
 #[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum CameraIndex {
     Index(u32),
     String(String),
@@ -205,7 +178,7 @@ impl TryFrom<CameraIndex> for usize {
 /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 /// - GRAY is a grayscale image format, usually for specialized cameras such as IR Cameras.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
@@ -319,7 +292,7 @@ pub const fn frame_formats() -> [FrameFormat; 3] {
 /// # JS-WASM
 /// This is exported as `JSResolution`
 #[cfg_attr(feature = "output-wasm", wasm_bindgen)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
     pub width_x: u32,
@@ -445,7 +418,7 @@ impl From<AVVideoResolution> for Resolution {
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
     format: FrameFormat,
@@ -622,7 +595,7 @@ impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraInfo {
     human_name: String,
     description: String,
@@ -797,7 +770,7 @@ impl From<AVCaptureDeviceDescriptor> for CameraInfo {
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum KnownCameraControl {
     Brightness,
     Contrast,
@@ -965,6 +938,7 @@ impl From<KnownCameraControl> for i32 {
 /// This tells you weather a [`KnownCameraControl`] is automatically managed by the OS/Driver
 /// or manually managed by you, the programmer.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum KnownCameraControlFlag {
     Automatic,
     Manual,
@@ -982,7 +956,7 @@ impl Display for KnownCameraControlFlag {
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 // TODO: use in CameraControl
 /// The values for a [`CameraControl`].
 ///
@@ -1199,12 +1173,11 @@ impl Display for ControlValueDescription {
 /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
 /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraControl {
     control: KnownCameraControl,
     name: String,
     description: ControlValueDescription,
-    value: ControlValueSetter,
     flag: Vec<KnownCameraControlFlag>,
     active: bool,
 }
@@ -1219,12 +1192,10 @@ impl CameraControl {
         flag: Vec<KnownCameraControlFlag>,
         active: bool,
     ) -> Self {
-        let value = description.value();
         CameraControl {
             control,
             name,
             description,
-            value,
             flag,
             active,
         }
@@ -1234,28 +1205,6 @@ impl CameraControl {
     #[must_use]
     pub fn control(&self) -> KnownCameraControl {
         self.control
-    }
-
-    /// Gets the current value description of this [`CameraControl`]
-    #[must_use]
-    pub fn value(&self) -> &ControlValueDescription {
-        &self.description
-    }
-
-    /// Sets the value of this [`CameraControl`]
-    /// # Errors
-    /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
-    pub fn set_value(&mut self, value: ControlValueSetter) -> Result<(), NokhwaError> {
-        if !self.description.verify_setter(&value) {
-            return Err(NokhwaError::SetPropertyError {
-                property: format!("ControlValueDescription: {}", self.description),
-                value: format!("ControlValueSetter: {}", self.value),
-                error: "Invalid Value.".to_string(),
-            });
-        }
-
-        self.value = value;
-        Ok(())
     }
 
     /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
@@ -1291,7 +1240,7 @@ impl Display for CameraControl {
 
 /// The setter for a control value
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum ControlValueSetter {
     None,
     Integer(i64),
@@ -1337,7 +1286,7 @@ impl Display for ControlValueSetter {
 /// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum ApiBackend {
     Auto,
     AVFoundation,
@@ -1430,8 +1379,8 @@ impl Display for ApiBackend {
 /// # Safety
 /// This function uses `unsafe`. The caller must ensure that:
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
-#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
+#[cfg(all(feature = "mjpeg", not(target_arch = "wasm")))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
 pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1482,7 +1431,7 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     }
 }
 
-#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+#[cfg(not(all(feature = "mjpeg", not(target_arch = "wasm"))))]
 pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),
@@ -1492,8 +1441,8 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 /// Equivalent to [`mjpeg_to_rgb`] except with a destination buffer.
 /// # Errors
 /// If the decoding fails (e.g. invalid MJPEG stream), the buffer is not large enough, or you are doing this on `WebAssembly`, this will error.
-#[cfg(all(feature = "decoding", not(target_arch = "wasm")))]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "decoding")))]
+#[cfg(all(feature = "mjpeg", not(target_arch = "wasm")))]
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1545,7 +1494,7 @@ pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), 
     Ok(())
 }
 
-#[cfg(not(all(feature = "decoding", not(target_arch = "wasm"))))]
+#[cfg(not(all(feature = "mjpeg", not(target_arch = "wasm"))))]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),

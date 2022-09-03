@@ -14,8 +14,16 @@
  * limitations under the License.
  */
 
+use crate::{
+    buffer::Buffer,
+    error::NokhwaError,
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter, FrameFormat,
+        KnownCameraControl, Resolution,
+    },
+};
 use std::{borrow::Cow, collections::HashMap};
-#[cfg(feature = "output-wgpu")]
+#[cfg(feature = "wgpu-types")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
     Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
@@ -31,7 +39,7 @@ use wgpu::{
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureBackendTrait {
     /// Returns the current backend used.
-    fn backend(&self) -> crate::ApiBackend;
+    fn backend(&self) -> ApiBackend;
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
     fn camera_info(&self) -> &CameraInfo;
@@ -173,8 +181,8 @@ pub trait CaptureBackendTrait {
         (resolution.width() * resolution.height() * pxwidth) as usize
     }
 
-    #[cfg(feature = "output-wgpu")]
-    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-wgpu")))]
+    #[cfg(feature = "wgpu-types")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "wgpu-types")))]
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
