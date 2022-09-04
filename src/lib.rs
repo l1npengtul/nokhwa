@@ -29,7 +29,6 @@
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
 mod camera;
-mod camera_traits;
 mod init;
 /// A camera that uses native browser APIs meant for WASM applications.
 #[cfg(feature = "input-jscam")]
@@ -41,14 +40,16 @@ mod query;
 /// A camera that runs in a different thread and can call your code based on callbacks.
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
-mod threaded;
-mod utils;
+pub mod threaded;
 
 #[cfg(feature = "input-ipcam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-pub use backends::capture::network_camera::NetworkCamera;
+#[deprecated(
+    since = "0.10.0",
+    note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled."
+)]
+pub use backends::capture::NetworkCamera;
 pub use camera::Camera;
-pub use camera_traits::*;
 pub use init::*;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
@@ -59,4 +60,23 @@ pub use query::*;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub use threaded::CallbackCamera;
-pub use utils::*;
+
+pub mod utils {
+    pub use nokhwa_core::types::*;
+}
+
+pub mod error {
+    pub use nokhwa_core::error::NokhwaError;
+}
+
+pub mod camera_traits {
+    pub use nokhwa_core::traits::*;
+}
+
+pub mod pixel_format {
+    pub use nokhwa_core::pixel_format::*;
+}
+
+pub mod buffer {
+    pub use nokhwa_core::buffer::*;
+}

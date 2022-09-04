@@ -18,7 +18,7 @@
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 )))]
-fn init_avfoundation(callback: fn(bool)) {
+fn init_avfoundation(callback: impl FnMut(bool) + Send + 'static) {
     callback(true);
 }
 
@@ -26,7 +26,7 @@ fn init_avfoundation(callback: fn(bool)) {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
-fn init_avfoundation(callback: fn(bool)) {
+fn init_avfoundation(callback: impl FnMut(bool) + Send + 'static) {
     use nokhwa_bindings_macos::avfoundation::request_permission_with_callback;
 
     request_permission_with_callback(callback);
@@ -60,7 +60,7 @@ fn status_avfoundation() -> bool {
 ///
 /// The `on_complete` is called after initialization (a.k.a User granted permission). The callback's argument
 /// is weather the initialization was successful or not
-pub fn nokhwa_initialize(on_complete: fn(bool)) {
+pub fn nokhwa_initialize(on_complete: impl FnMut(bool) + Send + 'static) {
     init_avfoundation(on_complete);
 }
 

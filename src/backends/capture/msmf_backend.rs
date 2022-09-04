@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-use crate::{
-    all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl,
-    CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait, FrameFormat, KnownCameraControl,
-    KnownCameraControlFlag, NokhwaError, RequestedFormat, Resolution,
-};
 use image::{ImageBuffer, Rgb};
-use nokhwa_bindings_windows::{
-    wmf::MediaFoundationDevice, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
-    MediaFoundationControls,
+use nokhwa_bindings_windows::wmf::MediaFoundationDevice;
+use nokhwa_core::buffer::Buffer;
+use nokhwa_core::types::ControlValueSetter;
+use nokhwa_core::{
+    error::NokhwaError,
+    traits::CaptureBackendTrait,
+    types::{
+        all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl,
+        CameraFormat, CameraIndex, CameraInfo, FrameFormat, KnownCameraControl,
+        KnownCameraControlFlag, RequestedFormat, Resolution,
+    },
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
@@ -48,7 +51,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
     pub fn new(index: CameraIndex, camera_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
-        let mut mf_device = MediaFoundationDevice::new(index.as_index()? as usize)?;
+        let mut mf_device = MediaFoundationDevice::new(index.clone())?;
 
         let info = CameraInfo::new(
             &mf_device.name(),
@@ -75,10 +78,12 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
 
         mf_device.set_format(desired.into())?;
 
-        Ok(MediaFoundationCaptureDevice {
+        let mut new_cam = MediaFoundationCaptureDevice {
             inner: mf_device,
             info,
-        })
+        };
+        new_cam.refresh_camera_format()?;
+        Ok(new_cam)
     }
 
     /// Create a new Media Foundation Device with desired settings.
@@ -243,95 +248,29 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        let msmf_camera_control: MediaFoundationControls = match control {
-            KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
-            KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
-            KnownCameraControl::Hue => MediaFoundationControls::Hue,
-            KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
-            KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
-            KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
-            KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
-            KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
-            KnownCameraControl::Gain => MediaFoundationControls::Gain,
-            KnownCameraControl::Pan => MediaFoundationControls::Pan,
-            KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
-            KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
-            KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
-            KnownCameraControl::Iris => MediaFoundationControls::Iris,
-            KnownCameraControl::Focus => MediaFoundationControls::Focus,
-        };
-
-        let ctrl = match self.inner.control(msmf_camera_control) {
-            Ok(ctrl) => ctrl,
-            Err(why) => return Err(why.into()),
-        };
-
-        let flag = if ctrl.manual() {
-            KnownCameraControlFlag::Manual
-        } else {
-            KnownCameraControlFlag::Automatic
-        };
-
-        let min = MFControl::min(&ctrl);
-        let max = MFControl::max(&ctrl);
-
-        CameraControl::new(
-            control,
-            min,
-            max,
-            ctrl.current(),
-            ctrl.step(),
-            ctrl.default(),
-            flag,
-            ctrl.active(),
-        )
+        self.inner.control(control)
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        todo!()
+        let mut camera_ctrls = Vec::with_capacity(15);
+        for ctrl_id in all_known_camera_controls() {
+            let ctrl = match self.camera_control(ctrl_id) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            camera_ctrls.push(ctrl);
+        }
+        camera_ctrls.shrink_to_fit();
+        Ok(camera_ctrls)
     }
 
-    fn set_camera_control(&mut self, control: CameraControl) -> Result<(), NokhwaError> {
-        let ctrl = match control.control() {
-            KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
-            KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
-            KnownCameraControl::Hue => MediaFoundationControls::Hue,
-            KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
-            KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
-            KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
-            KnownCameraControl::ColorEnable => MediaFoundationControls::ColorEnable,
-            KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
-            KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
-            KnownCameraControl::Gain => MediaFoundationControls::Gain,
-            KnownCameraControl::Pan => MediaFoundationControls::Pan,
-            KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
-            KnownCameraControl::Roll => MediaFoundationControls::Roll,
-            KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
-            KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
-            KnownCameraControl::Iris => MediaFoundationControls::Iris,
-            KnownCameraControl::Focus => MediaFoundationControls::Focus,
-        };
-
-        let flag = match control.flag() {
-            KnownCameraControlFlag::Automatic => false,
-            KnownCameraControlFlag::Manual => true,
-        };
-
-        let msmf_camera_control = MFControl::new(
-            ctrl,
-            control.minimum_value(),
-            control.maximum_value(),
-            control.step(),
-            control.value(),
-            control.default(),
-            flag,
-            control.active(),
-        );
-
-        if let Err(why) = self.inner.set_control(msmf_camera_control) {
-            return Err(why.into());
-        }
-        Ok(())
+    fn set_camera_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        self.inner.set_control(id, value)
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -346,34 +285,18 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         self.inner.is_stream_open()
     }
 
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let camera_format = self.camera_format();
-        let raw_data = self.frame_raw()?;
-        let conv = match camera_format.format() {
-            FrameFormat::MJPEG => mjpeg_to_rgb(raw_data.as_ref(), false)?,
-            FrameFormat::YUYV => yuyv422_to_rgb(raw_data.as_ref(), false)?,
-        };
-
-        let imagebuf =
-            match ImageBuffer::from_vec(camera_format.width(), camera_format.height(), conv) {
-                Some(buf) => {
-                    let rgbbuf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                    rgbbuf
-                }
-                None => return Err(NokhwaError::ReadFrameError(
-                    "Imagebuffer is not large enough! This is probably a bug, please report it!"
-                        .to_string(),
-                )),
-            };
-
-        Ok(imagebuf)
+    fn frame(&mut self) -> Result<Buffer, NokhwaError> {
+        self.refresh_camera_format()?;
+        let self_ctrl = self.camera_format();
+        Ok(Buffer::new(
+            self_ctrl.resolution(),
+            &self.inner.raw_bytes()?,
+            self_ctrl.format(),
+        ))
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        match self.inner.raw_bytes() {
-            Ok(data) => Ok(data),
-            Err(why) => Err(why.into()),
-        }
+        self.inner.raw_bytes()
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {

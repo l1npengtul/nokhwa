@@ -19,6 +19,7 @@ use crate::{
     pixel_format::FormatDecoder,
     types::{FrameFormat, Resolution},
 };
+use bytes::Bytes;
 use image::ImageBuffer;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
@@ -28,32 +29,19 @@ use std::borrow::Cow;
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-pub struct Buffer<'a> {
+pub struct Buffer {
     resolution: Resolution,
-    buffer: Cow<'a, [u8]>,
+    buffer: Bytes,
     source_frame_format: FrameFormat,
 }
 
-impl<'a> Buffer<'a> {
-    /// Creates a new buffer with a [`Vec`].
-    #[must_use]
-    pub fn new_with_vec(res: Resolution, buf: Vec<u8>, source_frame_format: FrameFormat) -> Self {
-        Self {
-            resolution: res,
-            buffer: Cow::Owned(buf),
-            source_frame_format,
-        }
-    }
+impl Buffer {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
-    pub fn new_with_slice(
-        res: Resolution,
-        buf: &'a [u8],
-        source_frame_format: FrameFormat,
-    ) -> Self {
+    pub fn new(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
         Self {
             resolution: res,
-            buffer: Cow::Borrowed(buf),
+            buffer: Bytes::copy_from_slice(buf),
             source_frame_format,
         }
     }

@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-use crate::{
-    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
-    ControlValueSetter, FormatDecoder, FrameFormat, KnownCameraControl, NokhwaError,
-    RequestedFormat, Resolution,
+use nokhwa_core::{
+    buffer::Buffer,
+    error::NokhwaError,
+    pixel_format::FormatDecoder,
+    traits::CaptureBackendTrait,
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+    },
 };
-use nokhwa_core::buffer::Buffer;
 use std::fmt::format;
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]

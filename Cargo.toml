@@ -19,8 +19,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["flume", "decoding"]
-serialize = ["serde"]
-decoding = ["mozjpeg"]
+serialize = ["serde", "nokhwa-core/serialize"]
+decoding = ["nokhwa-core/mjpeg"]
 input-v4l = ["v4l", "v4l2-sys-mit"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
@@ -32,7 +32,7 @@ input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex", "
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
 output-wgpu = ["wgpu"]
 output-wasm = ["input-jscam"]
-output-threaded = ["parking_lot"]
+output-threaded = []
 small-wasm = []
 docs-only = ["input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-wasm", "output-threaded"]
 docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
@@ -42,6 +42,10 @@ test-fail-warning = []
 [dependencies]
 thiserror = "1.0"
 paste = "1.0"
+
+[dependencies.nokhwa-core]
+version = "0.1.0"
+path = "nokhwa-core"
 
 [dependencies.serde]
 version = "1.0"
@@ -54,10 +58,6 @@ optional = true
 [dependencies.image]
 version = "0.24"
 default-features = false
-
-[dependencies.mozjpeg]
-version = "0.9"
-optional = true
 
 [dependencies.v4l]
 version = "0.13"
@@ -76,7 +76,7 @@ version = "0.13"
 optional = true
 
 [dependencies.opencv]
-version = "0.66"
+version = "0.67"
 optional = true
 
 [dependencies.rgb]

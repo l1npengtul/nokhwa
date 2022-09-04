@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-use crate::{ApiBackend, CameraInfo, NokhwaError};
+use nokhwa_core::{
+    error::NokhwaError,
+    types::{ApiBackend, CameraIndex, CameraInfo},
+};
 
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>

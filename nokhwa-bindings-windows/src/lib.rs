@@ -1093,6 +1093,7 @@ pub mod wmf {
                 });
             }
             self.device_format = format;
+            self.format_refreshed()?;
             Ok(())
         }
 

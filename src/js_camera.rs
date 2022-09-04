@@ -20,14 +20,15 @@
 //!
 //! This assumes that you are running a modern browser on the desktop.
 
-use crate::{CameraIndex, CameraInfo, NokhwaError, Resolution};
-use gstreamer::Array;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbImage, Rgba};
 #[cfg(feature = "output-wasm")]
 use js_sys::{Array, JsString, Map, Object, Promise};
+use nokhwa_core::{
+    error::NokhwaError,
+    types::{CameraIndex, CameraInfo, Resolution},
+};
 use std::{
-    borrow::Borrow,
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     ops::Deref,

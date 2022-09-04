@@ -158,7 +158,7 @@ pub trait CaptureBackendTrait {
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
     /// this will error.
-    fn frame<'a>(&mut self) -> Result<Buffer<'a>, NokhwaError>;
+    fn frame(&mut self) -> Result<Buffer, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors

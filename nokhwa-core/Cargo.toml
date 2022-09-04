@@ -19,6 +19,7 @@ docs-features = []
 
 [dependencies]
 thiserror = "1.0"
+bytes = "1.2"
 
 [dependencies.image]
 version = "0.24"

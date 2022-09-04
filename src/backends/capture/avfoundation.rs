@@ -14,15 +14,21 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb, nokhwa_check, nokhwa_initialize, yuyv422_to_rgb, ApiBackend, CameraControl,
-    CameraFormat, CameraInfo, CaptureBackendTrait, ControlValueSetter, FormatDecoder, FrameFormat,
-    KnownCameraControl, NokhwaError, Resolution,
-};
+use crate::nokhwa_check;
 use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_macos::avfoundation::{
     query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
     AVCaptureVideoCallback, AVCaptureVideoDataOutput, AVFourCC,
+};
+use nokhwa_core::pixel_format::FormatDecoder;
+use nokhwa_core::traits::CaptureBackendTrait;
+use nokhwa_core::types::{
+    mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, ControlValueSetter, FrameFormat,
+    KnownCameraControl, Resolution,
+};
+use nokhwa_core::{
+    error::NokhwaError,
+    types::{CameraFormat, CameraInfo},
 };
 use std::{any::Any, borrow::Borrow, borrow::Cow, collections::HashMap, ops::Deref};
 
@@ -99,15 +105,6 @@ impl AVFoundationCaptureDevice {
 }
 
 impl CaptureBackendTrait for AVFoundationCaptureDevice {
-    fn init(&mut self) -> Result<CameraFormat, NokhwaError> {
-        if !nokhwa_check() {
-            return Err(NokhwaError::InitializeError {
-                backend: ApiBackend::AVFoundation,
-                error: "User permission not granted yet.".to_string(),
-            });
-        }
-    }
-
     fn backend(&self) -> ApiBackend {
         ApiBackend::AVFoundation
     }

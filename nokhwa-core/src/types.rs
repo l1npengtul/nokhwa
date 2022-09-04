@@ -207,86 +207,6 @@ impl Display for FrameFormat {
     }
 }
 
-#[cfg(feature = "input-uvc")]
-impl From<FrameFormat> for uvc::FrameFormat {
-    fn from(ff: FrameFormat) -> Self {
-        match ff {
-            FrameFormat::MJPEG => uvc::FrameFormat::MJPEG,
-            FrameFormat::YUYV => uvc::FrameFormat::YUYV,
-        }
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MFFrameFormat> for FrameFormat {
-    fn from(mf_ff: MFFrameFormat) -> Self {
-        match mf_ff {
-            MFFrameFormat::MJPEG => FrameFormat::MJPEG,
-            MFFrameFormat::YUYV => FrameFormat::YUYV,
-            MFFrameFormat::GRAY => FrameFormat::GRAY,
-        }
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<FrameFormat> for MFFrameFormat {
-    fn from(ff: FrameFormat) -> Self {
-        match ff {
-            FrameFormat::MJPEG => MFFrameFormat::MJPEG,
-            FrameFormat::YUYV => MFFrameFormat::YUYV,
-            FrameFormat::GRAY => MFFrameFormat::GRAY8, //FIXME
-        }
-    }
-}
-
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-impl From<AVFourCC> for FrameFormat {
-    fn from(av_fcc: AVFourCC) -> Self {
-        match av_fcc {
-            AVFourCC::YUV2 => FrameFormat::YUYV,
-            AVFourCC::MJPEG => FrameFormat::MJPEG,
-            AVFourCC::GRAY8 => FrameFormat::GRAY,
-        }
-    }
-}
-
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-impl From<FrameFormat> for AVFourCC {
-    fn from(ff: FrameFormat) -> Self {
-        match ff {
-            FrameFormat::MJPEG => AVFourCC::MJPEG,
-            FrameFormat::YUYV => AVFourCC::YUV2,
-            FrameFormat::GRAY => AVFourCC::GRAY8,
-        }
-    }
-}
-
 #[must_use]
 pub const fn frame_formats() -> [FrameFormat; 3] {
     [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY]
@@ -374,53 +294,6 @@ impl Ord for Resolution {
     }
 }
 
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MFResolution> for Resolution {
-    fn from(mf_res: MFResolution) -> Self {
-        Resolution {
-            width_x: mf_res.width_x,
-            height_y: mf_res.height_y,
-        }
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<Resolution> for MFResolution {
-    fn from(res: Resolution) -> Self {
-        MFResolution {
-            width_x: res.width(),
-            height_y: res.height(),
-        }
-    }
-}
-
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-#[allow(clippy::cast_sign_loss)]
-impl From<AVVideoResolution> for Resolution {
-    fn from(res: AVVideoResolution) -> Self {
-        Resolution {
-            width_x: res.width as u32,
-            height_y: res.height as u32,
-        }
-    }
-}
-
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
 #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
@@ -501,18 +374,6 @@ impl CameraFormat {
     }
 }
 
-#[cfg(feature = "input-uvc")]
-impl From<CameraFormat> for StreamFormat {
-    fn from(cf: CameraFormat) -> Self {
-        StreamFormat {
-            width: cf.width(),
-            height: cf.height(),
-            fps: cf.frame_rate(),
-            format: cf.format().into(),
-        }
-    }
-}
-
 impl Default for CameraFormat {
     fn default() -> Self {
         CameraFormat {
@@ -530,69 +391,6 @@ impl Display for CameraFormat {
             "{}@{}FPS, {} Format",
             self.resolution, self.frame_rate, self.format
         )
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MFCameraFormat> for CameraFormat {
-    fn from(mf_cam_fmt: MFCameraFormat) -> Self {
-        CameraFormat {
-            resolution: mf_cam_fmt.resolution().into(),
-            format: mf_cam_fmt.format().into(),
-            frame_rate: mf_cam_fmt.frame_rate(),
-        }
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<CameraFormat> for MFCameraFormat {
-    fn from(cf: CameraFormat) -> Self {
-        MFCameraFormat::new(cf.resolution.into(), cf.format.into(), cf.frame_rate)
-    }
-}
-
-#[cfg(all(feature = "input-v4l", target_os = "linux"))]
-impl From<CameraFormat> for Format {
-    fn from(cam_fmt: CameraFormat) -> Self {
-        let pxfmt = match cam_fmt.format() {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY => FourCC::new(b"GREY"),
-        };
-
-        Format::new(cam_fmt.width(), cam_fmt.height(), pxfmt)
-    }
-}
-
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-#[allow(clippy::cast_possible_wrap)]
-#[allow(clippy::cast_lossless)]
-impl From<CameraFormat> for CaptureDeviceFormatDescriptor {
-    fn from(cf: CameraFormat) -> Self {
-        CaptureDeviceFormatDescriptor {
-            resolution: AVVideoResolution {
-                width: cf.width() as i32,
-                height: cf.height() as i32,
-            },
-            fps: cf.frame_rate(),
-            fourcc: cf.format().into(),
-        }
     }
 }
 
@@ -734,44 +532,6 @@ impl Display for CameraInfo {
     }
 }
 
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MediaFoundationDeviceDescriptor<'_>> for CameraInfo {
-    fn from(dev_desc: MediaFoundationDeviceDescriptor<'_>) -> Self {
-        CameraInfo {
-            human_name: dev_desc.name_as_string(),
-            description: "Media Foundation Device".to_string(),
-            misc: dev_desc.link_as_string(),
-            index: dev_desc.index() as u32,
-        }
-    }
-}
-
-#[cfg(any(
-    all(
-        feature = "input-avfoundation",
-        any(target_os = "macos", target_os = "ios")
-    ),
-    all(
-        feature = "docs-only",
-        feature = "docs-nolink",
-        feature = "input-avfoundation"
-    )
-))]
-#[allow(clippy::cast_possible_truncation)]
-impl From<AVCaptureDeviceDescriptor> for CameraInfo {
-    fn from(descriptor: AVCaptureDeviceDescriptor) -> Self {
-        CameraInfo {
-            human_name: descriptor.name,
-            description: descriptor.description,
-            misc: descriptor.misc,
-            index: descriptor.index as u32,
-        }
-    }
-}
-
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
 /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::camera_controls) to see which ones can be set.
@@ -825,119 +585,6 @@ pub const fn all_known_camera_controls() -> [KnownCameraControl; 15] {
 impl Display for KnownCameraControl {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", &self)
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MediaFoundationControls> for KnownCameraControl {
-    fn from(mf_c: MediaFoundationControls) -> Self {
-        match mf_c {
-            MediaFoundationControls::Brightness => KnownCameraControl::Brightness,
-            MediaFoundationControls::Contrast => KnownCameraControl::Contrast,
-            MediaFoundationControls::Hue => KnownCameraControl::Hue,
-            MediaFoundationControls::Saturation => KnownCameraControl::Saturation,
-            MediaFoundationControls::Sharpness => KnownCameraControl::Sharpness,
-            MediaFoundationControls::Gamma => KnownCameraControl::Gamma,
-            MediaFoundationControls::WhiteBalance => KnownCameraControl::WhiteBalance,
-            MediaFoundationControls::BacklightComp => KnownCameraControl::BacklightComp,
-            MediaFoundationControls::Gain => KnownCameraControl::Gain,
-            MediaFoundationControls::Pan => KnownCameraControl::Pan,
-            MediaFoundationControls::Tilt => KnownCameraControl::Tilt,
-            MediaFoundationControls::Zoom => KnownCameraControl::Zoom,
-            MediaFoundationControls::Exposure => KnownCameraControl::Exposure,
-            MediaFoundationControls::Iris => KnownCameraControl::Iris,
-            MediaFoundationControls::Focus => KnownCameraControl::Focus,
-            MediaFoundationControls::ColorEnable => KnownCameraControl::Other(0),
-            MediaFoundationControls::Roll => KnownCameraControl::Other(1),
-        }
-    }
-}
-
-#[cfg(any(
-    all(feature = "input-msmf", target_os = "windows"),
-    all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")
-))]
-impl From<MFControl> for KnownCameraControl {
-    fn from(mf_cc: MFControl) -> Self {
-        mf_cc.control().into()
-    }
-}
-
-#[cfg(all(feature = "input-v4l", target_os = "linux"))]
-impl From<Description> for KnownCameraControl {
-    fn from(value: Description) -> KnownCameraControl {
-        match value.id {
-            9_963_776 => KnownCameraControl::Brightness,
-            9_963_777 => KnownCameraControl::Contrast,
-            9_963_779 => KnownCameraControl::Hue,
-            9_963_778 => KnownCameraControl::Saturation,
-            9_963_803 => KnownCameraControl::Sharpness,
-            9_963_792 => KnownCameraControl::Gamma,
-            9_963_802 => KnownCameraControl::WhiteBalance,
-            9_963_804 => KnownCameraControl::BacklightComp,
-            9_963_795 => KnownCameraControl::Gain,
-            10_094_852 => KnownCameraControl::Pan,
-            10_094_853 => KnownCameraControl::Tilt,
-            10_094_862 => KnownCameraControl::Zoom,
-            10_094_850 => KnownCameraControl::Exposure,
-            10_094_866 => KnownCameraControl::Iris,
-            10_094_859 => KnownCameraControl::Focus,
-            id => KnownCameraControl::Other(id as u128),
-        }
-    }
-}
-
-#[cfg(all(feature = "input-opencv"))]
-impl From<i32> for KnownCameraControl {
-    fn from(id: i32) -> Self {
-        use opencv::videoio::*;
-        match id {
-            CAP_PROP_BRIGHTNESS => KnownCameraControl::Brightness,
-            CAP_PROP_CONTRAST => KnownCameraControl::Contrast,
-            CAP_PROP_HUE => KnownCameraControl::Hue,
-            CAP_PROP_SATURATION => KnownCameraControl::Saturation,
-            CAP_PROP_SHARPNESS => KnownCameraControl::Sharpness,
-            CAP_PROP_GAMMA => KnownCameraControl::Gamma,
-            CAP_PROP_WB_TEMPERATURE => KnownCameraControl::WhiteBalance,
-            CAP_PROP_BACKLIGHT => KnownCameraControl::BacklightComp,
-            CAP_PROP_GAIN => KnownCameraControl::Gain,
-            CAP_PROP_PAN => KnownCameraControl::Pan,
-            CAP_PROP_TILT => KnownCameraControl::Tilt,
-            CAP_PROP_ZOOM => KnownCameraControl::Zoom,
-            CAP_PROP_EXPOSURE => KnownCameraControl::Exposure,
-            CAP_PROP_IRIS => KnownCameraControl::Iris,
-            CAP_PROP_FOCUS => KnownCameraControl::Focus,
-            id => KnownCameraControl::Other(id as u128),
-        }
-    }
-}
-
-#[cfg(all(feature = "input-opencv"))]
-impl From<KnownCameraControl> for i32 {
-    fn from(kcc: KnownCameraControl) -> Self {
-        use opencv::videoio::*;
-
-        match kcc {
-            KnownCameraControl::Brightness => CAP_PROP_BRIGHTNESS,
-            KnownCameraControl::Contrast => CAP_PROP_CONTRAST,
-            KnownCameraControl::Hue => CAP_PROP_HUE,
-            KnownCameraControl::Saturation => CAP_PROP_SATURATION,
-            KnownCameraControl::Sharpness => CAP_PROP_SHARPNESS,
-            KnownCameraControl::Gamma => CAP_PROP_GAMMA,
-            KnownCameraControl::WhiteBalance => CAP_PROP_WB_TEMPERATURE,
-            KnownCameraControl::BacklightComp => CAP_PROP_BACKLIGHT,
-            KnownCameraControl::Gain => CAP_PROP_GAIN,
-            KnownCameraControl::Pan => CAP_PROP_PAN,
-            KnownCameraControl::Tilt => CAP_PROP_TILT,
-            KnownCameraControl::Zoom => CAP_PROP_ZOOM,
-            KnownCameraControl::Exposure => CAP_PROP_EXPOSURE,
-            KnownCameraControl::Iris => CAP_PROP_IRIS,
-            KnownCameraControl::Focus => CAP_PROP_FOCUS,
-            KnownCameraControl::Other(id) => id as i32,
-        }
     }
 }
 
@@ -1205,6 +852,24 @@ impl CameraControl {
             flag,
             active,
         }
+    }
+
+    /// Gets the name of this [`CameraControl`]
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Gets the [`ControlValueDescription`] of this [`CameraControl`]
+    #[must_use]
+    pub fn description(&self) -> &ControlValueDescription {
+        &self.description
+    }
+
+    /// Gets the [`ControlValueSetter`] of the [`ControlValueDescription`] of this [`CameraControl`]
+    #[must_use]
+    pub fn value(&self) -> ControlValueSetter {
+        self.description.value()
     }
 
     /// Gets the [`KnownCameraControl`] of this [`CameraControl`]

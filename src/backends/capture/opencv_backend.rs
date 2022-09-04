@@ -14,19 +14,22 @@
  * limitations under the License.
  */
 
-use crate::{
-    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
-    ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl, NokhwaError,
-    RequestedFormat, Resolution,
-};
 use image::{ImageBuffer, Rgb};
-use nokhwa_core::pixel_format::FormatDecoder;
-use opencv::videoio::CAP_PROP_FOURCC;
+use nokhwa_core::{
+    error::NokhwaError,
+    pixel_format::FormatDecoder,
+    traits::CaptureBackendTrait,
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
+        ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+    },
+};
 use opencv::{
     core::{Mat, MatTraitConst, MatTraitConstManual, Vec3b},
     videoio::{
         VideoCapture, VideoCaptureTrait, VideoCaptureTraitConst, CAP_ANY, CAP_AVFOUNDATION,
-        CAP_MSMF, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH, CAP_V4L2,
+        CAP_MSMF, CAP_PROP_FOURCC, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH,
+        CAP_V4L2,
     },
 };
 use std::{any::Any, borrow::Cow, collections::HashMap};
@@ -455,7 +458,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         }
 
         let set_value = self.camera_control(id)?.value();
-        if set_value == value {
+        if set_value != value {
             return Err(NokhwaError::SetPropertyError {
                 property: "Camera Control".to_string(),
                 value: control_val.to_string(),

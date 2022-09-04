@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb,
-    utils::{CameraFormat, CameraInfo},
-    yuyv422_to_rgb, ApiBackend, CameraControl, CameraIndex, CaptureBackendTrait,
-    ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
-    KnownCameraControlFlag, RequestedFormat, Resolution,
-};
 use image::ImageBuffer;
-use nokhwa_core::buffer::Buffer;
-use nokhwa_core::error::NokhwaError;
-use nokhwa_core::pixel_format::FormatDecoder;
+use nokhwa_core::types::{CameraFormat, CameraInfo};
+use nokhwa_core::{
+    buffer::Buffer,
+    error::NokhwaError,
+    pixel_format::FormatDecoder,
+    traits::CaptureBackendTrait,
+    types::{
+        mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, CameraIndex,
+        ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
+        KnownCameraControlFlag, RequestedFormat, Resolution,
+    },
+};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -682,14 +684,14 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         // verify
 
         let control = self.camera_control(id)?;
-        if control.value().value() == value {
-            return Ok(());
+        if control.value() != value {
+            return Err(NokhwaError::SetPropertyError {
+                property: id.to_string(),
+                value: value.to_string(),
+                error: "Rejected".to_string(),
+            });
         }
-        return Err(NokhwaError::SetPropertyError {
-            property: id.to_string(),
-            value: value.to_string(),
-            error: "Rejected".to_string(),
-        });
+        Ok(())
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {

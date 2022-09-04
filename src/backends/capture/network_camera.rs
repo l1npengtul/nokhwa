@@ -14,15 +14,10 @@
  * limitations under the License.
  */
 
-use crate::{
-    backends::capture::OpenCvCaptureDevice, ApiBackend, Buffer, CameraControl, CameraFormat,
-    CameraInfo, CaptureBackendTrait, ControlValueSetter, FrameFormat, KnownCameraControl,
-    NokhwaError, Resolution,
-};
+use crate::backends::capture::OpenCvCaptureDevice;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use nokhwa_core::{error::NokhwaError, traits::CaptureBackendTrait};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -32,7 +27,10 @@ use wgpu::{
 
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-#[deprecated(since = "0.10.0", note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled.")]
+#[deprecated(
+    since = "0.10.0",
+    note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled."
+)]
 pub struct NetworkCamera {
     ip: String,
     opencv_backend: RefCell<OpenCvCaptureDevice>,
