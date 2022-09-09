@@ -110,3 +110,7 @@ Contributions are welcome!
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
+
+## Sponsors
+- $5/mo sponsors:
+  - [remifluff](https://github.com/remifluff)
