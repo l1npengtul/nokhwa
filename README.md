@@ -6,11 +6,11 @@ A Simple-to-use, cross-platform Rust Webcam Capture Library
 
 ## Using nokhwa
 Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
-```.ignore
+```toml
 [dependencies.nokhwa]
-// TODO: replace the "*" with the latest version of `nokhwa`
+# TODO: replace the "*" with the latest version of `nokhwa`
 version = "*"
-// TODO: add some features
+# TODO: add some features
 features = [""]
 ```
 
@@ -18,7 +18,7 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 
 ## Example
 
-```.ignore
+```rust
 // set up the Camera
 let mut camera = Camera::new(
     0, // index
