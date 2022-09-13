@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-use crate::nokhwa_check;
 use image::{ImageBuffer, Rgb};
-use nokhwa_bindings_macos::avfoundation::{
-    query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
-    AVCaptureVideoCallback, AVCaptureVideoDataOutput, AVFourCC,
-};
-use nokhwa_core::pixel_format::FormatDecoder;
-use nokhwa_core::traits::CaptureBackendTrait;
-use nokhwa_core::types::{
-    mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, ControlValueSetter, FrameFormat,
-    KnownCameraControl, Resolution,
+use nokhwa_bindings_macos::{
+    AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
+    AVCaptureVideoDataOutput,
 };
 use nokhwa_core::{
     error::NokhwaError,
-    types::{CameraFormat, CameraInfo},
+    pixel_format::FormatDecoder,
+    traits::CaptureBackendTrait,
+    types::{
+        mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, CameraFormat, CameraIndex,
+        CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
+        Resolution,
+    },
 };
-use std::{any::Any, borrow::Borrow, borrow::Cow, collections::HashMap, ops::Deref};
+use std::{borrow::Cow, collections::HashMap};
+use v4l::frameinterval::FrameIntervalEnum;
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -57,25 +57,12 @@ impl AVFoundationCaptureDevice {
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
-    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let camera_format = match camera_format {
-            Some(fmt) => fmt,
-            None => CameraFormat::default(),
-        };
-
-        let device_descriptor: CameraInfo = match query_avfoundation()?.into_iter().nth(index) {
-            Some(descriptor) => descriptor.into(),
-            None => {
-                return Err(NokhwaError::OpenDeviceError(
-                    index.to_string(),
-                    "No Device".to_string(),
-                ))
-            }
-        };
-
-        let mut device = AVCaptureDevice::from_id(&device_descriptor.misc())?;
+    pub fn new(index: CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+        let mut device = AVCaptureDevice::new(index)?;
         device.lock()?;
-        device.set_all(camera_format.into())?;
+        let formats = device.supported_formats()?;
+        let camera_fmt = req_fmt.fulfill(&formats)?;
+        device.set_all(camera_fmt)?;
 
         Ok(AVFoundationCaptureDevice {
             device,
@@ -92,6 +79,7 @@ impl AVFoundationCaptureDevice {
     ///
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
     pub fn new_with(
         index: usize,
         width: u32,
@@ -99,8 +87,11 @@ impl AVFoundationCaptureDevice {
         fps: u32,
         fourcc: FrameFormat,
     ) -> Result<Self, NokhwaError> {
-        let camera_format = Some(CameraFormat::new_from(width, height, fourcc, fps));
-        AVFoundationCaptureDevice::new(index, camera_format)
+        let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
+        AVFoundationCaptureDevice::new(
+            CameraIndex::Index(index as u32),
+            RequestedFormat::Exact(camera_format),
+        )
     }
 }
 
@@ -114,7 +105,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        todo!()
+        Ok(())
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -133,23 +124,21 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        Ok(self
+        let supported_cfmt = self
             .device
             .supported_formats()?
             .into_iter()
-            .map(|fmt| {
-                (
-                    FrameFormat::from(fmt.fourcc),
-                    Resolution::from(fmt.resolution),
-                    (&fmt.fps_list)
-                        .iter()
-                        .map(|f| *f as u32)
-                        .collect::<Vec<u32>>(),
-                )
-            })
-            .filter(|x| (*x).0 == fourcc)
-            .map(|fmt| (fmt.1, fmt.2))
-            .collect::<HashMap<Resolution, Vec<u32>>>())
+            .filter(|x| x.format() != fourcc);
+        let mut res_list = HashMap::new();
+        for format in supported_cfmt {
+            match res_list.get_mut(&format.resolution()) {
+                Some(fpses) => fpses.push(format.frame_rate()),
+                None => {
+                    vec![format.frame_rate()]
+                }
+            }
+        }
+        Ok(res_list)
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
@@ -264,12 +253,6 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
                 )),
             };
         Ok(image_buf)
-    }
-
-    fn frame_typed<F: FormatDecoder>(
-        &mut self,
-    ) -> Result<ImageBuffer<nokhwa_core::pixel_format::Output, Vec<u8>>, NokhwaError> {
-        todo!()
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
