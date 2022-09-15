@@ -189,10 +189,16 @@ use core_media_sys::{
     CMVideoDimensions,
 };
 use flume::{Receiver, Sender};
-use nokhwa_core::types::Resolution;
 use nokhwa_core::{
+    types::{
+        Resolution,
+        ApiBackend,
+        CameraFormat,
+        CameraIndex,
+        CameraInfo,
+        FrameFormat
+    },
     error::NokhwaError,
-    types::{ApiBackend, CameraFormat, CameraIndex, CameraInfo, FrameFormat},
 };
 use objc::{
     declare::ClassDecl,
@@ -333,15 +339,14 @@ static CALLBACK_CLASS: &'static Class = {
     let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
 
     // frame stack
-    decl.add_ivar::<usize>("_index");
+    decl.add_ivar::<*mut c_void>("_fnptr"); // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
 
-    extern "C" fn my_callback_get_index(this: &Object, _: Sel) -> usize {
-        unsafe { *this.get_ivar("_index") }
+    extern "C" fn my_callback_get_fnptr(this: &Object, _: Sel) -> *mut c_void {
+        unsafe { *this.get_ivar("_fnptr") }
     }
-
-    extern "C" fn my_callback_set_index(this: &mut Object, _: Sel, new_index: usize) {
+    extern "C" fn my_callback_set_fnptr(this: &mut Object, _: Sel, new_fnptr: *mut c_void) {
         unsafe {
-            this.set_ivar("_index", new_index);
+            this.set_ivar("_fnptr", new_fnptr);
         }
     }
 
@@ -350,7 +355,7 @@ static CALLBACK_CLASS: &'static Class = {
     #[allow(non_snake_case)]
     #[allow(non_upper_case_globals)]
     extern "C" fn capture_out_callback(
-        _this: &mut Object,
+        this: &mut Object,
         _: Sel,
         _: *mut Object,
         didOutputSampleBuffer: CMSampleBufferRef,
@@ -365,8 +370,9 @@ static CALLBACK_CLASS: &'static Class = {
         let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
 
         let fourcc = match buffer_codec {
-            kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => AVFourCC::YUV2,
-            kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => AVFourCC::MJPEG,
+            kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => FrameFormat::YUYV,
+            kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => FrameFormat::MJPEG,
+            kCMPixelFormat_8IndexedGray_WhiteIsZero => FrameFormat::GRAY,
             _ => {
                 return;
             }
@@ -379,11 +385,14 @@ static CALLBACK_CLASS: &'static Class = {
         };
 
         unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
-        let index: usize = unsafe { msg_send![this, index] };
-        let pipes = &PIPE_MAP.get(&index);
-        if let Some(pipe) = pipes {
-            let _ = pipe.value().0.send((Cow::from(buffer_as_vec), fourcc));
-        }
+        // oooooh scarey unsafe
+        let function_cvoid: *mut c_void = unsafe { msg_send![this, fnptr] };
+        let boxed_fn = unsafe {
+            // AAAAAAAAAAAAAAAAAAAAAAAAA
+            // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
+            std::mem::transmute::<*mut c_void, &mut dyn FnMut(Vec<u8>, FrameFormat) + Sized + Sync + 'static>(function_cvoid)
+        };
+        boxed_fn(buffer_as_vec, fourcc);
     }
 
     #[allow(non_snake_case)]
@@ -398,12 +407,12 @@ static CALLBACK_CLASS: &'static Class = {
 
     unsafe {
         decl.add_method(
-            sel!(index),
-            my_callback_get_index as extern "C" fn(&Object, Sel) -> usize,
+            sel!(fnptr),
+            my_callback_get_fnptr as extern "C" fn(&Object, Sel) -> *mut c_void,
         );
         decl.add_method(
-            sel!(setIndex:),
-            my_callback_set_index as extern "C" fn(&mut Object, Sel, usize),
+            sel!(setFnPtr:),
+            my_callback_set_fnptr as extern "C" fn(&mut Object, Sel, *mut c_void),
         );
         decl.add_method(
             sel!(captureOutput:didOutputSampleBuffer:fromConnection:),
@@ -584,24 +593,23 @@ pub enum AVAuthorizationStatus {
 }
 
 pub struct AVCaptureVideoCallback {
-    index: usize,
     delegate: *mut Object,
+    queue: NSObject,
 }
 
 impl AVCaptureVideoCallback {
-    pub fn new(callback: Box<dyn FnMut()>) -> Self {
+    pub fn new(callback: Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>) -> Self {
         let cls = &CALLBACK_CLASS as &Class;
         let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
         let delegate: *mut Object = unsafe { msg_send![delegate, init] };
 
-        let data_pipe: DataPipe = flume::unbounded();
-        let _ = &PIPE_MAP.insert(index, data_pipe);
+        let fnptr_pinned = Box::leak(callback);
 
-        AVCaptureVideoCallback { index, delegate }
-    }
+        unsafe { let _ = msg_send![delegate, setFnPtr:fnptr_pinned]; }
 
-    pub fn index(&self) -> usize {
-        self.index
+        let queue = unsafe { dispatch_queue_create(avf_queue_str, NSObject(std::ptr::null_mut())) };
+
+        AVCaptureVideoCallback { delegate, queue }
     }
 
     pub fn data_len(&self) -> usize {
@@ -616,6 +624,8 @@ impl AVCaptureVideoCallback {
 impl Drop for AVCaptureVideoCallback {
     fn drop(&mut self) {
         unsafe {
+            let fnptr: *mut c_void = msg_send![self.delegate, fnptr];
+            let _boxed = Box::from_raw(fnptr); // drop the value
             let _: () = msg_send![self.delegate, autorelease];
         }
     }
@@ -1000,12 +1010,11 @@ impl AVCaptureVideoDataOutput {
                     return Err(NokhwaError::GeneralError("String contains null? This is a bug, please report it: https://github.com/l1npengtul/nokhwa".to_string()));
                 }
             };
-            let queue = dispatch_queue_create(avf_queue_str, NSObject(std::ptr::null_mut()));
 
             let _: () = msg_send![
                 self.inner,
                 setSampleBufferDelegate: delegate.delegate
-                queue: queue
+                queue: delegate.queue,
             ];
         };
         Ok(())

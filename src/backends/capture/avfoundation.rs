@@ -210,7 +210,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         let session = AVCaptureSession::new();
         session.begin_configuration();
         session.add_input(&input)?;
-        let callback = AVCaptureVideoCallback::new(self.info.index_num()? as usize);
+        let callback = AVCaptureVideoCallback::new();
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&callback)?;
         session.add_output(&output)?;
