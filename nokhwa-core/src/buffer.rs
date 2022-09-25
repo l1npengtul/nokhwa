@@ -23,11 +23,10 @@ use bytes::Bytes;
 use image::ImageBuffer;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 
 /// A buffer returned by a camera to accomodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
-#[derive(Clone, Debug, Hash, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Eq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct Buffer {
     resolution: Resolution,

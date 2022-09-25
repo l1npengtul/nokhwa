@@ -190,20 +190,14 @@ use core_media_sys::{
 };
 use flume::{Receiver, Sender};
 use nokhwa_core::{
-    types::{
-        Resolution,
-        ApiBackend,
-        CameraFormat,
-        CameraIndex,
-        CameraInfo,
-        FrameFormat
-    },
     error::NokhwaError,
+    types::{ApiBackend, CameraFormat, CameraIndex, CameraInfo, FrameFormat, Resolution},
 };
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, BOOL, YES},
 };
+use std::collections::HashSet;
 use std::{
     borrow::Cow,
     cmp::Ordering,
@@ -335,7 +329,7 @@ fn default_callback(_: bool) {}
 pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
 pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
-static CALLBACK_CLASS: &'static Class = {
+static CALLBACK_CLASS: &Class = {
     let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
 
     // frame stack
@@ -390,7 +384,10 @@ static CALLBACK_CLASS: &'static Class = {
         let boxed_fn = unsafe {
             // AAAAAAAAAAAAAAAAAAAAAAAAA
             // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
-            std::mem::transmute::<*mut c_void, &mut dyn FnMut(Vec<u8>, FrameFormat) + Sized + Sync + 'static>(function_cvoid)
+            std::mem::transmute_copy::<
+                *mut c_void,
+                Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
+            >(&function_cvoid)
         };
         boxed_fn(buffer_as_vec, fourcc);
     }
@@ -431,7 +428,7 @@ static CALLBACK_CLASS: &'static Class = {
     decl.register()
 };
 
-pub fn request_permission_with_callback(callback: Box<dyn FnMut(bool) + Send + Sync + 'static>) {
+pub fn request_permission_with_callback(callback: Box<dyn Fn(bool) + Send + Sync + 'static>) {
     let cls = class!(AVCaptureDevice);
     let objc_fn_block = ConcreteBlock::new(callback);
     let objc_fn_pass = objc_fn_block.copy();
@@ -449,12 +446,50 @@ pub fn current_authorization_status() -> AVAuthorizationStatus {
 }
 
 // fuck it, use deprecated APIs
-pub fn query_avfoundation() -> Result<Vec<AVCaptureDeviceDescriptor>, AVFError> {
-    Ok(AVCaptureDevice::devices_with_type(AVMediaType::Video)
-        .into_iter()
-        .enumerate()
-        .map(|(idx, dev)| AVCaptureDeviceDescriptor::from_capture_device(dev, idx))
-        .collect::<Vec<AVCaptureDeviceDescriptor>>())
+pub fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
+    let front = AVCaptureDeviceDiscoverySession::new(
+        vec![
+            AVCaptureDeviceType::UltraWide,
+            AVCaptureDeviceType::WideAngle,
+            AVCaptureDeviceType::Telephoto,
+            AVCaptureDeviceType::TrueDepth,
+            AVCaptureDeviceType::ExternalUnknown,
+        ],
+        AVMediaType::Video,
+        AVCaptureDevicePosition::Front,
+    )?
+    .devices();
+    let back = AVCaptureDeviceDiscoverySession::new(
+        vec![
+            AVCaptureDeviceType::UltraWide,
+            AVCaptureDeviceType::WideAngle,
+            AVCaptureDeviceType::Telephoto,
+            AVCaptureDeviceType::TrueDepth,
+            AVCaptureDeviceType::ExternalUnknown,
+        ],
+        AVMediaType::Video,
+        AVCaptureDevicePosition::Back,
+    )?
+    .devices();
+    let unspecified = AVCaptureDeviceDiscoverySession::new(
+        vec![
+            AVCaptureDeviceType::UltraWide,
+            AVCaptureDeviceType::WideAngle,
+            AVCaptureDeviceType::Telephoto,
+            AVCaptureDeviceType::TrueDepth,
+            AVCaptureDeviceType::ExternalUnknown,
+        ],
+        AVMediaType::Video,
+        AVCaptureDevicePosition::Unspecified,
+    )?
+    .devices();
+
+    let mut device_set = HashSet::with_capacity(front.len() + back.len() + unspecified.len());
+    device_set.extend(front);
+    device_set.extend(back);
+    device_set.extend(unspecified);
+
+    Ok(device_set.into_iter().collect())
 }
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -598,18 +633,24 @@ pub struct AVCaptureVideoCallback {
 }
 
 impl AVCaptureVideoCallback {
-    pub fn new(callback: Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>) -> Self {
+    pub fn new(
+        device_spec: &CStr,
+        callback: Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
+    ) -> Result<Self, NokhwaError> {
         let cls = &CALLBACK_CLASS as &Class;
         let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
         let delegate: *mut Object = unsafe { msg_send![delegate, init] };
 
         let fnptr_pinned = Box::leak(callback);
 
-        unsafe { let _ = msg_send![delegate, setFnPtr:fnptr_pinned]; }
+        unsafe {
+            let _ = msg_send![delegate, setFnPtr: fnptr_pinned];
+        }
 
-        let queue = unsafe { dispatch_queue_create(avf_queue_str, NSObject(std::ptr::null_mut())) };
+        let queue =
+            unsafe { dispatch_queue_create(device_spec.as_ptr(), NSObject(std::ptr::null_mut())) };
 
-        AVCaptureVideoCallback { delegate, queue }
+        Ok(AVCaptureVideoCallback { delegate, queue })
     }
 
     pub fn data_len(&self) -> usize {
@@ -634,7 +675,6 @@ impl Drop for AVCaptureVideoCallback {
 create_boilerplate_impl! {
     [pub AVFrameRateRange],
     [pub AVCaptureDeviceDiscoverySession],
-    [pub AVCaptureDevice],
     [pub AVCaptureDeviceInput],
     [pub AVCaptureSession]
 }
@@ -778,14 +818,18 @@ impl Drop for AVCaptureDeviceDiscoverySession {
         unsafe { msg_send![self.inner, autorelease] }
     }
 }
+pub struct AVCaptureDevice {
+    inner: *mut Object,
+    device: CameraInfo,
+}
 
 impl AVCaptureDevice {
-    pub fn devices_with_type(video_type: AVMediaType) -> Vec<AVCaptureDevice> {
-        let cls = class!(AVCaptureDevice);
-        let devices: *mut Object = unsafe { msg_send![cls, devicesWithMediaType: video_type] };
-        ns_arr_to_vec(devices)
+    pub fn inner(&self) -> *mut Object {
+        self.inner
     }
+}
 
+impl AVCaptureDevice {
     pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
         match index {
             CameraIndex::Index(index) => {

@@ -24,7 +24,6 @@ use nokhwa_core::{
         FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
     },
 };
-use std::fmt::format;
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{Device as WgpuDevice, Queue as WgpuQueue, Texture as WgpuTexture};
@@ -156,7 +155,7 @@ impl Camera {
         request: RequestedFormat,
     ) -> Result<CameraFormat, NokhwaError> {
         let new_format = request
-            .fufill(self.device.compatible_camera_formats()?.as_slice())
+            .fulfill(self.device.compatible_camera_formats()?.as_slice())
             .ok_or(NokhwaError::GetPropertyError {
                 property: "Compatible Camera Format by request".to_string(),
                 error: "Failed to fufill".to_string(),

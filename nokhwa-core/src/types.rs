@@ -29,30 +29,29 @@ impl RequestedFormat {
         match self {
             RequestedFormat::HighestResolution => {
                 let mut formats = all_formats.to_vec();
-                formats.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
-                let resolution = formats.iter().last()?;
+                formats.sort_by_key(|a| a.resolution());
+                let resolution = *formats.iter().last()?;
                 let mut format_resolutions = formats
                     .into_iter()
                     .filter(|fmt| fmt.resolution() == resolution.resolution())
                     .collect::<Vec<CameraFormat>>();
-                format_resolutions.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
-                format_resolutions.last().map(|x| *x)
+                format_resolutions.sort_by_key(|a| a.frame_rate());
+                format_resolutions.last().copied()
             }
             RequestedFormat::HighestFrameRate => {
                 let mut formats = all_formats.to_vec();
-                formats.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
-                let frame_rate = formats.iter().last()?;
+                formats.sort_by_key(|a| a.frame_rate());
+                let frame_rate = *formats.iter().last()?;
                 let mut format_framerates = formats
                     .into_iter()
                     .filter(|fmt| fmt.frame_rate() == frame_rate.frame_rate())
-                    .copied()
                     .collect::<Vec<CameraFormat>>();
-                format_framerates.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
-                format_framerates.last().map(|x| *x)
+                format_framerates.sort_by_key(|a| a.resolution());
+                format_framerates.last().copied()
             }
-            RequestedFormat::Exact(fmt) => *fmt,
+            RequestedFormat::Exact(fmt) => Some(*fmt),
             RequestedFormat::Closest(c) => {
-                let mut same_fmt_formats = all_formats
+                let same_fmt_formats = all_formats
                     .iter()
                     .filter(|x| x.format() == c.format())
                     .copied()
@@ -63,11 +62,11 @@ impl RequestedFormat {
                         let res = x.resolution();
                         let x_diff = res.x() as i32 - c.resolution().x() as i32;
                         let y_diff = res.y() as i32 - c.resolution().y() as i32;
-                        let dist_no_sqrt = (x_diff.abs()).pow(2) + (y_diff.abs()).pow(2) as u32;
+                        let dist_no_sqrt = (x_diff.abs()).pow(2) + (y_diff.abs()).pow(2);
                         (dist_no_sqrt, res)
                     })
-                    .collect::<Vec<(u32, Resolution)>>();
-                resolution_map.sort_by(|a, b| a.0.cmp(*b.0));
+                    .collect::<Vec<(i32, Resolution)>>();
+                resolution_map.sort_by(|a, b| a.0.cmp(&b.0));
                 resolution_map.dedup_by(|a, b| a.0.eq(&b.0));
                 let resolution = resolution_map.first()?.1;
 
@@ -85,14 +84,14 @@ impl RequestedFormat {
                     .iter()
                     .map(|x| {
                         let abs = *x as i32 - c.frame_rate() as i32;
-                        (abs.abs() as u32, *x)
+                        (abs.unsigned_abs(), *x)
                     })
                     .collect::<Vec<(u32, u32)>>();
                 framerate_map.sort();
                 let frame_rate = framerate_map.first()?.1;
                 Some(CameraFormat::new(resolution, c.format(), frame_rate))
             }
-            RequestedFormat::None => all_formats.first().map(|x| *x),
+            RequestedFormat::None => all_formats.first().copied(),
         }
     }
 }
@@ -154,12 +153,6 @@ impl Display for CameraIndex {
 impl Default for CameraIndex {
     fn default() -> Self {
         CameraIndex::Index(0)
-    }
-}
-
-impl AsRef<str> for CameraIndex {
-    fn as_ref(&self) -> &str {
-        self.to_string().as_str()
     }
 }
 
@@ -296,7 +289,7 @@ impl Ord for Resolution {
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
-#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -397,7 +390,7 @@ impl Display for CameraFormat {
 /// Information about a Camera e.g. its name.
 /// `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
 /// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraInfo {

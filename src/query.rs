@@ -16,7 +16,7 @@
 
 use nokhwa_core::{
     error::NokhwaError,
-    types::{ApiBackend, CameraIndex, CameraInfo},
+    types::{ApiBackend, CameraInfo},
 };
 
 // TODO: Update as this goes

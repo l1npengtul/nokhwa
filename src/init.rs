@@ -18,16 +18,16 @@
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 )))]
-fn init_avfoundation(callback: impl FnMut(bool) + Send + 'static) {
-    callback(true);
+fn init_avfoundation(callback: impl Fn(bool) + Send + 'static) {
+    callback.call(true);
 }
 
 #[cfg(all(
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
-fn init_avfoundation(callback: impl FnMut(bool) + Send + 'static) {
-    use nokhwa_bindings_macos::avfoundation::request_permission_with_callback;
+fn init_avfoundation(callback: impl Fn(bool) + Send + 'static) {
+    use nokhwa_bindings_macos::request_permission_with_callback;
 
     request_permission_with_callback(callback);
 }
