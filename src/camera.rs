@@ -85,16 +85,12 @@ impl Camera {
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: CameraIndex) -> Result<(), NokhwaError> {
+    pub fn set_index(&mut self, new_idx: &CameraIndex) -> Result<(), NokhwaError> {
         {
             self.device.stop_stream()?;
         }
         let new_camera_format = self.device.camera_format();
-        let new_camera = init_camera(
-            &new_idx,
-            RequestedFormat::Exact(new_camera_format),
-            self.api,
-        )?;
+        let new_camera = init_camera(new_idx, RequestedFormat::Exact(new_camera_format), self.api)?;
         self.device = new_camera;
         Ok(())
     }

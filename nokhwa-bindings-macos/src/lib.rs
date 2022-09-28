@@ -197,6 +197,7 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, BOOL, YES},
 };
+use once_cell::sync::Lazy;
 use std::collections::HashSet;
 use std::{
     borrow::Cow,
@@ -329,104 +330,111 @@ fn default_callback(_: bool) {}
 pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
 pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
-static CALLBACK_CLASS: &Class = {
-    let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
+static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
+    {
+        let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
 
-    // frame stack
-    decl.add_ivar::<*mut c_void>("_fnptr"); // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
+        // frame stack
+        decl.add_ivar::<*mut c_void>("_fnptr"); // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
 
-    extern "C" fn my_callback_get_fnptr(this: &Object, _: Sel) -> *mut c_void {
-        unsafe { *this.get_ivar("_fnptr") }
-    }
-    extern "C" fn my_callback_set_fnptr(this: &mut Object, _: Sel, new_fnptr: *mut c_void) {
-        unsafe {
-            this.set_ivar("_fnptr", new_fnptr);
+        extern "C" fn my_callback_get_fnptr(this: &Object, _: Sel) -> *mut c_void {
+            unsafe { *this.get_ivar("_fnptr") }
         }
-    }
-
-    // Delegate compliance method
-    // SAFETY: This assumes that the buffer byte size is a u8. Any other size will cause unsafety.
-    #[allow(non_snake_case)]
-    #[allow(non_upper_case_globals)]
-    extern "C" fn capture_out_callback(
-        this: &mut Object,
-        _: Sel,
-        _: *mut Object,
-        didOutputSampleBuffer: CMSampleBufferRef,
-        _: *mut Object,
-    ) {
-        let image_buffer: CVImageBufferRef =
-            unsafe { CMSampleBufferGetImageBuffer(didOutputSampleBuffer) };
-        unsafe {
-            CVPixelBufferLockBaseAddress(image_buffer, 0);
-        };
-
-        let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
-
-        let fourcc = match buffer_codec {
-            kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => FrameFormat::YUYV,
-            kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => FrameFormat::MJPEG,
-            kCMPixelFormat_8IndexedGray_WhiteIsZero => FrameFormat::GRAY,
-            _ => {
-                return;
+        extern "C" fn my_callback_set_fnptr(this: &mut Object, _: Sel, new_fnptr: *mut c_void) {
+            unsafe {
+                this.set_ivar("_fnptr", new_fnptr);
             }
-        };
+        }
 
-        let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
-        let buffer_ptr = unsafe { CVPixelBufferGetBaseAddress(image_buffer) };
-        let buffer_as_vec = unsafe {
-            std::slice::from_raw_parts_mut(buffer_ptr as *mut u8, buffer_length as usize).to_vec()
-        };
+        // Delegate compliance method
+        // SAFETY: This assumes that the buffer byte size is a u8. Any other size will cause unsafety.
+        #[allow(non_snake_case)]
+        #[allow(non_upper_case_globals)]
+        extern "C" fn capture_out_callback(
+            this: &mut Object,
+            _: Sel,
+            _: *mut Object,
+            didOutputSampleBuffer: CMSampleBufferRef,
+            _: *mut Object,
+        ) {
+            let image_buffer: CVImageBufferRef =
+                unsafe { CMSampleBufferGetImageBuffer(didOutputSampleBuffer) };
+            unsafe {
+                CVPixelBufferLockBaseAddress(image_buffer, 0);
+            };
 
-        unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
-        // oooooh scarey unsafe
-        let function_cvoid: *mut c_void = unsafe { msg_send![this, fnptr] };
-        let boxed_fn = unsafe {
-            // AAAAAAAAAAAAAAAAAAAAAAAAA
-            // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
-            std::mem::transmute_copy::<
-                *mut c_void,
-                Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
-            >(&function_cvoid)
-        };
-        boxed_fn(buffer_as_vec, fourcc);
+            let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
+
+            let fourcc = match buffer_codec {
+                kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => FrameFormat::YUYV,
+                kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => FrameFormat::MJPEG,
+                kCMPixelFormat_8IndexedGray_WhiteIsZero => FrameFormat::GRAY,
+                _ => {
+                    return;
+                }
+            };
+
+            let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
+            let buffer_ptr = unsafe { CVPixelBufferGetBaseAddress(image_buffer) };
+            let buffer_as_vec = unsafe {
+                std::slice::from_raw_parts_mut(buffer_ptr as *mut u8, buffer_length as usize)
+                    .to_vec()
+            };
+
+            unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
+            // oooooh scarey unsafe
+            // FIXME: FnMut is not boundary safe.
+            // Revery back fo `fn()`
+            let function_cvoid: *mut c_void = unsafe { msg_send![this, fnptr] };
+            let mut boxed_fn = unsafe {
+                // AAAAAAAAAAAAAAAAAAAAAAAAA
+                // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
+                std::mem::transmute_copy::<
+                    *mut c_void,
+                    Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
+                >(&function_cvoid)
+            };
+            boxed_fn(buffer_as_vec, fourcc);
+        }
+
+        #[allow(non_snake_case)]
+        extern "C" fn capture_drop_callback(
+            _: &mut Object,
+            _: Sel,
+            _: *mut Object,
+            _: *mut Object,
+            _: *mut Object,
+        ) {
+        }
+
+        unsafe {
+            decl.add_method(
+                sel!(fnptr),
+                my_callback_get_fnptr as extern "C" fn(&Object, Sel) -> *mut c_void,
+            );
+            decl.add_method(
+                sel!(setFnPtr:),
+                my_callback_set_fnptr as extern "C" fn(&mut Object, Sel, *mut c_void),
+            );
+            decl.add_method(
+                sel!(captureOutput:didOutputSampleBuffer:fromConnection:),
+                capture_out_callback
+                    as extern "C" fn(&mut Object, Sel, *mut Object, CMSampleBufferRef, *mut Object),
+            );
+            decl.add_method(
+                sel!(captureOutput:didDropSampleBuffer:fromConnection:),
+                capture_drop_callback
+                    as extern "C" fn(&mut Object, Sel, *mut Object, *mut Object, *mut Object),
+            );
+
+            decl.add_protocol(
+                Protocol::get("AVCaptureVideoDataOutputSampleBufferDelegate").unwrap(),
+            );
+        }
+
+        decl.register()
     }
-
-    #[allow(non_snake_case)]
-    extern "C" fn capture_drop_callback(
-        _: &mut Object,
-        _: Sel,
-        _: *mut Object,
-        _: *mut Object,
-        _: *mut Object,
-    ) {
-    }
-
-    unsafe {
-        decl.add_method(
-            sel!(fnptr),
-            my_callback_get_fnptr as extern "C" fn(&Object, Sel) -> *mut c_void,
-        );
-        decl.add_method(
-            sel!(setFnPtr:),
-            my_callback_set_fnptr as extern "C" fn(&mut Object, Sel, *mut c_void),
-        );
-        decl.add_method(
-            sel!(captureOutput:didOutputSampleBuffer:fromConnection:),
-            capture_out_callback
-                as extern "C" fn(&mut Object, Sel, *mut Object, CMSampleBufferRef, *mut Object),
-        );
-        decl.add_method(
-            sel!(captureOutput:didDropSampleBuffer:fromConnection:),
-            capture_drop_callback
-                as extern "C" fn(&mut Object, Sel, *mut Object, *mut Object, *mut Object),
-        );
-
-        decl.add_protocol(Protocol::get("AVCaptureVideoDataOutputSampleBufferDelegate").unwrap());
-    }
-
-    decl.register()
-};
+});
 
 pub fn request_permission_with_callback(callback: Box<dyn Fn(bool) + Send + Sync + 'static>) {
     let cls = class!(AVCaptureDevice);
@@ -490,6 +498,22 @@ pub fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
     device_set.extend(unspecified);
 
     Ok(device_set.into_iter().collect())
+}
+
+pub fn get_raw_device_info(index: CameraIndex, device: *mut Object) -> CameraInfo {
+    let name = nsstr_to_str(unsafe { msg_send![device, localizedName] });
+    let manufacturer = nsstr_to_str(unsafe { msg_send![device, manufacturer] });
+    let position: AVCaptureDevicePosition = unsafe { msg_send![device, position] };
+    let lens_aperture: f64 = unsafe { msg_send![device, lensAperture] };
+    let device_type = nsstr_to_str(unsafe { msg_send![device, deviceType] });
+    let model_id = nsstr_to_str(unsafe { msg_send![device, modelID] });
+    let description = format!(
+        "{}: {} - {}, {:?} f{}",
+        manufacturer, model_id, device_type, position, lens_aperture
+    );
+    let misc = nsstr_to_str(unsafe { msg_send![device, uniqueID] });
+
+    CameraInfo::new(name.as_ref(), &description, misc.as_ref(), index)
 }
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -644,7 +668,7 @@ impl AVCaptureVideoCallback {
         let fnptr_pinned = Box::leak(callback);
 
         unsafe {
-            let _ = msg_send![delegate, setFnPtr: fnptr_pinned];
+            let _: () = msg_send![delegate, setFnPtr: fnptr_pinned];
         }
 
         let queue =
@@ -786,26 +810,12 @@ impl AVCaptureDeviceDiscoverySession {
     pub fn devices(&self) -> Vec<CameraInfo> {
         let device_ns_array: *mut Object = unsafe { msg_send![self.inner, devices] };
         let objects_len: NSUInteger = unsafe { NSArray::count(device_ns_array) };
-        let mut devices = vec![AVCaptureDeviceDescriptor::default(); objects_len as usize];
+        let mut devices = Vec::with_capacity(objects_len as usize);
         for index in 0..objects_len {
             let device = unsafe { device_ns_array.objectAtIndex(index) };
-            let name = nsstr_to_str(unsafe { msg_send![device, localizedName] });
-            let manufacturer = nsstr_to_str(unsafe { msg_send![device, manufacturer] });
-            let position: AVCaptureDevicePosition = unsafe { msg_send![device, position] };
-            let lens_aperture: f64 = unsafe { msg_send![device, lensAperture] };
-            let device_type = nsstr_to_str(unsafe { msg_send![device, deviceType] });
-            let model_id = nsstr_to_str(unsafe { msg_send![device, modelID] });
-            let description = format!(
-                "{}: {} - {}, {:?} f{}",
-                manufacturer, model_id, device_type, position, lens_aperture
-            );
-            let misc = nsstr_to_str(unsafe { msg_send![device, uniqueID] });
-
-            devices.push(CameraInfo::new(
-                name.into(),
-                &description,
-                misc.into(),
+            devices.push(get_raw_device_info(
                 CameraIndex::Index(index as u32),
+                device,
             ));
         }
         let _: *mut c_void = unsafe { msg_send![device_ns_array, release] };
@@ -831,8 +841,8 @@ impl AVCaptureDevice {
 
 impl AVCaptureDevice {
     pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
-        match index {
-            CameraIndex::Index(index) => {
+        match &index {
+            CameraIndex::Index(idx) => {
                 let devices = AVCaptureDeviceDiscoverySession::new(
                     vec![
                         AVCaptureDeviceType::UltraWide,
@@ -844,19 +854,19 @@ impl AVCaptureDevice {
                 )?
                 .devices();
 
-                match devices.get(index as usize) {
-                    Some(device) => Ok(AVCaptureDevice::from_id(&device.misc())?),
+                match devices.get(*idx as usize) {
+                    Some(device) => Ok(AVCaptureDevice::from_id(&device.misc(), Some(index))?),
                     None => Err(NokhwaError::OpenDeviceError(
-                        index.to_string(),
+                        idx.to_string(),
                         "Not Found".to_string(),
                     )),
                 }
             }
-            CameraIndex::String(id) => Ok(AVCaptureDevice::from_id(&id)?),
+            CameraIndex::String(id) => Ok(AVCaptureDevice::from_id(id, None)?),
         }
     }
 
-    pub fn from_id(id: &str) -> Result<Self, NokhwaError> {
+    pub fn from_id(id: &str, index_hint: Option<CameraIndex>) -> Result<Self, NokhwaError> {
         let nsstr_id = str_to_nsstr(id);
         let avfoundation_capture_cls = class!(AVCaptureDevice);
         let capture: *mut Object =
@@ -867,7 +877,18 @@ impl AVCaptureDevice {
                 "Device is null".to_string(),
             ));
         }
-        Ok(AVCaptureDevice { inner: capture })
+        let camera_info = get_raw_device_info(
+            index_hint.unwrap_or(CameraIndex::String(id.to_string())),
+            capture,
+        );
+        Ok(AVCaptureDevice {
+            inner: capture,
+            device: camera_info,
+        })
+    }
+
+    pub fn info(&self) -> &CameraInfo {
+        &self.device
     }
 
     pub fn supported_formats_raw(&self) -> Result<Vec<AVCaptureDeviceFormat>, NokhwaError> {
@@ -879,19 +900,18 @@ impl AVCaptureDevice {
     pub fn supported_formats(&self) -> Result<Vec<CameraFormat>, NokhwaError> {
         Ok(self
             .supported_formats_raw()?
-            .into_iter()
+            .iter()
             .flat_map(|av_fmt| {
-                av_fmt.fps_list.into_iter().map(|fps_f64| {
+                let resolution = av_fmt.resolution;
+                av_fmt.fps_list.iter().map(move |fps_f64| {
                     let fps = if fps_f64.fract() != 0.0 {
                         0
                     } else {
-                        fps_f64 as u32
+                        *fps_f64 as u32
                     };
 
-                    let resolution = Resolution::new(
-                        av_fmt.resolution.height as u32,
-                        av_fmt.resolution.width as u32,
-                    );
+                    let resolution =
+                        Resolution::new(resolution.height as u32, resolution.width as u32);
 
                     CameraFormat::new(resolution, av_fmt.fourcc, fps)
                 })
@@ -946,8 +966,10 @@ impl AVCaptureDevice {
     }
 
     // thank you ffmpeg
-    pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), AVFError> {
-        let format_list = self.supported_formats()?;
+    pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), NokhwaError> {
+        let format_list = try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
+            msg_send![self.inner, formats]
+        })?;
         let format_description_sel = sel!(formatDescription);
 
         let mut selected_format: *mut Object = std::ptr::null_mut();
@@ -958,8 +980,8 @@ impl AVCaptureDevice {
                 unsafe { msg_send![format.internal, performSelector: format_description_sel] };
             let dimensions = unsafe { CMVideoFormatDescriptionGetDimensions(format_desc_ref) };
 
-            if dimensions.height == descriptor.resolution().height
-                && dimensions.width == descriptor.resolution().width
+            if dimensions.height == descriptor.resolution().height() as i32
+                && dimensions.width == descriptor.resolution().width() as i32
             {
                 selected_format = format.internal;
 
@@ -969,7 +991,7 @@ impl AVCaptureDevice {
                     let max_fps: f64 =
                         unsafe { msg_send![range.inner, valueForKey:"maxFrameRate"] };
 
-                    if (f64::from(descriptor.fps) - max_fps).abs() < 0.01 {
+                    if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.01 {
                         selected_range = range.inner;
                         break;
                     }
@@ -1010,7 +1032,7 @@ impl Drop for AVCaptureDevice {
 }
 
 impl AVCaptureDeviceInput {
-    pub fn new(capture_device: &AVCaptureDevice) -> Result<Self, AVFError> {
+    pub fn new(capture_device: &AVCaptureDevice) -> Result<Self, NokhwaError> {
         let cls = class!(AVCaptureDeviceInput);
         let err_ptr: *mut c_void = std::ptr::null_mut();
         let capture_input: *mut Object = unsafe {
@@ -1058,7 +1080,7 @@ impl AVCaptureVideoDataOutput {
             let _: () = msg_send![
                 self.inner,
                 setSampleBufferDelegate: delegate.delegate
-                queue: delegate.queue,
+                queue: avf_queue_str
             ];
         };
         Ok(())

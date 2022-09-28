@@ -1,5 +1,6 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
+#![allow(clippy::module_name_repetitions)]
 /*
  * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *

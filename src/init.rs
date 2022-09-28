@@ -19,7 +19,7 @@
     any(target_os = "macos", target_os = "ios")
 )))]
 fn init_avfoundation(callback: impl Fn(bool) + Send + 'static) {
-    callback.call(true);
+    callback(true);
 }
 
 #[cfg(all(
@@ -60,7 +60,7 @@ fn status_avfoundation() -> bool {
 ///
 /// The `on_complete` is called after initialization (a.k.a User granted permission). The callback's argument
 /// is weather the initialization was successful or not
-pub fn nokhwa_initialize(on_complete: impl FnMut(bool) + Send + 'static) {
+pub fn nokhwa_initialize(on_complete: impl Fn(bool) + Send + 'static) {
     init_avfoundation(on_complete);
 }
 

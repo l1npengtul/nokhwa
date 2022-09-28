@@ -229,7 +229,7 @@ pub trait CaptureBackendTrait {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &frame.to_vec(),
+            &frame,
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: width_nonzero,
