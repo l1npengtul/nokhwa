@@ -437,7 +437,7 @@ macro_rules! cap_impl_fn {
                 fn [< init_ $backend_name>](idx: &CameraIndex, setting: RequestedFormat) -> Option<Result<Box<dyn CaptureBackendTrait>, NokhwaError>> {
                     use crate::backends::capture::$backend;
                     match <$backend>::$init_fn(idx, setting) {
-                        Ok(cap) => Some(Ok(cp.into())),
+                        Ok(cap) => Some(Ok(cap.into())),
                         Err(why) => Some(Err(why)),
                     }
                 }

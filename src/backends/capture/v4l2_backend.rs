@@ -19,7 +19,6 @@ use nokhwa_core::types::{CameraFormat, CameraInfo};
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
-    pixel_format::FormatDecoder,
     traits::CaptureBackendTrait,
     types::{
         mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, CameraIndex,
@@ -116,7 +115,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// If `camera_format` is not `None`, the camera will try to use it when you call [`init()`](crate::CaptureBackendTrait::init).
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
-    pub fn new(index: CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let mut device = match Device::new(index.as_index()? as usize) {
             Ok(dev) => dev,
             Err(why) => {

@@ -247,4 +247,13 @@ pub trait CaptureBackendTrait {
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
 
+impl<T> From<T> for Box<dyn CaptureBackendTrait>
+where
+    T: CaptureBackendTrait + 'static,
+{
+    fn from(capbackend: T) -> Self {
+        Box::new(capbackend)
+    }
+}
+
 pub trait VirtualBackendTrait {}

@@ -298,11 +298,10 @@ fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
     any(target_os = "macos", target_os = "ios")
 ))]
 fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use nokhwa_bindings_macos::avfoundation::query_avfoundation as q_avf;
+    use nokhwa_bindings_macos::query_avfoundation;
 
-    Ok(q_avf()?
+    Ok(query_avfoundation()?
         .into_iter()
-        .map(CameraInfo::from)
         .collect::<Vec<CameraInfo>>())
 }
 

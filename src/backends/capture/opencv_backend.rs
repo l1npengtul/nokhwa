@@ -100,7 +100,7 @@ impl OpenCvCaptureDevice {
     /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
     /// # Panics
     /// If the API u32 -> i32 fails this will error
-    pub fn new(index: CameraIndex, cfmt: RequestedFormat) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, cfmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let api_pref = if index.is_string() {
             CAP_ANY
         } else {
@@ -132,7 +132,7 @@ impl OpenCvCaptureDevice {
 
         Ok(OpenCvCaptureDevice {
             camera_format,
-            camera_location: index,
+            camera_location: index.clone(),
             camera_info,
             api_preference: api,
             video_capture,

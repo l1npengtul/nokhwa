@@ -198,13 +198,14 @@ use objc::{
     runtime::{Class, Object, Protocol, Sel, BOOL, YES},
 };
 use once_cell::sync::Lazy;
-use std::collections::HashSet;
 use std::{
     borrow::Cow,
     cmp::Ordering,
+    collections::HashSet,
     convert::TryFrom,
     error::Error,
-    ffi::{c_void, CStr, CString},
+    ffi::{c_void, CStr},
+    sync::{Arc, Mutex},
 };
 
 const UTF8_ENCODING: usize = 4;
@@ -325,8 +326,6 @@ fn compare_ns_string(this: *mut Object, other: core_media::NSString) -> bool {
     }
 }
 
-fn default_callback(_: bool) {}
-
 pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
 pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
@@ -335,14 +334,21 @@ static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
         let mut decl = ClassDecl::new("MyCaptureCallback", class!(NSObject)).unwrap();
 
         // frame stack
-        decl.add_ivar::<*mut c_void>("_fnptr"); // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
+        // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
+        decl.add_ivar::<*const c_void>("_arcmutptr"); // ArkMutex, the not-arknights totally not gacha totally not ripoff new vidya game from l-pleasestop-npengtul
+                                                      // KILL ME KILL ME KILL ME PLEASE KILL ME I DONT WANT TO LIVE ANYMORE
+                                                      // i draw myself getting hurt and murdered in various ways to distract from my urges self harm
 
-        extern "C" fn my_callback_get_fnptr(this: &Object, _: Sel) -> *mut c_void {
-            unsafe { *this.get_ivar("_fnptr") }
+        extern "C" fn my_callback_get_arcmutptr(this: &Object, _: Sel) -> *const c_void {
+            unsafe { *this.get_ivar("_arcmutptr") }
         }
-        extern "C" fn my_callback_set_fnptr(this: &mut Object, _: Sel, new_fnptr: *mut c_void) {
+        extern "C" fn my_callback_set_arcmutptr(
+            this: &mut Object,
+            _: Sel,
+            new_arcmutptr: *const c_void,
+        ) {
             unsafe {
-                this.set_ivar("_fnptr", new_fnptr);
+                this.set_ivar("_arcmutptr", new_arcmutptr);
             }
         }
 
@@ -383,18 +389,18 @@ static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
 
             unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
             // oooooh scarey unsafe
-            // FIXME: FnMut is not boundary safe.
-            // Revery back fo `fn()`
-            let function_cvoid: *mut c_void = unsafe { msg_send![this, fnptr] };
-            let mut boxed_fn = unsafe {
-                // AAAAAAAAAAAAAAAAAAAAAAAAA
-                // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
-                std::mem::transmute_copy::<
-                    *mut c_void,
-                    Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
-                >(&function_cvoid)
+            // AAAAAAAAAAAAAAAAAAAAAAAAA
+            // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
+            let bufferlck_cv: *mut c_void = unsafe { msg_send![this, bufferPtr] };
+            let buffer_mutex = unsafe {
+                std::mem::transmute::<*const c_void, Arc<Mutex<(Vec<u8>, FrameFormat)>>>(
+                    bufferlck_cv,
+                )
             };
-            boxed_fn(buffer_as_vec, fourcc);
+            let lock = buffer_mutex.lock();
+            if let Ok(mut buffer) = lock {
+                *buffer = (buffer_as_vec, fourcc);
+            }
         }
 
         #[allow(non_snake_case)]
@@ -409,12 +415,12 @@ static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
 
         unsafe {
             decl.add_method(
-                sel!(fnptr),
-                my_callback_get_fnptr as extern "C" fn(&Object, Sel) -> *mut c_void,
+                sel!(bufferPtr),
+                my_callback_get_arcmutptr as extern "C" fn(&Object, Sel) -> *const c_void,
             );
             decl.add_method(
-                sel!(setFnPtr:),
-                my_callback_set_fnptr as extern "C" fn(&mut Object, Sel, *mut c_void),
+                sel!(SetBufferPtr:),
+                my_callback_set_arcmutptr as extern "C" fn(&mut Object, Sel, *const c_void),
             );
             decl.add_method(
                 sel!(captureOutput:didOutputSampleBuffer:fromConnection:),
@@ -659,16 +665,18 @@ pub struct AVCaptureVideoCallback {
 impl AVCaptureVideoCallback {
     pub fn new(
         device_spec: &CStr,
-        callback: Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static>,
+        buffer: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
     ) -> Result<Self, NokhwaError> {
         let cls = &CALLBACK_CLASS as &Class;
         let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
         let delegate: *mut Object = unsafe { msg_send![delegate, init] };
-
-        let fnptr_pinned = Box::leak(callback);
-
+        let buffer_as_ptr = unsafe {
+            std::mem::transmute::<*const Mutex<(Vec<u8>, FrameFormat)>, *const c_void>(
+                Arc::into_raw(buffer),
+            )
+        };
         unsafe {
-            let _: () = msg_send![delegate, setFnPtr: fnptr_pinned];
+            let _: () = msg_send![delegate, setBufferPtr: buffer_as_ptr];
         }
 
         let queue =
@@ -683,6 +691,10 @@ impl AVCaptureVideoCallback {
 
     pub fn inner(&self) -> *mut Object {
         self.delegate
+    }
+
+    pub fn queue(&self) -> &NSObject {
+        &self.queue
     }
 }
 
@@ -840,7 +852,7 @@ impl AVCaptureDevice {
 }
 
 impl AVCaptureDevice {
-    pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex) -> Result<Self, NokhwaError> {
         match &index {
             CameraIndex::Index(idx) => {
                 let devices = AVCaptureDeviceDiscoverySession::new(
@@ -855,7 +867,10 @@ impl AVCaptureDevice {
                 .devices();
 
                 match devices.get(*idx as usize) {
-                    Some(device) => Ok(AVCaptureDevice::from_id(&device.misc(), Some(index))?),
+                    Some(device) => Ok(AVCaptureDevice::from_id(
+                        &device.misc(),
+                        Some(index.clone()),
+                    )?),
                     None => Err(NokhwaError::OpenDeviceError(
                         idx.to_string(),
                         "Not Found".to_string(),
@@ -878,7 +893,7 @@ impl AVCaptureDevice {
             ));
         }
         let camera_info = get_raw_device_info(
-            index_hint.unwrap_or(CameraIndex::String(id.to_string())),
+            index_hint.unwrap_or_else(|| CameraIndex::String(id.to_string())),
             capture,
         );
         Ok(AVCaptureDevice {
@@ -1069,18 +1084,10 @@ impl AVCaptureVideoDataOutput {
 
     pub fn add_delegate(&self, delegate: &AVCaptureVideoCallback) -> Result<(), NokhwaError> {
         unsafe {
-            let avf_queue_str = match CString::new("avf_queue") {
-                Ok(avf) => avf.into_raw(),
-                Err(_) => {
-                    // should not happen
-                    return Err(NokhwaError::GeneralError("String contains null? This is a bug, please report it: https://github.com/l1npengtul/nokhwa".to_string()));
-                }
-            };
-
             let _: () = msg_send![
                 self.inner,
                 setSampleBufferDelegate: delegate.delegate
-                queue: avf_queue_str
+                queue: delegate.queue().0
             ];
         };
         Ok(())

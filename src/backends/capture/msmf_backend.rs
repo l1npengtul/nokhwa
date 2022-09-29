@@ -13,21 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-use image::{ImageBuffer, Rgb};
 use nokhwa_bindings_windows::wmf::MediaFoundationDevice;
-use nokhwa_core::buffer::Buffer;
-use nokhwa_core::types::ControlValueSetter;
 use nokhwa_core::{
+    buffer::Buffer,
     error::NokhwaError,
     traits::CaptureBackendTrait,
     types::{
-        all_known_camera_controls, mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl,
-        CameraFormat, CameraIndex, CameraInfo, FrameFormat, KnownCameraControl,
-        KnownCameraControlFlag, RequestedFormat, Resolution,
+        all_known_camera_controls, ApiBackend, CameraControl, CameraFormat, CameraIndex,
+        CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
+        Resolution,
     },
 };
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap};
 
 /// The backend that deals with Media Foundation on Windows.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -50,14 +47,14 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// Creates a new capture device using the Media Foundation backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
-    pub fn new(index: CameraIndex, camera_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, camera_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let mut mf_device = MediaFoundationDevice::new(index.clone())?;
 
         let info = CameraInfo::new(
             &mf_device.name(),
             &"MediaFoundation Camera Device".to_string(),
             &mf_device.symlink(),
-            index,
+            index.clone(),
         );
 
         let availible = mf_device
@@ -91,7 +88,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// This function will error if Media Foundation fails to get the device.
     #[deprecated(since = "0.10", note = "please use `new` instead.")]
     pub fn new_with(
-        index: CameraIndex,
+        index: &CameraIndex,
         width: u32,
         height: u32,
         fps: u32,

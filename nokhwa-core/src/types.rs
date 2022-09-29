@@ -96,6 +96,12 @@ impl RequestedFormat {
     }
 }
 
+impl Display for RequestedFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 /// Describes the index of the camera.
 /// - Index: A numbered index
 /// - String: A string, used for IPCameras.

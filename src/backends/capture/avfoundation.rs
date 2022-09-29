@@ -14,28 +14,25 @@
  * limitations under the License.
  */
 
-use image::{Frame, ImageBuffer, Rgb};
 use nokhwa_bindings_macos::{
     AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
     AVCaptureVideoDataOutput,
 };
-use nokhwa_core::buffer::Buffer;
 use nokhwa_core::{
+    buffer::Buffer,
     error::NokhwaError,
     traits::CaptureBackendTrait,
     types::{
-        mjpeg_to_rgb, yuyv422_to_rgb, ApiBackend, CameraControl, CameraFormat, CameraIndex,
-        CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
-        Resolution,
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
     },
 };
-use std::sync::LockResult;
+use std::ffi::CString;
 use std::{
     borrow::Cow,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use std::ffi::CString;
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -53,9 +50,9 @@ pub struct AVFoundationCaptureDevice {
     data_out: Option<AVCaptureVideoDataOutput>,
     data_collect: Option<AVCaptureVideoCallback>,
     info: CameraInfo,
-    buffername: CString,
+    buffer_name: CString,
     format: CameraFormat,
-    framebuf: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
+    frame_buffer_lock: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
 }
 
 impl AVFoundationCaptureDevice {
@@ -64,13 +61,22 @@ impl AVFoundationCaptureDevice {
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
-    pub fn new(index: CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let mut device = AVCaptureDevice::new(index)?;
         device.lock()?;
         let formats = device.supported_formats()?;
-        let camera_fmt = req_fmt.fulfill(&formats)?;
+        let camera_fmt = req_fmt.fulfill(&formats).ok_or_else(|| {
+            NokhwaError::OpenDeviceError("Cannot fulfill request".to_string(), req_fmt.to_string())
+        })?;
         device.set_all(camera_fmt)?;
-        let device_descriptor = device.
+        let device_descriptor = device.info().clone();
+        let buffername =
+            CString::new(format!("{}_INDEX{}_", device_descriptor, index)).map_err(|why| {
+                NokhwaError::StructureError {
+                    structure: "CString Buffername".to_string(),
+                    error: why.to_string(),
+                }
+            })?;
 
         Ok(AVFoundationCaptureDevice {
             device,
@@ -78,10 +84,10 @@ impl AVFoundationCaptureDevice {
             session: None,
             data_out: None,
             data_collect: None,
-            info: ,
-            buffername: ,
-            format: camera_format,
-            framebuf: Arc::new(Mutex::new((vec![], FrameFormat::MJPEG))),
+            info: device_descriptor,
+            buffer_name: buffername,
+            format: camera_fmt,
+            frame_buffer_lock: Arc::new(Mutex::new((vec![], FrameFormat::MJPEG))),
         })
     }
 
@@ -90,6 +96,7 @@ impl AVFoundationCaptureDevice {
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn new_with(
         index: usize,
         width: u32,
@@ -99,7 +106,7 @@ impl AVFoundationCaptureDevice {
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
         AVFoundationCaptureDevice::new(
-            CameraIndex::Index(index as u32),
+            &CameraIndex::Index(index as u32),
             RequestedFormat::Exact(camera_format),
         )
     }
@@ -123,7 +130,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        self.device.set_all(new_fmt.into())?;
+        self.device.set_all(new_fmt)?;
         self.format = new_fmt;
         Ok(())
     }
@@ -144,7 +151,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             match res_list.get_mut(&format.resolution()) {
                 Some(fpses) => Vec::push(fpses, format.frame_rate()),
                 None => {
-                    vec![format.frame_rate()]
+                    res_list.insert(format.resolution(), vec![format.frame_rate()]);
                 }
             }
         }
@@ -156,7 +163,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             .device
             .supported_formats()?
             .into_iter()
-            .map(|fmt| FrameFormat::from(fmt.fourcc))
+            .map(|fmt| fmt.format())
             .collect::<Vec<FrameFormat>>();
         formats.sort();
         formats.dedup();
@@ -221,18 +228,11 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         session.begin_configuration();
         session.add_input(&input)?;
 
-        let mut frame_mutex = self.framebuf.clone();
-
-        let func_callback: Box<dyn FnMut(Vec<u8>, FrameFormat) + Send + Sync + 'static> =
-            Box::new(|data: Vec<u8>, frame_format: FrameFormat| {
-                if let Ok(lck) = frame_mutex.lock() {
-                    *lck = (data, frame_format);
-                }
-            });
-
-        let videocallback = AVCaptureVideoCallback::new(func_callback)?;
+        let frame_mutex = self.frame_buffer_lock.clone();
+        let bufname = &self.buffer_name;
+        let videocallback = AVCaptureVideoCallback::new(bufname, frame_mutex)?;
         let output = AVCaptureVideoDataOutput::new();
-        output.add_delegate(&callback)?;
+        output.add_delegate(&videocallback)?;
         session.add_output(&output)?;
         session.commit_configuration();
         session.start()?;
@@ -266,19 +266,14 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        let mut framebuffer_empty = match self.framebuf.lock() {
-            Ok(f) => {
-                if f.0.is_empty() {
-                    true
-                }
-                false
-            }
+        let mut framebuffer_empty = match self.frame_buffer_lock.lock() {
+            Ok(f) => f.0.is_empty(),
             Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         };
 
         loop {
             if framebuffer_empty {
-                match self.framebuf.lock() {
+                match self.frame_buffer_lock.lock() {
                     Ok(f) => framebuffer_empty = f.0.is_empty(),
                     Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
                 }
@@ -287,13 +282,13 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             }
         }
 
-        match self.framebuf.lock() {
-            Ok(f) => {
+        match self.frame_buffer_lock.lock() {
+            Ok(mut f) => {
                 let mut new_frame = vec![];
                 std::mem::swap(&mut new_frame, &mut f.0);
                 Ok(Cow::from(new_frame))
             }
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+            Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
         }
     }
 
