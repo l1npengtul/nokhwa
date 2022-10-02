@@ -29,6 +29,7 @@ extern crate objc;
 pub mod core_media {
     // all of this is stolen from bindgen
     // steal it idc
+    use crate::CGFloat;
     use core_media_sys::{
         CMBlockBufferRef, CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,
         FourCharCode,
@@ -121,10 +122,27 @@ pub mod core_media {
     }
 
     #[repr(C)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
+    pub struct CGPoint {
+        pub x: CGFloat,
+        pub y: CGFloat,
+    }
+
+    #[repr(C)]
     #[derive(Debug, Copy, Clone)]
     pub struct __CVBuffer {
         _unused: [u8; 0],
     }
+
+    #[allow(non_snake_case)]
+    #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
+    #[repr(C)]
+    pub struct AVCaptureWhiteBalanceGains {
+        pub blueGain: f32,
+        pub greenGain: f32,
+        pub redGain: f32,
+    }
+
     pub type CVBufferRef = *mut __CVBuffer;
 
     pub type CVImageBufferRef = CVBufferRef;
@@ -166,14 +184,20 @@ pub mod core_media {
         pub static AVMediaTypeMuxed: AVMediaType;
         pub static AVMediaTypeMetadataObject: AVMediaType;
         pub static AVMediaTypeDepthData: AVMediaType;
+
+        pub static AVCaptureLensPositionCurrent: f32;
+        pub static AVCaptureExposureTargetBiasCurrent: f32;
+        pub static AVCaptureExposureDurationCurrent: CMTime;
+        pub static AVCaptureISOCurrent: f32;
     }
 }
 
 use crate::core_media::{
-    dispatch_queue_create, AVMediaTypeVideo, CMSampleBufferGetImageBuffer,
-    CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
-    CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
-    NSObject,
+    dispatch_queue_create, AVCaptureExposureDurationCurrent, AVCaptureExposureTargetBiasCurrent,
+    AVCaptureISOCurrent, AVCaptureWhiteBalanceGains, AVMediaTypeVideo, CGPoint,
+    CMSampleBufferGetImageBuffer, CMVideoFormatDescriptionGetDimensions, CVImageBufferRef,
+    CVPixelBufferGetBaseAddress, CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress,
+    CVPixelBufferUnlockBaseAddress, NSObject,
 };
 use crate::core_media::{
     AVMediaTypeAudio, AVMediaTypeClosedCaption, AVMediaTypeDepthData, AVMediaTypeMetadata,
@@ -185,14 +209,18 @@ use cocoa_foundation::foundation::{NSArray, NSInteger, NSString, NSUInteger};
 use core_media_sys::{
     kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
     kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML,
-    CMFormatDescriptionGetMediaSubType, CMFormatDescriptionRef, CMSampleBufferRef,
+    CMFormatDescriptionGetMediaSubType, CMFormatDescriptionRef, CMSampleBufferRef, CMTime,
     CMVideoDimensions,
 };
 use flume::{Receiver, Sender};
+use nokhwa_core::types::{
+    CameraControl, ControlValueDescription, KnownCameraControl, KnownCameraControlFlag,
+};
 use nokhwa_core::{
     error::NokhwaError,
     types::{ApiBackend, CameraFormat, CameraIndex, CameraInfo, FrameFormat, Resolution},
 };
+use objc::runtime::NO;
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, BOOL, YES},
@@ -204,11 +232,12 @@ use std::{
     collections::HashSet,
     convert::TryFrom,
     error::Error,
-    ffi::{c_void, CStr},
+    ffi::{c_float, c_void, CStr},
     sync::{Arc, Mutex},
 };
 
 const UTF8_ENCODING: usize = 4;
+type CGFloat = c_float;
 
 macro_rules! create_boilerplate_impl {
         {
@@ -336,8 +365,6 @@ static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
         // frame stack
         // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
         decl.add_ivar::<*const c_void>("_arcmutptr"); // ArkMutex, the not-arknights totally not gacha totally not ripoff new vidya game from l-pleasestop-npengtul
-                                                      // KILL ME KILL ME KILL ME PLEASE KILL ME I DONT WANT TO LIVE ANYMORE
-                                                      // i draw myself getting hurt and murdered in various ways to distract from my urges self harm
 
         extern "C" fn my_callback_get_arcmutptr(this: &Object, _: Sel) -> *const c_void {
             unsafe { *this.get_ivar("_arcmutptr") }
@@ -1035,6 +1062,456 @@ impl AVCaptureDevice {
         };
         self.unlock();
         Ok(())
+    }
+
+    // 0 => Focus POI
+    // 1 => Focus Manual Setting
+    // 2 => Exposure POI
+    // 3 => Exposure Face Driven
+    // 4 => Exposure Target Bias
+    // 5 => Exposure ISO
+    // 6 => Exposure Duration
+    pub fn get_controls(&mut self) -> Result<Vec<CameraControl>, NokhwaError> {
+        let active_format: *mut Object = unsafe { msg_send![self.inner, activeFormat] };
+
+        let mut controls = vec![];
+        // get focus modes
+
+        let focus_current: NSInteger = unsafe { msg_send![self.inner, focusMode] };
+        let focus_locked: BOOL =
+            unsafe { msg_send![self.inner, isFocusModeSupported:NSInteger::from(0)] };
+        let focus_auto: BOOL =
+            unsafe { msg_send![self.inner, isFocusModeSupported:NSInteger::from(1)] };
+        let focus_continuous: BOOL =
+            unsafe { msg_send![self.inner, isFocusModeSupported:NSInteger::from(2)] };
+
+        {
+            let mut supported_focus_values = vec![];
+
+            if focus_locked == YES {
+                supported_focus_values.push(0)
+            }
+            if focus_auto == YES {
+                supported_focus_values.push(1)
+            }
+            if focus_continuous == YES {
+                supported_focus_values.push(2)
+            }
+
+            controls.push(CameraControl::new(
+                KnownCameraControl::Focus,
+                "FocusMode".to_string(),
+                ControlValueDescription::Enum {
+                    value: focus_current,
+                    possible: supported_focus_values,
+                    default: focus_current,
+                },
+                vec![],
+                true,
+            ));
+        }
+
+        let focus_poi_supported: BOOL =
+            unsafe { msg_send![self.inner, isFocusPointOfInterestSupported] };
+        let focus_poi: CGPoint = unsafe { msg_send![self.inner, focusPointOfInterest] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(0),
+            "FocusPointOfInterest".to_string(),
+            ControlValueDescription::Point {
+                value: (focus_poi.x as f64, focus_poi.y as f64),
+                default: (0.5, 0.5),
+            },
+            if focus_poi_supported == NO {
+                vec![KnownCameraControlFlag::Disabled]
+            } else {
+                vec![]
+            },
+            focus_auto == YES || focus_continuous == YES,
+        ));
+
+        let focus_manual: BOOL =
+            unsafe { msg_send![self.inner, isLockingFocusWithCustomLensPositionSupported] };
+        let focus_lenspos: f32 = unsafe { msg_send![self.inner, lensPosition] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(1),
+            "FocusManualLensPosition".to_string(),
+            ControlValueDescription::FloatRange {
+                min: 0.0,
+                max: 1.0,
+                value: focus_lenspos as f64,
+                step: f64::MIN_POSITIVE,
+                default: 1.0,
+            },
+            if focus_manual == YES {
+                vec![]
+            } else {
+                vec![KnownCameraControlFlag::Disabled]
+            },
+            focus_manual == YES,
+        ));
+
+        // get exposures
+        let exposure_current: NSInteger = unsafe { msg_send![self.inner, exposureMode] };
+        let exposure_locked: BOOL =
+            unsafe { msg_send![self.inner, isExposureModeSupported:NSInteger::from(0)] };
+        let exposure_auto: BOOL =
+            unsafe { msg_send![self.inner, isExposureModeSupported:NSInteger::from(1)] };
+        let exposure_continuous: BOOL =
+            unsafe { msg_send![self.inner, isExposureModeSupported:NSInteger::from(2)] };
+        let exposure_custom: BOOL =
+            unsafe { msg_send![self.inner, isExposureModeSupported:NSInteger::from(3)] };
+
+        {
+            let mut supported_exposure_values = vec![];
+
+            if exposure_locked == YES {
+                supported_exposure_values.push(0);
+            }
+            if exposure_auto == YES {
+                supported_exposure_values.push(1);
+            }
+            if exposure_continuous == YES {
+                supported_exposure_values.push(2);
+            }
+            if exposure_custom == YES {
+                supported_exposure_values.push(3);
+            }
+
+            controls.push(CameraControl::new(
+                KnownCameraControl::Exposure,
+                "ExposureMode".to_string(),
+                ControlValueDescription::Enum {
+                    value: exposure_current,
+                    possible: supported_exposure_values,
+                    default: exposure_current,
+                },
+                vec![],
+                true,
+            ));
+        }
+
+        let exposure_poi_supported: BOOL =
+            unsafe { msg_send![self.inner, isExposurePointOfInterestSupported] };
+        let exposure_poi: CGPoint = unsafe { msg_send![self.inner, exposurePointOfInterest] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(2),
+            "ExposurePointOfInterest".to_string(),
+            ControlValueDescription::Point {
+                value: (exposure_poi.x as f64, exposure_poi.y as f64),
+                default: (0.5, 0.5),
+            },
+            if exposure_poi_supported == NO {
+                vec![KnownCameraControlFlag::Disabled]
+            } else {
+                vec![]
+            },
+            focus_auto == YES || focus_continuous == YES,
+        ));
+
+        let expposure_face_driven_supported: BOOL =
+            unsafe { msg_send![self.inner, isFaceDrivenAutoExposureEnabled] };
+        let exposure_face_driven: BOOL = unsafe {
+            msg_send![
+                self.inner,
+                automaticallyAdjustsFaceDrivenAutoExposureEnabled
+            ]
+        };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(3),
+            "ExposureFaceDriven".to_string(),
+            ControlValueDescription::Boolean {
+                value: exposure_face_driven == YES,
+                default: false,
+            },
+            if expposure_face_driven_supported == NO {
+                vec![KnownCameraControlFlag::Disabled]
+            } else {
+                vec![]
+            },
+            exposure_poi_supported == YES,
+        ));
+
+        let exposure_bias: f32 = unsafe { msg_send![self.inner, exposureTargetBias] };
+        let exposure_bias_min: f32 = unsafe { msg_send![self.inner, minExposureTargetBias] };
+        let exposure_bias_max: f32 = unsafe { msg_send![self.inner, maxExposureTargetBias] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(4),
+            "ExposureBiasTarget".to_string(),
+            ControlValueDescription::FloatRange {
+                min: exposure_bias_min as f64,
+                max: exposure_bias_max as f64,
+                value: exposure_bias as f64,
+                step: f32::MIN_POSITIVE as f64,
+                default: unsafe { AVCaptureExposureTargetBiasCurrent } as f64,
+            },
+            vec![],
+            true,
+        ));
+
+        let exposure_duration: CMTime = unsafe { msg_send![self.inner, exposureDuration] };
+        let exposure_duration_min: CMTime =
+            unsafe { msg_send![active_format, minExposureDuration] };
+        let exposure_duration_max: CMTime =
+            unsafe { msg_send![active_format, maxExposureDuration] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(5),
+            "ExposureDuration".to_string(),
+            ControlValueDescription::IntegerRange {
+                min: exposure_duration_min.value,
+                max: exposure_duration_max.value,
+                value: exposure_duration.value,
+                step: 1,
+                default: unsafe { AVCaptureExposureDurationCurrent.value },
+            },
+            if exposure_custom == YES {
+                vec![
+                    KnownCameraControlFlag::ReadOnly,
+                    KnownCameraControlFlag::Volatile,
+                ]
+            } else {
+                vec![KnownCameraControlFlag::Volatile]
+            },
+            exposure_custom == YES,
+        ));
+
+        let exposure_iso: f32 = unsafe { msg_send![self.inner, ISO] };
+        let exposure_iso_min: f32 = unsafe { msg_send![active_format, minISO] };
+        let exposure_iso_max: f32 = unsafe { msg_send![active_format, maxISO] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(6),
+            "ExposureISO".to_string(),
+            ControlValueDescription::FloatRange {
+                min: exposure_iso_min as f64,
+                max: exposure_iso_max as f64,
+                value: exposure_iso as f64,
+                step: f32::MIN_POSITIVE as f64,
+                default: unsafe { AVCaptureISOCurrent } as f64,
+            },
+            if exposure_custom == YES {
+                vec![
+                    KnownCameraControlFlag::ReadOnly,
+                    KnownCameraControlFlag::Volatile,
+                ]
+            } else {
+                vec![KnownCameraControlFlag::Volatile]
+            },
+            exposure_custom == YES,
+        ));
+
+        let lens_aperture: f32 = unsafe { msg_send![self.inner, lensAperture] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(7),
+            "LensAperture".to_string(),
+            ControlValueDescription::Float {
+                value: lens_aperture as f64,
+                default: lens_aperture as f64,
+                step: lens_aperture as f64,
+            },
+            vec![KnownCameraControlFlag::ReadOnly],
+            false,
+        ));
+
+        // get whiteblaance
+        let white_balance_current: NSInteger = unsafe { msg_send![self.inner, whiteBalanceMode] };
+        let white_balance_manual: BOOL =
+            unsafe { msg_send![self.inner, isWhiteBalanceModeSupported:NSInteger::from(0)] };
+        let white_balance_auto: BOOL =
+            unsafe { msg_send![self.inner, isWhiteBalanceModeSupported:NSInteger::from(1)] };
+        let white_balance_continuous: BOOL =
+            unsafe { msg_send![self.inner, isWhiteBalanceModeSupported:NSInteger::from(2)] };
+
+        {
+            let mut possible = vec![];
+
+            if white_balance_manual == YES {
+                possible.push(0);
+            }
+            if white_balance_auto == YES {
+                possible.push(1);
+            }
+            if white_balance_continuous == YES {
+                possible.push(2);
+            }
+
+            controls.push(CameraControl::new(
+                KnownCameraControl::WhiteBalance,
+                "WhiteBalanceMode".to_string(),
+                ControlValueDescription::Enum {
+                    value: white_balance_current as i64,
+                    possible,
+                    default: 0,
+                },
+                vec![],
+                true,
+            ));
+        }
+
+        let white_balance_gains: AVCaptureWhiteBalanceGains =
+            unsafe { msg_send![self.inner, deviceWhiteBalanceGains] };
+        let white_balance_default: AVCaptureWhiteBalanceGains =
+            unsafe { msg_send![self.inner, grayWorldDeviceWhiteBalanceGains] };
+        let white_balancne_max: AVCaptureWhiteBalanceGains =
+            unsafe { msg_send![self.inner, maxWhiteBalanceGain] };
+        let white_balance_gain_supported: BOOL = unsafe {
+            msg_send![
+                self.inner,
+                isLockingWhiteBalanceWithCustomDeviceGainsSupported
+            ]
+        };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Gain,
+            "WhiteBalanceGain".to_string(),
+            ControlValueDescription::RGB {
+                value: (
+                    white_balance_gains.redGain as f64,
+                    white_balance_gains.greenGain as f64,
+                    white_balance_gains.blueGain as f64,
+                ),
+                max: (
+                    white_balancne_max.redGain as f64,
+                    white_balancne_max.greenGain as f64,
+                    white_balancne_max.blueGain as f64,
+                ),
+                default: (
+                    white_balance_default.redGain as f64,
+                    white_balance_default.greenGain as f64,
+                    white_balance_default.blueGain as f64,
+                ),
+            },
+            if white_balance_gain_supported == YES {
+                vec![
+                    KnownCameraControlFlag::Disabled,
+                    KnownCameraControlFlag::ReadOnly,
+                ]
+            } else {
+                vec![]
+            },
+            white_balance_gain_supported == YES,
+        ));
+
+        // get flash
+        let has_torch: BOOL = unsafe { msg_send![self.inner, torchAvailible] };
+        let torch_active: BOOL = unsafe { msg_send![self.inner, isTorchActive] };
+        let torch_off: BOOL =
+            unsafe { msg_send![self.inner, isTorchModeSupported:NSInteger::from(0)] };
+        let torch_on: BOOL =
+            unsafe { msg_send![self.inner, isTorchModeSupported:NSInteger::from(1)] };
+        let torch_auto: BOOL =
+            unsafe { msg_send![self.inner, isTorchModeSupported:NSInteger::from(2)] };
+
+        {
+            let mut possible = vec![];
+
+            if torch_off == YES {
+                possible.push(0);
+            }
+            if torch_on == YES {
+                possible.push(1);
+            }
+            if torch_auto == YES {
+                possible.push(2);
+            }
+
+            controls.push(CameraControl::new(
+                KnownCameraControl::Other(8),
+                "Flash".to_string(),
+                ControlValueDescription::Enum {
+                    value: (torch_active == YES) as i64,
+                    possible,
+                    default: 0,
+                },
+                if has_torch == YES {
+                    vec![KnownCameraControlFlag::Disabled]
+                } else {
+                    vec![]
+                },
+                has_torch == YES,
+            ));
+        }
+
+        // get low light boost
+        let has_llb: BOOL = unsafe { msg_send![self.inner, lowLightBoostSupported] };
+        let llb_enabled: BOOL = unsafe { msg_send![self.inner, lowLightBoostEnabled] };
+
+        {
+            let mut possible = vec![];
+
+            if has_llb == YES {
+                possible.push(0); // off
+                possible.push(1); // on
+                possible.push(2); // auto
+            }
+
+            controls.push(CameraControl::new(
+                KnownCameraControl::BacklightComp,
+                "LowLightCompensation".to_string(),
+                ControlValueDescription::Enum {
+                    value: (llb_enabled == YES) as i64,
+                    possible,
+                    default: 0,
+                },
+                if has_llb == YES {
+                    vec![KnownCameraControlFlag::Disabled]
+                } else {
+                    vec![]
+                },
+                has_llb == YES,
+            ));
+        }
+
+        // get zoom factor
+        let zoom_current: CGFloat = unsafe { msg_send![self.inner, videoZoomFactor] };
+        let zoom_min: CGFloat = unsafe { msg_send![self.inner, minAvailableVideoZoomFactor] };
+        let zoom_max: CGFloat = unsafe { msg_send![self.inner, maxAvailableVideoZoomFactor] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Zoom,
+            "Zoom".to_string(),
+            ControlValueDescription::FloatRange {
+                min: zoom_min as f64,
+                max: zoom_max as f64,
+                value: zoom_current as f64,
+                step: f32::MIN_POSITIVE as f64,
+                default: 1.0,
+            },
+            vec![],
+            true,
+        ));
+
+        // zoom distortion correction
+        let distortion_correction_supported: BOOL =
+            unsafe { msg_send![self.inner, geometricDistortionCorrectionSupported] };
+        let distortion_correction_current_value: BOOL =
+            unsafe { msg_send![self.inner, geometricDistortionCorrectionEnabled] };
+
+        controls.push(CameraControl::new(
+            KnownCameraControl::Other(9),
+            "DistortionCorrection".to_string(),
+            ControlValueDescription::Boolean {
+                value: distortion_correction_current_value == YES,
+                default: false,
+            },
+            if distortion_correction_supported == YES {
+                vec![
+                    KnownCameraControlFlag::ReadOnly,
+                    KnownCameraControlFlag::Disabled,
+                ]
+            } else {
+                vec![]
+            },
+            distortion_correction_supported == YES,
+        ));
+
+        Ok(controls)
     }
 }
 

@@ -835,8 +835,6 @@ pub mod wmf {
                 control,
                 control.to_string(),
                 ctrl_value_set,
-                vec![is_manual],
-                true,
             ))
         }
 

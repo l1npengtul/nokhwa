@@ -18,10 +18,12 @@ use crate::types::{
     buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat,
 };
 use image::{Luma, LumaA, Pixel, Rgb, Rgba};
+use std::fmt::Debug;
 
 /// Trait that has methods to convert raw data from the webcam to a proper raw image.
-pub trait FormatDecoder {
+pub trait FormatDecoder: Copy + Clone + Debug + Default + Sized + Send + Sync + {
     type Output: Pixel<Subpixel = u8>;
+    const FORMATS: &'static [FrameFormat];
 
     /// Allocates and returns a `Vec`
     /// # Errors
@@ -49,7 +51,8 @@ pub struct RgbFormat;
 
 impl FormatDecoder for RgbFormat {
     type Output = Rgb<u8>;
-
+    const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
+    
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, false),
@@ -104,6 +107,8 @@ pub struct RgbAFormat;
 
 impl FormatDecoder for RgbAFormat {
     type Output = Rgba<u8>;
+
+    const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
 
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
@@ -160,6 +165,10 @@ pub struct LumaFormat;
 
 impl FormatDecoder for LumaFormat {
     type Output = Luma<u8>;
+
+    const FORMATS: &'static [FrameFormat] =
+        &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
+    
 
     #[allow(clippy::cast_possible_truncation)]
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
@@ -226,6 +235,9 @@ pub struct LumaAFormat;
 
 impl FormatDecoder for LumaAFormat {
     type Output = LumaA<u8>;
+
+    const FORMATS: &'static [FrameFormat] =
+        &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
 
     #[allow(clippy::cast_possible_truncation)]
     fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {

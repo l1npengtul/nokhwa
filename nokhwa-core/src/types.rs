@@ -1,4 +1,5 @@
 use crate::error::NokhwaError;
+use crate::pixel_format::FormatDecoder;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::{
@@ -15,7 +16,7 @@ use std::{
 /// - `None`: Pick a random [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-pub enum RequestedFormat {
+pub enum RequestedFormatType {
     HighestResolution,
     HighestFrameRate,
     Exact(CameraFormat),
@@ -23,37 +24,81 @@ pub enum RequestedFormat {
     None,
 }
 
-impl RequestedFormat {
+impl Default for RequestedFormatType {
+    fn default() -> Self {
+        RequestedFormatType::None
+    }
+}
+
+impl Display for RequestedFormatType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
+pub struct RequestedFormat<F>
+where
+    F: FormatDecoder,
+{
+    requested_format: RequestedFormatType,
+    wanted_decoder: F,
+}
+
+impl<F> RequestedFormat<F>
+where
+    F: FormatDecoder,
+{
+    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<Decoder> {
+        RequestedFormat {
+            requested_format: requested,
+            wanted_decoder: Decoder::default(),
+        }
+    }
+
     /// Fulfill the requested using a list of all available formats.
     pub fn fulfill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
-        match self {
-            RequestedFormat::HighestResolution => {
+        match self.requested_format {
+            RequestedFormatType::HighestResolution => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(|a| a.resolution());
                 let resolution = *formats.iter().last()?;
                 let mut format_resolutions = formats
                     .into_iter()
-                    .filter(|fmt| fmt.resolution() == resolution.resolution())
+                    .filter(|fmt| {
+                        fmt.resolution() == resolution.resolution()
+                            && F::FORMATS.contains(&fmt.format())
+                    })
                     .collect::<Vec<CameraFormat>>();
                 format_resolutions.sort_by_key(|a| a.frame_rate());
                 format_resolutions.last().copied()
             }
-            RequestedFormat::HighestFrameRate => {
+            RequestedFormatType::HighestFrameRate => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(|a| a.frame_rate());
                 let frame_rate = *formats.iter().last()?;
                 let mut format_framerates = formats
                     .into_iter()
-                    .filter(|fmt| fmt.frame_rate() == frame_rate.frame_rate())
+                    .filter(|fmt| {
+                        fmt.frame_rate() == frame_rate.frame_rate()
+                            && F::FORMATS.contains(&fmt.format())
+                    })
                     .collect::<Vec<CameraFormat>>();
                 format_framerates.sort_by_key(|a| a.resolution());
                 format_framerates.last().copied()
             }
-            RequestedFormat::Exact(fmt) => Some(*fmt),
-            RequestedFormat::Closest(c) => {
+            RequestedFormatType::Exact(fmt) => {
+                if F::FORMATS.contains(&fmt.format()) {
+                    Some(fmt)
+                } else {
+                    None
+                }
+            }
+            RequestedFormatType::Closest(c) => {
                 let same_fmt_formats = all_formats
                     .iter()
-                    .filter(|x| x.format() == c.format())
+                    .filter(|x| x.format() == c.format() && F::FORMATS.contains(&x.format()))
                     .copied()
                     .collect::<Vec<CameraFormat>>();
                 let mut resolution_map = same_fmt_formats
@@ -91,12 +136,19 @@ impl RequestedFormat {
                 let frame_rate = framerate_map.first()?.1;
                 Some(CameraFormat::new(resolution, c.format(), frame_rate))
             }
-            RequestedFormat::None => all_formats.first().copied(),
+            RequestedFormatType::None => all_formats
+                .iter()
+                .filter(|fmt| F::FORMATS.contains(&fmt.format()))
+                .nth(0)
+                .copied(),
         }
     }
 }
 
-impl Display for RequestedFormat {
+impl<F> Display for RequestedFormat<F>
+where
+    F: FormatDecoder,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -594,11 +646,11 @@ impl Display for KnownCameraControl {
 pub enum KnownCameraControlFlag {
     Automatic,
     Manual,
+    Continuous,
     ReadOnly,
     WriteOnly,
     Volatile,
     Disabled,
-    Inactive,
 }
 
 impl Display for KnownCameraControlFlag {
@@ -651,6 +703,25 @@ pub enum ControlValueDescription {
         value: Vec<u8>,
         default: Vec<u8>,
     },
+    KeyValuePair {
+        key: i128,
+        value: i128,
+        default: (i128, i128),
+    },
+    Point {
+        value: (f64, f64),
+        default: (f64, f64),
+    },
+    Enum {
+        value: i64,
+        possible: Vec<i64>,
+        default: i64,
+    },
+    RGB {
+        value: (f64, f64, f64),
+        max: (f64, f64, f64),
+        default: (f64, f64, f64),
+    },
 }
 
 impl ControlValueDescription {
@@ -673,6 +744,16 @@ impl ControlValueDescription {
             }
             ControlValueDescription::Bytes { value, .. } => {
                 ControlValueSetter::Bytes(value.clone())
+            }
+            ControlValueDescription::KeyValuePair { key, value, .. } => {
+                ControlValueSetter::KeyValue(*key, *value)
+            }
+            ControlValueDescription::Point { value, .. } => {
+                ControlValueSetter::Point(value.0, value.1)
+            }
+            ControlValueDescription::Enum { value, .. } => ControlValueSetter::EnumValue(*value),
+            ControlValueDescription::RGB { value, .. } => {
+                ControlValueSetter::RGB(value.0, value.1, value.2)
             }
         }
     }
@@ -736,6 +817,18 @@ impl ControlValueDescription {
             }
             ControlValueSetter::Bytes(_) => {
                 matches!(self, ControlValueDescription::Bytes { .. })
+            }
+            ControlValueSetter::KeyValue(_, _) => {
+                matches!(self, ControlValueDescription::KeyValuePair { .. })
+            }
+            ControlValueSetter::Point(_, _) => {
+                matches!(self, ControlValueDescription::Point { .. })
+            }
+            ControlValueSetter::EnumValue(_) => {
+                matches!(self, ControlValueDescription::Enum { .. })
+            }
+            ControlValueSetter::RGB(_, _, _) => {
+                matches!(self, ControlValueDescription::RGB { .. })
             }
         }
     }
@@ -803,6 +896,46 @@ impl Display for ControlValueDescription {
             }
             ControlValueDescription::Bytes { value, default } => {
                 write!(f, "(Current: {:x?}, Default: {:x?})", value, default)
+            }
+            ControlValueDescription::KeyValuePair {
+                key,
+                value,
+                default,
+            } => {
+                write!(
+                    f,
+                    "Current: ({}, {}), Default: ({}, {})",
+                    key, value, default.0, default.1
+                )
+            }
+            ControlValueDescription::Point { value, default } => {
+                write!(
+                    f,
+                    "Current: ({}, {}), Default: ({}, {})",
+                    value.0, value.1, default.0, default.1
+                )
+            }
+            ControlValueDescription::Enum {
+                value,
+                possible,
+                default,
+            } => {
+                write!(
+                    f,
+                    "Current: {}, Possible Values: {:?}, Default: {}",
+                    value, possible, default
+                )
+            }
+            ControlValueDescription::RGB {
+                value,
+                max,
+                default,
+            } => {
+                write!(
+                    f,
+                    "Current: ({}, {}, {}), Max: ({}, {}, {}), Default: ({}, {}, {})",
+                    value.0, value.1, value.2, max.0, max.1, max.2, default.0, default.1, default.2
+                )
             }
         }
     }
@@ -918,6 +1051,10 @@ pub enum ControlValueSetter {
     Boolean(bool),
     String(String),
     Bytes(Vec<u8>),
+    KeyValue(i128, i128),
+    Point(f64, f64),
+    EnumValue(i64),
+    RGB(f64, f64, f64),
 }
 
 impl Display for ControlValueSetter {
@@ -927,19 +1064,31 @@ impl Display for ControlValueSetter {
                 write!(f, "Value: None")
             }
             ControlValueSetter::Integer(i) => {
-                write!(f, "Value: {}", i)
+                write!(f, "IntegerValue: {}", i)
             }
             ControlValueSetter::Float(d) => {
-                write!(f, "Value: {}", d)
+                write!(f, "FloatValue: {}", d)
             }
             ControlValueSetter::Boolean(b) => {
-                write!(f, "Value: {}", b)
+                write!(f, "BoolValue: {}", b)
             }
             ControlValueSetter::String(s) => {
-                write!(f, "Value: {}", s)
+                write!(f, "StrValue: {}", s)
             }
             ControlValueSetter::Bytes(b) => {
-                write!(f, "Value: {:x?}", b)
+                write!(f, "BytesValue: {:x?}", b)
+            }
+            ControlValueSetter::KeyValue(k, v) => {
+                write!(f, "KVValue: ({}, {})", k, v)
+            }
+            ControlValueSetter::Point(x, y) => {
+                write!(f, "PointValue: ({}, {})", x, y)
+            }
+            ControlValueSetter::EnumValue(v) => {
+                write!(f, "EnumValue: {}", v)
+            }
+            ControlValueSetter::RGB(r, g, b) => {
+                write!(f, "RGBValue: ({}, {}, {})", r, g, b)
             }
         }
     }

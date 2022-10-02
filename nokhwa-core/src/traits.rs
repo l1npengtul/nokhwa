@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use crate::types::KnownCameraControlFlag;
 use crate::{
     buffer::Buffer,
     error::NokhwaError,

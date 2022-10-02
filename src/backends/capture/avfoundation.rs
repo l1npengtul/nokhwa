@@ -200,26 +200,20 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         self.set_camera_format(format)
     }
 
-    fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        todo!()
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+        todo!()
     }
 
     fn set_camera_control(
         &mut self,
-        _: KnownCameraControl,
-        _: ControlValueSetter,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+        todo!()
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
