@@ -36,7 +36,6 @@ use std::{
     cmp::Ordering,
     slice::from_raw_parts,
 };
-use thiserror::Error;
 
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
@@ -835,6 +834,8 @@ pub mod wmf {
                 control,
                 control.to_string(),
                 ctrl_value_set,
+                vec![is_manual],
+                true,
             ))
         }
 
@@ -1234,15 +1235,21 @@ pub mod wmf {
     use std::borrow::Cow;
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
-        Err(BindingError::NotImplementedError)
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
     pub fn de_initialize_mf() -> Result<(), NokhwaError> {
-        Err(BindingError::NotImplementedError)
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
     pub fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
-        Err(BindingError::NotImplementedError)
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
     struct Empty;
