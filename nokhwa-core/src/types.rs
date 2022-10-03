@@ -37,23 +37,26 @@ impl Display for RequestedFormatType {
 }
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-pub struct RequestedFormat<F>
-where
-    F: FormatDecoder,
-{
+pub struct RequestedFormat {
     requested_format: RequestedFormatType,
-    wanted_decoder: F,
+    wanted_decoder: &'static [FrameFormat],
 }
 
-impl<F> RequestedFormat<F>
-where
-    F: FormatDecoder,
-{
-    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<Decoder> {
+impl RequestedFormat {
+    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat {
         RequestedFormat {
             requested_format: requested,
-            wanted_decoder: Decoder::default(),
+            wanted_decoder: Decoder::FORMATS,
+        }
+    }
+
+    pub fn with_formats(
+        requested: RequestedFormatType,
+        decoder: &'static [FrameFormat],
+    ) -> RequestedFormat {
+        RequestedFormat {
+            requested_format: requested,
+            wanted_decoder: decoder,
         }
     }
 
@@ -68,7 +71,7 @@ where
                     .into_iter()
                     .filter(|fmt| {
                         fmt.resolution() == resolution.resolution()
-                            && F::FORMATS.contains(&fmt.format())
+                            && self.wanted_decoder.contains(&fmt.format())
                     })
                     .collect::<Vec<CameraFormat>>();
                 format_resolutions.sort_by_key(|a| a.frame_rate());
@@ -82,14 +85,14 @@ where
                     .into_iter()
                     .filter(|fmt| {
                         fmt.frame_rate() == frame_rate.frame_rate()
-                            && F::FORMATS.contains(&fmt.format())
+                            && self.wanted_decoder.contains(&fmt.format())
                     })
                     .collect::<Vec<CameraFormat>>();
                 format_framerates.sort_by_key(|a| a.resolution());
                 format_framerates.last().copied()
             }
             RequestedFormatType::Exact(fmt) => {
-                if F::FORMATS.contains(&fmt.format()) {
+                if self.wanted_decoder.contains(&fmt.format()) {
                     Some(fmt)
                 } else {
                     None
@@ -98,7 +101,9 @@ where
             RequestedFormatType::Closest(c) => {
                 let same_fmt_formats = all_formats
                     .iter()
-                    .filter(|x| x.format() == c.format() && F::FORMATS.contains(&x.format()))
+                    .filter(|x| {
+                        x.format() == c.format() && self.wanted_decoder.contains(&x.format())
+                    })
                     .copied()
                     .collect::<Vec<CameraFormat>>();
                 let mut resolution_map = same_fmt_formats
@@ -138,17 +143,14 @@ where
             }
             RequestedFormatType::None => all_formats
                 .iter()
-                .filter(|fmt| F::FORMATS.contains(&fmt.format()))
+                .filter(|fmt| self.wanted_decoder.contains(&fmt.format()))
                 .nth(0)
                 .copied(),
         }
     }
 }
 
-impl<F> Display for RequestedFormat<F>
-where
-    F: FormatDecoder,
-{
+impl Display for RequestedFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -763,74 +765,138 @@ impl ControlValueDescription {
     /// - `false` => Is not valid.
     #[must_use]
     pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
-        match setter {
-            ControlValueSetter::None => {
-                matches!(self, ControlValueDescription::None)
-            }
-            ControlValueSetter::Integer(i) => match self {
-                ControlValueDescription::Integer {
-                    value,
-                    default,
-                    step,
-                } => (i - default).abs() % step == 0 || (i - value) % step == 0,
-                ControlValueDescription::IntegerRange {
-                    min,
-                    max,
-                    value,
-                    step,
-                    default,
-                } => {
-                    if value > max || value < min {
-                        return false;
-                    }
-
-                    (i - default) % step == 0 || (i - value) % step == 0
-                }
-                _ => false,
+        match self {
+            ControlValueDescription::None => return setter.as_none().is_some(),
+            ControlValueDescription::Integer {
+                value,
+                default,
+                step,
+            } => match setter.as_integer() {
+                Some(i) => (i + default) % step == 0 || (i + value) % step == 0,
+                None => false,
             },
-            ControlValueSetter::Float(f) => match self {
-                ControlValueDescription::Float {
-                    value,
-                    default,
-                    step,
-                } => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
-                ControlValueDescription::FloatRange {
-                    min,
-                    max,
-                    value,
-                    step,
-                    default,
-                } => {
-                    if value > max || value < min {
-                        return false;
-                    }
-
-                    (f - default) % step == 0_f64 || (f - value) % step == 0_f64
+            ControlValueDescription::IntegerRange {
+                min,
+                max,
+                value,
+                step,
+                default,
+            } => match setter.as_integer() {
+                Some(i) => {
+                    ((i + default) % step == 0 || (i + value) % step == 0) && i >= min && i <= max
                 }
-                _ => false,
+                None => false,
             },
-            ControlValueSetter::Boolean(_) => {
-                matches!(self, ControlValueDescription::Boolean { .. })
-            }
-            ControlValueSetter::String(_) => {
-                matches!(self, ControlValueDescription::String { .. })
-            }
-            ControlValueSetter::Bytes(_) => {
-                matches!(self, ControlValueDescription::Bytes { .. })
-            }
-            ControlValueSetter::KeyValue(_, _) => {
-                matches!(self, ControlValueDescription::KeyValuePair { .. })
-            }
-            ControlValueSetter::Point(_, _) => {
-                matches!(self, ControlValueDescription::Point { .. })
-            }
-            ControlValueSetter::EnumValue(_) => {
-                matches!(self, ControlValueDescription::Enum { .. })
-            }
-            ControlValueSetter::RGB(_, _, _) => {
-                matches!(self, ControlValueDescription::RGB { .. })
-            }
+            ControlValueDescription::Float {
+                value,
+                default,
+                step,
+            } => match setter.as_float() {
+                Some(f) => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
+                None => false,
+            },
+            ControlValueDescription::FloatRange {
+                min,
+                max,
+                value,
+                step,
+                default,
+            } => match setter.as_float() {
+                Some(f) => {
+                    ((f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64)
+                        && f >= min
+                        && f <= max
+                }
+                None => false,
+            },
+            ControlValueDescription::Boolean { .. } => setter.as_boolean().is_some(),
+            ControlValueDescription::String { .. } => setter.as_str().is_some(),
+            ControlValueDescription::Bytes { .. } => setter.as_bytes().is_some(),
+            ControlValueDescription::KeyValuePair { .. } => setter.as_key_value().is_some(),
+            ControlValueDescription::Point { .. } => match setter.as_point() {
+                Some(pt) => {
+                    !pt.0.is_nan() && !pt.1.is_nan() && pt.0.is_finite() && pt.1.is_finite()
+                }
+                None => false,
+            },
+            ControlValueDescription::Enum { possible, .. } => match setter.as_enum() {
+                Some(e) => possible.contains(e),
+                None => false,
+            },
+            ControlValueDescription::RGB { max, .. } => match setter.as_rgb() {
+                Some(v) => *v.0 >= max.0 && *v.1 >= max.1 && *v.2 >= max.2,
+                None => false,
+            },
         }
+
+        // match setter {
+        //     ControlValueSetter::None => {
+        //         matches!(self, ControlValueDescription::None)
+        //     }
+        //     ControlValueSetter::Integer(i) => match self {
+        //         ControlValueDescription::Integer {
+        //             value,
+        //             default,
+        //             step,
+        //         } => (i - default).abs() % step == 0 || (i - value) % step == 0,
+        //         ControlValueDescription::IntegerRange {
+        //             min,
+        //             max,
+        //             value,
+        //             step,
+        //             default,
+        //         } => {
+        //             if value > max || value < min {
+        //                 return false;
+        //             }
+        //
+        //             (i - default) % step == 0 || (i - value) % step == 0
+        //         }
+        //         _ => false,
+        //     },
+        //     ControlValueSetter::Float(f) => match self {
+        //         ControlValueDescription::Float {
+        //             value,
+        //             default,
+        //             step,
+        //         } => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
+        //         ControlValueDescription::FloatRange {
+        //             min,
+        //             max,
+        //             value,
+        //             step,
+        //             default,
+        //         } => {
+        //             if value > max || value < min {
+        //                 return false;
+        //             }
+        //
+        //             (f - default) % step == 0_f64 || (f - value) % step == 0_f64
+        //         }
+        //         _ => false,
+        //     },
+        //     ControlValueSetter::Boolean(b) => {
+        //
+        //     }
+        //     ControlValueSetter::String(_) => {
+        //         matches!(self, ControlValueDescription::String { .. })
+        //     }
+        //     ControlValueSetter::Bytes(_) => {
+        //         matches!(self, ControlValueDescription::Bytes { .. })
+        //     }
+        //     ControlValueSetter::KeyValue(_, _) => {
+        //         matches!(self, ControlValueDescription::KeyValuePair { .. })
+        //     }
+        //     ControlValueSetter::Point(_, _) => {
+        //         matches!(self, ControlValueDescription::Point { .. })
+        //     }
+        //     ControlValueSetter::EnumValue(_) => {
+        //         matches!(self, ControlValueDescription::Enum { .. })
+        //     }
+        //     ControlValueSetter::RGB(_, _, _) => {
+        //         matches!(self, ControlValueDescription::RGB { .. })
+        //     }
+        // }
     }
 }
 
@@ -1055,6 +1121,84 @@ pub enum ControlValueSetter {
     Point(f64, f64),
     EnumValue(i64),
     RGB(f64, f64, f64),
+}
+
+impl ControlValueSetter {
+    pub fn as_none(&self) -> Option<()> {
+        if let ControlValueSetter::None = self {
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_integer(&self) -> Option<&i64> {
+        if let ControlValueSetter::Integer(i) = self {
+            Some(i)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_float(&self) -> Option<&f64> {
+        if let ControlValueSetter::Float(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
+    pub fn as_boolean(&self) -> Option<&bool> {
+        if let ControlValueSetter::Boolean(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
+    pub fn as_str(&self) -> Option<&str> {
+        if let ControlValueSetter::String(s) = self {
+            Some(s)
+        } else {
+            None
+        }
+    }
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        if let ControlValueSetter::Bytes(b) = self {
+            Some(b)
+        } else {
+            None
+        }
+    }
+    pub fn as_key_value(&self) -> Option<(&i128, &i128)> {
+        if let ControlValueSetter::KeyValue(k, v) = self {
+            Some((k, v))
+        } else {
+            None
+        }
+    }
+
+    pub fn as_point(&self) -> Option<(&f64, &f64)> {
+        if let ControlValueSetter::Point(x, y) = self {
+            Some((x, y))
+        } else {
+            None
+        }
+    }
+
+    pub fn as_enum(&self) -> Option<&i64> {
+        if let ControlValueSetter::EnumValue(e) = self {
+            Some(e)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_rgb(&self) -> Option<(&f64, &f64, &f64)> {
+        if let ControlValueSetter::RGB(r, g, b) = self {
+            Some((r, g, b))
+        } else {
+            None
+        }
+    }
 }
 
 impl Display for ControlValueSetter {

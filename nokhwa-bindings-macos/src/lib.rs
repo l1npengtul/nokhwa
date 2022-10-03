@@ -194,17 +194,15 @@ pub mod core_media {
 
 use crate::core_media::{
     dispatch_queue_create, AVCaptureExposureDurationCurrent, AVCaptureExposureTargetBiasCurrent,
-    AVCaptureISOCurrent, AVCaptureWhiteBalanceGains, AVMediaTypeVideo, CGPoint,
+    AVCaptureISOCurrent, AVCaptureWhiteBalanceGains, AVMediaTypeAudio, AVMediaTypeClosedCaption,
+    AVMediaTypeDepthData, AVMediaTypeMetadata, AVMediaTypeMetadataObject, AVMediaTypeMuxed,
+    AVMediaTypeSubtitle, AVMediaTypeText, AVMediaTypeTimecode, AVMediaTypeVideo, CGPoint,
     CMSampleBufferGetImageBuffer, CMVideoFormatDescriptionGetDimensions, CVImageBufferRef,
-    CVPixelBufferGetBaseAddress, CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress,
-    CVPixelBufferUnlockBaseAddress, NSObject,
-};
-use crate::core_media::{
-    AVMediaTypeAudio, AVMediaTypeClosedCaption, AVMediaTypeDepthData, AVMediaTypeMetadata,
-    AVMediaTypeMetadataObject, AVMediaTypeMuxed, AVMediaTypeSubtitle, AVMediaTypeText,
-    AVMediaTypeTimecode, CVPixelBufferGetPixelFormatType,
+    CVPixelBufferGetBaseAddress, CVPixelBufferGetDataSize, CVPixelBufferGetPixelFormatType,
+    CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress, NSObject,
 };
 use block::ConcreteBlock;
+use cocoa_foundation::base::Nil;
 use cocoa_foundation::foundation::{NSArray, NSInteger, NSString, NSUInteger};
 use core_media_sys::{
     kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
@@ -213,19 +211,20 @@ use core_media_sys::{
     CMVideoDimensions,
 };
 use flume::{Receiver, Sender};
-use nokhwa_core::types::{
-    CameraControl, ControlValueDescription, KnownCameraControl, KnownCameraControlFlag,
-};
+use nokhwa_core::types::ControlValueSetter;
 use nokhwa_core::{
     error::NokhwaError,
-    types::{ApiBackend, CameraFormat, CameraIndex, CameraInfo, FrameFormat, Resolution},
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
+        FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
+    },
 };
-use objc::runtime::NO;
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Protocol, Sel, BOOL, YES},
+    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
 };
 use once_cell::sync::Lazy;
+use std::collections::BTreeMap;
 use std::{
     borrow::Cow,
     cmp::Ordering,
@@ -1071,7 +1070,7 @@ impl AVCaptureDevice {
     // 4 => Exposure Target Bias
     // 5 => Exposure ISO
     // 6 => Exposure Duration
-    pub fn get_controls(&mut self) -> Result<Vec<CameraControl>, NokhwaError> {
+    pub fn get_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
         let active_format: *mut Object = unsafe { msg_send![self.inner, activeFormat] };
 
         let mut controls = vec![];
@@ -1123,7 +1122,10 @@ impl AVCaptureDevice {
                 default: (0.5, 0.5),
             },
             if focus_poi_supported == NO {
-                vec![KnownCameraControlFlag::Disabled]
+                vec![
+                    KnownCameraControlFlag::Disabled,
+                    KnownCameraControlFlag::ReadOnly,
+                ]
             } else {
                 vec![]
             },
@@ -1147,7 +1149,10 @@ impl AVCaptureDevice {
             if focus_manual == YES {
                 vec![]
             } else {
-                vec![KnownCameraControlFlag::Disabled]
+                vec![
+                    KnownCameraControlFlag::Disabled,
+                    KnownCameraControlFlag::ReadOnly,
+                ]
             },
             focus_manual == YES,
         ));
@@ -1204,7 +1209,10 @@ impl AVCaptureDevice {
                 default: (0.5, 0.5),
             },
             if exposure_poi_supported == NO {
-                vec![KnownCameraControlFlag::Disabled]
+                vec![
+                    KnownCameraControlFlag::Disabled,
+                    KnownCameraControlFlag::ReadOnly,
+                ]
             } else {
                 vec![]
             },
@@ -1228,7 +1236,10 @@ impl AVCaptureDevice {
                 default: false,
             },
             if expposure_face_driven_supported == NO {
-                vec![KnownCameraControlFlag::Disabled]
+                vec![
+                    KnownCameraControlFlag::Disabled,
+                    KnownCameraControlFlag::ReadOnly,
+                ]
             } else {
                 vec![]
             },
@@ -1260,7 +1271,7 @@ impl AVCaptureDevice {
             unsafe { msg_send![active_format, maxExposureDuration] };
 
         controls.push(CameraControl::new(
-            KnownCameraControl::Other(5),
+            KnownCameraControl::Gamma,
             "ExposureDuration".to_string(),
             ControlValueDescription::IntegerRange {
                 min: exposure_duration_min.value,
@@ -1285,7 +1296,7 @@ impl AVCaptureDevice {
         let exposure_iso_max: f32 = unsafe { msg_send![active_format, maxISO] };
 
         controls.push(CameraControl::new(
-            KnownCameraControl::Other(6),
+            KnownCameraControl::Brightness,
             "ExposureISO".to_string(),
             ControlValueDescription::FloatRange {
                 min: exposure_iso_min as f64,
@@ -1308,7 +1319,7 @@ impl AVCaptureDevice {
         let lens_aperture: f32 = unsafe { msg_send![self.inner, lensAperture] };
 
         controls.push(CameraControl::new(
-            KnownCameraControl::Other(7),
+            KnownCameraControl::Iris,
             "LensAperture".to_string(),
             ControlValueDescription::Float {
                 value: lens_aperture as f64,
@@ -1422,15 +1433,18 @@ impl AVCaptureDevice {
             }
 
             controls.push(CameraControl::new(
-                KnownCameraControl::Other(8),
-                "Flash".to_string(),
+                KnownCameraControl::Other(5),
+                "TorchMode".to_string(),
                 ControlValueDescription::Enum {
                     value: (torch_active == YES) as i64,
                     possible,
                     default: 0,
                 },
                 if has_torch == YES {
-                    vec![KnownCameraControlFlag::Disabled]
+                    vec![
+                        KnownCameraControlFlag::Disabled,
+                        KnownCameraControlFlag::ReadOnly,
+                    ]
                 } else {
                     vec![]
                 },
@@ -1443,24 +1457,18 @@ impl AVCaptureDevice {
         let llb_enabled: BOOL = unsafe { msg_send![self.inner, lowLightBoostEnabled] };
 
         {
-            let mut possible = vec![];
-
-            if has_llb == YES {
-                possible.push(0); // off
-                possible.push(1); // on
-                possible.push(2); // auto
-            }
-
             controls.push(CameraControl::new(
                 KnownCameraControl::BacklightComp,
                 "LowLightCompensation".to_string(),
-                ControlValueDescription::Enum {
-                    value: (llb_enabled == YES) as i64,
-                    possible,
-                    default: 0,
+                ControlValueDescription::Boolean {
+                    value: llb_enabled == YES,
+                    default: false,
                 },
-                if has_llb == YES {
-                    vec![KnownCameraControlFlag::Disabled]
+                if has_llb == NO {
+                    vec![
+                        KnownCameraControlFlag::Disabled,
+                        KnownCameraControlFlag::ReadOnly,
+                    ]
                 } else {
                     vec![]
                 },
@@ -1494,7 +1502,7 @@ impl AVCaptureDevice {
             unsafe { msg_send![self.inner, geometricDistortionCorrectionEnabled] };
 
         controls.push(CameraControl::new(
-            KnownCameraControl::Other(9),
+            KnownCameraControl::Other(6),
             "DistortionCorrection".to_string(),
             ControlValueDescription::Boolean {
                 value: distortion_correction_current_value == YES,
@@ -1512,6 +1520,717 @@ impl AVCaptureDevice {
         ));
 
         Ok(controls)
+    }
+
+    pub fn set_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        let rc = self.get_controls()?;
+        let controls = rc
+            .iter()
+            .map(|cc| (cc.control(), cc))
+            .collect::<BTreeMap<_, _>>();
+
+        match id {
+            KnownCameraControl::Brightness => {
+                let isoctrl = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if isoctrl.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Exposure is in improper state to set ISO (Please set to `custom`!)"
+                            .to_string(),
+                    });
+                }
+
+                if isoctrl.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let current_duration = unsafe { AVCaptureExposureDurationCurrent };
+                let new_iso = *value.as_float().ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Expected float".to_string(),
+                })? as f32;
+
+                if !isoctrl.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe {
+                    msg_send![self.inner, setExposureModeCustomWithDuration:current_duration ISO:new_iso completionHandler:Nil]
+                };
+
+                Ok(())
+            }
+            KnownCameraControl::Gamma => {
+                let duration_ctrl = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if duration_ctrl
+                    .flag()
+                    .contains(&KnownCameraControlFlag::ReadOnly)
+                {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Exposure is in improper state to set Duration (Please set to `custom`!)"
+                            .to_string(),
+                    });
+                }
+
+                if duration_ctrl
+                    .flag()
+                    .contains(&KnownCameraControlFlag::Disabled)
+                {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+                let current_duration: CMTime = unsafe { msg_send![self.inner, exposureDuration] };
+
+                let current_iso = unsafe { AVCaptureISOCurrent };
+                let new_duration = CMTime {
+                    value: *value.as_integer().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected i64".to_string(),
+                    })?,
+                    timescale: current_duration.timescale,
+                    flags: current_duration.flags,
+                    epoch: current_duration.epoch,
+                };
+
+                if !duration_ctrl.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe {
+                    msg_send![self.inner, setExposureModeCustomWithDuration:new_duration ISO:current_iso completionHandler:Nil]
+                };
+
+                Ok(())
+            }
+            KnownCameraControl::WhiteBalance => {
+                let wb_enum_value = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if wb_enum_value
+                    .flag()
+                    .contains(&KnownCameraControlFlag::ReadOnly)
+                {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if wb_enum_value
+                    .flag()
+                    .contains(&KnownCameraControlFlag::Disabled)
+                {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+                let setter =
+                    NSInteger::from(*value.as_enum().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Enum".to_string(),
+                    })? as i32);
+
+                if !wb_enum_value.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe { msg_send![self.inner, whiteBalanceMode: setter] };
+
+                Ok(())
+            }
+            KnownCameraControl::BacklightComp => {
+                let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let setter =
+                    NSInteger::from(*value.as_enum().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Enum".to_string(),
+                    })? as i32);
+
+                if !ctrlvalue.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe { msg_send![self.inner, whiteBalanceMode: setter] };
+
+                Ok(())
+            }
+            KnownCameraControl::Gain => {
+                let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let setter =
+                    NSInteger::from(*value.as_boolean().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Boolean".to_string(),
+                    })? as i32);
+
+                if !ctrlvalue.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe { msg_send![self.inner, whiteBalanceMode: setter] };
+
+                Ok(())
+            }
+            KnownCameraControl::Zoom => {
+                let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let setter = *value.as_float().ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Expected float".to_string(),
+                })? as c_float;
+
+                if !ctrlvalue.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe {
+                    msg_send![self.inner, rampToVideoZoomFactor: setter withRate: 1.0_f32]
+                };
+
+                Ok(())
+            }
+            KnownCameraControl::Exposure => {
+                let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let setter =
+                    NSInteger::from(*value.as_enum().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Enum".to_string(),
+                    })? as i32);
+
+                if !ctrlvalue.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe { msg_send![self.inner, exposureMode: setter] };
+
+                Ok(())
+            }
+            KnownCameraControl::Iris => Err(NokhwaError::SetPropertyError {
+                property: id.to_string(),
+                value: value.to_string(),
+                error: "Read Only".to_string(),
+            }),
+            KnownCameraControl::Focus => {
+                let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Control does not exist".to_string(),
+                })?;
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Read Only".to_string(),
+                    });
+                }
+
+                if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Disabled".to_string(),
+                    });
+                }
+
+                let setter =
+                    NSInteger::from(*value.as_enum().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Enum".to_string(),
+                    })? as i32);
+
+                if !ctrlvalue.description().verify_setter(&value) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Failed to verify value".to_string(),
+                    });
+                }
+
+                let _: () = unsafe { msg_send![self.inner, focusMode: setter] };
+
+                Ok(())
+            }
+            KnownCameraControl::Other(i) => match i {
+                0 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = value
+                        .as_point()
+                        .ok_or(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Expected Point".to_string(),
+                        })
+                        .map(|(x, y)| CGPoint {
+                            x: *x as f32,
+                            y: *y as f32,
+                        })?;
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe { msg_send![self.inner, focusPointOfInterest: setter] };
+
+                    Ok(())
+                }
+                1 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = *value.as_float().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected float".to_string(),
+                    })? as c_float;
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe {
+                        msg_send![self.inner, setFocusModeLockedWithLensPosition: setter handler: Nil]
+                    };
+
+                    Ok(())
+                }
+                2 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = value
+                        .as_point()
+                        .ok_or(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Expected Point".to_string(),
+                        })
+                        .map(|(x, y)| CGPoint {
+                            x: *x as f32,
+                            y: *y as f32,
+                        })?;
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe { msg_send![self.inner, exposurePointOfInterest: setter] };
+
+                    Ok(())
+                }
+                3 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = if *value.as_boolean().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Boolean".to_string(),
+                    })? {
+                        YES
+                    } else {
+                        NO
+                    };
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe {
+                        msg_send![
+                            self.inner,
+                            automaticallyAdjustsFaceDrivenAutoExposureEnabled: setter
+                        ]
+                    };
+
+                    Ok(())
+                }
+                4 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = *value.as_float().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Float".to_string(),
+                    })? as f32;
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe {
+                        msg_send![self.inner, setExposureTargetBias: setter handler: Nil]
+                    };
+
+                    Ok(())
+                }
+                5 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter =
+                        NSInteger::from(*value.as_enum().ok_or(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Expected Enum".to_string(),
+                        })? as i32);
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe { msg_send![self.inner, torchMode: setter] };
+
+                    Ok(())
+                }
+                6 => {
+                    let ctrlvalue = controls.get(&id).ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Control does not exist".to_string(),
+                    })?;
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::ReadOnly) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Read Only".to_string(),
+                        });
+                    }
+
+                    if ctrlvalue.flag().contains(&KnownCameraControlFlag::Disabled) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Disabled".to_string(),
+                        });
+                    }
+
+                    let setter = if *value.as_boolean().ok_or(NokhwaError::SetPropertyError {
+                        property: id.to_string(),
+                        value: value.to_string(),
+                        error: "Expected Boolean".to_string(),
+                    })? {
+                        YES
+                    } else {
+                        NO
+                    };
+
+                    if !ctrlvalue.description().verify_setter(&value) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: id.to_string(),
+                            value: value.to_string(),
+                            error: "Failed to verify value".to_string(),
+                        });
+                    }
+
+                    let _: () = unsafe {
+                        msg_send![self.inner, geometricDistortionCorrectionEnabled: setter]
+                    };
+
+                    Ok(())
+                }
+                _ => Err(NokhwaError::SetPropertyError {
+                    property: id.to_string(),
+                    value: value.to_string(),
+                    error: "Unknown Control".to_string(),
+                }),
+            },
+            _ => Err(NokhwaError::SetPropertyError {
+                property: id.to_string(),
+                value: value.to_string(),
+                error: "Unknown Control".to_string(),
+            }),
+        }
     }
 }
 

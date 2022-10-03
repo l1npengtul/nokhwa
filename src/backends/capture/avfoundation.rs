@@ -27,6 +27,7 @@ use nokhwa_core::{
         FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
     },
 };
+use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::{
     borrow::Cow,
@@ -201,11 +202,20 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        todo!()
+        for ctrl in self.device.get_controls()? {
+            if ctrl.control() == control {
+                return Ok(ctrl);
+            }
+        }
+
+        return Err(NokhwaError::GetPropertyError {
+            property: control.to_string(),
+            error: "Not Found".to_string(),
+        });
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        todo!()
+        self.device.get_controls()
     }
 
     fn set_camera_control(
@@ -213,7 +223,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         id: KnownCameraControl,
         value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        todo!()
+        self.device.lock()?;
+        let res = self.device.set_control(id, value);
+        self.device.unlock()?;
+        res
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
