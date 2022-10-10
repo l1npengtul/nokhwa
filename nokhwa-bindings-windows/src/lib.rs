@@ -846,7 +846,7 @@ pub mod wmf {
                 let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
                 let mut ptr_receiver = receiver.as_mut_ptr();
                 if let Err(why) = self.source_reader.GetServiceForStream(
-                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    MF_SOURCE_READER_MEDIASOURCE,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
                     (&mut ptr_receiver as *mut *mut IMFMediaSource).cast::<*mut std::ffi::c_void>(),
