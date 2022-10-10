@@ -52,9 +52,6 @@ pub mod threaded;
 pub use backends::capture::NetworkCamera;
 pub use camera::Camera;
 pub use init::*;
-#[cfg(feature = "input-jscam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
-pub use js_camera::JSCamera;
 pub use nokhwa_core::buffer::Buffer;
 pub use nokhwa_core::error::NokhwaError;
 pub use query::*;

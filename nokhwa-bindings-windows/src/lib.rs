@@ -31,6 +31,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[cfg(all(target_os = "windows", windows))]
 use std::{
     borrow::{Borrow, Cow},
     cmp::Ordering,
@@ -668,7 +669,7 @@ pub mod wmf {
                 let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
                 let mut ptr_receiver = receiver.as_mut_ptr();
                 if let Err(why) = self.source_reader.GetServiceForStream(
-                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    MF_SOURCE_READER_MEDIASOURCE,
                     &MF_MEDIASOURCE_SERVICE,
                     &IMFMediaSource::IID,
                     std::ptr::addr_of_mut!(ptr_receiver).cast::<*mut std::ffi::c_void>(),
@@ -1227,10 +1228,12 @@ pub mod wmf {
 #[allow(clippy::missing_errors_doc)]
 #[allow(clippy::unused_self)]
 pub mod wmf {
-    use nokhwa_core::error::NokhwaError;
-    use nokhwa_core::types::{
-        CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        KnownCameraControl,
+    use nokhwa_core::{
+        error::NokhwaError,
+        types::{
+            CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+            KnownCameraControl,
+        },
     };
     use std::borrow::Cow;
 
@@ -1255,16 +1258,20 @@ pub mod wmf {
     struct Empty;
 
     pub struct MediaFoundationDevice<'a> {
-        phantom: &'a Empty,
+        _phantom: &'a Empty,
+        camera: CameraIndex,
     }
 
     impl<'a> MediaFoundationDevice<'a> {
         pub fn new(_index: CameraIndex) -> Result<Self, NokhwaError> {
-            Ok(MediaFoundationDevice { phantom: &Empty })
+            Ok(MediaFoundationDevice {
+                _phantom: &Empty,
+                camera: CameraIndex::Index(0),
+            })
         }
 
         pub fn index(&self) -> &CameraIndex {
-            &CameraIndex::default()
+            &self.camera
         }
 
         pub fn name(&self) -> String {

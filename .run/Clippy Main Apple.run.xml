@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Clippy Main" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Clippy Main Apple" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="clippy --features &quot;output-wgpu, input-avfoundation&quot;" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="STABLE" />

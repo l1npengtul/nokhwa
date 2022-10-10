@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
@@ -73,7 +74,12 @@ impl Camera {
         backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        Camera::with_backend(index, RequestedFormat::Exact(camera_format), backend)
+        let temp = vec![fourcc];
+        Camera::with_backend(
+            index,
+            RequestedFormat::with_formats(RequestedFormatType::Exact(camera_format), &temp),
+            backend,
+        )
     }
 
     /// Gets the current Camera's index.
@@ -90,7 +96,12 @@ impl Camera {
             self.device.stop_stream()?;
         }
         let new_camera_format = self.device.camera_format();
-        let new_camera = init_camera(new_idx, RequestedFormat::Exact(new_camera_format), self.api)?;
+        let temp = vec![new_camera_format.format()];
+        let new_camera = init_camera(
+            new_idx,
+            RequestedFormat::with_formats(RequestedFormatType::Exact(new_camera_format), &temp),
+            self.api,
+        )?;
         self.device = new_camera;
         Ok(())
     }
@@ -109,9 +120,10 @@ impl Camera {
             self.device.stop_stream()?;
         }
         let new_camera_format = self.device.camera_format();
+        let temp = vec![new_camera_format.format()];
         let new_camera = init_camera(
             &self.idx,
-            RequestedFormat::Exact(new_camera_format),
+            RequestedFormat::with_formats(RequestedFormatType::Exact(new_camera_format), &temp),
             new_backend,
         )?;
         self.device = new_camera;

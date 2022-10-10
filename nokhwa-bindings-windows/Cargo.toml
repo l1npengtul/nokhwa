@@ -17,6 +17,6 @@ lazy_static = "1.4.0"
 version = "0.1"
 path = "../nokhwa-core"
 
-[dependencies.windows]
-version = "0.39.0"
+[target.'cfg(any(target_os="windows",target_os="windows"))'.dependencies.windows]
+version = "0.42"
 features = ["Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_Foundation", "Win32_Media_DirectShow", "Win32_Media", "Win32"]

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#[cfg(target_os = "macos")]
 use nokhwa_bindings_macos::{
     AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
     AVCaptureVideoDataOutput,
@@ -27,11 +27,10 @@ use nokhwa_core::{
         FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
     },
 };
-use std::collections::BTreeMap;
-use std::ffi::CString;
+use std::{borrow::Cow, collections::HashMap};
+#[cfg(target_os = "macos")]
 use std::{
-    borrow::Cow,
-    collections::HashMap,
+    ffi::CString,
     sync::{Arc, Mutex},
 };
 
@@ -44,6 +43,7 @@ use std::{
 /// - FPS adjustment does not work.
 /// - If permission has not been granted and you call `init()` it will error.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
+#[cfg(target_os = "macos")]
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
     dev_input: Option<AVCaptureDeviceInput>,
@@ -56,6 +56,7 @@ pub struct AVFoundationCaptureDevice {
     frame_buffer_lock: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
 }
 
+#[cfg(target_os = "macos")]
 impl AVFoundationCaptureDevice {
     /// Creates a new capture device using the `AVFoundation` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     ///
@@ -113,6 +114,7 @@ impl AVFoundationCaptureDevice {
     }
 }
 
+#[cfg(target_os = "macos")]
 impl CaptureBackendTrait for AVFoundationCaptureDevice {
     fn backend(&self) -> ApiBackend {
         ApiBackend::AVFoundation
@@ -326,9 +328,155 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 }
 
+#[cfg(target_os = "macos")]
 impl Drop for AVFoundationCaptureDevice {
     fn drop(&mut self) {
         if self.stop_stream().is_err() {}
         self.device.unlock();
+    }
+}
+
+/// The backend struct that interfaces with V4L2.
+/// To see what this does, please see [`CaptureBackendTrait`].
+/// # Quirks
+/// - While working with `iOS` is allowed, it is not officially supported and may not work.
+/// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
+/// - This only works on 64 bit platforms.
+/// - FPS adjustment does not work.
+/// - If permission has not been granted and you call `init()` it will error.
+#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
+#[cfg(not(target_os = "macos"))]
+pub struct AVFoundationCaptureDevice {}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(unused_variables)]
+#[allow(unreachable_code)]
+impl AVFoundationCaptureDevice {
+    /// Creates a new capture device using the `AVFoundation` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
+    ///
+    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
+    /// # Errors
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
+    pub fn new(index: &CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+        todo!()
+    }
+
+    /// Creates a new capture device using the `AVFoundation` backend with desired settings.
+    ///
+    /// # Errors
+    /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn new_with(
+        index: usize,
+        width: u32,
+        height: u32,
+        fps: u32,
+        fourcc: FrameFormat,
+    ) -> Result<Self, NokhwaError> {
+        todo!()
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(unreachable_code)]
+impl CaptureBackendTrait for AVFoundationCaptureDevice {
+    fn backend(&self) -> ApiBackend {
+        todo!()
+    }
+
+    fn camera_info(&self) -> &CameraInfo {
+        todo!()
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn camera_format(&self) -> CameraFormat {
+        todo!()
+    }
+
+    fn set_camera_format(&mut self, _: CameraFormat) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn compatible_list_by_resolution(
+        &mut self,
+        _: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+        todo!()
+    }
+
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
+        todo!()
+    }
+
+    fn resolution(&self) -> Resolution {
+        todo!()
+    }
+
+    fn set_resolution(&mut self, _: Resolution) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn frame_rate(&self) -> u32 {
+        todo!()
+    }
+
+    fn set_frame_rate(&mut self, _: u32) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn frame_format(&self) -> FrameFormat {
+        todo!()
+    }
+
+    fn set_frame_format(&mut self, _: FrameFormat) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        todo!()
+    }
+
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        todo!()
+    }
+
+    fn set_camera_control(
+        &mut self,
+        _: KnownCameraControl,
+        _: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn open_stream(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
+    fn is_stream_open(&self) -> bool {
+        todo!()
+    }
+
+    fn frame(&mut self) -> Result<Buffer, NokhwaError> {
+        todo!()
+    }
+
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        todo!()
+    }
+
+    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(unreachable_code)]
+impl Drop for AVFoundationCaptureDevice {
+    fn drop(&mut self) {
+        todo!()
     }
 }

@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-use crate::{
-    js_camera::JSCameraResizeMode,
-    js_camera::{query_js_cameras, JSCameraConstraintsBuilder},
-    ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, CaptureBackendTrait,
-    FrameFormat, JSCamera, KnownCameraControl, NokhwaError, Resolution,
-};
+use crate::js_camera::query_js_cameras;
 use image::{ImageBuffer, Rgb};
+use nokhwa_core::types::ControlValueSetter;
+use nokhwa_core::{
+    error::NokhwaError,
+    traits::CaptureBackendTrait,
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, FrameFormat,
+        KnownCameraControl, Resolution,
+    },
+};
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
 /// Captures using the Browser API. This internally wraps [`JSCamera`].
@@ -147,6 +151,10 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
         &self.info
     }
 
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        todo!()
+    }
+
     fn camera_format(&self) -> CameraFormat {
         CameraFormat::new(self.camera.resolution())
     }
@@ -214,36 +222,20 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
         Ok(())
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        Ok(vec![])
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        todo!()
     }
 
-    fn camera_control(&self, _: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        todo!()
     }
 
-    fn set_camera_control(&mut self, _: CameraControl) -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        Ok(vec![])
-    }
-
-    fn raw_camera_control(&self, _: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn set_raw_camera_control(&mut self, _: &dyn Any, _: &dyn Any) -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn set_camera_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        todo!()
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {

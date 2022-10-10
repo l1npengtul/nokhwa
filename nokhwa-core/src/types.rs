@@ -143,8 +143,7 @@ impl RequestedFormat {
             }
             RequestedFormatType::None => all_formats
                 .iter()
-                .filter(|fmt| self.wanted_decoder.contains(&fmt.format()))
-                .nth(0)
+                .find(|fmt| self.wanted_decoder.contains(&fmt.format()))
                 .copied(),
         }
     }
@@ -766,7 +765,7 @@ impl ControlValueDescription {
     #[must_use]
     pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
         match self {
-            ControlValueDescription::None => return setter.as_none().is_some(),
+            ControlValueDescription::None => setter.as_none().is_some(),
             ControlValueDescription::Integer {
                 value,
                 default,
@@ -1395,7 +1394,7 @@ pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 }
 
 #[cfg(not(all(feature = "mjpeg", not(target_arch = "wasm"))))]
-pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
+pub fn mjpeg_to_rgb(_data: &[u8], _rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),
     ))
@@ -1458,7 +1457,7 @@ pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), 
 }
 
 #[cfg(not(all(feature = "mjpeg", not(target_arch = "wasm"))))]
-pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+pub fn buf_mjpeg_to_rgb(_data: &[u8], _dest: &mut [u8], _rgba: bool) -> Result<(), NokhwaError> {
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),
     ))

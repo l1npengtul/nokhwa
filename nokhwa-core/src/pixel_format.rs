@@ -21,7 +21,7 @@ use image::{Luma, LumaA, Pixel, Rgb, Rgba};
 use std::fmt::Debug;
 
 /// Trait that has methods to convert raw data from the webcam to a proper raw image.
-pub trait FormatDecoder: Copy + Clone + Debug + Default + Sized + Send + Sync {
+pub trait FormatDecoder: Clone + Sized + Send + Sync {
     type Output: Pixel<Subpixel = u8>;
     const FORMATS: &'static [FrameFormat];
 
