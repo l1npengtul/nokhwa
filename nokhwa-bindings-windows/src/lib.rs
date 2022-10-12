@@ -383,6 +383,7 @@ pub mod wmf {
         Win32::{
             Foundation::PWSTR,
             Media::{
+                KernelStreaming::GUID_NULL,
                 DirectShow::{
                     CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris,
                     CameraControl_Pan, CameraControl_Roll, CameraControl_Tilt, CameraControl_Zoom,
@@ -398,7 +399,7 @@ pub mod wmf {
                     MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                    MF_MEDIASOURCE_SERVICE, MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
+                    MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
                     MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_SUBTYPE,
                     MF_READWRITE_DISABLE_CONVERTERS,
                 },
@@ -431,6 +432,7 @@ pub mod wmf {
     );
 
     const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
+    const MF_SOURCE_READER_MEDIASOURCE: u32 = 0xFFFF_FFFF;
 
     const CAM_CTRL_AUTO: i32 = 0x0001;
     const CAM_CTRL_MANUAL: i32 = 0x0002;
@@ -842,42 +844,39 @@ pub mod wmf {
         }
 
         pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
-            let media_source = unsafe {
-                let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
-                let mut ptr_receiver = receiver.as_mut_ptr();
+            let camera_control = unsafe {
+                let mut receiver: MaybeUninit<IAMCameraControl> = MaybeUninit::uninit();
+                let ptr_receiver = receiver.as_mut_ptr();
                 if let Err(why) = self.source_reader.GetServiceForStream(
                     MF_SOURCE_READER_MEDIASOURCE,
-                    &MF_MEDIASOURCE_SERVICE,
-                    &IMFMediaSource::IID,
-                    (&mut ptr_receiver as *mut *mut IMFMediaSource).cast::<*mut std::ffi::c_void>(),
+                    &GUID_NULL,
+                    &IAMCameraControl::IID,
+                    (ptr_receiver as *mut IAMCameraControl).cast::<*mut std::ffi::c_void>(),
                 ) {
                     return Err(BindingError::GUIDSetError(
-                        "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
-                        "MF_MEDIASOURCE_SERVICE".to_string(),
+                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        "IAMCameraControl".to_string(),
                         why.to_string(),
                     ));
                 }
                 receiver.assume_init()
             };
-
-            let camera_control = match media_source.cast::<IAMCameraControl>() {
-                Ok(cc) => cc,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
-                        "IAMCameraControl".to_string(),
-                        why.to_string(),
-                    ))
-                }
-            };
-
-            let video_proc_amp = match media_source.cast::<IAMVideoProcAmp>() {
-                Ok(vpa) => vpa,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
+            let video_proc_amp = unsafe {
+                let mut receiver: MaybeUninit<IAMVideoProcAmp> = MaybeUninit::uninit();
+                let ptr_receiver = receiver.as_mut_ptr();
+                if let Err(why) = self.source_reader.GetServiceForStream(
+                    MF_SOURCE_READER_MEDIASOURCE,
+                    &GUID_NULL,
+                    &IAMVideoProcAmp::IID,
+                    (ptr_receiver as *mut IAMVideoProcAmp).cast::<*mut std::ffi::c_void>(),
+                ) {
+                    return Err(BindingError::GUIDSetError(
+                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
                         "IAMVideoProcAmp".to_string(),
                         why.to_string(),
-                    ))
+                    ));
                 }
+                receiver.assume_init()
             };
 
             let mut min = 0;
@@ -1344,42 +1343,39 @@ pub mod wmf {
         }
 
         pub fn set_control(&mut self, control: MFControl) -> Result<(), BindingError> {
-            let media_source = unsafe {
-                let mut receiver: MaybeUninit<IMFMediaSource> = MaybeUninit::uninit();
-                let mut ptr_receiver = receiver.as_mut_ptr();
+            let camera_control = unsafe {
+                let mut receiver: MaybeUninit<IAMCameraControl> = MaybeUninit::uninit();
+                let ptr_receiver = receiver.as_mut_ptr();
                 if let Err(why) = self.source_reader.GetServiceForStream(
-                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
-                    &MF_MEDIASOURCE_SERVICE,
-                    &IMFMediaSource::IID,
-                    (&mut ptr_receiver as *mut *mut IMFMediaSource).cast::<*mut std::ffi::c_void>(),
+                    MF_SOURCE_READER_MEDIASOURCE,
+                    &GUID_NULL,
+                    &IAMCameraControl::IID,
+                    (ptr_receiver as *mut IAMCameraControl).cast::<*mut std::ffi::c_void>(),
                 ) {
                     return Err(BindingError::GUIDSetError(
-                        "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
-                        "MF_MEDIASOURCE_SERVICE".to_string(),
+                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        "IAMCameraControl".to_string(),
                         why.to_string(),
                     ));
                 }
                 receiver.assume_init()
             };
-
-            let camera_control = match media_source.cast::<IAMCameraControl>() {
-                Ok(cc) => cc,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
-                        "IAMCameraControl".to_string(),
-                        why.to_string(),
-                    ))
-                }
-            };
-
-            let video_proc_amp = match media_source.cast::<IAMVideoProcAmp>() {
-                Ok(vpa) => vpa,
-                Err(why) => {
-                    return Err(BindingError::GUIDReadError(
+            let video_proc_amp = unsafe {
+                let mut receiver: MaybeUninit<IAMVideoProcAmp> = MaybeUninit::uninit();
+                let ptr_receiver = receiver.as_mut_ptr();
+                if let Err(why) = self.source_reader.GetServiceForStream(
+                    MF_SOURCE_READER_MEDIASOURCE,
+                    &GUID_NULL,
+                    &IAMVideoProcAmp::IID,
+                    (ptr_receiver as *mut IAMVideoProcAmp).cast::<*mut std::ffi::c_void>(),
+                ) {
+                    return Err(BindingError::GUIDSetError(
+                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
                         "IAMVideoProcAmp".to_string(),
                         why.to_string(),
-                    ))
+                    ));
                 }
+                receiver.assume_init()
             };
 
             let value = control.current;
