@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-use crate::{backends::capture::OpenCvCaptureDevice, CaptureBackendTrait, NokhwaError};
+use crate::backends::capture::OpenCvCaptureDevice;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb, RgbaImage};
-use std::cell::RefCell;
+use nokhwa_core::{error::NokhwaError, traits::CaptureBackendTrait};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 #[cfg(feature = "output-wgpu")]
 use wgpu::{
     Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
@@ -26,6 +27,10 @@ use wgpu::{
 
 /// A struct that supports IP Cameras via the `OpenCV` backend.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+#[deprecated(
+    since = "0.10.0",
+    note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled."
+)]
 pub struct NetworkCamera {
     ip: String,
     opencv_backend: RefCell<OpenCvCaptureDevice>,
@@ -60,19 +65,19 @@ impl NetworkCamera {
     /// Opens stream.
     /// # Errors
     /// If the backend fails to capture the stream this will error
-    pub fn open_stream(&self) -> Result<(), NokhwaError> {
+    fn open_stream(&self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().open_stream()
     }
 
     /// Gets the frame decoded as a RGB24 frame
     /// # Errors
     /// If the backend fails to capture the stream, or if the decoding fails this will error
-    pub fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    fn frame(&self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
         self.opencv_backend.borrow_mut().frame()
     }
 
     /// The minimum buffer size needed to write the current frame (RGB24). If `rgba` is true, it will instead return the minimum size of the RGBA buffer needed.
-    pub fn min_buffer_size(&self, rgba: bool) -> usize {
+    fn min_buffer_size(&self, rgba: bool) -> usize {
         let resolution = self.opencv_backend.borrow().resolution();
         if rgba {
             return (resolution.width() * resolution.height() * 4) as usize;
@@ -82,11 +87,7 @@ impl NetworkCamera {
     /// Directly writes the current frame(RGB24) into said `buffer`. If `convert_rgba` is true, the buffer written will be written as an RGBA frame instead of a RGB frame. Returns the amount of bytes written on successful capture.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
-    pub fn frame_to_buffer(
-        &self,
-        buffer: &mut [u8],
-        convert_rgba: bool,
-    ) -> Result<usize, NokhwaError> {
+    fn frame_to_buffer(&self, buffer: &mut [u8], convert_rgba: bool) -> Result<usize, NokhwaError> {
         let frame = self.frame()?;
         let mut frame_data = frame.to_vec();
         if convert_rgba {
@@ -102,13 +103,13 @@ impl NetworkCamera {
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
     /// # Errors
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    pub fn frame_texture<'a>(
+    fn frame_texture<'a>(
         &mut self,
         device: &WgpuDevice,
         queue: &WgpuQueue,
         label: Option<&'a str>,
     ) -> Result<WgpuTexture, NokhwaError> {
-        use std::{convert::TryFrom, num::NonZeroU32};
+        use std::num::NonZeroU32;
         let frame = self.frame()?;
         let rgba_frame: RgbaImage = frame.convert();
 
@@ -160,13 +161,13 @@ impl NetworkCamera {
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
-    pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
+    fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         self.opencv_backend.borrow_mut().stop_stream()
     }
 }
 
 impl Drop for NetworkCamera {
     fn drop(&mut self) {
-        self.stop_stream().unwrap();
+        let _stop_stream_err = self.stop_stream();
     }
 }

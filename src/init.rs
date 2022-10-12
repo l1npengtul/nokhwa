@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 )))]
-fn init_avfoundation(callback: fn(bool)) {
+fn init_avfoundation(callback: impl Fn(bool) + Send + 'static) {
     callback(true);
 }
 
@@ -26,10 +26,11 @@ fn init_avfoundation(callback: fn(bool)) {
     feature = "input-avfoundation",
     any(target_os = "macos", target_os = "ios")
 ))]
-fn init_avfoundation(callback: fn(bool)) {
-    use nokhwa_bindings_macos::avfoundation::request_permission_with_callback;
+fn init_avfoundation(callback: impl Fn(bool) + Send + Sync + 'static) {
+    use nokhwa_bindings_macos::request_permission_with_callback;
 
-    request_permission_with_callback(callback);
+    let boxed: Box<dyn Fn(bool) + Send + Sync + 'static> = Box::new(callback);
+    request_permission_with_callback(boxed);
 }
 
 #[cfg(not(all(
@@ -45,9 +46,7 @@ fn status_avfoundation() -> bool {
     any(target_os = "macos", target_os = "ios")
 ))]
 fn status_avfoundation() -> bool {
-    use nokhwa_bindings_macos::avfoundation::{
-        current_authorization_status, AVAuthorizationStatus,
-    };
+    use nokhwa_bindings_macos::{current_authorization_status, AVAuthorizationStatus};
 
     matches!(
         current_authorization_status(),
@@ -60,7 +59,7 @@ fn status_avfoundation() -> bool {
 ///
 /// The `on_complete` is called after initialization (a.k.a User granted permission). The callback's argument
 /// is weather the initialization was successful or not
-pub fn nokhwa_initialize(on_complete: fn(bool)) {
+pub fn nokhwa_initialize(on_complete: impl Fn(bool) + Send + Sync + 'static) {
     init_avfoundation(on_complete);
 }
 

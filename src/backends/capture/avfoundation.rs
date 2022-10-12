@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,26 @@
  * limitations under the License.
  */
 
-use crate::{
-    mjpeg_to_rgb888, yuyv422_to_rgb888, CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend,
-    CaptureBackendTrait, FrameFormat, KnownCameraControls, NokhwaError, Resolution,
+use nokhwa_bindings_macos::{
+    AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
+    AVCaptureVideoDataOutput,
 };
-use image::{ImageBuffer, Rgb};
-use nokhwa_bindings_macos::avfoundation::{
-    query_avfoundation, AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession,
-    AVCaptureVideoCallback, AVCaptureVideoDataOutput, AVFourCC,
+use nokhwa_core::{
+    buffer::Buffer,
+    error::NokhwaError,
+    traits::CaptureBackendTrait,
+    types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+    },
 };
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::collections::BTreeMap;
+use std::ffi::CString;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -32,6 +42,7 @@ use std::{any::Any, borrow::Cow, collections::HashMap};
 /// - You **must** call [`nokhwa_initialize`](crate::nokhwa_initialize) **before** doing anything with `AVFoundation`.
 /// - This only works on 64 bit platforms.
 /// - FPS adjustment does not work.
+/// - If permission has not been granted and you call `init()` it will error.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-avfoundation")))]
 pub struct AVFoundationCaptureDevice {
     device: AVCaptureDevice,
@@ -40,7 +51,9 @@ pub struct AVFoundationCaptureDevice {
     data_out: Option<AVCaptureVideoDataOutput>,
     data_collect: Option<AVCaptureVideoCallback>,
     info: CameraInfo,
+    buffer_name: CString,
     format: CameraFormat,
+    frame_buffer_lock: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
 }
 
 impl AVFoundationCaptureDevice {
@@ -49,25 +62,22 @@ impl AVFoundationCaptureDevice {
     /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default.
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
-    pub fn new(index: usize, camera_format: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let camera_format = match camera_format {
-            Some(fmt) => fmt,
-            None => CameraFormat::default(),
-        };
-
-        let device_descriptor: CameraInfo = match query_avfoundation()?.into_iter().nth(index) {
-            Some(descriptor) => descriptor.into(),
-            None => {
-                return Err(NokhwaError::OpenDeviceError(
-                    index.to_string(),
-                    "No Device".to_string(),
-                ))
-            }
-        };
-
-        let mut device = AVCaptureDevice::from_id(&device_descriptor.misc())?;
+    pub fn new(index: &CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
+        let mut device = AVCaptureDevice::new(index)?;
         device.lock()?;
-        device.set_all(camera_format.into())?;
+        let formats = device.supported_formats()?;
+        let camera_fmt = req_fmt.fulfill(&formats).ok_or_else(|| {
+            NokhwaError::OpenDeviceError("Cannot fulfill request".to_string(), req_fmt.to_string())
+        })?;
+        device.set_all(camera_fmt)?;
+        let device_descriptor = device.info().clone();
+        let buffername =
+            CString::new(format!("{}_INDEX{}_", device_descriptor, index)).map_err(|why| {
+                NokhwaError::StructureError {
+                    structure: "CString Buffername".to_string(),
+                    error: why.to_string(),
+                }
+            })?;
 
         Ok(AVFoundationCaptureDevice {
             device,
@@ -76,7 +86,9 @@ impl AVFoundationCaptureDevice {
             data_out: None,
             data_collect: None,
             info: device_descriptor,
-            format: camera_format,
+            buffer_name: buffername,
+            format: camera_fmt,
+            frame_buffer_lock: Arc::new(Mutex::new((vec![], FrameFormat::MJPEG))),
         })
     }
 
@@ -84,6 +96,8 @@ impl AVFoundationCaptureDevice {
     ///
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn new_with(
         index: usize,
         width: u32,
@@ -91,18 +105,25 @@ impl AVFoundationCaptureDevice {
         fps: u32,
         fourcc: FrameFormat,
     ) -> Result<Self, NokhwaError> {
-        let camera_format = Some(CameraFormat::new_from(width, height, fourcc, fps));
-        AVFoundationCaptureDevice::new(index, camera_format)
+        let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
+        AVFoundationCaptureDevice::new(
+            &CameraIndex::Index(index as u32),
+            RequestedFormat::Exact(camera_format),
+        )
     }
 }
 
 impl CaptureBackendTrait for AVFoundationCaptureDevice {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::AVFoundation
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::AVFoundation
     }
 
     fn camera_info(&self) -> &CameraInfo {
         &self.info
+    }
+
+    fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
+        Ok(())
     }
 
     fn camera_format(&self) -> CameraFormat {
@@ -110,7 +131,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        self.device.set_all(new_fmt.into())?;
+        self.device.set_all(new_fmt)?;
         self.format = new_fmt;
         Ok(())
     }
@@ -121,23 +142,21 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        Ok(self
+        let supported_cfmt = self
             .device
             .supported_formats()?
             .into_iter()
-            .map(|fmt| {
-                (
-                    FrameFormat::from(fmt.fourcc),
-                    Resolution::from(fmt.resolution),
-                    (&fmt.fps_list)
-                        .iter()
-                        .map(|f| *f as u32)
-                        .collect::<Vec<u32>>(),
-                )
-            })
-            .filter(|x| (*x).0 == fourcc)
-            .map(|fmt| (fmt.1, fmt.2))
-            .collect::<HashMap<Resolution, Vec<u32>>>())
+            .filter(|x| x.format() != fourcc);
+        let mut res_list = HashMap::new();
+        for format in supported_cfmt {
+            match res_list.get_mut(&format.resolution()) {
+                Some(fpses) => Vec::push(fpses, format.frame_rate()),
+                None => {
+                    res_list.insert(format.resolution(), vec![format.frame_rate()]);
+                }
+            }
+        }
+        Ok(res_list)
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
@@ -145,7 +164,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             .device
             .supported_formats()?
             .into_iter()
-            .map(|fmt| FrameFormat::from(fmt.fourcc))
+            .map(|fmt| fmt.format())
             .collect::<Vec<FrameFormat>>();
         formats.sort();
         formats.dedup();
@@ -182,40 +201,32 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         self.set_camera_format(format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+        for ctrl in self.device.get_controls()? {
+            if ctrl.control() == control {
+                return Ok(ctrl);
+            }
+        }
+
+        return Err(NokhwaError::GetPropertyError {
+            property: control.to_string(),
+            error: "Not Found".to_string(),
+        });
     }
 
-    fn camera_control(&self, _: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
+        self.device.get_controls()
     }
 
-    fn set_camera_control(&mut self, _: CameraControl) -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn raw_camera_control(&self, _: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
-    }
-
-    fn set_raw_camera_control(&mut self, _: &dyn Any, _: &dyn Any) -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+    fn set_camera_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
+        self.device.lock()?;
+        let res = self.device.set_control(id, value);
+        self.device.unlock()?;
+        res
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
@@ -223,16 +234,19 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         let session = AVCaptureSession::new();
         session.begin_configuration();
         session.add_input(&input)?;
-        let callback = AVCaptureVideoCallback::new(self.info.index());
+
+        let frame_mutex = self.frame_buffer_lock.clone();
+        let bufname = &self.buffer_name;
+        let videocallback = AVCaptureVideoCallback::new(bufname, frame_mutex)?;
         let output = AVCaptureVideoDataOutput::new();
-        output.add_delegate(&callback)?;
+        output.add_delegate(&videocallback)?;
         session.add_output(&output)?;
         session.commit_configuration();
         session.start()?;
 
         self.dev_input = Some(input);
         self.session = Some(session);
-        self.data_collect = Some(callback);
+        self.data_collect = Some(videocallback);
         self.data_out = Some(output);
         Ok(())
     }
@@ -251,56 +265,37 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         }
     }
 
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        let cam_fmt = self.camera_format();
-        let conv = self.frame_raw()?.to_vec();
-        let image_buf =
-            match ImageBuffer::from_vec(cam_fmt.width(), cam_fmt.height(), conv) {
-                Some(buf) => {
-                    let rgb_buf: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                    rgb_buf
-                }
-                None => return Err(NokhwaError::ReadFrameError(
-                    "ImageBuffer is not large enough! This is probably a bug, please report it!"
-                        .to_string(),
-                )),
-            };
-        Ok(image_buf)
+    fn frame(&mut self) -> Result<Buffer, NokhwaError> {
+        self.refresh_camera_format()?;
+        let cfmt = self.camera_format();
+        let buffer = Buffer::new(cfmt.resolution(), &self.frame_raw()?, cfmt.format());
+        Ok(buffer)
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        match &self.session {
-            Some(session) => {
-                if !session.is_running() {
-                    return Err(NokhwaError::ReadFrameError(
-                        "Stream Not Started".to_string(),
-                    ));
+        let mut framebuffer_empty = match self.frame_buffer_lock.lock() {
+            Ok(f) => f.0.is_empty(),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+        };
+
+        loop {
+            if framebuffer_empty {
+                match self.frame_buffer_lock.lock() {
+                    Ok(f) => framebuffer_empty = f.0.is_empty(),
+                    Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
                 }
-                if session.is_interrupted() {
-                    return Err(NokhwaError::ReadFrameError(
-                        "Stream Interrupted".to_string(),
-                    ));
-                }
-            }
-            None => {
-                return Err(NokhwaError::ReadFrameError(
-                    "Stream Not Started".to_string(),
-                ))
+            } else {
+                break;
             }
         }
 
-        match &self.data_collect {
-            Some(collector) => {
-                let data = collector.frame_to_slice()?;
-                let data = match data.1 {
-                    AVFourCC::YUV2 => Cow::from(yuyv422_to_rgb888(&data.0)?),
-                    AVFourCC::MJPEG => Cow::from(mjpeg_to_rgb888(&data.0)?),
-                };
-                Ok(data)
+        match self.frame_buffer_lock.lock() {
+            Ok(mut f) => {
+                let mut new_frame = vec![];
+                std::mem::swap(&mut new_frame, &mut f.0);
+                Ok(Cow::from(new_frame))
             }
-            None => Err(NokhwaError::ReadFrameError(
-                "Stream Not Started".to_string(),
-            )),
+            Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
         }
     }
 

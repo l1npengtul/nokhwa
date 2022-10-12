@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 fn main() {
     println!("cargo:rustc-link-lib=framework=CoreMedia");
     println!("cargo:rustc-link-lib=framework=AVFoundation");
+    println!("cargo:rustc-link-lib=framework=CoreVideo");
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]

@@ -10,3 +10,5 @@ nokhwa.iml
 /pkg
 
 target
+
+.DS_STORE

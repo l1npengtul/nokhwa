@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,10 @@
  */
 
 use image::{ImageBuffer, Rgb};
-use nokhwa::{query_devices, CaptureAPIBackend, ThreadedCamera};
-use std::time::Duration;
+use nokhwa::{query, ApiBackend, ThreadedCamera};
 
 fn main() {
-    let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
+    let cameras = query(ApiBackend::Auto).unwrap();
     cameras.iter().for_each(|cam| println!("{:?}", cam));
 
     let mut threaded = ThreadedCamera::new(0, None).unwrap();

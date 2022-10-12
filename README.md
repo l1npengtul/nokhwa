@@ -1,3 +1,4 @@
+[![cargo version](https://img.shields.io/crates/v/nokhwa.svg)](https://crates.io/crates/nokhwa) [![docs.rs version](https://img.shields.io/docsrs/nokhwa)](https://docs.rs/nokhwa/latest/nokhwa/)
 # nokhwa
 Nokhwa(녹화): Korean word meaning "to record".
 
@@ -5,11 +6,11 @@ A Simple-to-use, cross-platform Rust Webcam Capture Library
 
 ## Using nokhwa
 Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
-```.ignore
+```toml
 [dependencies.nokhwa]
-// TODO: replace the "*" with the latest version of `nokhwa`
+# TODO: replace the "*" with the latest version of `nokhwa`
 version = "*"
-// TODO: add some features
+# TODO: add some features
 features = [""]
 ```
 
@@ -17,7 +18,7 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 
 ## Example
 
-```.ignore
+```rust
 // set up the Camera
 let mut camera = Camera::new(
     0, // index
@@ -27,7 +28,7 @@ let mut camera = Camera::new(
 // open stream
 camera.open_stream().unwrap();
 loop {
-    let frame = camera.get_frame().unwrap();
+    let frame = camera.frame().unwrap();
     println!("{}, {}", frame.width(), frame.height());
 }
 ```
@@ -41,16 +42,16 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
- | Backend                             | Input              | Query             | Query-Device       | Platform            |
- |-------------------------------------|--------------------|-------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)            | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF(`input-msmf`)                  | ✅                 | ✅                 | ✅                 | Windows             |
- | AVFoundation(`input-avfoundatuin`)^^| ✅                 | ✅                 | ✅                 | Mac                 |
- | libuvc(`input-uvc`)^^^              | ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
- | OpenCV(`input-opencv`)^             | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | IPCamera(`input-ipcam`/OpenCV)^     | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | GStreamer(`input-gst`)              | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)               | ✅                 | ✅                 | ✅                 | Browser(Web)        |
+ | Backend                                | Input              | Query             | Query-Device       | Platform            |
+ |----------------------------------------|--------------------|-------------------|--------------------|---------------------|
+ | Video4Linux(`input-v4l`)               | ✅                 | ✅                 | ✅                 | Linux               |
+ | MSMF(`input-msmf`)                     | ✅                 | ✅                 | ✅                 | Windows             |
+ | AVFoundation(`input-avfoundation`)^^   | ✅                 | ✅                 | ✅                 | Mac                 |
+ | libuvc(`input-uvc`) (**DEPRECATED**)^^^| ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
+ | OpenCV(`input-opencv`)^                | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | IPCamera(`input-ipcam`/OpenCV)^        | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)(**DEPRECATED**) | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | JS/WASM(`input-wasm`)                  | ✅                 | ✅                 | ✅                 | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
@@ -63,14 +64,16 @@ The table below lists current Nokhwa API support.
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.
 
+### ***NOTE: It is safe to have `input-v4l`, `input-msmf`, and `input-avfoundation` all enabled at the same time since it is platform gated as well!***
+
 `input-*` features:
  - `input-v4l`: Enables the `Video4Linux` backend. (linux)
  - `input-msmf`: Enables the `MediaFoundation` backennd. (Windows 7 or newer)
  - `input-avfoundation`: Enables the `AVFoundation` backend. (MacOSX 10.7)
- - `input-uvc`: Enables the `libuvc` backend. (cross-platform, libuvc statically-linked)
+ - `input-uvc`: **[DEPRECATED]** Enables the `libuvc` backend. (cross-platform, libuvc statically-linked) 
  - `input-opencv`: Enables the `opencv` backend. (cross-platform) 
  - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
- - `input-gst`: Enables the `gstreamer` backend. (cross-platform)
+ - `input-gst`: **[DEPRECATED]** Enables the `gstreamer` backend. 
  - `input-jscam`: Enables the use of the `JSCamera` struct, which uses browser APIs. (Web)
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
@@ -107,3 +110,7 @@ Contributions are welcome!
 
 ## Minimum Service Rust Version
 `nokhwa` may build on older versions of `rustc`, but there is no guarantee except for the latest stable rust. 
+
+## Sponsors
+- $5/mo sponsors:
+  - [remifluff](https://github.com/remifluff)

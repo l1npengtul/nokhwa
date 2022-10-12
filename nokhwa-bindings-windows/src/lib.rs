@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,341 +36,17 @@ use std::{
     cmp::Ordering,
     slice::from_raw_parts,
 };
-use thiserror::Error;
-
-#[allow(clippy::module_name_repetitions)]
-#[derive(Error, Debug, Clone)]
-pub enum BindingError {
-    #[error("Failed to initialize Media Foundation: {0}")]
-    InitializeError(String),
-    #[error("Failed to de-initialize Media Foundation: {0}")]
-    DeInitializeError(String),
-    #[error("Failed to set GUID {0} to {1}: {2}")]
-    GUIDSetError(String, String, String),
-    #[error("Failed to Read GUID {0}: {1}")]
-    GUIDReadError(String, String),
-    #[error("Attribute Error: {0}")]
-    AttributeError(String),
-    #[error("Failed to enumerate: {0}")]
-    EnumerateError(String),
-    #[error("Failed to open device {0}: {1}")]
-    DeviceOpenFailError(String, String),
-    #[error("Failed to read frame: {0}")]
-    ReadFrameError(String),
-    #[error("Not Implemented!")]
-    NotImplementedError,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct MFResolution {
-    pub width_x: u32,
-    pub height_y: u32,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd, Ord, Eq)]
-pub enum MFFrameFormat {
-    MJPEG,
-    YUYV,
-}
-
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
-pub struct MFCameraFormat {
-    resolution: MFResolution,
-    format: MFFrameFormat,
-    frame_rate: u32,
-}
-
-impl Default for MFCameraFormat {
-    fn default() -> Self {
-        MFCameraFormat {
-            resolution: MFResolution {
-                width_x: 640,
-                height_y: 480,
-            },
-            format: MFFrameFormat::MJPEG,
-            frame_rate: 15,
-        }
-    }
-}
-
-impl MFCameraFormat {
-    #[must_use]
-    pub fn new(resolution: MFResolution, format: MFFrameFormat, frame_rate: u32) -> Self {
-        MFCameraFormat {
-            resolution,
-            format,
-            frame_rate,
-        }
-    }
-
-    #[must_use]
-    pub fn new_from(res_x: u32, res_y: u32, format: MFFrameFormat, fps: u32) -> Self {
-        MFCameraFormat {
-            resolution: MFResolution {
-                width_x: res_x,
-                height_y: res_y,
-            },
-            format,
-            frame_rate: fps,
-        }
-    }
-
-    #[must_use]
-    pub fn resolution(&self) -> MFResolution {
-        self.resolution
-    }
-
-    #[must_use]
-    pub fn width(&self) -> u32 {
-        self.resolution.width_x
-    }
-
-    #[must_use]
-    pub fn height(&self) -> u32 {
-        self.resolution.height_y
-    }
-
-    pub fn set_resolution(&mut self, resolution: MFResolution) {
-        self.resolution = resolution;
-    }
-
-    #[must_use]
-    pub fn frame_rate(&self) -> u32 {
-        self.frame_rate
-    }
-
-    pub fn set_frame_rate(&mut self, frame_rate: u32) {
-        self.frame_rate = frame_rate;
-    }
-
-    #[must_use]
-    pub fn format(&self) -> MFFrameFormat {
-        self.format
-    }
-
-    pub fn set_format(&mut self, format: MFFrameFormat) {
-        self.format = format;
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MediaFoundationDeviceDescriptor<'a> {
-    index: usize,
-    name: Cow<'a, [u16]>,
-    symlink: Cow<'a, [u16]>,
-}
-
-impl<'a> MediaFoundationDeviceDescriptor<'a> {
-    /// # Errors
-    /// If name or symlink is a nullptr, this will error.
-    /// # Safety
-    /// name and symlink must not be null
-    pub unsafe fn new(
-        index: usize,
-        name: *mut u16,
-        symlink: *mut u16,
-        name_len: u32,
-        symlink_len: u32,
-    ) -> Result<Self, BindingError> {
-        let name = if name.is_null() {
-            return Err(BindingError::AttributeError("name nullptr".to_string()));
-        } else {
-            Cow::from(from_raw_parts(name, name_len as usize))
-        };
-
-        let symlink = if symlink.is_null() {
-            return Err(BindingError::AttributeError("symlink nullptr".to_string()));
-        } else {
-            Cow::from(from_raw_parts(symlink, symlink_len as usize))
-        };
-
-        Ok(MediaFoundationDeviceDescriptor {
-            index,
-            name,
-            symlink,
-        })
-    }
-
-    #[must_use]
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    #[must_use]
-    pub fn name(&self) -> &Cow<[u16]> {
-        &self.name
-    }
-
-    #[must_use]
-    pub fn symlink(&self) -> &Cow<[u16]> {
-        &self.symlink
-    }
-
-    #[must_use]
-    pub fn name_as_string(&self) -> String {
-        String::from_utf16_lossy(self.name.borrow())
-    }
-
-    #[must_use]
-    pub fn link_as_string(&self) -> String {
-        String::from_utf16_lossy(self.symlink.borrow())
-    }
-}
-
-impl<'a> PartialOrd for MediaFoundationDeviceDescriptor<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<'a> Ord for MediaFoundationDeviceDescriptor<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.index.cmp(&other.index)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub enum MediaFoundationControls {
-    Brightness,
-    Contrast,
-    Hue,
-    Saturation,
-    Sharpness,
-    Gamma,
-    ColorEnable,
-    WhiteBalance,
-    BacklightComp,
-    Gain,
-    Pan,
-    Tilt,
-    Roll,
-    Zoom,
-    Exposure,
-    Iris,
-    Focus,
-}
-
-#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct MFControl {
-    control: MediaFoundationControls,
-    min: i32,
-    max: i32,
-    step: i32,
-    current: i32,
-    default: i32,
-    manual: bool,
-    active: bool,
-}
-
-impl MFControl {
-    #[allow(clippy::too_many_arguments)]
-    #[must_use]
-    pub fn new(
-        control: MediaFoundationControls,
-        min: i32,
-        max: i32,
-        step: i32,
-        current: i32,
-        default: i32,
-        manual: bool,
-        active: bool,
-    ) -> Self {
-        MFControl {
-            control,
-            min,
-            max,
-            step,
-            current,
-            default,
-            manual,
-            active,
-        }
-    }
-
-    #[must_use]
-    pub fn control(&self) -> MediaFoundationControls {
-        self.control
-    }
-
-    pub fn set_control(&mut self, control: MediaFoundationControls) {
-        self.control = control;
-    }
-
-    #[must_use]
-    pub fn min(&self) -> i32 {
-        self.min
-    }
-
-    pub fn set_min(&mut self, min: i32) {
-        self.min = min;
-    }
-
-    #[must_use]
-    pub fn max(&self) -> i32 {
-        self.max
-    }
-
-    pub fn set_max(&mut self, max: i32) {
-        self.max = max;
-    }
-
-    #[must_use]
-    pub fn step(&self) -> i32 {
-        self.step
-    }
-
-    pub fn set_step(&mut self, step: i32) {
-        self.step = step;
-    }
-
-    #[must_use]
-    pub fn current(&self) -> i32 {
-        self.current
-    }
-
-    pub fn set_current(&mut self, current: i32) {
-        self.current = current;
-    }
-    #[must_use]
-    pub fn default(&self) -> i32 {
-        self.default
-    }
-
-    pub fn set_default(&mut self, default: i32) {
-        self.default = default;
-    }
-
-    #[must_use]
-    pub fn manual(&self) -> bool {
-        self.manual
-    }
-
-    pub fn set_manual(&mut self, manual: bool) {
-        self.manual = manual;
-    }
-
-    #[must_use]
-    pub fn active(&self) -> bool {
-        self.active
-    }
-
-    pub fn set_active(&mut self, active: bool) {
-        self.active = active;
-    }
-}
 
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
-    #![windows_subsystem = "windows"]
-    use crate::{
-        BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
-        MediaFoundationControls, MediaFoundationDeviceDescriptor,
+    use nokhwa_core::error::NokhwaError;
+    use nokhwa_core::types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
+        ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
     };
-    use std::ptr::null_mut;
     use std::{
         borrow::Cow,
         cell::Cell,
-        collections::HashMap,
         mem::MaybeUninit,
         slice::from_raw_parts,
         sync::{
@@ -378,10 +54,13 @@ pub mod wmf {
             Arc,
         },
     };
+    use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
+    use windows::Win32::Media::MediaFoundation::{
+        IMFMediaType, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+    };
     use windows::{
-        core::{Interface, GUID},
+        core::{Interface, GUID, PWSTR},
         Win32::{
-            Foundation::PWSTR,
             Media::{
                 KernelStreaming::GUID_NULL,
                 DirectShow::{
@@ -393,14 +72,15 @@ pub mod wmf {
                     VideoProcAmp_Saturation, VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
                 },
                 MediaFoundation::{
-                    IMFActivate, IMFAttributes, IMFMediaSource, IMFMediaType, IMFSample,
-                    IMFSourceReader, MFCreateAttributes, MFCreateSourceReaderFromMediaSource,
-                    MFEnumDeviceSources, MFShutdown, MFStartup, MFSTARTUP_NOSOCKET, MF_API_VERSION,
-                    MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                    IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
+                    MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
+                    MFEnumDeviceSources, MFMediaType_Video, MFShutdown, MFStartup,
+                    MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
                     MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
-                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_SUBTYPE,
+                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE,
                     MF_READWRITE_DISABLE_CONVERTERS,
                 },
             },
@@ -430,6 +110,12 @@ pub mod wmf {
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
+    const MF_VIDEO_FORMAT_GRAY: GUID = GUID::from_values(
+        0x3030_3859,
+        0x0000,
+        0x0010,
+        [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+    );
 
     const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
     const MF_SOURCE_READER_MEDIASOURCE: u32 = 0xFFFF_FFFF;
@@ -437,31 +123,78 @@ pub mod wmf {
     const CAM_CTRL_AUTO: i32 = 0x0001;
     const CAM_CTRL_MANUAL: i32 = 0x0002;
 
-    pub fn initialize_mf() -> Result<(), BindingError> {
+    macro_rules! define_controls {
+        ( $( ($key:expr => ($property:ident, $min:ident, $max:ident, $step:ident, $default:ident, $flag:ident)) )* ) => {
+            $(
+            $key => {
+                if let Err(why) = unsafe {
+                        video_proc_amp.GetRange(
+                            $property.0,
+                            &mut $min,
+                            &mut $max,
+                            &mut $step,
+                            &mut $default,
+                            &mut $flag,
+                        )
+                    } {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: stringify!($key).to_string(),
+                            error: why.to_string()
+                        });
+                    }
+            }
+            )*
+        };
+        ( $( ($key:expr : ($property:ident, $value:ident, $flag:ident)) )* ) => {
+            $(
+            $key => {
+                if let Err(why) = unsafe {
+                    video_proc_amp.Get($property.0, &mut $value, &mut $flag)
+                    } {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: stringify!($key).to_string(),
+                            error: why.to_string()
+                        });
+                    }
+            }
+            )*
+        };
+    }
+
+    pub fn initialize_mf() -> Result<(), NokhwaError> {
         if !(INITIALIZED.load(Ordering::SeqCst)) {
             let a = std::ptr::null_mut();
             if let Err(why) =
                 unsafe { CoInitializeEx(a, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE) }
             {
-                return Err(BindingError::InitializeError(why.to_string()));
+                return Err(NokhwaError::InitializeError {
+                    backend: ApiBackend::MediaFoundation,
+                    error: why.to_string(),
+                });
             }
 
             if let Err(why) = unsafe { MFStartup(MF_API_VERSION, MFSTARTUP_NOSOCKET) } {
                 unsafe {
                     CoUninitialize();
                 }
-                return Err(BindingError::InitializeError(why.to_string()));
+                return Err(NokhwaError::InitializeError {
+                    backend: ApiBackend::MediaFoundation,
+                    error: why.to_string(),
+                });
             }
             INITIALIZED.store(true, Ordering::SeqCst);
         }
         Ok(())
     }
 
-    pub fn de_initialize_mf() -> Result<(), BindingError> {
+    pub fn de_initialize_mf() -> Result<(), NokhwaError> {
         if INITIALIZED.load(Ordering::SeqCst) {
             unsafe {
                 if let Err(why) = MFShutdown() {
-                    return Err(BindingError::DeInitializeError(why.to_string()));
+                    return Err(NokhwaError::ShutdownError {
+                        backend: ApiBackend::MediaFoundation,
+                        error: why.to_string(),
+                    });
                 }
                 CoUninitialize();
                 INITIALIZED.store(false, Ordering::SeqCst);
@@ -470,12 +203,15 @@ pub mod wmf {
         Ok(())
     }
 
-    fn query_activate_pointers() -> Result<Vec<IMFActivate>, BindingError> {
+    fn query_activate_pointers() -> Result<Vec<IMFActivate>, NokhwaError> {
         initialize_mf()?;
 
         let mut attributes: Option<IMFAttributes> = None;
         if let Err(why) = unsafe { MFCreateAttributes(&mut attributes, 1) } {
-            return Err(BindingError::AttributeError(why.to_string()));
+            return Err(NokhwaError::GetPropertyError {
+                property: "IMFAttributes".to_string(),
+                error: why.to_string(),
+            });
         }
 
         let attributes = match attributes {
@@ -486,24 +222,34 @@ pub mod wmf {
                         &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
                     )
                 } {
-                    return Err(BindingError::AttributeError(why.to_string()));
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "GUID MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE".to_string(),
+                        value: "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID".to_string(),
+                        error: why.to_string(),
+                    });
                 }
                 attr
             }
             None => {
-                return Err(BindingError::AttributeError(
-                    "Attributes is null!".to_string(),
-                ));
+                return Err(NokhwaError::SetPropertyError {
+                    property: "GUID MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE".to_string(),
+                    value: "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID".to_string(),
+                    error: "Call to IMFAttributes::SetGUID failed - IMFAttributes is None"
+                        .to_string(),
+                });
             }
         };
 
         let mut count: u32 = 0;
-        let mut unused_mf_activate: MaybeUninit<*mut Option<IMFActivate>> = MaybeUninit::uninit(); // WTF?
+        let mut unused_mf_activate: MaybeUninit<*mut Option<IMFActivate>> = MaybeUninit::uninit();
 
         if let Err(why) =
-            unsafe { MFEnumDeviceSources(attributes, unused_mf_activate.as_mut_ptr(), &mut count) }
+            unsafe { MFEnumDeviceSources(&attributes, unused_mf_activate.as_mut_ptr(), &mut count) }
         {
-            return Err(BindingError::EnumerateError(why.to_string()));
+            return Err(NokhwaError::StructureError {
+                structure: "MFEnumDeviceSources".to_string(),
+                error: why.to_string(),
+            });
         }
 
         let mut device_list = vec![];
@@ -520,202 +266,295 @@ pub mod wmf {
     }
 
     fn activate_to_descriptors(
-        index: usize,
+        index: CameraIndex,
         imf_activate: &IMFActivate,
-    ) -> Result<MediaFoundationDeviceDescriptor<'static>, BindingError> {
-        let mut name: PWSTR = PWSTR(&mut 0_u16);
-        let mut len_name = 0;
-        let mut symlink: PWSTR = PWSTR(&mut 0_u16);
-        let mut len_symlink = 0;
+    ) -> Result<CameraInfo, NokhwaError> {
+        let mut pwstr_name = PWSTR(&mut 0_u16);
+        let mut _len_pwstrname = 0;
+        let mut pwstr_symlink = PWSTR(&mut 0_u16);
+        let mut _len_pwstrsymlink = 0;
 
         if let Err(why) = unsafe {
             imf_activate.GetAllocatedString(
                 &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-                &mut name,
-                &mut len_name,
+                &mut pwstr_name,
+                &mut _len_pwstrname,
             )
         } {
-            return Err(BindingError::GUIDReadError(
-                "MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME".to_string(),
-                why.to_string(),
-            ));
+            return Err(NokhwaError::GetPropertyError {
+                property: "MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME".to_string(),
+                error: why.to_string(),
+            });
         }
 
         if let Err(why) = unsafe {
             imf_activate.GetAllocatedString(
                 &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                &mut symlink,
-                &mut len_symlink,
+                &mut pwstr_symlink,
+                &mut _len_pwstrsymlink,
             )
         } {
-            return Err(BindingError::GUIDReadError(
-                "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK".to_string(),
-                why.to_string(),
-            ));
+            return Err(NokhwaError::GetPropertyError {
+                property: "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK".to_string(),
+                error: why.to_string(),
+            });
         }
 
-        unsafe {
-            MediaFoundationDeviceDescriptor::new(index, name.0, symlink.0, len_name, len_symlink)
+        if pwstr_name.is_null() {
+            return Err(NokhwaError::GetPropertyError {
+                property: "MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME".to_string(),
+                error: "Call to IMFActivate::GetAllocatedString failed - PWSTR is null".to_string(),
+            });
         }
+        if pwstr_symlink.is_null() {
+            return Err(NokhwaError::GetPropertyError {
+                property: "MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK".to_string(),
+                error: "Call to IMFActivate::GetAllocatedString failed - PWSTR is null".to_string(),
+            });
+        }
+
+        let name = unsafe {
+            pwstr_name
+                .to_string()
+                .map_err(|x| NokhwaError::StructureError {
+                    structure: "PWSTR/String - Name".to_string(),
+                    error: x.to_string(),
+                })?
+        };
+        let symlink = unsafe {
+            pwstr_symlink
+                .to_string()
+                .map_err(|x| NokhwaError::StructureError {
+                    structure: "PWSTR/String - Symlink".to_string(),
+                    error: x.to_string(),
+                })?
+        };
+
+        Ok(CameraInfo::new(
+            &name,
+            "MediaFoundation Camera",
+            &symlink,
+            index,
+        ))
     }
 
-    pub fn query_media_foundation_descriptors(
-    ) -> Result<Vec<MediaFoundationDeviceDescriptor<'static>>, BindingError> {
+    pub fn query_media_foundation_descriptors() -> Result<Vec<CameraInfo>, NokhwaError> {
         let mut device_list = vec![];
 
         for (index, activate_ptr) in query_activate_pointers()?.into_iter().enumerate() {
-            device_list.push(activate_to_descriptors(index, &activate_ptr)?);
+            device_list.push(activate_to_descriptors(
+                CameraIndex::Index(index as u32),
+                &activate_ptr,
+            )?);
         }
         Ok(device_list)
     }
 
+    #[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Eq)]
+    enum MFControlId {
+        ProcAmpBoolean(i32),
+        ProcAmpRange(i32),
+        CCValue(i32),
+        CCRange(i32),
+    }
+
+    pub fn kcc_to_i32(kcc: KnownCameraControl) -> Option<MFControlId> {
+        let control_id = match kcc {
+            KnownCameraControl::Brightness => MFControlId::ProcAmpRange(VideoProcAmp_Brightness.0),
+            KnownCameraControl::Contrast => MFControlId::ProcAmpRange(VideoProcAmp_Contrast.0),
+            KnownCameraControl::Hue => MFControlId::ProcAmpRange(VideoProcAmp_Hue.0),
+            KnownCameraControl::Saturation => MFControlId::ProcAmpRange(VideoProcAmp_Saturation.0),
+            KnownCameraControl::Sharpness => MFControlId::ProcAmpRange(VideoProcAmp_Sharpness.0),
+            KnownCameraControl::Gamma => MFControlId::ProcAmpRange(VideoProcAmp_Gamma.0),
+            KnownCameraControl::WhiteBalance => {
+                MFControlId::ProcAmpRange(VideoProcAmp_WhiteBalance.0)
+            }
+            KnownCameraControl::BacklightComp => {
+                MFControlId::ProcAmpBoolean(VideoProcAmp_BacklightCompensation.0)
+            }
+            KnownCameraControl::Gain => MFControlId::ProcAmpRange(VideoProcAmp_Gain.0),
+            KnownCameraControl::Pan => MFControlId::CCRange(CameraControl_Pan.0),
+            KnownCameraControl::Tilt => MFControlId::CCRange(CameraControl_Tilt.0),
+            KnownCameraControl::Zoom => MFControlId::CCRange(CameraControl_Zoom.0),
+            KnownCameraControl::Exposure => MFControlId::CCValue(CameraControl_Exposure.0),
+            KnownCameraControl::Iris => MFControlId::CCValue(CameraControl_Iris.0),
+            KnownCameraControl::Focus => MFControlId::CCValue(CameraControl_Focus.0),
+            KnownCameraControl::Other(o) => {
+                if o == VideoProcAmp_ColorEnable as u128 {
+                    MFControlId::ProcAmpRange(o as i32)
+                } else {
+                    return None;
+                }
+            }
+        };
+
+        Some(control_id)
+    }
+
     pub struct MediaFoundationDevice<'a> {
         is_open: Cell<bool>,
-        device_specifier: MediaFoundationDeviceDescriptor<'a>,
-        device_format: MFCameraFormat,
+        device_specifier: CameraInfo,
+        device_format: CameraFormat,
         source_reader: IMFSourceReader,
     }
 
     impl<'a> MediaFoundationDevice<'a> {
-        fn internal(index: usize) -> Result<Self, BindingError> {
-            let (media_source, device_descriptor) = match query_activate_pointers()?
-                .into_iter()
-                .nth(index)
-            {
-                Some(activate) => match unsafe { activate.ActivateObject::<IMFMediaSource>() } {
-                    Ok(media_source) => (media_source, activate_to_descriptors(index, &activate)?),
-                    Err(why) => {
-                        return Err(BindingError::DeviceOpenFailError(
-                            index.to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                },
-                None => {
-                    return Err(BindingError::DeviceOpenFailError(
-                        index.to_string(),
-                        "Not Found".to_string(),
-                    ))
+        pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
+            match index {
+                CameraIndex::Index(i) => {
+                    let (media_source, device_descriptor) =
+                        match query_activate_pointers()?.into_iter().nth(i as usize) {
+                            Some(activate) => {
+                                match unsafe { activate.ActivateObject::<IMFMediaSource>() } {
+                                    Ok(media_source) => {
+                                        (media_source, activate_to_descriptors(index, &activate)?)
+                                    }
+                                    Err(why) => {
+                                        return Err(NokhwaError::OpenDeviceError(
+                                            index.to_string(),
+                                            why.to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            None => {
+                                return Err(NokhwaError::OpenDeviceError(
+                                    index.to_string(),
+                                    "No device".to_string(),
+                                ))
+                            }
+                        };
+
+                    let source_reader_attr = {
+                        let attr = match {
+                            let mut attr: Option<IMFAttributes> = None;
+
+                            if let Err(why) = unsafe { MFCreateAttributes(&mut attr, 3) } {
+                                return Err(NokhwaError::StructureError {
+                                    structure: "MFCreateAttributes".to_string(),
+                                    error: why.to_string(),
+                                });
+                            }
+                            attr
+                        } {
+                            Some(imf_attr) => imf_attr,
+                            None => {
+                                return Err(NokhwaError::StructureError {
+                                    structure: "MFCreateAttributes".to_string(),
+                                    error: "Attributee Alloc Failure".to_string(),
+                                });
+                            }
+                        };
+
+                        if let Err(why) = unsafe {
+                            attr.SetUINT32(&MF_READWRITE_DISABLE_CONVERTERS, u32::from(true))
+                        } {
+                            return Err(NokhwaError::SetPropertyError {
+                                property: "MF_READWRITE_DISABLE_CONVERTERS".to_string(),
+                                value: u32::from(true).to_string(),
+                                error: why.to_string(),
+                            });
+                        }
+
+                        attr
+                    };
+
+                    let source_reader = match unsafe {
+                        MFCreateSourceReaderFromMediaSource(&media_source, &source_reader_attr)
+                    } {
+                        Ok(sr) => sr,
+                        Err(why) => {
+                            return Err(NokhwaError::StructureError {
+                                structure: "MFCreateSourceReaderFromMediaSource".to_string(),
+                                error: why.to_string(),
+                            })
+                        }
+                    };
+
+                    // increment refcnt
+                    CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) + 1, Ordering::SeqCst);
+
+                    Ok(MediaFoundationDevice {
+                        is_open: Cell::new(false),
+                        device_specifier: device_descriptor,
+                        device_format: MFCameraFormat::default(),
+                        source_reader,
+                    })
                 }
-            };
+                CameraIndex::String(s) => {
+                    let devicelist = query_media_foundation_descriptors()?;
+                    let mut id_eq = None;
 
-            let source_reader_attr: Option<IMFAttributes> = {
-                let attr = match {
-                    let mut attr: Option<IMFAttributes> = None;
-
-                    if let Err(why) = unsafe { MFCreateAttributes(&mut attr, 3) } {
-                        return Err(BindingError::AttributeError(why.to_string()));
+                    for mfdev in devicelist {
+                        if mfdev.misc() == s {
+                            id_eq = Some(mfdev.index().as_index()?);
+                            break;
+                        }
                     }
 
-                    attr
-                } {
-                    Some(imf_attr) => imf_attr,
-                    None => {
-                        return Err(BindingError::AttributeError(
-                            "Attribute Alloc Fail".to_string(),
-                        ))
+                    match id_eq {
+                        Some(index) => Self::new(CameraIndex::Index(index)),
+                        None => {
+                            return Err(NokhwaError::OpenDeviceError(s, "Not Found".to_string()))
+                        }
                     }
-                };
-
-                if let Err(why) =
-                    unsafe { attr.SetUINT32(&MF_READWRITE_DISABLE_CONVERTERS, true as u32) }
-                {
-                    return Err(BindingError::AttributeError(why.to_string()));
-                }
-
-                Some(attr)
-            };
-
-            let source_reader = match unsafe {
-                MFCreateSourceReaderFromMediaSource(&media_source, source_reader_attr)
-            } {
-                Ok(sr) => sr,
-                Err(why) => {
-                    return Err(BindingError::DeviceOpenFailError(
-                        index.to_string(),
-                        why.to_string(),
-                    ))
-                }
-            };
-
-            // increment refcnt
-            CAMERA_REFCNT.store(CAMERA_REFCNT.load(Ordering::SeqCst) + 1, Ordering::SeqCst);
-
-            Ok(MediaFoundationDevice {
-                is_open: Cell::new(false),
-                device_specifier: device_descriptor,
-                device_format: MFCameraFormat::default(),
-                source_reader,
-            })
-        }
-
-        pub fn new(index: usize, format: MFCameraFormat) -> Result<Self, BindingError> {
-            let mut camera = MediaFoundationDevice::internal(index)?;
-            camera.set_format(format)?;
-            Ok(camera)
-        }
-
-        pub fn with_string(unique_id: &[u16]) -> Result<Self, BindingError> {
-            let device_list = query_media_foundation_descriptors()?;
-            let mut id_eq = None;
-
-            for media_foundation_device in device_list {
-                if (media_foundation_device.symlink() as &[u16]) == unique_id {
-                    id_eq = Some(media_foundation_device.index);
-                    break;
                 }
             }
-
-            match id_eq {
-                Some(index) => Self::internal(index),
-                None => {
-                    return Err(BindingError::DeviceOpenFailError(
-                        std::str::from_utf8(
-                            &unique_id.iter().map(|x| *x as u8).collect::<Vec<u8>>(),
-                        )
-                        .unwrap_or("")
-                        .to_string(),
-                        "Not Found".to_string(),
-                    ))
-                }
-            }
         }
+        //
+        // pub fn with_string(unique_id: &[u16]) -> Result<Self, NokhwaError> {
+        //     let devicelist = query_media_foundation_descriptors()?;
+        //     let mut id_eq = None;
+        //
+        //     for mfdev in devicelist {
+        //         if (mfdev.symlink() as &[u16]) == unique_id {
+        //             id_eq = Some(mfdev.index().as_index()?);
+        //             break;
+        //         }
+        //     }
+        //
+        //     match id_eq {
+        //         Some(index) => Self::new(index),
+        //         None => {
+        //             return Err(BindingError::DeviceOpenFailError(
+        //                 std::str::from_utf8(
+        //                     &unique_id.iter().map(|x| *x as u8).collect::<Vec<u8>>(),
+        //                 )
+        //                 .unwrap_or("")
+        //                 .to_string(),
+        //                 "Not Found".to_string(),
+        //             ))
+        //         }
+        //     }
+        // }
 
-        pub fn index(&self) -> usize {
-            self.device_specifier.index
+        pub fn index(&self) -> &CameraIndex {
+            self.device_specifier.index()
         }
 
         pub fn name(&self) -> String {
-            self.device_specifier.name_as_string()
+            self.device_specifier.human_name()
         }
 
         pub fn symlink(&self) -> String {
-            self.device_specifier.link_as_string()
+            self.device_specifier.misc()
         }
 
-        fn internal_format_list(
-            &mut self,
-        ) -> Result<HashMap<MFCameraFormat, IMFMediaType>, BindingError> {
-            let mut camera_format_map = HashMap::new();
+        pub fn compatible_format_list(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
+            let mut camera_format_list = vec![];
             let mut index = 0;
 
             while let Ok(media_type) = unsafe {
                 self.source_reader
                     .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
             } {
-                index += 1;
-
                 let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
-                    Ok(fcc) => match fcc {
-                        MF_VIDEO_FORMAT_YUY2 => MFFrameFormat::YUYV,
-                        MF_VIDEO_FORMAT_MJPEG => MFFrameFormat::MJPEG,
-                        _ => continue,
-                    },
+                    Ok(fcc) => fcc,
                     Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_SUBTYPE".to_string(),
-                            why.to_string(),
-                        ))
+                        return Err(NokhwaError::GetPropertyError {
+                            property: "MF_MT_SUBTYPE".to_string(),
+                            error: why.to_string(),
+                        })
                     }
                 };
 
@@ -726,10 +565,10 @@ pub mod wmf {
                         (width, height)
                     }
                     Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_SIZE".to_string(),
-                            why.to_string(),
-                        ))
+                        return Err(NokhwaError::GetPropertyError {
+                            property: "MF_MT_FRAME_SIZE".to_string(),
+                            error: why.to_string(),
+                        })
                     }
                 };
 
@@ -745,10 +584,10 @@ pub mod wmf {
                             numerator
                         }
                         Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
-                                why.to_string(),
-                            ))
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
+                                error: why.to_string(),
+                            })
                         }
                     };
 
@@ -762,10 +601,10 @@ pub mod wmf {
                         numerator
                     }
                     Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_RATE".to_string(),
-                            why.to_string(),
-                        ))
+                        return Err(NokhwaError::GetPropertyError {
+                            property: "MF_MT_FRAME_RATE".to_string(),
+                            error: why.to_string(),
+                        })
                     }
                 };
 
@@ -780,70 +619,53 @@ pub mod wmf {
                             numerator
                         }
                         Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
-                                why.to_string(),
-                            ))
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
+                                error: why.to_string(),
+                            })
                         }
                     };
 
+                let frame_fmt = if fourcc == MF_VIDEO_FORMAT_MJPEG {
+                    FrameFormat::MJPEG
+                } else if fourcc == MF_VIDEO_FORMAT_YUY2 {
+                    FrameFormat::YUYV
+                } else if fourcc == MF_VIDEO_FORMAT_GRAY {
+                    FrameFormat::GRAY
+                } else {
+                    continue;
+                };
+
                 if frame_rate_min != 0 {
-                    camera_format_map.insert(
-                        MFCameraFormat {
-                            resolution: MFResolution {
-                                width_x: width,
-                                height_y: height,
-                            },
-                            format: fourcc,
-                            frame_rate: frame_rate_min,
-                        },
-                        media_type.clone(),
-                    );
+                    camera_format_list.push(CameraFormat::new(
+                        Resolution::new(width, height),
+                        frame_fmt,
+                        frame_rate_min,
+                    ));
                 }
 
-                if frame_rate != frame_rate_min && frame_rate != 0 {
-                    camera_format_map.insert(
-                        MFCameraFormat {
-                            resolution: MFResolution {
-                                width_x: width,
-                                height_y: height,
-                            },
-                            format: fourcc,
-                            frame_rate,
-                        },
-                        media_type.clone(),
-                    );
+                if frame_rate != 0 && frame_rate_min != frame_rate {
+                    camera_format_list.push(CameraFormat::new(
+                        Resolution::new(width, height),
+                        frame_fmt,
+                        frame_rate,
+                    ));
                 }
 
-                if frame_rate_max != frame_rate
-                    && frame_rate_max != frame_rate_min
-                    && frame_rate_max != 0
-                {
-                    camera_format_map.insert(
-                        MFCameraFormat {
-                            resolution: MFResolution {
-                                width_x: width,
-                                height_y: height,
-                            },
-                            format: fourcc,
-                            frame_rate: frame_rate_max,
-                        },
-                        media_type.clone(),
-                    );
+                if frame_rate_max != 0 && frame_rate != frame_rate_max {
+                    camera_format_list.push(CameraFormat::new(
+                        Resolution::new(width, height),
+                        frame_fmt,
+                        frame_rate_max,
+                    ));
                 }
+
+                index += 1;
             }
-            Ok(camera_format_map)
+            Ok(camera_format_list)
         }
 
-        pub fn compatible_format_list(&mut self) -> Result<Vec<MFCameraFormat>, BindingError> {
-            Ok(self
-                .internal_format_list()?
-                .into_keys()
-                .into_iter()
-                .collect())
-        }
-
-        pub fn control(&self, control: MediaFoundationControls) -> Result<MFControl, BindingError> {
+        pub fn control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
             let camera_control = unsafe {
                 let mut receiver: MaybeUninit<IAMCameraControl> = MaybeUninit::uninit();
                 let ptr_receiver = receiver.as_mut_ptr();
@@ -886,463 +708,148 @@ pub mod wmf {
             let mut value = 0;
             let mut flag = 0;
 
-            match control {
-                MediaFoundationControls::Brightness => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Brightness.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Brightness-Range".to_string(),
-                            why.to_string(),
-                        ));
+            let control_id = kcc_to_i32(control).ok_or(NokhwaError::SetPropertyError {
+                property: "CameraControl".to_string(),
+                value: control.to_string(),
+                error: "Does not exist".to_string(),
+            })?;
+
+            let ctrl_value_set = match control_id {
+                MFControlId::ProcAmpBoolean(id) => unsafe {
+                    if let Err(why) = video_proc_amp.GetRange(
+                        id,
+                        &mut min,
+                        &mut max,
+                        &mut step,
+                        &mut default,
+                        &mut flag,
+                    ) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Range", control_id, control),
+                            error: why.to_string(),
+                        });
+                    }
+                    if let Err(why) = video_proc_amp.Get(id, &mut value, &mut flag) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Value", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
 
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_Brightness.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Brightness-Value".to_string(),
-                            why.to_string(),
-                        ));
+                    let boolval = value != 0;
+                    let booldef = default != 0;
+                    ControlValueDescription::Boolean {
+                        value: boolval,
+                        default: booldef,
                     }
-                }
-                MediaFoundationControls::Contrast => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Contrast.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Contrast-Range".to_string(),
-                            why.to_string(),
-                        ));
+                },
+                MFControlId::ProcAmpRange(id) => unsafe {
+                    if let Err(why) = video_proc_amp.GetRange(
+                        id,
+                        &mut min,
+                        &mut max,
+                        &mut step,
+                        &mut default,
+                        &mut flag,
+                    ) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Range", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
-
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_Contrast.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Contrast-Value".to_string(),
-                            why.to_string(),
-                        ));
+                    if let Err(why) = video_proc_amp.Get(id, &mut value, &mut flag) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Value", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
-                }
-                MediaFoundationControls::Hue => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Hue.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Hue-Range".to_string(),
-                            why.to_string(),
-                        ));
+                    ControlValueDescription::IntegerRange {
+                        min: min as i64,
+                        max: max as i64,
+                        value: value as i64,
+                        step: step as i64,
+                        default: default as i64,
                     }
-
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Get(VideoProcAmp_Hue.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Hue-Value".to_string(),
-                            why.to_string(),
-                        ));
+                },
+                MFControlId::CCValue(id) => unsafe {
+                    if let Err(why) = camera_control.GetRange(
+                        id,
+                        &mut min,
+                        &mut max,
+                        &mut step,
+                        &mut default,
+                        &mut flag,
+                    ) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Range", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
-                }
-                MediaFoundationControls::Saturation => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Saturation.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Saturation-Range".to_string(),
-                            why.to_string(),
-                        ));
+                    if let Err(why) = camera_control.Get(id, &mut value, &mut flag) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Value", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
 
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_Saturation.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Saturation-Value".to_string(),
-                            why.to_string(),
-                        ));
+                    ControlValueDescription::Integer {
+                        value: value as i64,
+                        default: default as i64,
+                        step: step as i64,
                     }
-                }
-                MediaFoundationControls::Sharpness => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Sharpness.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Sharpness-Range".to_string(),
-                            why.to_string(),
-                        ));
+                },
+                MFControlId::CCRange(id) => unsafe {
+                    if let Err(why) = camera_control.GetRange(
+                        id,
+                        &mut min,
+                        &mut max,
+                        &mut step,
+                        &mut default,
+                        &mut flag,
+                    ) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Range", control_id, control),
+                            error: why.to_string(),
+                        });
                     }
+                    if let Err(why) = camera_control.Get(id, &mut value, &mut flag) {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: format!("{:?}: {} - Value", control_id, control),
+                            error: why.to_string(),
+                        });
+                    }
+                    ControlValueDescription::IntegerRange {
+                        min: min as i64,
+                        max: max as i64,
+                        value: value as i64,
+                        step: step as i64,
+                        default: default as i64,
+                    }
+                },
+            };
 
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_Sharpness.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Sharpness-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Gamma => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Gamma.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Gamma-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
+            let is_manual = if matches!(flag, CameraControl_Flags_Manual) {
+                KnownCameraControlFlag::Manual
+            } else {
+                KnownCameraControlFlag::Automatic
+            };
 
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Get(VideoProcAmp_Gamma.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Gamma-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::ColorEnable => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_ColorEnable.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_ColorEnable-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_ColorEnable.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_ColorEnable-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::WhiteBalance => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_WhiteBalance.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_WhiteBalance-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(VideoProcAmp_WhiteBalance.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_WhiteBalance-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::BacklightComp => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_BacklightCompensation.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_BacklightCompensation-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Get(
-                            VideoProcAmp_BacklightCompensation.0,
-                            &mut value,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_BacklightCompensation-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Gain => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            VideoProcAmp_Gain.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Gain-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Get(VideoProcAmp_Gain.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "VideoProcAmp_Gain-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Pan => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Pan.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Pan-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Pan.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Pan-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Tilt => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Tilt.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Tilt-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Tilt.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Tilt-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Roll => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Roll.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Roll-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Roll.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Roll-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Zoom => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Zoom.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Zoom-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Zoom.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Zoom-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Exposure => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Exposure.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Exposure-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) = unsafe {
-                        camera_control.Get(CameraControl_Exposure.0, &mut value, &mut flag)
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Exposure-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Iris => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Iris.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Iris-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Iris.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Iris-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Focus => {
-                    if let Err(why) = unsafe {
-                        camera_control.GetRange(
-                            CameraControl_Focus.0,
-                            &mut min,
-                            &mut max,
-                            &mut step,
-                            &mut default,
-                            &mut flag,
-                        )
-                    } {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Focus-Range".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-
-                    if let Err(why) =
-                        unsafe { camera_control.Get(CameraControl_Focus.0, &mut value, &mut flag) }
-                    {
-                        return Err(BindingError::GUIDReadError(
-                            "CameraControl_Focus-Value".to_string(),
-                            why.to_string(),
-                        ));
-                    }
-                }
-            }
-
-            let is_manual = matches!(flag, CAM_CTRL_MANUAL);
-
-            Ok(MFControl::new(
-                control, min, max, step, value, default, is_manual, true,
+            Ok(CameraControl::new(
+                control,
+                control.to_string(),
+                ctrl_value_set,
+                vec![is_manual],
+                true,
             ))
         }
 
-        pub fn set_control(&mut self, control: MFControl) -> Result<(), BindingError> {
+        pub fn set_control(
+            &mut self,
+            control: KnownCameraControl,
+            value: ControlValueSetter,
+        ) -> Result<(), NokhwaError> {
+            let current_value = self.control(control)?;
+
             let camera_control = unsafe {
                 let mut receiver: MaybeUninit<IAMCameraControl> = MaybeUninit::uninit();
                 let ptr_receiver = receiver.as_mut_ptr();
@@ -1374,350 +881,242 @@ pub mod wmf {
                         "IAMVideoProcAmp".to_string(),
                         why.to_string(),
                     ));
+
+            let control_id = kcc_to_i32(control).ok_or(NokhwaError::SetPropertyError {
+                property: "CameraControl".to_string(),
+                value: control.to_string(),
+                error: "Does not exist".to_string(),
+            })?;
+
+            let ctrl_value = match value {
+                ControlValueSetter::Integer(i) => i as i32,
+                ControlValueSetter::Boolean(b) => b as i32,
+                v => {
+                    return Err(NokhwaError::StructureError {
+                        structure: format!("ControlValueSetter {}", v),
+                        error: "invalid value type".to_string(),
+                    })
                 }
                 receiver.assume_init()
             };
 
-            let value = control.current;
-            let flags = if control.manual {
-                CAM_CTRL_MANUAL
-            } else {
-                CAM_CTRL_AUTO
-            };
-            let flag_str = if control.manual {
-                "CAM_CTRL_MANUAL"
-            } else {
-                "CAM_CTRL_AUTO"
-            };
+            let flag = current_value
+                .flag()
+                .get(0)
+                .map(|x| {
+                    if x == KnownCameraControlFlag::Automatic {
+                        CameraControl_Flags_Auto
+                    } else {
+                        CameraControl_Flags_Manual
+                    }
+                })
+                .ok_or(NokhwaError::StructureError {
+                    structure: "KnownCameraControlFlag".to_string(),
+                    error: "could not cast to i32".to_string(),
+                })?;
 
-            match control.control {
-                MediaFoundationControls::Brightness => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Brightness.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Brightness".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
+            match control_id {
+                MFControlId::ProcAmpBoolean(id) | MFControlId::ProcAmpRange(id) => unsafe {
+                    if let Err(why) = video_proc_amp.Set(id, ctrl_value, flag.0) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: control.to_string(),
+                            value: ctrl_value.to_string(),
+                            error: why.to_string(),
+                        });
                     }
-                }
-                MediaFoundationControls::Contrast => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Contrast.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Contrast".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
+                },
+                MFControlId::CCValue(id) | MFControlId::CCRange(id) => unsafe {
+                    if let Err(why) = camera_control.Set(id, ctrl_value, flag.0) {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: control.to_string(),
+                            value: ctrl_value.to_string(),
+                            error: why.to_string(),
+                        });
                     }
-                }
-                MediaFoundationControls::Hue => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Hue.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Hue".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Saturation => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Saturation.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Saturation".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Sharpness => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Sharpness.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Sharpness".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Gamma => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Gamma.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Gamma".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::ColorEnable => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_ColorEnable.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_ColorEnable".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::WhiteBalance => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_WhiteBalance.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_WhiteBalance".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::BacklightComp => {
-                    if let Err(why) = unsafe {
-                        video_proc_amp.Set(VideoProcAmp_BacklightCompensation.0, value, flags)
-                    } {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_BacklightCompensation".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Gain => {
-                    if let Err(why) =
-                        unsafe { video_proc_amp.Set(VideoProcAmp_Gain.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "VideoProcAmp_Gain".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Pan => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Pan.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Pan".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Tilt => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Tilt.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Tilt".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Roll => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Roll.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Roll".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Zoom => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Zoom.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Zoom".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Exposure => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Exposure.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Exposure".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Iris => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Iris.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Iris".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
-                MediaFoundationControls::Focus => {
-                    if let Err(why) =
-                        unsafe { camera_control.Set(CameraControl_Focus.0, value, flags) }
-                    {
-                        return Err(BindingError::GUIDSetError(
-                            "CameraControl_Focus".to_string(),
-                            format!("{} {}", value, flag_str),
-                            why.to_string(),
-                        ));
-                    }
-                }
+                },
             }
 
             Ok(())
         }
 
-        pub fn format(&self) -> MFCameraFormat {
+        pub fn format_refreshed(&mut self) -> Result<CameraFormat, NokhwaError> {
+            match unsafe {
+                self.source_reader
+                    .GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32)
+            } {
+                Ok(media_type) => {
+                    let resolution = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_SIZE) } {
+                        Ok(res) => {
+                            let width = (res >> 32) as u32;
+                            let height = ((res << 32) >> 32) as u32;
+
+                            Resolution {
+                                width_x: width,
+                                height_y: height,
+                            }
+                        }
+                        Err(why) => {
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "MF_MT_FRAME_SIZE".to_string(),
+                                error: why.to_string(),
+                            })
+                        }
+                    };
+
+                    let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
+                        Ok(fps) => fps as u32,
+                        Err(why) => {
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "MF_MT_FRAME_RATE".to_string(),
+                                error: why.to_string(),
+                            })
+                        }
+                    };
+
+                    let format = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
+                        Ok(fcc) => match fcc {
+                            MF_VIDEO_FORMAT_YUY2 => FrameFormat::YUYV,
+                            MF_VIDEO_FORMAT_GRAY => FrameFormat::GRAY,
+                            MF_VIDEO_FORMAT_MJPEG => FrameFormat::MJPEG,
+                            _ => {
+                                return Err(NokhwaError::GetPropertyError {
+                                    property: "MF_MT_SUBTYPE".to_string(),
+                                    error: why.to_string(),
+                                })
+                            }
+                        },
+                        Err(why) => {
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "MF_MT_SUBTYPE".to_string(),
+                                error: why.to_string(),
+                            })
+                        }
+                    };
+
+                    let cfmt = CameraFormat::new(resolution, format, frame_rate);
+                    self.device_format = cfmt;
+
+                    Ok(cfmt)
+                }
+                Err(why) => Err(NokhwaError::GetPropertyError {
+                    property: "MF_SOURCE_READER_FIRST_VIDEO_STREAM".to_string(),
+                    error: why.to_string(),
+                }),
+            }
+        }
+
+        pub fn format(&self) -> CameraFormat {
             self.device_format
         }
 
-        pub fn set_format(&mut self, format: MFCameraFormat) -> Result<(), BindingError> {
-            let mut index = 0;
-
-            while let Ok(media_type) = unsafe {
-                self.source_reader
-                    .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
-            } {
-                index += 1;
-
-                let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
-                    Ok(fcc) => match fcc {
-                        MF_VIDEO_FORMAT_YUY2 => MFFrameFormat::YUYV,
-                        MF_VIDEO_FORMAT_MJPEG => MFFrameFormat::MJPEG,
-                        _ => continue,
-                    },
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_SUBTYPE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                let (width, height) = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_SIZE) } {
-                    Ok(res_u64) => {
-                        let width = (res_u64 >> 32) as u32;
-                        let height = res_u64 as u32; // the cast will truncate the upper bits
-                        (width, height)
-                    }
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_SIZE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                // MFRatio is represented as 2 u32s in memory. This means we cann convert it to 2
-                let frame_rate_max =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
-                                why.to_string(),
-                            ))
-                        }
-                    };
-
-                let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
-                    Ok(fraction_u64) => {
-                        let mut numerator = (fraction_u64 >> 32) as u32;
-                        let denominator = fraction_u64 as u32;
-                        if denominator != 1 {
-                            numerator = 0;
-                        }
-                        numerator
-                    }
-                    Err(why) => {
-                        return Err(BindingError::GUIDReadError(
-                            "MF_MT_FRAME_RATE".to_string(),
-                            why.to_string(),
-                        ))
-                    }
-                };
-
-                let frame_rate_min =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(BindingError::GUIDReadError(
-                                "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
-                                why.to_string(),
-                            ))
-                        }
-                    };
-
-                if format.width() == width
-                    && format.height() == height
-                    && [frame_rate_max, frame_rate, frame_rate_min].contains(&format.frame_rate)
-                    && format.format == fourcc
-                {
-                    return match unsafe {
-                        self.source_reader.SetCurrentMediaType(
-                            MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
-                            null_mut(),
-                            media_type,
-                        )
-                    } {
-                        Ok(_) => {
-                            self.device_format = format;
-                            Ok(())
-                        }
-                        Err(why) => Err(BindingError::AttributeError(why.to_string())),
-                    };
+        pub fn set_format(&mut self, format: CameraFormat) -> Result<(), NokhwaError> {
+            // convert to media_type
+            let media_type: IMFMediaType = match unsafe { MFCreateMediaType() } {
+                Ok(mt) => mt,
+                Err(why) => {
+                    return Err(NokhwaError::StructureError {
+                        structure: "IMFMediaType".to_string(),
+                        error: why.to_string(),
+                    })
                 }
+            };
+
+            // set relevant things
+            let resolution = (u64::from(format.resolution().width_x) << 32_u64)
+                + u64::from(format.resolution().height_y);
+            let fps = {
+                let frame_rate_u64 = 0_u64;
+                let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
+                bytes[7] = format.frame_rate() as u8;
+                bytes[3] = 0x01;
+                println!("{:?}", bytes);
+                u64::from_le_bytes(bytes)
+            };
+            let fourcc = match format.format() {
+                FrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
+                FrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
+                FrameFormat::GRAY => MF_VIDEO_FORMAT_GRAY,
+            };
+            // setting to the new media_type
+            if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_MAJOR_TYPE".to_string(),
+                    value: "MFMediaType_Video".to_string(),
+                    error: why.to_string(),
+                });
             }
-            Err(BindingError::EnumerateError("Not Found".to_string()))
+            if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_SUBTYPE, &fourcc) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_SUBTYPE".to_string(),
+                    value: fourcc.to_string(),
+                    error: why.to_string(),
+                });
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_SIZE, resolution) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_FRAME_SIZE".to_string(),
+                    value: resolution.to_string(),
+                    error: why.to_string(),
+                });
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE, fps) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_FRAME_RATE".to_string(),
+                    value: fps.to_string(),
+                    error: why.to_string(),
+                });
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN, fps) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
+                    value: fps.to_string(),
+                    error: why.to_string(),
+                });
+            }
+            if let Err(why) = unsafe { media_type.SetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX, fps) } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
+                    value: fps.to_string(),
+                    error: why.to_string(),
+                });
+            }
+
+            let reserved = std::ptr::null_mut();
+            if let Err(why) = unsafe {
+                self.source_reader.SetCurrentMediaType(
+                    MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
+                    reserved,
+                    &media_type,
+                )
+            } {
+                return Err(NokhwaError::SetPropertyError {
+                    property: "MEDIA_FOUNDATION_FIRST_VIDEO_STREAM".to_string(),
+                    value: format!("{media_type:?}"),
+                    error: why.to_string(),
+                });
+            }
+            self.device_format = format;
+            self.format_refreshed()?;
+            Ok(())
         }
 
         pub fn is_stream_open(&self) -> bool {
             self.is_open.get()
         }
 
-        pub fn start_stream(&mut self) -> Result<(), BindingError> {
+        pub fn start_stream(&mut self) -> Result<(), NokhwaError> {
             if let Err(why) = unsafe {
                 self.source_reader
                     .SetStreamSelection(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, true)
             } {
-                return Err(BindingError::ReadFrameError(why.to_string()));
+                return Err(NokhwaError::OpenStreamError(why.to_string()));
             }
 
             self.is_open.set(true);
             Ok(())
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, BindingError> {
+        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
             let mut flags: u32 = 0;
             let mut imf_sample: Option<IMFSample> = None;
 
@@ -1733,7 +1132,7 @@ pub mod wmf {
                             &mut imf_sample,
                         )
                     } {
-                        return Err(BindingError::ReadFrameError(why.to_string()));
+                        return Err(NokhwaError::ReadFrameError(why.to_string()));
                     }
 
                     if imf_sample.is_some() {
@@ -1746,13 +1145,13 @@ pub mod wmf {
                 Some(sample) => sample,
                 None => {
                     // shouldn't happen
-                    return Err(BindingError::ReadFrameError("why".to_string()));
+                    return Err(NokhwaError::ReadFrameError(why.to_string()));
                 }
             };
 
             let buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
                 Ok(buf) => buf,
-                Err(why) => return Err(BindingError::ReadFrameError(why.to_string())),
+                Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
             };
 
             let mut buffer_valid_length = 0;
@@ -1765,17 +1164,17 @@ pub mod wmf {
                     &mut buffer_valid_length,
                 )
             } {
-                return Err(BindingError::ReadFrameError(why.to_string()));
+                return Err(NokhwaError::ReadFrameError(why.to_string()));
             }
 
             if buffer_start_ptr.is_null() {
-                return Err(BindingError::ReadFrameError(
+                return Err(NokhwaError::ReadFrameError(
                     "Buffer Pointer Null".to_string(),
                 ));
             }
 
             if buffer_valid_length == 0 {
-                return Err(BindingError::ReadFrameError("No Data Size".to_string()));
+                return Err(NokhwaError::ReadFrameError("Buffer Size is 0".to_string()));
             }
 
             let mut data_slice = Vec::with_capacity(buffer_valid_length as usize);
@@ -1832,37 +1231,44 @@ pub mod wmf {
 #[allow(clippy::missing_errors_doc)]
 #[allow(clippy::unused_self)]
 pub mod wmf {
-    use crate::{
-        BindingError, MFCameraFormat, MFControl, MediaFoundationControls,
-        MediaFoundationDeviceDescriptor,
+    use nokhwa_core::error::NokhwaError;
+    use nokhwa_core::types::{
+        CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        KnownCameraControl,
     };
     use std::borrow::Cow;
 
-    pub fn initialize_mf() -> Result<(), BindingError> {
-        Err(BindingError::NotImplementedError)
+    pub fn initialize_mf() -> Result<(), NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
-    pub fn de_initialize_mf() -> Result<(), BindingError> {
-        Err(BindingError::NotImplementedError)
+    pub fn de_initialize_mf() -> Result<(), NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
-    pub fn query_msmf() -> Result<Vec<MediaFoundationDeviceDescriptor<'static>>, BindingError> {
-        Err(BindingError::NotImplementedError)
+    pub fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
+        Err(NokhwaError::NotImplementedError(
+            "Not on windows".to_string(),
+        ))
     }
 
-    struct Empty();
+    struct Empty;
 
     pub struct MediaFoundationDevice<'a> {
         phantom: &'a Empty,
     }
 
     impl<'a> MediaFoundationDevice<'a> {
-        pub fn new(_: usize) -> Result<Self, BindingError> {
-            Ok(MediaFoundationDevice { phantom: &Empty() })
+        pub fn new(_index: CameraIndex) -> Result<Self, NokhwaError> {
+            Ok(MediaFoundationDevice { phantom: &Empty })
         }
 
-        pub fn index(&self) -> usize {
-            usize::MAX
+        pub fn index(&self) -> &CameraIndex {
+            &CameraIndex::default()
         }
 
         pub fn name(&self) -> String {
@@ -1873,44 +1279,61 @@ pub mod wmf {
             "".to_string()
         }
 
-        pub fn compatible_format_list(&mut self) -> Result<Vec<MFCameraFormat>, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn compatible_format_list(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn control(
-            &self,
-            _control: MediaFoundationControls,
-        ) -> Result<MFControl, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn set_control(&mut self, _control: MFControl) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn set_control(
+            &mut self,
+            _control: KnownCameraControl,
+            _value: ControlValueSetter,
+        ) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn format(&self) -> MFCameraFormat {
-            MFCameraFormat::default()
+        pub fn format_refreshed(&mut self) -> Result<CameraFormat, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn set_format(&mut self, _format: MFCameraFormat) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn format(&self) -> CameraFormat {
+            CameraFormat::default()
+        }
+
+        pub fn set_format(&mut self, _format: CameraFormat) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
         pub fn is_stream_open(&self) -> bool {
             false
         }
 
-        pub fn start_stream(&mut self) -> Result<(), BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn start_stream(&mut self) -> Result<(), NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, BindingError> {
-            Err(BindingError::NotImplementedError)
+        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
+            Err(NokhwaError::NotImplementedError(
+                "Only on Windows".to_string(),
+            ))
         }
 
-        pub fn stop_stream(&mut self) {
-            self.phantom = &Empty();
-        }
+        pub fn stop_stream(&mut self) {}
     }
 
     impl<'a> Drop for MediaFoundationDevice<'a> {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
-    CameraControl, CameraFormat, CameraInfo, CaptureAPIBackend, CaptureBackendTrait, FrameFormat,
-    KnownCameraControlFlag, KnownCameraControls, NokhwaError, Resolution,
+    ApiBackend, CameraControl, CameraFormat, CameraInfo, CaptureBackendTrait, FrameFormat,
+    KnownCameraControl, KnownCameraControlFlag, NokhwaError, Resolution,
 };
 use flume::{Receiver, Sender};
 use image::{ImageBuffer, Rgb};
@@ -54,9 +54,13 @@ use uvc::{
 /// - If internal variables `stream_handle_init` and `active_stream_init` become de-synchronized with the true reality (weather streamhandle/activestream is init or not) this will cause undefined behaviour.
 #[self_referencing]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
+#[deprecated(
+    since = "0.10",
+    note = "Use one of the native backends instead(V4L, AVF, MSMF) or OpenCV"
+)]
 pub struct UVCCaptureDevice<'a> {
     camera_format: CameraFormat,
-    camera_info: CameraInfo,
+    camera_info: CameraInfo<'a>,
     frame_receiver: Receiver<Vec<u8>>,
     frame_sender: Sender<Vec<u8>>,
     stream_handle_init: Cell<bool>,
@@ -199,8 +203,8 @@ impl<'a> UVCCaptureDevice<'a> {
 // IDE Autocomplete ends here. Do not be afraid it your IDE does not show completion.
 // Here are some docs to help you out: https://docs.rs/ouroboros/0.9.3/ouroboros/attr.self_referencing.html
 impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
-    fn backend(&self) -> CaptureAPIBackend {
-        CaptureAPIBackend::UniversalVideoClass
+    fn backend(&self) -> ApiBackend {
+        ApiBackend::UniversalVideoClass
     }
 
     fn camera_info(&self) -> &CameraInfo {
@@ -325,16 +329,16 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         self.set_camera_format(current_format)
     }
 
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControls>, NokhwaError> {
+    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
         Ok(vec![
-            KnownCameraControls::Exposure,
-            KnownCameraControls::Focus,
+            KnownCameraControl::Exposure,
+            KnownCameraControl::Focus,
         ])
     }
 
-    fn camera_control(&self, control: KnownCameraControls) -> Result<CameraControl, NokhwaError> {
+    fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
         match control {
-            KnownCameraControls::Focus => match self.with_device_handle(|x| x).exposure_rel() {
+            KnownCameraControl::Focus => match self.with_device_handle(|x| x).exposure_rel() {
                 Ok(v) => {
                     let v: i8 = v;
                     match CameraControl::new(
@@ -368,19 +372,19 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
 
     fn set_camera_control(&mut self, _control: CameraControl) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn raw_supported_camera_controls(&self) -> Result<Vec<Box<dyn Any>>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
     fn raw_camera_control(&self, _control: &dyn Any) -> Result<Box<dyn Any>, NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 
@@ -390,7 +394,7 @@ impl<'a> CaptureBackendTrait for UVCCaptureDevice<'a> {
         _value: &dyn Any,
     ) -> Result<(), NokhwaError> {
         Err(NokhwaError::UnsupportedOperationError(
-            CaptureAPIBackend::UniversalVideoClass,
+            ApiBackend::UniversalVideoClass,
         ))
     }
 

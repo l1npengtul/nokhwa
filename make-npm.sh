@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #
-# Copyright 2021 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+# Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

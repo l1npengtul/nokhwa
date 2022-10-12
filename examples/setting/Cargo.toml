@@ -9,7 +9,7 @@ edition = "2021"
 
 [dependencies.image]
 version = "0.23.14"
-no-default-features = true
+default-features = false
 
 [dependencies.nokhwa]
 path = "../../../nokhwa"
