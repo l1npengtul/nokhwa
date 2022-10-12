@@ -361,7 +361,7 @@ impl MFControl {
 
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
-    #![windows_subsystem = "windows"]
+    //#![windows_subsystem = "windows"]
     use crate::{
         BindingError, MFCameraFormat, MFControl, MFFrameFormat, MFResolution,
         MediaFoundationControls, MediaFoundationDeviceDescriptor,

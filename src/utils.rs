@@ -888,8 +888,7 @@ impl Display for KnownCameraControlFlag {
 /// This struct tells you everything about a particular [`KnownCameraControls`]. <br>
 /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
 /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
-/// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
-/// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
+/// NOTE: Assume the values for `min` and `max` as inclusive. It's normal that a cam is on min or max whe powered on.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct CameraControl {
     control: KnownCameraControls,
@@ -917,19 +916,20 @@ impl CameraControl {
         flag: KnownCameraControlFlag,
         active: bool,
     ) -> Result<Self, NokhwaError> {
-        if value >= maximum {
+        if value > maximum {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too large".to_string(),
             });
         }
-        if value <= minimum {
+        if value < minimum {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
             });
         }
-        if value % step != 0 {
+        // step=0 => div/0 => some cams have steps smaller than the win32 unit
+        if (step > 1) && (value % step != 0) {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Not aligned with step".to_string(),
@@ -976,25 +976,20 @@ impl CameraControl {
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
     pub fn set_value(&mut self, value: i32) -> Result<(), NokhwaError> {
-        if value >= self.maximum_value() {
+        if value > self.maximum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too large".to_string(),
             });
         }
-        if value <= self.minimum_value() {
+        if value < self.minimum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
             });
         }
-        if value == self.minimum_value() || value == self.maximum_value() {
-            return Err(NokhwaError::StructureError {
-                structure: "CameraControl".to_string(),
-                error: "Values not inclusive".to_string(),
-            });
-        }
-        if value % self.step() != 0 {
+        // step=0 => div/0 => some cams have steps smaller than the win32 unit
+        if (self.step() > 1) && (value % self.step() != 0) {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Not aligned with step".to_string(),
@@ -1009,19 +1004,20 @@ impl CameraControl {
     /// # Errors
     /// If the `value` is below `min`, above `max`, or is not divisible by `step`, this will error
     pub fn with_value(self, value: i32) -> Result<Self, NokhwaError> {
-        if value >= self.maximum_value() {
+        if value > self.maximum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too large".to_string(),
             });
         }
-        if value <= self.minimum_value() {
+        if value < self.minimum_value() {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Value too low".to_string(),
             });
         }
-        if value % self.step() != 0 {
+        // step=0 => div/0 => some cams have steps smaller than the win32 unit
+        if (self.step() > 1) && (value % self.step() != 0) {
             return Err(NokhwaError::StructureError {
                 structure: "CameraControl".to_string(),
                 error: "Not aligned with step".to_string(),

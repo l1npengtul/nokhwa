@@ -14,4 +14,4 @@ no-default-features = true
 [dependencies.nokhwa]
 path = "../../../nokhwa"
 # EDIT THIS!
-features = ["input-v4l"]
+features = ["input-msmf"]
