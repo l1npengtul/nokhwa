@@ -63,7 +63,6 @@ pub mod wmf {
         core::{Interface, GUID, PWSTR},
         Win32::{
             Media::{
-                KernelStreaming::GUID_NULL,
                 DirectShow::{
                     CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris,
                     CameraControl_Pan, CameraControl_Roll, CameraControl_Tilt, CameraControl_Zoom,
@@ -72,6 +71,7 @@ pub mod wmf {
                     VideoProcAmp_Gain, VideoProcAmp_Gamma, VideoProcAmp_Hue,
                     VideoProcAmp_Saturation, VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
                 },
+                KernelStreaming::GUID_NULL,
                 MediaFoundation::{
                     IMFActivate, IMFAttributes, IMFMediaSource, IMFSample, IMFSourceReader,
                     MFCreateAttributes, MFCreateMediaType, MFCreateSourceReaderFromMediaSource,
@@ -79,10 +79,9 @@ pub mod wmf {
                     MFSTARTUP_NOSOCKET, MF_API_VERSION, MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                     MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID,
-                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                    MF_MT_FRAME_RATE, MF_MT_FRAME_RATE_RANGE_MAX,
-                    MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE, MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE,
-                    MF_READWRITE_DISABLE_CONVERTERS,
+                    MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, MF_MT_FRAME_RATE,
+                    MF_MT_FRAME_RATE_RANGE_MAX, MF_MT_FRAME_RATE_RANGE_MIN, MF_MT_FRAME_SIZE,
+                    MF_MT_MAJOR_TYPE, MF_MT_SUBTYPE, MF_READWRITE_DISABLE_CONVERTERS,
                 },
             },
             System::Com::{CoInitializeEx, CoUninitialize, COINIT},
@@ -882,6 +881,9 @@ pub mod wmf {
                         "IAMVideoProcAmp".to_string(),
                         why.to_string(),
                     ));
+                }
+                receiver.assume_init()
+            };
 
             let control_id = kcc_to_i32(control).ok_or(NokhwaError::SetPropertyError {
                 property: "CameraControl".to_string(),
@@ -898,7 +900,6 @@ pub mod wmf {
                         error: "invalid value type".to_string(),
                     })
                 }
-                receiver.assume_init()
             };
 
             let flag = current_value
@@ -1231,6 +1232,8 @@ pub mod wmf {
 #[cfg(any(not(windows), feature = "docs-only"))]
 #[allow(clippy::missing_errors_doc)]
 #[allow(clippy::unused_self)]
+#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::must_use_candidate)]
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
     use nokhwa_core::types::{
@@ -1277,11 +1280,11 @@ pub mod wmf {
         }
 
         pub fn name(&self) -> String {
-            "".to_string()
+            String::new()
         }
 
         pub fn symlink(&self) -> String {
-            "".to_string()
+            String::new()
         }
 
         pub fn compatible_format_list(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
