@@ -9,6 +9,8 @@ use std::{
 };
 
 /// Tells the init function what camera format to pick.
+/// - `HighestResolutionAbs`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
+/// - `HighestFrameRateAbs`: Pick the highest frame rate, then the highest [`Resolution`].
 /// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
 /// - `HighestFrameRate(Option<Resolution>)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`). If it is `None`, it will pick the highest possinle framerate.
 /// - `Exact`: Pick the exact [`CameraFormat`] provided.
@@ -17,8 +19,10 @@ use std::{
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum RequestedFormatType {
-    HighestResolution,
-    HighestFrameRate,
+    HighestResolutionAbs,
+    HighestFrameRateAbs,
+    HighestResolution(u32),
+    HighestFrameRate(Resolution),
     Exact(CameraFormat),
     Closest(CameraFormat),
     None,
@@ -36,6 +40,7 @@ impl Display for RequestedFormatType {
     }
 }
 
+/// A request to the camera for a valid [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct RequestedFormat {
     requested_format: RequestedFormatType,
@@ -43,6 +48,8 @@ pub struct RequestedFormat {
 }
 
 impl RequestedFormat {
+    /// Creates a new [`RequestedFormat`] by using the [`RequstedFormatType`] and getting the [`FrameFormat`]
+    /// constraints from a generic type.
     pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat {
         RequestedFormat {
             requested_format: requested,
@@ -50,6 +57,8 @@ impl RequestedFormat {
         }
     }
 
+    /// Creates a new [`RequestedFormat`] by using the [`RequstedFormatType`] and getting the [`FrameFormat`]
+    /// constraints from a statically allocated slice.
     pub fn with_formats(
         requested: RequestedFormatType,
         decoder: &'static [FrameFormat],
@@ -61,9 +70,11 @@ impl RequestedFormat {
     }
 
     /// Fulfill the requested using a list of all available formats.
+    ///
+    /// See [`RequestedFormatType`] for more details.
     pub fn fulfill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
         match self.requested_format {
-            RequestedFormatType::HighestResolution => {
+            RequestedFormatType::HighestResolutionAbs => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(|a| a.resolution());
                 let resolution = *formats.iter().last()?;
@@ -77,7 +88,7 @@ impl RequestedFormat {
                 format_resolutions.sort_by_key(|a| a.frame_rate());
                 format_resolutions.last().copied()
             }
-            RequestedFormatType::HighestFrameRate => {
+            RequestedFormatType::HighestFrameRateAbs => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(|a| a.frame_rate());
                 let frame_rate = *formats.iter().last()?;
@@ -90,6 +101,38 @@ impl RequestedFormat {
                     .collect::<Vec<CameraFormat>>();
                 format_framerates.sort_by_key(|a| a.resolution());
                 format_framerates.last().copied()
+            }
+            RequestedFormatType::HighestResolution(fps) => {
+                let mut formats = all_formats
+                    .into_iter()
+                    .filter(|x| x.frame_rate == fps)
+                    .copied()
+                    .collect::<Vec<CameraFormat>>();
+                formats.sort_by(|a, b| a.resolution.cmp(&b.resolution));
+                let highest_res = match formats.last() {
+                    Some(cf) => cf.resolution,
+                    None => return None,
+                };
+                formats
+                    .into_iter()
+                    .filter(|x| x.resolution() == highest_res)
+                    .last()
+            }
+            RequestedFormatType::HighestFrameRate(res) => {
+                let mut formats = all_formats
+                    .into_iter()
+                    .filter(|x| x.resolution == res)
+                    .copied()
+                    .collect::<Vec<CameraFormat>>();
+                formats.sort_by(|a, b| a.frame_rate.cmp(&b.frame_rate));
+                let highest_fps = match formats.last() {
+                    Some(cf) => cf.frame_rate,
+                    None => return None,
+                };
+                formats
+                    .into_iter()
+                    .filter(|x| x.frame_rate == highest_fps)
+                    .last()
             }
             RequestedFormatType::Exact(fmt) => {
                 if self.wanted_decoder.contains(&fmt.format()) {
@@ -660,12 +703,11 @@ impl Display for KnownCameraControlFlag {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// TODO: use in CameraControl
 /// The values for a [`CameraControl`].
 ///
 /// This provides a wide range of values that can be used to control a camera.
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum ControlValueDescription {
     None,
     Integer {
@@ -762,6 +804,8 @@ impl ControlValueDescription {
     /// Verifies if the [setter](crate::utils::ControlValueSetter) is valid for the provided [`ControlValueDescription`].
     /// - `true` => Is valid.
     /// - `false` => Is not valid.
+    ///
+    /// If the step is 0, it will automatically return `true`.
     #[must_use]
     pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
         match self {
@@ -770,44 +814,67 @@ impl ControlValueDescription {
                 value,
                 default,
                 step,
-            } => match setter.as_integer() {
-                Some(i) => (i + default) % step == 0 || (i + value) % step == 0,
-                None => false,
-            },
+            } => {
+                if *step == 0 {
+                    return true;
+                }
+                match setter.as_integer() {
+                    Some(i) => (i + default) % step == 0 || (i + value) % step == 0,
+                    None => false,
+                }
+            }
             ControlValueDescription::IntegerRange {
                 min,
                 max,
                 value,
                 step,
                 default,
-            } => match setter.as_integer() {
-                Some(i) => {
-                    ((i + default) % step == 0 || (i + value) % step == 0) && i >= min && i <= max
+            } => {
+                if *step == 0 {
+                    return true;
                 }
-                None => false,
-            },
+                match setter.as_integer() {
+                    Some(i) => {
+                        ((i + default) % step == 0 || (i + value) % step == 0)
+                            && i >= min
+                            && i <= max
+                    }
+                    None => false,
+                }
+            }
             ControlValueDescription::Float {
                 value,
                 default,
                 step,
-            } => match setter.as_float() {
-                Some(f) => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
-                None => false,
-            },
+            } => {
+                if step.abs() == 0_f64 {
+                    return true;
+                }
+                match setter.as_float() {
+                    Some(f) => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
+                    None => false,
+                }
+            }
             ControlValueDescription::FloatRange {
                 min,
                 max,
                 value,
                 step,
                 default,
-            } => match setter.as_float() {
-                Some(f) => {
-                    ((f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64)
-                        && f >= min
-                        && f <= max
+            } => {
+                if step.abs() == 0_f64 {
+                    return true;
                 }
-                None => false,
-            },
+
+                match setter.as_float() {
+                    Some(f) => {
+                        ((f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64)
+                            && f >= min
+                            && f <= max
+                    }
+                    None => false,
+                }
+            }
             ControlValueDescription::Boolean { .. } => setter.as_boolean().is_some(),
             ControlValueDescription::String { .. } => setter.as_str().is_some(),
             ControlValueDescription::Bytes { .. } => setter.as_bytes().is_some(),
