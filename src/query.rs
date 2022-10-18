@@ -16,7 +16,7 @@
 
 use nokhwa_core::{
     error::NokhwaError,
-    types::{ApiBackend, CameraInfo},
+    types::{ApiBackend, CameraIndex, CameraInfo},
 };
 
 // TODO: Update as this goes
@@ -100,7 +100,6 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
 #[allow(clippy::unnecessary_wraps)]
 #[allow(clippy::cast_possible_truncation)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use crate::CameraIndex;
     Ok({
         let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
             .iter()

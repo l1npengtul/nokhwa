@@ -104,7 +104,7 @@ impl RequestedFormat {
             }
             RequestedFormatType::HighestResolution(fps) => {
                 let mut formats = all_formats
-                    .into_iter()
+                    .iter()
                     .filter(|x| x.frame_rate == fps)
                     .copied()
                     .collect::<Vec<CameraFormat>>();
@@ -120,7 +120,7 @@ impl RequestedFormat {
             }
             RequestedFormatType::HighestFrameRate(res) => {
                 let mut formats = all_formats
-                    .into_iter()
+                    .iter()
                     .filter(|x| x.resolution == res)
                     .copied()
                     .collect::<Vec<CameraFormat>>();

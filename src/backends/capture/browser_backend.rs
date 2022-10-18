@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-use crate::js_camera::query_js_cameras;
+use crate::js_camera::{query_js_cameras, JSCameraConstraintsBuilder, JSCameraResizeMode};
 use image::{ImageBuffer, Rgb};
-use nokhwa_core::types::ControlValueSetter;
 use nokhwa_core::{
     error::NokhwaError,
     traits::CaptureBackendTrait,
     types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, FrameFormat,
-        KnownCameraControl, Resolution,
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
+        FrameFormat, KnownCameraControl, Resolution,
     },
 };
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap};
 
 /// Captures using the Browser API. This internally wraps [`JSCamera`].
 ///

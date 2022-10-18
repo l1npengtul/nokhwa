@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 /// A buffer returned by a camera to accomodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct Buffer {
     resolution: Resolution,
     buffer: Bytes,

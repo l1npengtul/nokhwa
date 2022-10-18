@@ -76,7 +76,7 @@ version = "0.14"
 optional = true
 
 [dependencies.opencv]
-version = "0.69"
+version = "0.70"
 optional = true
 
 [dependencies.rgb]
