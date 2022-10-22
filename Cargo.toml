@@ -77,6 +77,8 @@ optional = true
 
 [dependencies.opencv]
 version = "0.70"
+default-features = false
+features = ["videoio"]
 optional = true
 
 [dependencies.rgb]

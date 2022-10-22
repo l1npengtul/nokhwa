@@ -42,15 +42,15 @@ impl Display for RequestedFormatType {
 
 /// A request to the camera for a valid [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct RequestedFormat {
+pub struct RequestedFormat<'a> {
     requested_format: RequestedFormatType,
-    wanted_decoder: &'static [FrameFormat],
+    wanted_decoder: &'a [FrameFormat],
 }
 
-impl RequestedFormat {
+impl RequestedFormat<'_> {
     /// Creates a new [`RequestedFormat`] by using the [`RequstedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a generic type.
-    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat {
+    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<'static> {
         RequestedFormat {
             requested_format: requested,
             wanted_decoder: Decoder::FORMATS,
@@ -61,7 +61,7 @@ impl RequestedFormat {
     /// constraints from a statically allocated slice.
     pub fn with_formats(
         requested: RequestedFormatType,
-        decoder: &'static [FrameFormat],
+        decoder: &[FrameFormat],
     ) -> RequestedFormat {
         RequestedFormat {
             requested_format: requested,
@@ -192,7 +192,7 @@ impl RequestedFormat {
     }
 }
 
-impl Display for RequestedFormat {
+impl Display for RequestedFormat<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }

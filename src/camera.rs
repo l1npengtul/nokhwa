@@ -74,10 +74,9 @@ impl Camera {
         backend: ApiBackend,
     ) -> Result<Self, NokhwaError> {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-        let temp = vec![fourcc];
         Camera::with_backend(
             index,
-            RequestedFormat::with_formats(RequestedFormatType::Exact(camera_format), &temp),
+            RequestedFormat::with_formats(RequestedFormatType::Exact(camera_format), &[fourcc]),
             backend,
         )
     }
