@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-use crate::js_camera::{query_js_cameras, JSCameraConstraintsBuilder, JSCameraResizeMode};
-use image::{ImageBuffer, Rgb};
+use crate::js_camera::{ JSCamera};
 use nokhwa_core::{
     error::NokhwaError,
     traits::CaptureBackendTrait,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, Resolution,
+        FrameFormat, KnownCameraControl, Resolution, RequestedFormat,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
@@ -45,88 +44,90 @@ impl BrowserCaptureDevice {
     ///
     /// # Errors
     /// If the device is not found, browser not supported, or camera is over-constrained this will error.
-    pub fn new(index: &CameraIndex, cam_fmt: Option<CameraFormat>) -> Result<Self, NokhwaError> {
-        let (group_id, device_id) = match &index {
-            CameraIndex::Index(i) => {
-                let query_devices =
-                    wasm_rs_async_executor::single_threaded::block_on(query_js_cameras())?;
-                match query_devices.into_iter().nth(*i as usize) {
-                    Some(info) => {
-                        let ids = info
-                            .to_string()
-                            .split(' ')
-                            .map(ToString::to_string)
-                            .collect::<Vec<String>>();
-                        match (ids.get(0), ids.get(1)) {
-                            (Some(group_id), Some(device_id)) => {
-                                (group_id.clone(), device_id.clone())
-                            }
-                            (_, _) => {
-                                return Err(NokhwaError::OpenDeviceError(
-                                    "Invalid Index".to_string(),
-                                    index.to_string(),
-                                ))
-                            }
-                        }
-                    }
-                    None => {
-                        return Err(NokhwaError::OpenDeviceError(
-                            "Device not found".to_string(),
-                            index.to_string(),
-                        ))
-                    }
-                }
-            }
-            CameraIndex::String(id) => {
-                let ids = id
-                    .to_string()
-                    .split(' ')
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>();
-                match (ids.get(0), ids.get(1)) {
-                    (Some(group_id), Some(device_id)) => (group_id.clone(), device_id.clone()),
-                    (_, _) => {
-                        return Err(NokhwaError::OpenDeviceError(
-                            "Invalid Index".to_string(),
-                            index.to_string(),
-                        ))
-                    }
-                }
-            }
-        };
+    pub fn new(index: &CameraIndex, requested: RequestedFormat) -> Result<Self, NokhwaError> {
+        // let (group_id, device_id) = match &index {
+        //     CameraIndex::Index(i) => {
+        //         let query_devices =
+        //             wasm_rs_async_executor::single_threaded::block_on(query_js_cameras())?;
+        //         match query_devices.into_iter().nth(*i as usize) {
+        //             Some(info) => {
+        //                 let ids = info
+        //                     .to_string()
+        //                     .split(' ')
+        //                     .map(ToString::to_string)
+        //                     .collect::<Vec<String>>();
+        //                 match (ids.get(0), ids.get(1)) {
+        //                     (Some(group_id), Some(device_id)) => {
+        //                         (group_id.clone(), device_id.clone())
+        //                     }
+        //                     (_, _) => {
+        //                         return Err(NokhwaError::OpenDeviceError(
+        //                             "Invalid Index".to_string(),
+        //                             index.to_string(),
+        //                         ))
+        //                     }
+        //                 }
+        //             }
+        //             None => {
+        //                 return Err(NokhwaError::OpenDeviceError(
+        //                     "Device not found".to_string(),
+        //                     index.to_string(),
+        //                 ))
+        //             }
+        //         }
+        //     }
+        //     CameraIndex::String(id) => {
+        //         let ids = id
+        //             .to_string()
+        //             .split(' ')
+        //             .map(ToString::to_string)
+        //             .collect::<Vec<String>>();
+        //         match (ids.get(0), ids.get(1)) {
+        //             (Some(group_id), Some(device_id)) => (group_id.clone(), device_id.clone()),
+        //             (_, _) => {
+        //                 return Err(NokhwaError::OpenDeviceError(
+        //                     "Invalid Index".to_string(),
+        //                     index.to_string(),
+        //                 ))
+        //             }
+        //         }
+        //     }
+        // };
 
-        let camera_format = cam_fmt.unwrap_or_default();
+        // let camera_format = cam_fmt.unwrap_or_default();
 
-        let constraints = JSCameraConstraintsBuilder::new()
-            .frame_rate(camera_format.frame_rate())
-            .resolution(camera_format.resolution())
-            .aspect_ratio(f64::from(camera_format.width()) / f64::from(camera_format.height()))
-            .group_id(&group_id)
-            .group_id_exact(true)
-            .device_id(&device_id)
-            .device_id_exact(true)
-            .resize_mode(JSCameraResizeMode::Any)
-            .build();
+        // let constraints = JSCameraConstraintsBuilder::new()
+        //     .frame_rate(camera_format.frame_rate())
+        //     .resolution(camera_format.resolution())
+        //     .aspect_ratio(f64::from(camera_format.width()) / f64::from(camera_format.height()))
+        //     .group_id(&group_id)
+        //     .group_id_exact(true)
+        //     .device_id(&device_id)
+        //     .device_id_exact(true)
+        //     .resize_mode(JSCameraResizeMode::Any)
+        //     .build();
 
-        let camera = wasm_rs_async_executor::single_threaded::block_on(JSCamera::new(constraints))?;
+        // let camera = wasm_rs_async_executor::single_threaded::block_on(JSCamera::new(constraints))?;
 
-        let info = (|| {
-            let cameras = wasm_rs_async_executor::single_threaded::block_on(query_js_cameras())?;
-            let giddid = format!("{} {}", group_id, device_id);
-            for cam in cameras {
-                if cam.misc() == giddid {
-                    return Ok(cam);
-                }
-            }
-            Ok(CameraInfo::new("", "videoinput", &giddid, index.clone()))
-        })()?;
-        Ok(BrowserCaptureDevice { camera, info })
+        // let info = (|| {
+        //     let cameras = wasm_rs_async_executor::single_threaded::block_on(query_js_cameras())?;
+        //     let giddid = format!("{} {}", group_id, device_id);
+        //     for cam in cameras {
+        //         if cam.misc() == giddid {
+        //             return Ok(cam);
+        //         }
+        //     }
+        //     Ok(CameraInfo::new("", "videoinput", &giddid, index.clone()))
+        // })()?;
+        // Ok(BrowserCaptureDevice { camera, info })
+        Err(NokhwaError::NotImplementedError("TODO".to_string()))
     }
 
     /// Creates a new camera from an [`CameraIndex`] and raw parts. It can take [`CameraIndex::Index`] or [`CameraIndex::String`] (NOTE: blocks on [`CameraIndex::Index`])
     ///
     /// # Errors
     /// If the device is not found, browser not supported, or camera is over-constrained this will error.
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
     pub fn new_with(
         index: &CameraIndex,
         width: u32,
@@ -134,10 +135,11 @@ impl BrowserCaptureDevice {
         fps: u32,
         fourcc: FrameFormat,
     ) -> Result<Self, NokhwaError> {
-        Self::new(
-            index,
-            Some(CameraFormat::new(Resolution::new(width, height))),
-        )
+        Err(NokhwaError::NotImplementedError("TODO".to_string()))
+        // Self::new(
+        //     index,
+        //     Some(CameraFormat::new(Resolution::new(width, height), fourcc, fps)),
+        // )
     }
 }
 
@@ -151,74 +153,53 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
     }
 
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        todo!()
+        self.camera.measure_resolution()?;
+        Ok(())
     }
 
     fn camera_format(&self) -> CameraFormat {
-        CameraFormat::new(self.camera.resolution())
+        let constraints = self.camera.constraints();
+        // CameraFormat::new(constraints.resolution(), , constraints.frame_rate())
+        todo!()
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        let current_constraints = self.camera.constraints();
-
-        let new_constraints = JSCameraConstraintsBuilder::new()
-            .resolution(new_fmt.resolution())
-            .aspect_ratio(f64::from(new_fmt.width()) / f64::from(new_fmt.height()))
-            .frame_rate(new_fmt.frame_rate())
-            .group_id(&current_constraints.group_id())
-            .device_id(&current_constraints.device_id())
-            .resize_mode(JSCameraResizeMode::Any)
-            .build();
-
-        let _constraint_err = self.camera.set_constraints(new_constraints);
-        match self.camera.apply_constraints() {
-            Ok(_) => Ok(()),
-            Err(why) => {
-                let _returnerr = self.camera.set_constraints(current_constraints); // swallow errors - revert
-                Err(why)
-            }
-        }
+        todo!()
     }
 
     fn compatible_list_by_resolution(
         &mut self,
-        _: FrameFormat,
+        fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not Implemented".to_string(),
-        ))
+        todo!()
     }
 
     fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        Ok(vec![FrameFormat::MJPEG, FrameFormat::YUYV])
+        todo!()
     }
 
     fn resolution(&self) -> Resolution {
-        self.camera.resolution()
+        todo!()
     }
 
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        let mut current_format = self.camera_format();
-        current_format.set_resolution(new_res);
-        self.set_camera_format(current_format)
+        todo!()
     }
 
     fn frame_rate(&self) -> u32 {
-        self.camera.constraints().frame_rate()
+        todo!()
     }
 
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        let mut current_format = self.camera_format();
-        current_format.set_frame_rate(new_fps);
-        self.set_camera_format(current_format)
+        todo!()
     }
 
     fn frame_format(&self) -> FrameFormat {
-        FrameFormat::MJPEG
+        todo!()
     }
 
-    fn set_frame_format(&mut self, _: FrameFormat) -> Result<(), NokhwaError> {
-        Ok(())
+    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+        todo!()
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
@@ -238,22 +219,22 @@ impl CaptureBackendTrait for BrowserCaptureDevice {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        Ok(())
+        todo!()
     }
 
     fn is_stream_open(&self) -> bool {
-        self.camera.is_open()
+        todo!()
     }
 
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
-        self.camera.frame()
+    fn frame(&mut self) -> Result<nokhwa_core::buffer::Buffer, NokhwaError> {
+        todo!()
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        self.camera.frame_raw()
+        todo!()
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {
-        self.camera.stop_all()
+        todo!()
     }
 }

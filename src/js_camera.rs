@@ -32,7 +32,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
     ops::Deref,
 };
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     console::log_1, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
@@ -1676,7 +1676,7 @@ impl Deref for JSCameraConstraints {
 /// # JS-WASM
 /// This is exported as `NokhwaCamera`.
 #[cfg(feature = "input-jscam")]
-#[cfg_attr(feature = "input-jscam", wasm_bindgen(js_name = NokhwaCamera))]
+#[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = NokhwaCamera))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub struct JSCamera {
     media_stream: MediaStream,
@@ -1688,7 +1688,7 @@ pub struct JSCamera {
     canvas_context: Option<CanvasRenderingContext2d>,
 }
 
-#[cfg(feature = "output-wasm")]
+#[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_class = NokhwaCamera))]
 impl JSCamera {
     /// Creates a new [`JSCamera`] using [`JSCameraConstraints`].
@@ -2007,7 +2007,7 @@ impl JSCamera {
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     pub fn measure_resolution(&mut self) -> Result<(), NokhwaError> {
         let stream = self
-            .media_stream()
+            .media_stream
             .get_video_tracks()
             .iter()
             .next()

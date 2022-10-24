@@ -56,6 +56,12 @@ impl Buffer {
         &self.buffer
     }
 
+    /// Get a owned version of this buffer.
+    #[must_use]
+    pub fn buffer_bytes(&self) -> Bytes {
+        self.buffer.clone()
+    }
+
     /// Get the [`FrameFormat`] of this buffer.
     #[must_use]
     pub fn source_frame_format(&self) -> FrameFormat {

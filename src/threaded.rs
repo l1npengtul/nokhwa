@@ -15,18 +15,15 @@
  */
 
 use crate::Camera;
-use image::{ImageBuffer, Rgb};
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
-    traits::CaptureBackendTrait,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
         FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
     },
 };
 use std::{
-    any::Any,
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -76,7 +73,7 @@ impl CallbackCamera {
         Ok(CallbackCamera {
             camera: arc_camera,
             frame_callback: Arc::new(Mutex::new(Box::new(callback))),
-            last_frame_captured: Arc::new(Mutex::new(Buffer::new_with_vec(
+            last_frame_captured: Arc::new(Mutex::new(Buffer::new(
                 Resolution::new(0, 0),
                 &vec![],
                 FrameFormat::GRAY,
@@ -86,52 +83,98 @@ impl CallbackCamera {
     }
 
     /// Gets the current Camera's index.
-    #[must_use]
-    pub fn index(&self) -> usize {
-        self.camera.lock().index().clone()
+    pub fn index(&self) -> Result<&CameraIndex, NokhwaError> {
+        Ok(self
+            .camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .index())
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
     /// # Errors
     /// The Backend may fail to initialize.
-    pub fn set_index(&mut self, new_idx: usize) -> Result<(), NokhwaError> {
-        self.camera.lock().set_index(new_idx)
+    pub fn set_index(&mut self, new_idx: &CameraIndex) -> Result<(), NokhwaError> {
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .set_index(new_idx)
     }
 
     /// Gets the current Camera's backend
-    #[must_use]
-    pub fn backend(&self) -> ApiBackend {
-        self.camera.lock().backend()
+    pub fn backend(&self) -> Result<ApiBackend, NokhwaError> {
+        Ok(self
+            .camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .backend())
     }
 
     /// Sets the current Camera's backend. Note that this re-initializes the camera.
     /// # Errors
     /// The new backend may not exist or may fail to initialize the new camera.
     pub fn set_backend(&mut self, new_backend: ApiBackend) -> Result<(), NokhwaError> {
-        self.camera.lock().set_backend(new_backend)
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .set_backend(new_backend)
     }
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
-    #[must_use]
-    pub fn info(&self) -> CameraInfo {
-        self.camera.lock().info().clone()
+    pub fn info(&self) -> Result<&CameraInfo, NokhwaError> {
+        Ok(self
+            .camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .info())
     }
 
     /// Gets the current [`CameraFormat`].
     pub fn camera_format(&self) -> Result<CameraFormat, NokhwaError> {
-        self.camera.lock().camera_format()
+        Ok(self
+            .camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .camera_format())
     }
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
+    #[deprecated(since = "0.10.0", note = "please use `set_camera_requset` instead.")]
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() =
-            Buffer::new(new_res, &Vec::default(), self.camera_format()?.format());
-        self.camera.lock().set_camera_format(new_fmt)
+        *self
+            .last_frame_captured
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))? = Buffer::new(
+            new_fmt.resolution(),
+            &Vec::default(),
+            self.camera_format()?.format(),
+        );
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .set_camera_format(new_fmt)
     }
 
+    /// Will set the current [`CameraFormat`], using a [`RequestedFormat.`]
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    ///
+    /// This will return the new [`CameraFormat`]
+    /// # Errors
+    /// If nothing fits the requested criteria, this will return an error.
+    pub fn set_camera_requset(
+        &mut self,
+        request: RequestedFormat,
+    ) -> Result<CameraFormat, NokhwaError> {
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .set_camera_requset(request)
+    }
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
@@ -139,14 +182,20 @@ impl CallbackCamera {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        self.camera.lock().compatible_list_by_resolution(fourcc)
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .compatible_list_by_resolution(fourcc)
     }
 
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        self.camera.lock().compatible_fourcc()
+        self.camera
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
+            .compatible_fourcc()
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
@@ -166,8 +215,11 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
     pub fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError> {
-        *self.last_frame_captured.lock() =
-            Buffer::new_with_vec(new_res, Vec::default(), self.camera_format()?.format());
+        *self
+            .last_frame_captured
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))? =
+            Buffer::new(new_res, &Vec::default(), self.camera_format()?.format());
         self.camera
             .lock()
             .map_err(|why| NokhwaError::SetPropertyError {
@@ -241,7 +293,7 @@ impl CallbackCamera {
             .map_err(|why| NokhwaError::GetPropertyError {
                 property: "Supported Camera Controls".to_string(),
                 error: why.to_string(),
-            })
+            })?
             .supported_camera_controls()
     }
 
@@ -379,29 +431,32 @@ impl CallbackCamera {
             .lock()
             .map_err(|why| NokhwaError::ReadFrameError(why.to_string()))?
             .frame()?;
-        *self.last_frame_captured.lock() = frame.clone();
+        *self
+            .last_frame_captured
+            .lock()
+            .map_err(|why| NokhwaError::GeneralError(why.to_string()))? = frame.clone();
         Ok(frame)
     }
 
     /// Gets the last frame captured by the camera.
-    #[must_use]
-    pub fn last_frame(&self) -> Buffer {
-        self.last_frame_captured
+    pub fn last_frame(&self) -> Result<Buffer, NokhwaError> {
+        Ok(self
+            .last_frame_captured
             .lock()
             .map_err(|why| NokhwaError::ReadFrameError(why.to_string()))?
-            .clone()
+            .clone())
     }
 
     /// Checks if stream if open. If it is, it will return true.
-    #[must_use]
-    pub fn is_stream_open(&self) -> bool {
-        self.camera
+    pub fn is_stream_open(&self) -> Result<bool, NokhwaError> {
+        Ok(self
+            .camera
             .lock()
             .map_err(|why| NokhwaError::GetPropertyError {
                 property: "is stream open".to_string(),
                 error: why.to_string(),
             })?
-            .is_stream_open()
+            .is_stream_open())
     }
 
     /// Will drop the stream.
@@ -410,7 +465,7 @@ impl CallbackCamera {
     pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
         self.camera
             .lock()
-            .map_err(|why| NokhwaError::StreamShutdownError(why.to_string()))
+            .map_err(|why| NokhwaError::StreamShutdownError(why.to_string()))?
             .stop_stream()
     }
 }
@@ -425,14 +480,18 @@ impl Drop for CallbackCamera {
 fn camera_frame_thread_loop(
     camera: &AtomicLock<Camera>,
     frame_callback: &HeldCallbackType,
-    last_frame_captured: &AtomicLock<ImageBuffer<Rgb<u8>, Vec<u8>>>,
+    last_frame_captured: &AtomicLock<Buffer>,
     die_bool: &Arc<AtomicBool>,
 ) {
     loop {
-        if let Ok(img) = camera.lock().fr {
-            *last_frame_captured.lock() = img.clone();
-            if let Some(cb) = (*frame_callback.lock()).as_mut() {
-                cb(img);
+        if let Ok(mut camera) = camera.lock() {
+            if let Ok(frame) = camera.frame() {
+                if let Ok(last_frame) = last_frame_captured.lock() {
+                    *last_frame = frame.clone();
+                    if let Ok(cb) = frame_callback.lock() {
+                        cb(frame);
+                    }
+                }
             }
         }
         if die_bool.load(Ordering::SeqCst) {

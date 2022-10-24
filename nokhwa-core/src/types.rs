@@ -284,6 +284,7 @@ pub enum FrameFormat {
     MJPEG,
     YUYV,
     GRAY,
+    RAWRGB,
 }
 
 impl Display for FrameFormat {
@@ -298,13 +299,16 @@ impl Display for FrameFormat {
             FrameFormat::GRAY => {
                 write!(f, "GRAY")
             }
+            FrameFormat::RAWRGB => {
+                write!(f, "RAWRGB")
+            },
         }
     }
 }
 
 #[must_use]
-pub const fn frame_formats() -> [FrameFormat; 3] {
-    [FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY]
+pub const fn frame_formats() -> &'static [FrameFormat] {
+    &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY, FrameFormat::RAWRGB]
 }
 
 /// Describes a Resolution.
