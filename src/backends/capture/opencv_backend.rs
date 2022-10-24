@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-use image::{ImageBuffer, Rgb};
 use nokhwa_core::{
+    buffer::Buffer,
     error::NokhwaError,
-    pixel_format::FormatDecoder,
     traits::CaptureBackendTrait,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
@@ -27,33 +26,35 @@ use nokhwa_core::{
 use opencv::{
     core::{Mat, MatTraitConst, MatTraitConstManual, Vec3b},
     videoio::{
-        VideoCapture, VideoCaptureTrait, VideoCaptureTraitConst, CAP_ANY, CAP_AVFOUNDATION,
-        CAP_MSMF, CAP_PROP_FOURCC, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH,
+        VideoCapture, VideoCaptureProperties, VideoCaptureTrait, VideoCaptureTraitConst, CAP_ANY,
+        CAP_AVFOUNDATION, CAP_MSMF, CAP_PROP_FPS, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH,
         CAP_V4L2,
     },
 };
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap};
 
-/// Converts $from into $to
-/// Example usage:
-/// `tryinto_num(i32, a_unsigned_32_bit_num)`
-/// Designed to deal with infallible. If not, it should be manually handled.
-/// # Errors
-/// If fails to convert(note: should not happen) then you messed up.
-macro_rules! tryinto_num {
-    ($to:ty, $from:expr) => {{
-        use std::convert::TryFrom;
-        match <$to>::try_from($from) {
-            Ok(v) => v,
-            Err(why) => {
-                return Err(crate::NokhwaError::GeneralError(format!(
-                    "Failed to convert {}, {}",
-                    $from,
-                    why.to_string()
-                )))
-            }
-        }
-    }};
+/// Attempts to convert a [`KnownCameraControl`] into a OpenCV video capture property.
+/// If the associated control is not found, this will return `Err`
+pub fn known_camera_control_to_video_capture_property(
+    ctrl: KnownCameraControl,
+) -> Result<VideoCaptureProperties, NokhwaError> {
+    match ctrl {
+        KnownCameraControl::Brightness => Ok(VideoCaptureProperties::CAP_PROP_BRIGHTNESS),
+        KnownCameraControl::Contrast => Ok(VideoCaptureProperties::CAP_PROP_CONTRAST),
+        KnownCameraControl::Hue => Ok(VideoCaptureProperties::CAP_PROP_HUE),
+        KnownCameraControl::Saturation => Ok(VideoCaptureProperties::CAP_PROP_SATURATION),
+        KnownCameraControl::Sharpness => Ok(VideoCaptureProperties::CAP_PROP_SHARPNESS),
+        KnownCameraControl::Gamma => Ok(VideoCaptureProperties::CAP_PROP_GAMMA),
+        KnownCameraControl::BacklightComp => Ok(VideoCaptureProperties::CAP_PROP_BACKLIGHT),
+        KnownCameraControl::Gain => Ok(VideoCaptureProperties::CAP_PROP_GAIN),
+        KnownCameraControl::Pan => Ok(VideoCaptureProperties::CAP_PROP_PAN),
+        KnownCameraControl::Tilt => Ok(VideoCaptureProperties::CAP_PROP_TILT),
+        KnownCameraControl::Zoom => Ok(VideoCaptureProperties::CAP_PROP_ZOOM),
+        KnownCameraControl::Exposure => Ok(VideoCaptureProperties::CAP_PROP_EXPOSURE),
+        KnownCameraControl::Iris => Ok(VideoCaptureProperties::CAP_PROP_IRIS),
+        KnownCameraControl::Focus => Ok(VideoCaptureProperties::CAP_PROP_FOCUS),
+        _ => Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv)),
+    }
 }
 
 /// The backend struct that interfaces with `OpenCV`. Note that an `opencv` matching the version that this was either compiled on must be present on the user's machine. (usually 4.5.2 or greater)
@@ -94,13 +95,11 @@ impl OpenCvCaptureDevice {
     /// ```
     /// , but please refer to the manufacturer for the actual IP format.
     ///
-    /// If `camera_format` is `None`, it will be spawned with with 640x480@15 FPS, MJPEG [`CameraFormat`] default if it is a index camera. This camera **cannot** resolve any request that is not
-    /// [`RequestedFormat::Exact`] or [`RequestedFormat::None`].
     /// # Errors
     /// If the backend fails to open the camera (e.g. Device does not exist at specified index/ip), Camera does not support specified [`CameraFormat`], and/or other `OpenCV` Error, this will error.
     /// # Panics
     /// If the API u32 -> i32 fails this will error
-    pub fn new(index: &CameraIndex, cfmt: RequestedFormat) -> Result<Self, NokhwaError> {
+    pub fn new(index: &CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let api_pref = if index.is_string() {
             CAP_ANY
         } else {
@@ -115,13 +114,9 @@ impl OpenCvCaptureDevice {
             NokhwaError::OpenDeviceError(format!("Failed to open {}", index), why.to_string())
         })?;
 
-        let real = match cfmt {
-            RequestedFormat::Exact(e) => e,
-            RequestedFormat::None => CameraFormat::default(),
-            _ => return Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv)),
-        };
+        let camera_format = cam_fmt.fulfill(&[CameraFormat::default()]).unwrap();
 
-        set_properties(&mut video_capture, real)?;
+        set_properties(&mut video_capture, camera_format)?;
 
         let camera_info = CameraInfo::new(
             format!("OpenCV Capture Device {}", index).as_str(),
@@ -134,7 +129,7 @@ impl OpenCvCaptureDevice {
             camera_format,
             camera_location: index.clone(),
             camera_info,
-            api_preference: api,
+            api_preference: api_pref,
             video_capture,
         })
     }
@@ -293,25 +288,28 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        let width = vc
-            .set(CAP_PROP_FRAME_WIDTH, camera_format.width() as f64)
+        let width = self
+            .video_capture
+            .set(CAP_PROP_FRAME_WIDTH, self.camera_format.width() as f64)
             .map_err(|why| NokhwaError::SetPropertyError {
                 property: "Resolution Width".to_string(),
-                value: camera_format.to_string(),
+                value: self.camera_format.to_string(),
                 error: why.to_string(),
             })? as u32;
-        let height = vc
-            .set(CAP_PROP_FRAME_HEIGHT, camera_format.height() as f64)
+        let height = self
+            .video_capture
+            .set(CAP_PROP_FRAME_HEIGHT, self.camera_format.height() as f64)
             .map_err(|why| NokhwaError::SetPropertyError {
                 property: "Resolution Height".to_string(),
-                value: camera_format.to_string(),
+                value: self.camera_format.to_string(),
                 error: why.to_string(),
             })? as u32;
-        let fps = vc
-            .get(CAP_PROP_FPS, camera_format.frame_rate() as f64)
+        let fps = self
+            .video_capture
+            .set(CAP_PROP_FPS, self.camera_format.frame_rate() as f64)
             .map_err(|why| NokhwaError::SetPropertyError {
                 property: "FPS".to_string(),
-                value: camera_format.to_string(),
+                value: self.camera_format.to_string(),
                 error: why.to_string(),
             })? as u32;
 
@@ -398,11 +396,11 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        let id: i32 = control.into();
+        let id = known_camera_control_to_video_capture_property(control)? as i32;
         let current = self
             .video_capture
             .get(id)
-            .map_err(|x| NokhwaError::GetPropertyError {
+            .map_err(|why| NokhwaError::GetPropertyError {
                 property: id.to_string(),
                 error: why.to_string(),
             })?;
@@ -431,7 +429,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         let control_val = match value {
             ControlValueSetter::Integer(i) => i as f64,
             ControlValueSetter::Float(f) => f,
-            ControlValueSetter::Boolean(b) => b as f64,
+            ControlValueSetter::Boolean(b) => b as u8 as f64,
             val => {
                 return Err(NokhwaError::SetPropertyError {
                     property: "Camera Control".to_string(),
@@ -443,7 +441,10 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
 
         if !self
             .video_capture
-            .set(id.into(), control_val)
+            .set(
+                known_camera_control_to_video_capture_property(id)? as i32,
+                control_val,
+            )
             .map_err(|why| NokhwaError::SetPropertyError {
                 property: "Camera Control".to_string(),
                 value: control_val.to_string(),
@@ -517,7 +518,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
         self.video_capture.is_opened().unwrap_or(false)
     }
 
-    fn frame(&mut self) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, NokhwaError> {
+    fn frame(&mut self) -> Result<Buffer, NokhwaError> {
         let camera_resolution = self.camera_format.resolution();
         let image_data = {
             let mut data = self.frame_raw()?.to_vec();
@@ -527,22 +528,11 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
             );
             data
         };
-        let image_buf =
-            match ImageBuffer::from_vec(
-                camera_resolution.width(),
-                camera_resolution.height(),
-                image_data,
-            ) {
-                Some(buf) => {
-                    let rgb: ImageBuffer<Rgb<u8>, Vec<u8>> = buf;
-                    rgb
-                }
-                None => return Err(NokhwaError::ReadFrameError(
-                    "Imagebuffer is not large enough! This is probably a bug, please report it!"
-                        .to_string(),
-                )),
-            };
-        Ok(image_buf)
+        Ok(Buffer::new(
+            camera_resolution,
+            &image_data,
+            self.camera_format.format(),
+        ))
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
