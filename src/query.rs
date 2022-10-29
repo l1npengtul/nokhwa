@@ -16,7 +16,7 @@
 
 use nokhwa_core::{
     error::NokhwaError,
-    types::{ApiBackend, CameraIndex, CameraInfo},
+    types::{ApiBackend, CameraInfo},
 };
 
 // TODO: Update as this goes
@@ -207,12 +207,13 @@ fn query_uvc() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 #[cfg(feature = "input-gst")]
 fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use crate::CameraIndex;
     use gstreamer::{
         prelude::{DeviceExt, DeviceMonitorExt, DeviceMonitorExtManual},
         Caps, DeviceMonitor,
     };
+    use nokhwa_core::types::CameraIndex;
     use std::str::FromStr;
+
     if let Err(why) = gstreamer::init() {
         return Err(NokhwaError::GeneralError(format!(
             "Failed to init gstreamer: {}",
@@ -270,19 +271,8 @@ fn query_gstreamer() -> Result<Vec<CameraInfo>, NokhwaError> {
 
 // please refer to https://docs.microsoft.com/en-us/windows/win32/medfound/enumerating-video-capture-devices
 #[cfg(all(feature = "input-msmf", target_os = "windows"))]
-fn query_msmf<'a>() -> Result<Vec<CameraInfo<'a>>, NokhwaError> {
-    let list: Vec<CameraInfo> =
-        match nokhwa_bindings_windows::wmf::query_media_foundation_descriptors() {
-            Ok(l) => l
-                .into_iter()
-                .map(|mf_desc| {
-                    let camera_info: CameraInfo = mf_desc.into();
-                    camera_info
-                })
-                .collect(),
-            Err(why) => return Err(why.into()),
-        };
-    Ok(list)
+fn query_msmf() -> Result<Vec<CameraInfo>, NokhwaError> {
+    nokhwa_bindings_windows::wmf::query_media_foundation_descriptors()
 }
 
 #[cfg(any(not(feature = "input-msmf"), not(target_os = "windows")))]

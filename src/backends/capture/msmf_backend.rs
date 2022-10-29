@@ -17,11 +17,12 @@ use nokhwa_bindings_windows::wmf::MediaFoundationDevice;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
+    pixel_format::RgbFormat,
     traits::CaptureBackendTrait,
     types::{
         all_known_camera_controls, ApiBackend, CameraControl, CameraFormat, CameraIndex,
         CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
-        Resolution,
+        RequestedFormatType, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
@@ -38,12 +39,12 @@ use std::{borrow::Cow, collections::HashMap};
 /// - The names may contain invalid characters since they were converted from UTF16.
 /// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-msmf")))]
-pub struct MediaFoundationCaptureDevice<'a> {
-    inner: MediaFoundationDevice<'a>,
+pub struct MediaFoundationCaptureDevice {
+    inner: MediaFoundationDevice,
     info: CameraInfo,
 }
 
-impl<'a> MediaFoundationCaptureDevice<'a> {
+impl MediaFoundationCaptureDevice {
     /// Creates a new capture device using the Media Foundation backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
@@ -52,28 +53,21 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
 
         let info = CameraInfo::new(
             &mf_device.name(),
-            &"MediaFoundation Camera Device".to_string(),
+            "MediaFoundation Camera Device",
             &mf_device.symlink(),
             index.clone(),
         );
 
-        let availible = mf_device
-            .compatible_format_list()?
-            .into_iter()
-            .map(|x| {
-                let cf: CameraFormat = x.into();
-                cf
-            })
-            .collect::<Vec<CameraFormat>>();
+        let availible = mf_device.compatible_format_list()?;
 
         let desired = camera_fmt
-            .fufill(&availible)
+            .fulfill(&availible)
             .ok_or(NokhwaError::InitializeError {
                 backend: ApiBackend::MediaFoundation,
                 error: "Failed to fulfill requested format".to_string(),
             })?;
 
-        mf_device.set_format(desired.into())?;
+        mf_device.set_format(desired)?;
 
         let mut new_cam = MediaFoundationCaptureDevice {
             inner: mf_device,
@@ -86,7 +80,7 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
     /// Create a new Media Foundation Device with desired settings.
     /// # Errors
     /// This function will error if Media Foundation fails to get the device.
-    #[deprecated(since = "0.10", note = "please use `new` instead.")]
+    #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
     pub fn new_with(
         index: &CameraIndex,
         width: u32,
@@ -94,51 +88,28 @@ impl<'a> MediaFoundationCaptureDevice<'a> {
         fps: u32,
         fourcc: FrameFormat,
     ) -> Result<Self, NokhwaError> {
-        let camera_format =
-            RequestedFormat::Exact(CameraFormat::new_from(width, height, fourcc, fps));
+        let camera_format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(
+            CameraFormat::new_from(width, height, fourcc, fps),
+        ));
         MediaFoundationCaptureDevice::new(index, camera_format)
     }
 
     /// Gets the list of supported [`KnownCameraControl`]s
     /// # Errors
     /// May error if there is an error from `MediaFoundation`.
-    fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
+    pub fn supported_camera_controls(&self) -> Vec<KnownCameraControl> {
         let mut supported_camera_controls: Vec<KnownCameraControl> = vec![];
 
         for camera_control in all_known_camera_controls() {
-            let msmf_camera_control: MediaFoundationControls = match camera_control {
-                KnownCameraControl::Brightness => MediaFoundationControls::Brightness,
-                KnownCameraControl::Contrast => MediaFoundationControls::Contrast,
-                KnownCameraControl::Hue => MediaFoundationControls::Hue,
-                KnownCameraControl::Saturation => MediaFoundationControls::Saturation,
-                KnownCameraControl::Sharpness => MediaFoundationControls::Sharpness,
-                KnownCameraControl::Gamma => MediaFoundationControls::Gamma,
-                KnownCameraControl::WhiteBalance => MediaFoundationControls::WhiteBalance,
-                KnownCameraControl::BacklightComp => MediaFoundationControls::BacklightComp,
-                KnownCameraControl::Gain => MediaFoundationControls::Gain,
-                KnownCameraControl::Pan => MediaFoundationControls::Pan,
-                KnownCameraControl::Tilt => MediaFoundationControls::Tilt,
-                KnownCameraControl::Zoom => MediaFoundationControls::Zoom,
-                KnownCameraControl::Exposure => MediaFoundationControls::Exposure,
-                KnownCameraControl::Iris => MediaFoundationControls::Iris,
-                KnownCameraControl::Focus => MediaFoundationControls::Focus,
-                KnownCameraControl::Other(id) => match id {
-                    0 => MediaFoundationControls::ColorEnable,
-                    1 => MediaFoundationControls::Roll,
-                    _ => continue,
-                },
-            };
-
-            if let Ok(supported) = self.inner.control(msmf_camera_control) {
-                supported_camera_controls.push(supported.control().into());
+            if let Ok(supported) = self.inner.control(camera_control) {
+                supported_camera_controls.push(supported.control());
             }
         }
-
-        Ok(supported_camera_controls)
+        supported_camera_controls
     }
 }
 
-impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
+impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     fn backend(&self) -> ApiBackend {
         ApiBackend::MediaFoundation
     }
@@ -153,14 +124,11 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
     }
 
     fn camera_format(&self) -> CameraFormat {
-        self.inner.format().into()
+        self.inner.format()
     }
 
     fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-        if let Err(why) = self.inner.set_format(new_fmt.into()) {
-            return Err(why.into());
-        }
-        Ok(())
+        self.inner.set_format(new_fmt)
     }
 
     fn compatible_list_by_resolution(
@@ -170,9 +138,7 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         let mf_camera_format_list = self.inner.compatible_format_list()?;
         let mut resolution_map: HashMap<Resolution, Vec<u32>> = HashMap::new();
 
-        for mf_camera_format in mf_camera_format_list {
-            let camera_format: CameraFormat = mf_camera_format.into();
-
+        for camera_format in mf_camera_format_list {
             // check fcc
             if camera_format.format() != fourcc {
                 continue;
@@ -199,9 +165,7 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
         let mf_camera_format_list = self.inner.compatible_format_list()?;
         let mut frame_format_list = vec![];
 
-        for mf_camera_format in mf_camera_format_list {
-            let camera_format: CameraFormat = mf_camera_format.into();
-
+        for camera_format in mf_camera_format_list {
             if !frame_format_list.contains(&camera_format.format()) {
                 frame_format_list.push(camera_format.format());
             }
@@ -271,11 +235,7 @@ impl<'a> CaptureBackendTrait for MediaFoundationCaptureDevice<'a> {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        if let Err(why) = self.inner.start_stream() {
-            return Err(why.into());
-        }
-
-        Ok(())
+        self.inner.start_stream()
     }
 
     fn is_stream_open(&self) -> bool {

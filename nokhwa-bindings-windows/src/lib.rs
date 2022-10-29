@@ -31,13 +31,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-#[cfg(all(target_os = "windows", windows))]
-use std::{
-    borrow::{Borrow, Cow},
-    cmp::Ordering,
-    slice::from_raw_parts,
-};
-
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
@@ -45,6 +38,7 @@ pub mod wmf {
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
         ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
     };
+    use std::ffi::c_void;
     use std::{
         borrow::Cow,
         cell::Cell,
@@ -65,11 +59,11 @@ pub mod wmf {
             Media::{
                 DirectShow::{
                     CameraControl_Exposure, CameraControl_Focus, CameraControl_Iris,
-                    CameraControl_Pan, CameraControl_Roll, CameraControl_Tilt, CameraControl_Zoom,
-                    IAMCameraControl, IAMVideoProcAmp, VideoProcAmp_BacklightCompensation,
-                    VideoProcAmp_Brightness, VideoProcAmp_ColorEnable, VideoProcAmp_Contrast,
-                    VideoProcAmp_Gain, VideoProcAmp_Gamma, VideoProcAmp_Hue,
-                    VideoProcAmp_Saturation, VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
+                    CameraControl_Pan, CameraControl_Tilt, CameraControl_Zoom, IAMCameraControl,
+                    IAMVideoProcAmp, VideoProcAmp_BacklightCompensation, VideoProcAmp_Brightness,
+                    VideoProcAmp_ColorEnable, VideoProcAmp_Contrast, VideoProcAmp_Gain,
+                    VideoProcAmp_Gamma, VideoProcAmp_Hue, VideoProcAmp_Saturation,
+                    VideoProcAmp_Sharpness, VideoProcAmp_WhiteBalance,
                 },
                 KernelStreaming::GUID_NULL,
                 MediaFoundation::{
@@ -120,53 +114,52 @@ pub mod wmf {
     const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
     const MF_SOURCE_READER_MEDIASOURCE: u32 = 0xFFFF_FFFF;
 
-    const CAM_CTRL_AUTO: i32 = 0x0001;
-    const CAM_CTRL_MANUAL: i32 = 0x0002;
+    // const CAM_CTRL_AUTO: i32 = 0x0001;
+    // const CAM_CTRL_MANUAL: i32 = 0x0002;
 
-    macro_rules! define_controls {
-        ( $( ($key:expr => ($property:ident, $min:ident, $max:ident, $step:ident, $default:ident, $flag:ident)) )* ) => {
-            $(
-            $key => {
-                if let Err(why) = unsafe {
-                        video_proc_amp.GetRange(
-                            $property.0,
-                            &mut $min,
-                            &mut $max,
-                            &mut $step,
-                            &mut $default,
-                            &mut $flag,
-                        )
-                    } {
-                        return Err(NokhwaError::GetPropertyError {
-                            property: stringify!($key).to_string(),
-                            error: why.to_string()
-                        });
-                    }
-            }
-            )*
-        };
-        ( $( ($key:expr : ($property:ident, $value:ident, $flag:ident)) )* ) => {
-            $(
-            $key => {
-                if let Err(why) = unsafe {
-                    video_proc_amp.Get($property.0, &mut $value, &mut $flag)
-                    } {
-                        return Err(NokhwaError::GetPropertyError {
-                            property: stringify!($key).to_string(),
-                            error: why.to_string()
-                        });
-                    }
-            }
-            )*
-        };
-    }
+    // macro_rules! define_controls {
+    //     ( $( ($key:expr => ($property:ident, $min:ident, $max:ident, $step:ident, $default:ident, $flag:ident)) )* ) => {
+    //         $(
+    //         $key => {
+    //             if let Err(why) = unsafe {
+    //                     video_proc_amp.GetRange(
+    //                         $property.0,
+    //                         &mut $min,
+    //                         &mut $max,
+    //                         &mut $step,
+    //                         &mut $default,
+    //                         &mut $flag,
+    //                     )
+    //                 } {
+    //                     return Err(NokhwaError::GetPropertyError {
+    //                         property: stringify!($key).to_string(),
+    //                         error: why.to_string()
+    //                     });
+    //                 }
+    //         }
+    //         )*
+    //     };
+    //     ( $( ($key:expr : ($property:ident, $value:ident, $flag:ident)) )* ) => {
+    //         $(
+    //         $key => {
+    //             if let Err(why) = unsafe {
+    //                 video_proc_amp.Get($property.0, &mut $value, &mut $flag)
+    //                 } {
+    //                     return Err(NokhwaError::GetPropertyError {
+    //                         property: stringify!($key).to_string(),
+    //                         error: why.to_string()
+    //                     });
+    //                 }
+    //         }
+    //         )*
+    //     };
+    // }
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
         if !(INITIALIZED.load(Ordering::SeqCst)) {
-            let a = std::ptr::null_mut();
-            if let Err(why) =
-                unsafe { CoInitializeEx(a, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE) }
-            {
+            if let Err(why) = unsafe {
+                CoInitializeEx(None, CO_INIT_APARTMENT_THREADED | CO_INIT_DISABLE_OLE1DDE)
+            } {
                 return Err(NokhwaError::InitializeError {
                     backend: ApiBackend::MediaFoundation,
                     error: why.to_string(),
@@ -270,15 +263,15 @@ pub mod wmf {
         imf_activate: &IMFActivate,
     ) -> Result<CameraInfo, NokhwaError> {
         let mut pwstr_name = PWSTR(&mut 0_u16);
-        let mut _len_pwstrname = 0;
+        let mut len_pwstrname = 0;
         let mut pwstr_symlink = PWSTR(&mut 0_u16);
-        let mut _len_pwstrsymlink = 0;
+        let mut len_pwstrsymlink = 0;
 
         if let Err(why) = unsafe {
             imf_activate.GetAllocatedString(
                 &MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
                 &mut pwstr_name,
-                &mut _len_pwstrname,
+                &mut len_pwstrname,
             )
         } {
             return Err(NokhwaError::GetPropertyError {
@@ -291,7 +284,7 @@ pub mod wmf {
             imf_activate.GetAllocatedString(
                 &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
                 &mut pwstr_symlink,
-                &mut _len_pwstrsymlink,
+                &mut len_pwstrsymlink,
             )
         } {
             return Err(NokhwaError::GetPropertyError {
@@ -358,7 +351,8 @@ pub mod wmf {
         CCRange(i32),
     }
 
-    pub fn kcc_to_i32(kcc: KnownCameraControl) -> Option<MFControlId> {
+    #[allow(clippy::cast_sign_loss)]
+    fn kcc_to_i32(kcc: KnownCameraControl) -> Option<MFControlId> {
         let control_id = match kcc {
             KnownCameraControl::Brightness => MFControlId::ProcAmpRange(VideoProcAmp_Brightness.0),
             KnownCameraControl::Contrast => MFControlId::ProcAmpRange(VideoProcAmp_Contrast.0),
@@ -380,7 +374,7 @@ pub mod wmf {
             KnownCameraControl::Iris => MFControlId::CCValue(CameraControl_Iris.0),
             KnownCameraControl::Focus => MFControlId::CCValue(CameraControl_Focus.0),
             KnownCameraControl::Other(o) => {
-                if o == VideoProcAmp_ColorEnable as u128 {
+                if o == VideoProcAmp_ColorEnable.0 as u128 {
                     MFControlId::ProcAmpRange(o as i32)
                 } else {
                     return None;
@@ -391,14 +385,14 @@ pub mod wmf {
         Some(control_id)
     }
 
-    pub struct MediaFoundationDevice<'a> {
+    pub struct MediaFoundationDevice {
         is_open: Cell<bool>,
         device_specifier: CameraInfo,
         device_format: CameraFormat,
         source_reader: IMFSourceReader,
     }
 
-    impl<'a> MediaFoundationDevice<'a> {
+    impl MediaFoundationDevice {
         pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
             match index {
                 CameraIndex::Index(i) => {
@@ -477,7 +471,7 @@ pub mod wmf {
                     Ok(MediaFoundationDevice {
                         is_open: Cell::new(false),
                         device_specifier: device_descriptor,
-                        device_format: MFCameraFormat::default(),
+                        device_format: CameraFormat::default(),
                         source_reader,
                     })
                 }
@@ -494,9 +488,7 @@ pub mod wmf {
 
                     match id_eq {
                         Some(index) => Self::new(CameraIndex::Index(index)),
-                        None => {
-                            return Err(NokhwaError::OpenDeviceError(s, "Not Found".to_string()))
-                        }
+                        None => Err(NokhwaError::OpenDeviceError(s, "Not Found".to_string())),
                     }
                 }
             }
@@ -673,13 +665,15 @@ pub mod wmf {
                     MF_SOURCE_READER_MEDIASOURCE,
                     &GUID_NULL,
                     &IAMCameraControl::IID,
-                    (ptr_receiver as *mut IAMCameraControl).cast::<*mut std::ffi::c_void>(),
+                    ptr_receiver
+                        .cast::<IAMCameraControl>()
+                        .cast::<*mut c_void>(),
                 ) {
-                    return Err(BindingError::GUIDSetError(
-                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
-                        "IAMCameraControl".to_string(),
-                        why.to_string(),
-                    ));
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        value: "IAMCameraControl".to_string(),
+                        error: why.to_string(),
+                    });
                 }
                 receiver.assume_init()
             };
@@ -690,13 +684,13 @@ pub mod wmf {
                     MF_SOURCE_READER_MEDIASOURCE,
                     &GUID_NULL,
                     &IAMVideoProcAmp::IID,
-                    (ptr_receiver as *mut IAMVideoProcAmp).cast::<*mut std::ffi::c_void>(),
+                    ptr_receiver.cast::<IAMVideoProcAmp>().cast::<*mut c_void>(),
                 ) {
-                    return Err(BindingError::GUIDSetError(
-                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
-                        "IAMVideoProcAmp".to_string(),
-                        why.to_string(),
-                    ));
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        value: "IAMVideoProcAmp".to_string(),
+                        error: why.to_string(),
+                    });
                 }
                 receiver.assume_init()
             };
@@ -764,11 +758,11 @@ pub mod wmf {
                         });
                     }
                     ControlValueDescription::IntegerRange {
-                        min: min as i64,
-                        max: max as i64,
-                        value: value as i64,
-                        step: step as i64,
-                        default: default as i64,
+                        min: i64::from(min),
+                        max: i64::from(max),
+                        value: i64::from(value),
+                        step: i64::from(step),
+                        default: i64::from(default),
                     }
                 },
                 MFControlId::CCValue(id) => unsafe {
@@ -793,9 +787,9 @@ pub mod wmf {
                     }
 
                     ControlValueDescription::Integer {
-                        value: value as i64,
-                        default: default as i64,
-                        step: step as i64,
+                        value: i64::from(value),
+                        default: i64::from(default),
+                        step: i64::from(step),
                     }
                 },
                 MFControlId::CCRange(id) => unsafe {
@@ -819,16 +813,16 @@ pub mod wmf {
                         });
                     }
                     ControlValueDescription::IntegerRange {
-                        min: min as i64,
-                        max: max as i64,
-                        value: value as i64,
-                        step: step as i64,
-                        default: default as i64,
+                        min: i64::from(min),
+                        max: i64::from(max),
+                        value: i64::from(value),
+                        step: i64::from(step),
+                        default: i64::from(default),
                     }
                 },
             };
 
-            let is_manual = if matches!(flag, CameraControl_Flags_Manual) {
+            let is_manual = if flag == CameraControl_Flags_Manual.0 {
                 KnownCameraControlFlag::Manual
             } else {
                 KnownCameraControlFlag::Automatic
@@ -857,13 +851,15 @@ pub mod wmf {
                     MF_SOURCE_READER_MEDIASOURCE,
                     &GUID_NULL,
                     &IAMCameraControl::IID,
-                    (ptr_receiver as *mut IAMCameraControl).cast::<*mut std::ffi::c_void>(),
+                    ptr_receiver
+                        .cast::<IAMCameraControl>()
+                        .cast::<*mut c_void>(),
                 ) {
-                    return Err(BindingError::GUIDSetError(
-                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
-                        "IAMCameraControl".to_string(),
-                        why.to_string(),
-                    ));
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        value: "IAMCameraControl".to_string(),
+                        error: why.to_string(),
+                    });
                 }
                 receiver.assume_init()
             };
@@ -874,13 +870,13 @@ pub mod wmf {
                     MF_SOURCE_READER_MEDIASOURCE,
                     &GUID_NULL,
                     &IAMVideoProcAmp::IID,
-                    (ptr_receiver as *mut IAMVideoProcAmp).cast::<*mut std::ffi::c_void>(),
+                    ptr_receiver.cast::<IAMVideoProcAmp>().cast::<*mut c_void>(),
                 ) {
-                    return Err(BindingError::GUIDSetError(
-                        "MF_SOURCE_READER_MEDIASOURCE".to_string(),
-                        "IAMVideoProcAmp".to_string(),
-                        why.to_string(),
-                    ));
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "MF_SOURCE_READER_MEDIASOURCE".to_string(),
+                        value: "IAMVideoProcAmp".to_string(),
+                        error: why.to_string(),
+                    });
                 }
                 receiver.assume_init()
             };
@@ -893,7 +889,7 @@ pub mod wmf {
 
             let ctrl_value = match value {
                 ControlValueSetter::Integer(i) => i as i32,
-                ControlValueSetter::Boolean(b) => b as i32,
+                ControlValueSetter::Boolean(b) => i32::from(b),
                 v => {
                     return Err(NokhwaError::StructureError {
                         structure: format!("ControlValueSetter {}", v),
@@ -906,7 +902,7 @@ pub mod wmf {
                 .flag()
                 .get(0)
                 .map(|x| {
-                    if x == KnownCameraControlFlag::Automatic {
+                    if *x == KnownCameraControlFlag::Automatic {
                         CameraControl_Flags_Auto
                     } else {
                         CameraControl_Flags_Manual
@@ -941,6 +937,7 @@ pub mod wmf {
             Ok(())
         }
 
+        #[allow(clippy::cast_sign_loss)]
         pub fn format_refreshed(&mut self) -> Result<CameraFormat, NokhwaError> {
             match unsafe {
                 self.source_reader
@@ -983,7 +980,7 @@ pub mod wmf {
                             _ => {
                                 return Err(NokhwaError::GetPropertyError {
                                     property: "MF_MT_SUBTYPE".to_string(),
-                                    error: why.to_string(),
+                                    error: "Unknown".to_string(),
                                 })
                             }
                         },
@@ -1038,6 +1035,11 @@ pub mod wmf {
                 FrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
                 FrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
                 FrameFormat::GRAY => MF_VIDEO_FORMAT_GRAY,
+                FrameFormat::RAWRGB => {
+                    return Err(NokhwaError::NotImplementedError(
+                        "RGB24 not implemented".to_string(),
+                    ))
+                } // TODO: Implement RGB24
             };
             // setting to the new media_type
             if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video) } {
@@ -1050,7 +1052,7 @@ pub mod wmf {
             if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_SUBTYPE, &fourcc) } {
                 return Err(NokhwaError::SetPropertyError {
                     property: "MF_MT_SUBTYPE".to_string(),
-                    value: fourcc.to_string(),
+                    value: format!("{:?}", fourcc),
                     error: why.to_string(),
                 });
             }
@@ -1083,11 +1085,10 @@ pub mod wmf {
                 });
             }
 
-            let reserved = std::ptr::null_mut();
             if let Err(why) = unsafe {
                 self.source_reader.SetCurrentMediaType(
                     MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
-                    reserved,
+                    None,
                     &media_type,
                 )
             } {
@@ -1118,20 +1119,18 @@ pub mod wmf {
             Ok(())
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
-            let mut flags: u32 = 0;
+        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
             let mut imf_sample: Option<IMFSample> = None;
-
             {
                 loop {
                     if let Err(why) = unsafe {
                         self.source_reader.ReadSample(
                             MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                             0,
-                            std::ptr::null_mut(),
-                            &mut flags,
-                            std::ptr::null_mut(),
-                            &mut imf_sample,
+                            None,
+                            None,
+                            None,
+                            Some(&mut imf_sample),
                         )
                     } {
                         return Err(NokhwaError::ReadFrameError(why.to_string()));
@@ -1147,7 +1146,7 @@ pub mod wmf {
                 Some(sample) => sample,
                 None => {
                     // shouldn't happen
-                    return Err(NokhwaError::ReadFrameError(why.to_string()));
+                    return Err(NokhwaError::ReadFrameError("No sample".to_string()));
                 }
             };
 
@@ -1159,13 +1158,9 @@ pub mod wmf {
             let mut buffer_valid_length = 0;
             let mut buffer_start_ptr = std::ptr::null_mut::<u8>();
 
-            if let Err(why) = unsafe {
-                buffer.Lock(
-                    &mut buffer_start_ptr,
-                    std::ptr::null_mut(),
-                    &mut buffer_valid_length,
-                )
-            } {
+            if let Err(why) =
+                unsafe { buffer.Lock(&mut buffer_start_ptr, None, Some(&mut buffer_valid_length)) }
+            {
                 return Err(NokhwaError::ReadFrameError(why.to_string()));
             }
 
@@ -1189,11 +1184,7 @@ pub mod wmf {
                 ) as &[u8]);
                 // swallow errors
                 if buffer
-                    .Lock(
-                        &mut buffer_start_ptr,
-                        std::ptr::null_mut(),
-                        &mut buffer_valid_length,
-                    )
+                    .Lock(&mut buffer_start_ptr, None, Some(&mut buffer_valid_length))
                     .is_ok()
                 {}
             }
@@ -1206,7 +1197,7 @@ pub mod wmf {
         }
     }
 
-    impl<'a> Drop for MediaFoundationDevice<'a> {
+    impl Drop for MediaFoundationDevice {
         fn drop(&mut self) {
             // swallow errors
             unsafe {
@@ -1262,15 +1253,13 @@ pub mod wmf {
 
     struct Empty;
 
-    pub struct MediaFoundationDevice<'a> {
-        _phantom: &'a Empty,
+    pub struct MediaFoundationDevice {
         camera: CameraIndex,
     }
 
-    impl<'a> MediaFoundationDevice<'a> {
+    impl MediaFoundationDevice {
         pub fn new(_index: CameraIndex) -> Result<Self, NokhwaError> {
             Ok(MediaFoundationDevice {
-                _phantom: &Empty,
                 camera: CameraIndex::Index(0),
             })
         }
