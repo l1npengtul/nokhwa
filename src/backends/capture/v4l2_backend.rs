@@ -42,6 +42,7 @@ use v4l::{
 
 /// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
+#[allow(clippy::cast_possible_truncation)]
 pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
     match ctrl {
         KnownCameraControl::Brightness => 9_963_776,
@@ -65,6 +66,7 @@ pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
 
 /// Attempts to convert a [`u32`] V4L2 Control ID into a [`KnownCameraControl`]
 /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
+#[allow(clippy::cast_lossless)]
 pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
     match id {
         9_963_776 => KnownCameraControl::Brightness,
@@ -95,7 +97,6 @@ pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
 /// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`u32`] and [`Control`]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-v4l")))]
 pub struct V4LCaptureDevice<'a> {
-    initialized: bool,
     camera_format: CameraFormat,
     camera_info: CameraInfo,
     device: Device,
@@ -110,9 +111,10 @@ impl<'a> V4LCaptureDevice<'a> {
     /// If `camera_format` is not `None`, the camera will try to use it when you call [`init()`](crate::CaptureBackendTrait::init).
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
+    #[allow(clippy::too_many_lines)]
     pub fn new(index: &CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let index = index.clone();
-        let mut device = match Device::new(index.as_index()? as usize) {
+        let device = match Device::new(index.as_index()? as usize) {
             Ok(dev) => dev,
             Err(why) => {
                 return Err(NokhwaError::OpenDeviceError(
@@ -168,9 +170,9 @@ impl<'a> V4LCaptureDevice<'a> {
                 .flat_map(|res| {
                     device
                         .enum_frameintervals(ff, res.x(), res.y())
-                        .unwrap_or(vec![])
-                        .iter()
-                        .flat_map(|x| match &x.interval {
+                        .unwrap_or_default()
+                        .into_iter()
+                        .flat_map(|x| match x.interval {
                             FrameIntervalEnum::Discrete(dis) => {
                                 if dis.denominator == 1 {
                                     vec![CameraFormat::new(
@@ -192,7 +194,7 @@ impl<'a> V4LCaptureDevice<'a> {
                                             Resolution::new(x.width, x.height),
                                             framefmt,
                                             fstep,
-                                        ))
+                                        ));
                                     }
                                 }
                                 intvec
@@ -237,7 +239,6 @@ impl<'a> V4LCaptureDevice<'a> {
             })?;
 
         let mut v4l2 = V4LCaptureDevice {
-            initialized: false,
             camera_format: format,
             camera_info: CameraInfo::new(
                 &device_caps.card,
@@ -253,7 +254,7 @@ impl<'a> V4LCaptureDevice<'a> {
         if v4l2.camera_format() == format {
             return Err(NokhwaError::SetPropertyError {
                 property: "CameraFormat".to_string(),
-                value: "".to_string(),
+                value: String::new(),
                 error: "Not same/Rejected".to_string(),
             });
         }
@@ -265,6 +266,7 @@ impl<'a> V4LCaptureDevice<'a> {
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn new_with(
         index: CameraIndex,
         width: u32,
@@ -323,6 +325,8 @@ impl<'a> V4LCaptureDevice<'a> {
     }
 
     /// Force refreshes the inner [`CameraFormat`] state.
+    /// # Errors
+    /// If the internal representation in the driver is invalid, this will error.
     pub fn force_refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
         match self.device.format() {
             Ok(format) => {
@@ -346,10 +350,10 @@ impl<'a> V4LCaptureDevice<'a> {
                             });
                         }
 
-                        if params.interval.denominator != 1 {
-                            params.interval.numerator / params.interval.denominator
-                        } else {
+                        if params.interval.denominator == 1 {
                             params.interval.numerator
+                        } else {
+                            params.interval.numerator / params.interval.denominator
                         }
                     }
                     Err(why) => {
@@ -416,6 +420,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             FrameFormat::MJPEG => FourCC::new(b"MJPG"),
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
             FrameFormat::GRAY => FourCC::new(b"GRAY"),
+            FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
         };
 
         let format = Format::new(new_fmt.width(), new_fmt.height(), v4l_fcc);
@@ -498,7 +503,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                                     .step_by(step.step.numerator as usize)
                                 {
                                     if step.max.denominator != 1 || step.min.denominator != 1 {
-                                        compatible_fps.push(fstep)
+                                        compatible_fps.push(fstep);
                                     }
                                 }
                             }
@@ -581,6 +586,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         })
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
         self.device
             .query_controls()
@@ -630,23 +636,23 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                 let is_readonly = desc
                     .flags
                     .intersects(Flags::READ_ONLY)
-                    .then(|| KnownCameraControlFlag::ReadOnly);
+                    .then_some(KnownCameraControlFlag::ReadOnly);
                 let is_writeonly = desc
                     .flags
                     .intersects(Flags::WRITE_ONLY)
-                    .then(|| KnownCameraControlFlag::WriteOnly);
+                    .then_some(KnownCameraControlFlag::WriteOnly);
                 let is_disabled = desc
                     .flags
                     .intersects(Flags::DISABLED)
-                    .then(|| KnownCameraControlFlag::Disabled);
+                    .then_some(KnownCameraControlFlag::Disabled);
                 let is_volatile = desc
                     .flags
                     .intersects(Flags::VOLATILE)
-                    .then(|| KnownCameraControlFlag::Volatile);
+                    .then_some(KnownCameraControlFlag::Volatile);
                 let is_inactive = desc
                     .flags
                     .intersects(Flags::INACTIVE)
-                    .then(|| KnownCameraControlFlag::Disabled);
+                    .then_some(KnownCameraControlFlag::Disabled);
                 let flags_vec = vec![
                     is_inactive,
                     is_readonly,
@@ -655,7 +661,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     is_writeonly,
                 ]
                 .into_iter()
-                .filter(|x| x.is_some())
+                .filter(Option::is_some)
                 .collect::<Option<Vec<KnownCameraControlFlag>>>()
                 .unwrap_or_default();
 
@@ -667,7 +673,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
                     !desc.flags.intersects(Flags::INACTIVE),
                 ))
             })
-            .filter(|x| x.is_ok())
+            .filter(Result::is_ok)
             .collect::<Result<Vec<CameraControl>, io::Error>>()
             .map_err(|x| NokhwaError::GetPropertyError {
                 property: "www".to_string(),
@@ -680,7 +686,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         id: KnownCameraControl,
         value: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        let conv_value = match value {
+        let conv_value = match value.clone() {
             ControlValueSetter::None => Value::None,
             ControlValueSetter::Integer(i) => Value::Integer(i),
             ControlValueSetter::Boolean(b) => Value::Boolean(b),
@@ -701,7 +707,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             })
             .map_err(|why| NokhwaError::SetPropertyError {
                 property: id.to_string(),
-                value: format!("{value:?}"),
+                value: format!("{:?}", value),
                 error: why.to_string(),
             })?;
         // verify
@@ -710,7 +716,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         if control.value() != value {
             return Err(NokhwaError::SetPropertyError {
                 property: id.to_string(),
-                value: format!("{value:?}"),
+                value: format!("{:?}", value),
                 error: "Rejected".to_string(),
             });
         }
@@ -740,17 +746,15 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
         ))
     }
 
-    fn frame_raw(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
-        match &self.stream_handle {
-            Some(mut sh) => match sh.next() {
+    fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
+        match &mut self.stream_handle {
+            Some(sh) => match sh.next() {
                 Ok((data, _)) => Ok(Cow::Borrowed(data)),
-                Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+                Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
             },
-            None => {
-                return Err(NokhwaError::ReadFrameError(
-                    "Stream Not Started".to_string(),
-                ))
-            }
+            None => Err(NokhwaError::ReadFrameError(
+                "Stream Not Started".to_string(),
+            )),
         }
     }
 
@@ -767,6 +771,7 @@ fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         "YUYV" => Some(FrameFormat::YUYV),
         "MJPG" => Some(FrameFormat::MJPEG),
         "GRAY" => Some(FrameFormat::GRAY),
+        "RGB3" => Some(FrameFormat::RAWRGB),
         _ => None,
     }
 }
@@ -776,5 +781,6 @@ fn frameformat_to_fourcc(fourcc: FrameFormat) -> FourCC {
         FrameFormat::MJPEG => FourCC::new(b"MJPG"),
         FrameFormat::YUYV => FourCC::new(b"YUYV"),
         FrameFormat::GRAY => FourCC::new(b"GRAY"),
+        FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
     }
 }

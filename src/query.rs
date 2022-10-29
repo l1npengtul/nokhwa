@@ -109,7 +109,7 @@ fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
                         .name()
                         .unwrap_or(format!("{}", node.path().to_string_lossy())),
                     &format!("Video4Linux Device @ {}", node.path().to_string_lossy()),
-                    &"".to_string(),
+                    "",
                     CameraIndex::Index(node.index() as u32),
                 )
             })

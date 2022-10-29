@@ -1087,9 +1087,9 @@ impl Default for JSCameraConstraintsBuilder {
             frame_rate_exact: false,
             resize_mode: JSCameraResizeMode::Any,
             resize_mode_exact: false,
-            device_id: "".to_string(),
+            device_id: String::new(),
             device_id_exact: false,
-            group_id: "".to_string(),
+            group_id: String::new(),
             group_id_exact: false,
         }
     }
