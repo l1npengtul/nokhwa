@@ -565,58 +565,48 @@ pub mod wmf {
                 };
 
                 // MFRatio is represented as 2 u32s in memory. This means we cann convert it to 2
-                let frame_rate_max =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(NokhwaError::GetPropertyError {
-                                property: "MF_MT_FRAME_RATE_RANGE_MAX".to_string(),
-                                error: why.to_string(),
-                            })
-                        }
-                    };
-
-                let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
-                    Ok(fraction_u64) => {
+                let framerate_list = {
+                    let mut framerates = vec![0_u32; 3];
+                    if let Ok(fraction_u64) =
+                        unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) }
+                    {
                         let mut numerator = (fraction_u64 >> 32) as u32;
                         let denominator = fraction_u64 as u32;
                         if denominator != 1 {
                             numerator = 0;
                         }
-                        numerator
-                    }
-                    Err(why) => {
-                        return Err(NokhwaError::GetPropertyError {
-                            property: "MF_MT_FRAME_RATE".to_string(),
-                            error: why.to_string(),
-                        })
-                    }
-                };
-
-                let frame_rate_min =
-                    match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN) } {
-                        Ok(fraction_u64) => {
-                            let mut numerator = (fraction_u64 >> 32) as u32;
-                            let denominator = fraction_u64 as u32;
-                            if denominator != 1 {
-                                numerator = 0;
-                            }
-                            numerator
-                        }
-                        Err(why) => {
-                            return Err(NokhwaError::GetPropertyError {
-                                property: "MF_MT_FRAME_RATE_RANGE_MIN".to_string(),
-                                error: why.to_string(),
-                            })
-                        }
+                        framerates.push(numerator)
                     };
+                    if let Ok(fraction_u64) =
+                        unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) }
+                    {
+                        let mut numerator = (fraction_u64 >> 32) as u32;
+                        let denominator = fraction_u64 as u32;
+                        if denominator != 1 {
+                            numerator = 0;
+                        }
+                        framerates.push(numerator)
+                    };
+                    if let Ok(fraction_u64) = unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
+                        let mut numerator = (fraction_u64 >> 32) as u32;
+                        let denominator = fraction_u64 as u32;
+                        if denominator != 1 {
+                            numerator = 0;
+                        }
+                        framerates.push(numerator)
+                    };
+                    if let Ok(fraction_u64) =
+                        unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN) }
+                    {
+                        let mut numerator = (fraction_u64 >> 32) as u32;
+                        let denominator = fraction_u64 as u32;
+                        if denominator != 1 {
+                            numerator = 0;
+                        }
+                        framerates.push(numerator)
+                    };
+                    framerates
+                };
 
                 let frame_fmt = if fourcc == MF_VIDEO_FORMAT_MJPEG {
                     FrameFormat::MJPEG
@@ -628,28 +618,14 @@ pub mod wmf {
                     continue;
                 };
 
-                if frame_rate_min != 0 {
-                    camera_format_list.push(CameraFormat::new(
-                        Resolution::new(width, height),
-                        frame_fmt,
-                        frame_rate_min,
-                    ));
-                }
-
-                if frame_rate != 0 && frame_rate_min != frame_rate {
-                    camera_format_list.push(CameraFormat::new(
-                        Resolution::new(width, height),
-                        frame_fmt,
-                        frame_rate,
-                    ));
-                }
-
-                if frame_rate_max != 0 && frame_rate != frame_rate_max {
-                    camera_format_list.push(CameraFormat::new(
-                        Resolution::new(width, height),
-                        frame_fmt,
-                        frame_rate_max,
-                    ));
+                for frame_rate in framerate_list {
+                    if frame_rate != 0 {
+                        camera_format_list.push(CameraFormat::new(
+                            Resolution::new(width, height),
+                            frame_fmt,
+                            frame_rate_min,
+                        ));
+                    }
                 }
 
                 index += 1;
