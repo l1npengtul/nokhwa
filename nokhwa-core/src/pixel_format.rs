@@ -351,8 +351,8 @@ impl FormatDecoder for LumaAFormat {
 
     fn write_output_buffer(
         fcc: FrameFormat,
-        data: &[u8],
         _resolution: Resolution,
+        data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
         match fcc {

@@ -18,6 +18,8 @@ use nokhwa_bindings_macos::{
     AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
     AVCaptureVideoDataOutput,
 };
+use nokhwa_core::pixel_format::RgbFormat;
+use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
@@ -109,7 +111,7 @@ impl AVFoundationCaptureDevice {
         let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
         AVFoundationCaptureDevice::new(
             &CameraIndex::Index(index as u32),
-            RequestedFormat::Exact(camera_format),
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format)),
         )
     }
 }
@@ -210,10 +212,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
             }
         }
 
-        return Err(NokhwaError::GetPropertyError {
+        Err(NokhwaError::GetPropertyError {
             property: control.to_string(),
             error: "Not Found".to_string(),
-        });
+        })
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
@@ -227,7 +229,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     ) -> Result<(), NokhwaError> {
         self.device.lock()?;
         let res = self.device.set_control(id, value);
-        self.device.unlock()?;
+        self.device.unlock();
         res
     }
 

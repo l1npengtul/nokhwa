@@ -68,7 +68,7 @@ impl RequestedFormat<'_> {
             wanted_decoder: decoder,
         }
     }
-    
+
     /// Gets the [`RequestedFormatType`]
     pub fn requested_format_type(&self) -> RequestedFormatType {
         self.requested_format
@@ -1748,16 +1748,16 @@ pub fn buf_yuv_420_to_rgb(
     let half_width = resolution.x() / 2;
 
     for h in 0..half_height {
-        for _ in 0..half_width {
-            let r0_idx = ((h * 2) + (y * resolution.width())) as usize;
-            let r1_idx = ((h * 2) + ((y + 1) * resolution.width())) as usize;
+        for w in 0..half_width {
+            let r0_idx = ((w * 2) + (h * resolution.width())) as usize;
+            let r1_idx = ((w * 2) + ((h + 1) * resolution.width())) as usize;
 
             let y0 = data[r0_idx] as i32;
             let y1 = data[r0_idx + 1] as i32;
             let y2 = data[r1_idx] as i32;
             let y3 = data[r1_idx + 1] as i32;
 
-            let cell_number = (y * resolution.width()) + h;
+            let cell_number = (h * resolution.width()) + h;
             let u0 = data[(u_values_start + cell_number) as usize] as i32;
             let v0 = data[(v_values_start + cell_number) as usize] as i32;
 

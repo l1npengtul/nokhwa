@@ -31,7 +31,7 @@ mod internal {
     pub mod core_media {
         // all of this is stolen from bindgen
         // steal it idc
-        use crate::CGFloat;
+        use crate::internal::CGFloat;
         use core_media_sys::{
             CMBlockBufferRef, CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,
             FourCharCode,
@@ -203,26 +203,31 @@ mod internal {
         AVMediaTypeTimecode, AVMediaTypeVideo, CGPoint, CMSampleBufferGetImageBuffer,
         CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
         CVPixelBufferGetDataSize, CVPixelBufferGetPixelFormatType, CVPixelBufferLockBaseAddress,
-        CVPixelBufferUnlockBaseAddress, NSObject,
+        CVPixelBufferUnlockBaseAddress, NSObject, OSType,
     };
 
     use block::ConcreteBlock;
-    use cocoa_foundation::base::Nil;
-    use cocoa_foundation::foundation::{NSArray, NSInteger, NSString, NSUInteger};
+    use cocoa_foundation::{
+        base::Nil,
+        foundation::{NSArray, NSInteger, NSString, NSUInteger},
+    };
     use core_media_sys::{
-        kCMPixelFormat_422YpCbCr8_yuvs, kCMPixelFormat_8IndexedGray_WhiteIsZero,
-        kCMVideoCodecType_422YpCbCr8, kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML,
-        CMFormatDescriptionGetMediaSubType, CMFormatDescriptionRef, CMSampleBufferRef, CMTime,
-        CMVideoDimensions,
+        kCMPixelFormat_24RGB, kCMPixelFormat_422YpCbCr8_yuvs,
+        kCMPixelFormat_8IndexedGray_WhiteIsZero, kCMVideoCodecType_422YpCbCr8,
+        kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML, CMFormatDescriptionGetMediaSubType,
+        CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,
+    };
+    use core_video_sys::{
+        kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
     };
     use flume::{Receiver, Sender};
-    use nokhwa_core::types::ControlValueSetter;
     use nokhwa_core::{
         error::NokhwaError,
         types::{
             ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-            ControlValueDescription, FrameFormat, KnownCameraControl, KnownCameraControlFlag,
-            Resolution,
+            ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
+            KnownCameraControlFlag, Resolution,
         },
     };
     use objc::{
@@ -230,11 +235,10 @@ mod internal {
         runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
     };
     use once_cell::sync::Lazy;
-    use std::collections::BTreeMap;
     use std::{
         borrow::Cow,
         cmp::Ordering,
-        collections::HashSet,
+        collections::{BTreeMap, HashSet},
         convert::TryFrom,
         error::Error,
         ffi::{c_float, c_void, CStr},
@@ -360,6 +364,21 @@ mod internal {
         }
     }
 
+    #[allow(non_upper_case_globals)]
+    fn raw_fcc_to_frameformat(raw: OSType) -> Option<FrameFormat> {
+        match raw {
+            kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => {
+                Some(FrameFormat::YUYV)
+            }
+            kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => Some(FrameFormat::MJPEG),
+            kCMPixelFormat_8IndexedGray_WhiteIsZero => Some(FrameFormat::GRAY),
+            kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+            | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange => Some(FrameFormat::NV12),
+            kCMPixelFormat_24RGB => Some(FrameFormat::RAWRGB),
+            _ => None,
+        }
+    }
+
     pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
     pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
@@ -403,15 +422,9 @@ mod internal {
 
                 let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
 
-                let fourcc = match buffer_codec {
-                    kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => {
-                        FrameFormat::YUYV
-                    }
-                    kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => FrameFormat::MJPEG,
-                    kCMPixelFormat_8IndexedGray_WhiteIsZero => FrameFormat::GRAY,
-                    _ => {
-                        return;
-                    }
+                let fourcc = match raw_fcc_to_frameformat(buffer_codec) {
+                    Some(fcc) => fcc,
+                    None => return,
                 };
 
                 let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
@@ -803,14 +816,12 @@ mod internal {
             let fcc_raw =
                 unsafe { CMFormatDescriptionGetMediaSubType(description_obj as *mut c_void) };
             #[allow(non_upper_case_globals)]
-            let fourcc = match fcc_raw {
-                kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => FrameFormat::YUYV,
-                kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => FrameFormat::MJPEG,
-                kCMPixelFormat_8IndexedGray_WhiteIsZero => FrameFormat::GRAY,
-                fcc => {
+            let fourcc = match raw_fcc_to_frameformat(fcc_raw) {
+                Some(fcc) => fcc,
+                None => {
                     return Err(NokhwaError::StructureError {
                         structure: "FourCharCode".to_string(),
-                        error: format!("Unknown FourCharCode {fcc:?}"),
+                        error: format!("Unknown FourCharCode {fcc_raw:?}"),
                     })
                 }
             };
