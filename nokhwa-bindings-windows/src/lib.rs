@@ -110,6 +110,18 @@ pub mod wmf {
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
+    const MF_VIDEO_FORMAT_NV12: GUID = GUID::from_values(
+        0x3231564E,
+        0x0000,
+        0x0010,
+        [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+    );
+    const MF_VIDEO_FORMAT_RGB24: GUID = GUID::from_values(
+        0x00000014,
+        0x0000,
+        0x0010,
+        [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+    );
 
     const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
     const MF_SOURCE_READER_MEDIASOURCE: u32 = 0xFFFF_FFFF;
@@ -154,6 +166,27 @@ pub mod wmf {
     //         )*
     //     };
     // }
+
+    fn guid_to_frameformat(guid: GUID) -> Option<FrameFormat> {
+        match fourcc {
+            MF_VIDEO_FORMAT_NV12 => Some(FrameFormat::NV12),
+            MF_VIDEO_FORMAT_RGB24 => Some(FrameFormat::RAWRGB),
+            MF_VIDEO_FORMAT_GRAY => Some(FrameFormat::GRAY),
+            MF_VIDEO_FORMAT_YUY2 => Some(FrameFormat::YUYV),
+            MF_VIDEO_FORMAT_MJPEG => Some(FrameFormat::MJPEG),
+            _ => None,
+        }
+    }
+
+    fn frameformat_to_guid(frameformat: FrameFormat) -> GUID {
+        match frameformat {
+            FrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
+            FrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
+            FrameFormat::NV12 => MF_VIDEO_FORMAT_NV12,
+            FrameFormat::GRAY => MF_VIDEO_FORMAT_GRAY,
+            FrameFormat::RAWRGB => MF_VIDEO_FORMAT_RGB24,
+        }
+    }
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
         if !(INITIALIZED.load(Ordering::SeqCst)) {
@@ -608,14 +641,9 @@ pub mod wmf {
                     framerates
                 };
 
-                let frame_fmt = if fourcc == MF_VIDEO_FORMAT_MJPEG {
-                    FrameFormat::MJPEG
-                } else if fourcc == MF_VIDEO_FORMAT_YUY2 {
-                    FrameFormat::YUYV
-                } else if fourcc == MF_VIDEO_FORMAT_GRAY {
-                    FrameFormat::GRAY
-                } else {
-                    continue;
+                let frame_fmt = match guid_to_frameformat(fourcc) {
+                    Some(fcc) => fcc,
+                    None => continue,
                 };
 
                 for frame_rate in framerate_list {
@@ -949,11 +977,9 @@ pub mod wmf {
                     };
 
                     let format = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
-                        Ok(fcc) => match fcc {
-                            MF_VIDEO_FORMAT_YUY2 => FrameFormat::YUYV,
-                            MF_VIDEO_FORMAT_GRAY => FrameFormat::GRAY,
-                            MF_VIDEO_FORMAT_MJPEG => FrameFormat::MJPEG,
-                            _ => {
+                        Ok(fcc) => match guid_to_frameformat(fcc) {
+                            Some(ff) => ff,
+                            None => {
                                 return Err(NokhwaError::GetPropertyError {
                                     property: "MF_MT_SUBTYPE".to_string(),
                                     error: "Unknown".to_string(),
@@ -1007,16 +1033,7 @@ pub mod wmf {
                 println!("{:?}", bytes);
                 u64::from_le_bytes(bytes)
             };
-            let fourcc = match format.format() {
-                FrameFormat::MJPEG => MF_VIDEO_FORMAT_MJPEG,
-                FrameFormat::YUYV => MF_VIDEO_FORMAT_YUY2,
-                FrameFormat::GRAY => MF_VIDEO_FORMAT_GRAY,
-                FrameFormat::RAWRGB => {
-                    return Err(NokhwaError::NotImplementedError(
-                        "RGB24 not implemented".to_string(),
-                    ))
-                } // TODO: Implement RGB24
-            };
+            let fourcc = frameformat_to_guid(format.format());
             // setting to the new media_type
             if let Err(why) = unsafe { media_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video) } {
                 return Err(NokhwaError::SetPropertyError {
