@@ -21,8 +21,6 @@ use crate::{
 };
 use bytes::Bytes;
 use image::ImageBuffer;
-#[cfg(feature = "serialize")]
-use serde::{Deserialize, Serialize};
 
 /// A buffer returned by a camera to accomodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
@@ -74,7 +72,7 @@ impl Buffer {
     pub fn decode_image<F: FormatDecoder>(
         &self,
     ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
-        let new_data = F::write_output(self.source_frame_format, &self.buffer)?;
+        let new_data = F::write_output(self.source_frame_format, self.resolution, &self.buffer)?;
         let image =
             ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
                 .ok_or(NokhwaError::ProcessFrameError {
@@ -92,7 +90,12 @@ impl Buffer {
         &self,
         buffer: &mut [u8],
     ) -> Result<(), NokhwaError> {
-        F::write_output_buffer(self.source_frame_format, &self.buffer, buffer)
+        F::write_output_buffer(
+            self.source_frame_format,
+            self.resolution,
+            &self.buffer,
+            buffer,
+        )
     }
 
     /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).

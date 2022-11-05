@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
@@ -114,7 +115,12 @@ impl OpenCvCaptureDevice {
             NokhwaError::OpenDeviceError(format!("Failed to open {}", index), why.to_string())
         })?;
 
-        let camera_format = cam_fmt.fulfill(&[CameraFormat::default()]).unwrap();
+        let camera_format =
+            if let RequestedFormatType::Exact(exact) = cam_fmt.requested_format_type() {
+                exact
+            } else {
+                return Err(NokhwaError::UnsupportedOperationError(ApiBackend::OpenCv));
+            };
 
         set_properties(&mut video_capture, camera_format)?;
 

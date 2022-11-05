@@ -421,6 +421,7 @@ impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
             FrameFormat::YUYV => FourCC::new(b"YUYV"),
             FrameFormat::GRAY => FourCC::new(b"GRAY"),
             FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
+            FrameFormat::NV12 => FourCC::new(b"NV12"),
         };
 
         let format = Format::new(new_fmt.width(), new_fmt.height(), v4l_fcc);
@@ -772,6 +773,7 @@ fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         "MJPG" => Some(FrameFormat::MJPEG),
         "GRAY" => Some(FrameFormat::GRAY),
         "RGB3" => Some(FrameFormat::RAWRGB),
+        "NV12" => Some(FrameFormat::NV12)
         _ => None,
     }
 }
@@ -782,5 +784,6 @@ fn frameformat_to_fourcc(fourcc: FrameFormat) -> FourCC {
         FrameFormat::YUYV => FourCC::new(b"YUYV"),
         FrameFormat::GRAY => FourCC::new(b"GRAY"),
         FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
+        FrameFormat::NV12 => FourCC::new(b"NV12"),
     }
 }

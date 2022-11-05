@@ -68,6 +68,11 @@ impl RequestedFormat<'_> {
             wanted_decoder: decoder,
         }
     }
+    
+    /// Gets the [`RequestedFormatType`]
+    pub fn requested_format_type(&self) -> RequestedFormatType {
+        self.requested_format
+    }
 
     /// Fulfill the requested using a list of all available formats.
     ///
@@ -276,13 +281,16 @@ impl TryFrom<CameraIndex> for usize {
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
+/// - NV12 is same as above. Note that a partial compression (e.g. [16, 235] may be coerced to [0, 255].
 /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
 /// - GRAY is a grayscale image format, usually for specialized cameras such as IR Cameras.
+/// - RAWRGB is a Raw RGB888 format.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum FrameFormat {
     MJPEG,
     YUYV,
+    NV12,
     GRAY,
     RAWRGB,
 }
@@ -301,14 +309,23 @@ impl Display for FrameFormat {
             }
             FrameFormat::RAWRGB => {
                 write!(f, "RAWRGB")
-            },
+            }
+            FrameFormat::NV12 => {
+                write!(f, "NV12")
+            }
         }
     }
 }
 
 #[must_use]
 pub const fn frame_formats() -> &'static [FrameFormat] {
-    &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY, FrameFormat::RAWRGB]
+    &[
+        FrameFormat::MJPEG,
+        FrameFormat::YUYV,
+        FrameFormat::NV12,
+        FrameFormat::GRAY,
+        FrameFormat::RAWRGB,
+    ]
 }
 
 /// Describes a Resolution.
@@ -343,6 +360,7 @@ impl Resolution {
     /// This is exported as `get_Width`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Width))]
+    #[inline]
     pub fn width(self) -> u32 {
         self.width_x
     }
@@ -352,6 +370,7 @@ impl Resolution {
     /// This is exported as `get_Height`.
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Height))]
+    #[inline]
     pub fn height(self) -> u32 {
         self.height_y
     }
@@ -359,6 +378,7 @@ impl Resolution {
     /// Get the x (width) of Resolution
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(skip))]
+    #[inline]
     pub fn x(self) -> u32 {
         self.width_x
     }
@@ -366,6 +386,7 @@ impl Resolution {
     /// Get the y (height) of Resolution
     #[must_use]
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(skip))]
+    #[inline]
     pub fn y(self) -> u32 {
         self.height_y
     }
@@ -1544,15 +1565,6 @@ pub fn buf_mjpeg_to_rgb(_data: &[u8], _dest: &mut [u8], _rgba: bool) -> Result<(
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
-    if data.len() % 4 != 0 {
-        return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::YUYV,
-            destination: "RGB888".to_string(),
-            error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
-                .to_string(),
-        });
-    }
-
     let pixel_size = if rgba { 4 } else { 3 };
     // yuyv yields 2 3-byte pixels per yuyv chunk
     let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
@@ -1671,4 +1683,115 @@ pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
 pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
     let [r, g, b] = yuyv444_to_rgb(y, u, v);
     [r, g, b, 255]
+}
+
+/// Converts a YUYV 4:2:0 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
+/// # Errors
+/// This may error when the data stream size is wrong.
+pub fn yuv_420_to_rgb(
+    resolution: Resolution,
+    data: &[u8],
+    rgba: bool,
+) -> Result<Vec<u8>, NokhwaError> {
+    let pxsize = if rgba { 4 } else { 3 };
+    let mut dest = vec![0; (pxsize * resolution.width() * resolution.height()) as usize];
+    buf_yuv_420_to_rgb(resolution, data, &mut dest, rgba)?;
+    Ok(dest)
+}
+
+// this depresses me
+// like, everytime i open this codebase all the life is sucked out of me
+// i hate it
+/// Converts a YUYV 4:2:0 datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
+/// # Errors
+/// This may error when the data stream size is wrong.
+pub fn buf_yuv_420_to_rgb(
+    resolution: Resolution,
+    data: &[u8],
+    out: &mut [u8],
+    rgba: bool,
+) -> Result<(), NokhwaError> {
+    if resolution.x() % 2 != 0 || resolution.y() % 2 != 0 {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::NV12,
+            destination: "RGB888".to_string(),
+            error: "Resolution must be even!".to_string(),
+        });
+    }
+
+    let x_lobcorp = resolution.y() * resolution.x();
+    let u_values = x_lobcorp / 4;
+    let v_values = x_lobcorp / 4;
+
+    if (x_lobcorp + u_values + v_values) as usize != data.len() {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::NV12,
+            destination: "RGB888".to_string(),
+            error: "Ran out of data!".to_string(),
+        });
+    }
+
+    let px_b_size = if rgba { 4 } else { 3 };
+
+    if (x_lobcorp * px_b_size) as usize > out.len() {
+        return Err(NokhwaError::ProcessFrameError {
+            src: FrameFormat::NV12,
+            destination: "RGB888".to_string(),
+            error: "Output buffer too small!".to_string(),
+        });
+    };
+
+    let u_values_start = x_lobcorp;
+    let v_values_start = x_lobcorp + u_values;
+
+    let half_height = resolution.y() / 2;
+    let half_width = resolution.x() / 2;
+
+    for h in 0..half_height {
+        for _ in 0..half_width {
+            let r0_idx = ((h * 2) + (y * resolution.width())) as usize;
+            let r1_idx = ((h * 2) + ((y + 1) * resolution.width())) as usize;
+
+            let y0 = data[r0_idx] as i32;
+            let y1 = data[r0_idx + 1] as i32;
+            let y2 = data[r1_idx] as i32;
+            let y3 = data[r1_idx + 1] as i32;
+
+            let cell_number = (y * resolution.width()) + h;
+            let u0 = data[(u_values_start + cell_number) as usize] as i32;
+            let v0 = data[(v_values_start + cell_number) as usize] as i32;
+
+            if rgba {
+                let rgb0 = yuyv444_to_rgba(y0, u0, v0);
+                let rgb1 = yuyv444_to_rgba(y1, u0, v0);
+                let rgb2 = yuyv444_to_rgba(y2, u0, v0);
+                let rgb3 = yuyv444_to_rgba(y3, u0, v0);
+
+                for (i, (px0, px1)) in rgb0.into_iter().zip(rgb1.into_iter()).enumerate() {
+                    out[r0_idx + i] = px0;
+                    out[r0_idx + i + 4] = px1;
+                }
+                for (i, (px0, px1)) in rgb2.into_iter().zip(rgb3.into_iter()).enumerate() {
+                    out[r1_idx + i] = px0;
+                    out[r1_idx + i + 4] = px1;
+                }
+            } else {
+                let rgb0 = yuyv444_to_rgb(y0, u0, v0);
+                let rgb1 = yuyv444_to_rgb(y1, u0, v0);
+                let rgb2 = yuyv444_to_rgb(y2, u0, v0);
+                let rgb3 = yuyv444_to_rgb(y3, u0, v0);
+
+                for (i, (px0, px1)) in rgb0.into_iter().zip(rgb1.into_iter()).enumerate() {
+                    out[r0_idx + i] = px0;
+                    out[r0_idx + i + 3] = px1;
+                }
+                for (i, (px0, px1)) in rgb2.into_iter().zip(rgb3.into_iter()).enumerate() {
+                    out[r1_idx + i] = px0;
+                    out[r1_idx + i + 3] = px1;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }

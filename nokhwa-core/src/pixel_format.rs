@@ -15,7 +15,8 @@
  */
 use crate::error::NokhwaError;
 use crate::types::{
-    buf_mjpeg_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuyv422_to_rgb, FrameFormat,
+    buf_mjpeg_to_rgb, buf_yuv_420_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuv_420_to_rgb,
+    yuyv422_to_rgb, FrameFormat, Resolution,
 };
 use image::{Luma, LumaA, Pixel, Rgb, Rgba};
 use std::fmt::Debug;
@@ -28,13 +29,18 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     /// Allocates and returns a `Vec`
     /// # Errors
     /// If the data is malformed, or the source [`FrameFormat`] is incompatible, this will error.
-    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError>;
+    fn write_output(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+    ) -> Result<Vec<u8>, NokhwaError>;
 
     /// Writes to a user provided buffer.
     /// # Errors
     /// If the data is malformed, the source [`FrameFormat`] is incompatible, or the user-alloted buffer is not large enough, this will error.
     fn write_output_buffer(
         fcc: FrameFormat,
+        resolution: Resolution,
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError>;
@@ -53,7 +59,11 @@ impl FormatDecoder for RgbFormat {
     type Output = Rgb<u8>;
     const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
 
-    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+    ) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, false),
             FrameFormat::YUYV => yuyv422_to_rgb(data, false),
@@ -65,11 +75,13 @@ impl FormatDecoder for RgbFormat {
                 })
                 .collect()),
             FrameFormat::RAWRGB => Ok(data.to_vec()),
+            FrameFormat::NV12 => yuv_420_to_rgb(resolution, data, false),
         }
     }
 
     fn write_output_buffer(
         fcc: FrameFormat,
+        resolution: Resolution,
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
@@ -93,7 +105,11 @@ impl FormatDecoder for RgbFormat {
                 });
                 Ok(())
             }
-            FrameFormat::RAWRGB => {dest.copy_from_slice(data); Ok(())}
+            FrameFormat::RAWRGB => {
+                dest.copy_from_slice(data);
+                Ok(())
+            }
+            FrameFormat::NV12 => buf_yuv_420_to_rgb(resolution, data, dest, false),
         }
     }
 }
@@ -112,7 +128,11 @@ impl FormatDecoder for RgbAFormat {
 
     const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
 
-    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+    ) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => mjpeg_to_rgb(data, true),
             FrameFormat::YUYV => yuyv422_to_rgb(data, true),
@@ -125,16 +145,16 @@ impl FormatDecoder for RgbAFormat {
                 .collect()),
             FrameFormat::RAWRGB => Ok(data
                 .chunks_exact(3)
-                .flat_map(|x| {
-                    [x[0], x[1], x[2], 255]
-                })
-                .collect()
-            ),
+                .flat_map(|x| [x[0], x[1], x[2], 255])
+                .collect()),
+            FrameFormat::NV12 => yuv_420_to_rgb(resolution, data, true),
         }
     }
 
     fn write_output_buffer(
         fcc: FrameFormat,
+        resolution: Resolution,
+
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
@@ -160,19 +180,16 @@ impl FormatDecoder for RgbAFormat {
                 Ok(())
             }
             FrameFormat::RAWRGB => {
-                data
-                .chunks_exact(3)
-                .enumerate()
-                .for_each(|(idx, px)| {
+                data.chunks_exact(3).enumerate().for_each(|(idx, px)| {
                     let index = idx * 4;
                     dest[index] = px[0];
                     dest[index + 1] = px[1];
                     dest[index + 2] = px[2];
                     dest[index + 3] = 255;
-
                 });
                 Ok(())
             }
+            FrameFormat::NV12 => buf_yuv_420_to_rgb(resolution, data, dest, true),
         }
     }
 }
@@ -193,7 +210,11 @@ impl FormatDecoder for LumaFormat {
         &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
 
     #[allow(clippy::cast_possible_truncation)]
-    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+    ) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
                 .as_slice()
@@ -213,17 +234,26 @@ impl FormatDecoder for LumaFormat {
                     (avg / 3) as u8
                 })
                 .collect()),
+            FrameFormat::NV12 => Ok(yuv_420_to_rgb(resolution, data, false)?
+                .as_slice()
+                .chunks_exact(3)
+                .map(|x| {
+                    let mut avg = 0;
+                    x.iter().for_each(|v| avg += u16::from(*v));
+                    (avg / 3) as u8
+                })
+                .collect()),
             FrameFormat::GRAY => Ok(data.to_vec()),
-            FrameFormat::RAWRGB => {
-                Ok(data.chunks(3).map(|px| {
-                    ((px[0] as i32 + px[1] as i32 + px[2] as i32) / 3) as u8
-                }).collect())
-            },
+            FrameFormat::RAWRGB => Ok(data
+                .chunks(3)
+                .map(|px| ((px[0] as i32 + px[1] as i32 + px[2] as i32) / 3) as u8)
+                .collect()),
         }
     }
 
     fn write_output_buffer(
         fcc: FrameFormat,
+        _resolution: Resolution,
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
@@ -237,6 +267,11 @@ impl FormatDecoder for LumaFormat {
                 })
             }
             FrameFormat::YUYV => Err(NokhwaError::ProcessFrameError {
+                src: fcc,
+                destination: "Luma => RGB".to_string(),
+                error: "Conversion Error".to_string(),
+            }),
+            FrameFormat::NV12 => Err(NokhwaError::ProcessFrameError {
                 src: fcc,
                 destination: "Luma => RGB".to_string(),
                 error: "Conversion Error".to_string(),
@@ -272,7 +307,11 @@ impl FormatDecoder for LumaAFormat {
         &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
 
     #[allow(clippy::cast_possible_truncation)]
-    fn write_output(fcc: FrameFormat, data: &[u8]) -> Result<Vec<u8>, NokhwaError> {
+    fn write_output(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+    ) -> Result<Vec<u8>, NokhwaError> {
         match fcc {
             FrameFormat::MJPEG => Ok(mjpeg_to_rgb(data, false)?
                 .as_slice()
@@ -284,6 +323,15 @@ impl FormatDecoder for LumaAFormat {
                 })
                 .collect()),
             FrameFormat::YUYV => Ok(yuyv422_to_rgb(data, false)?
+                .as_slice()
+                .chunks_exact(3)
+                .flat_map(|x| {
+                    let mut avg = 0;
+                    x.iter().for_each(|v| avg += u16::from(*v));
+                    [(avg / 3) as u8, 255]
+                })
+                .collect()),
+            FrameFormat::NV12 => Ok(yuv_420_to_rgb(resolution, data, false)?
                 .as_slice()
                 .chunks_exact(3)
                 .flat_map(|x| {
@@ -304,6 +352,7 @@ impl FormatDecoder for LumaAFormat {
     fn write_output_buffer(
         fcc: FrameFormat,
         data: &[u8],
+        _resolution: Resolution,
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
         match fcc {
@@ -318,6 +367,11 @@ impl FormatDecoder for LumaAFormat {
             FrameFormat::YUYV => Err(NokhwaError::ProcessFrameError {
                 src: fcc,
                 destination: "YUYV => LumaA".to_string(),
+                error: "Conversion Error".to_string(),
+            }),
+            FrameFormat::NV12 => Err(NokhwaError::ProcessFrameError {
+                src: fcc,
+                destination: "NV12 => LumaA".to_string(),
                 error: "Conversion Error".to_string(),
             }),
             FrameFormat::GRAY => {
@@ -339,13 +393,11 @@ impl FormatDecoder for LumaAFormat {
                     });
                 Ok(())
             }
-            FrameFormat::RAWRGB => {
-                Err(NokhwaError::ProcessFrameError {
-                    src: fcc,
-                    destination: "RGB => RGB".to_string(),
-                    error: "Conversion Error".to_string(),
-                })
-            },
+            FrameFormat::RAWRGB => Err(NokhwaError::ProcessFrameError {
+                src: fcc,
+                destination: "RGB => RGB".to_string(),
+                error: "Conversion Error".to_string(),
+            }),
         }
     }
 }
