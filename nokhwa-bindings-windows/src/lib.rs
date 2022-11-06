@@ -111,13 +111,13 @@ pub mod wmf {
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
     const MF_VIDEO_FORMAT_NV12: GUID = GUID::from_values(
-        0x3231564E,
+        0x3231_564E,
         0x0000,
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
     const MF_VIDEO_FORMAT_RGB24: GUID = GUID::from_values(
-        0x00000014,
+        0x0000_0014,
         0x0000,
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
@@ -168,7 +168,7 @@ pub mod wmf {
     // }
 
     fn guid_to_frameformat(guid: GUID) -> Option<FrameFormat> {
-        match fourcc {
+        match guid {
             MF_VIDEO_FORMAT_NV12 => Some(FrameFormat::NV12),
             MF_VIDEO_FORMAT_RGB24 => Some(FrameFormat::RAWRGB),
             MF_VIDEO_FORMAT_GRAY => Some(FrameFormat::GRAY),
@@ -608,7 +608,7 @@ pub mod wmf {
                         if denominator != 1 {
                             numerator = 0;
                         }
-                        framerates.push(numerator)
+                        framerates.push(numerator);
                     };
                     if let Ok(fraction_u64) =
                         unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MAX) }
@@ -618,7 +618,7 @@ pub mod wmf {
                         if denominator != 1 {
                             numerator = 0;
                         }
-                        framerates.push(numerator)
+                        framerates.push(numerator);
                     };
                     if let Ok(fraction_u64) = unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
                         let mut numerator = (fraction_u64 >> 32) as u32;
@@ -626,7 +626,7 @@ pub mod wmf {
                         if denominator != 1 {
                             numerator = 0;
                         }
-                        framerates.push(numerator)
+                        framerates.push(numerator);
                     };
                     if let Ok(fraction_u64) =
                         unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE_RANGE_MIN) }
@@ -636,7 +636,7 @@ pub mod wmf {
                         if denominator != 1 {
                             numerator = 0;
                         }
-                        framerates.push(numerator)
+                        framerates.push(numerator);
                     };
                     framerates
                 };
@@ -651,7 +651,7 @@ pub mod wmf {
                         camera_format_list.push(CameraFormat::new(
                             Resolution::new(width, height),
                             frame_fmt,
-                            frame_rate_min,
+                            frame_rate,
                         ));
                     }
                 }
