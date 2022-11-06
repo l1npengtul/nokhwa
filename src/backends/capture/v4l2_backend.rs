@@ -92,9 +92,6 @@ pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
 /// To see what this does, please see [`CaptureBackendTrait`].
 /// # Quirks
 /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_frame_rate()`](CaptureBackendTrait::set_frame_rate), or [`set_frame_format()`](CaptureBackendTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
-/// - The `Any` return type for [`raw_supported_camera_controls()`](CaptureBackendTrait::raw_supported_camera_controls) is [`Description`]
-/// - The `Any` type for [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control) is [`u32`], and its return `Any` is a [`Control`]
-/// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`u32`] and [`Control`]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-v4l")))]
 pub struct V4LCaptureDevice<'a> {
     camera_format: CameraFormat,
@@ -105,10 +102,6 @@ pub struct V4LCaptureDevice<'a> {
 
 impl<'a> V4LCaptureDevice<'a> {
     /// Creates a new capture device using the `V4L2` backend. Indexes are gives to devices by the OS, and usually numbered by order of discovery.
-    ///
-    /// If `camera_format` is `None`, it will be spawned with a random [`CameraFormat`] as determined by [`init()`](crate::CaptureBackendTrait::init).
-    ///
-    /// If `camera_format` is not `None`, the camera will try to use it when you call [`init()`](crate::CaptureBackendTrait::init).
     /// # Errors
     /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
     #[allow(clippy::too_many_lines)]

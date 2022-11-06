@@ -48,7 +48,7 @@ pub struct RequestedFormat<'a> {
 }
 
 impl RequestedFormat<'_> {
-    /// Creates a new [`RequestedFormat`] by using the [`RequstedFormatType`] and getting the [`FrameFormat`]
+    /// Creates a new [`RequestedFormat`] by using the [`RequestedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a generic type.
     pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<'static> {
         RequestedFormat {
@@ -57,7 +57,7 @@ impl RequestedFormat<'_> {
         }
     }
 
-    /// Creates a new [`RequestedFormat`] by using the [`RequstedFormatType`] and getting the [`FrameFormat`]
+    /// Creates a new [`RequestedFormat`] by using the [`RequestedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a statically allocated slice.
     pub fn with_formats(
         requested: RequestedFormatType,
@@ -654,7 +654,7 @@ impl Display for CameraInfo {
 
 /// The list of known camera controls to the library. <br>
 /// These can control the picture brightness, etc. <br>
-/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::CaptureBackendTrait::camera_controls) to see which ones can be set.
+/// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::traits::CaptureBackendTrait::camera_controls) to see which ones can be set.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum KnownCameraControl {
@@ -826,7 +826,7 @@ impl ControlValueDescription {
         }
     }
 
-    /// Verifies if the [setter](crate::utils::ControlValueSetter) is valid for the provided [`ControlValueDescription`].
+    /// Verifies if the [setter](crate::types::ControlValueSetter) is valid for the provided [`ControlValueDescription`].
     /// - `true` => Is valid.
     /// - `false` => Is not valid.
     ///
@@ -1427,7 +1427,7 @@ impl Display for ApiBackend {
 //     }
 // }
 
-/// Converts a MJPEG stream of [u8] into a Vec<u8> of RGB888. (R,G,B,R,G,B,...)
+/// Converts a MJPEG stream of `&[u8]` into a `Vec<u8>` of RGB888. (R,G,B,R,G,B,...)
 /// # Errors
 /// If `mozjpeg` fails to read scanlines or setup the decompressor, this will error.
 /// # Safety

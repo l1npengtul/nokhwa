@@ -34,7 +34,6 @@ use std::{borrow::Cow, collections::HashMap};
 /// # Quirks
 /// - This does build on non-windows platforms, however when you do the backend will be empty and will return an error for any given operation.
 /// - Please check [`nokhwa-bindings-windows`](https://github.com/l1npengtul/nokhwa/tree/senpai/nokhwa-bindings-windows) source code to see the internal raw interface.
-/// - [`raw_supported_camera_controls()`](CaptureBackendTrait::raw_supported_camera_controls), [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control), [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is **not** supported.
 /// - The symbolic link for the device is listed in the `misc` attribute of the [`CameraInfo`].
 /// - The names may contain invalid characters since they were converted from UTF16.
 /// - When you call new or drop the struct, `initialize`/`de_initialize` will automatically be called.

@@ -135,7 +135,7 @@ pub trait CaptureBackendTrait {
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
-    /// then calling [`set_value()`](CameraControl::set_value())
+    /// then calling [`value()`](CameraControl::value()) to get a [`ControlValueSetter`] and setting the value that way.
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.

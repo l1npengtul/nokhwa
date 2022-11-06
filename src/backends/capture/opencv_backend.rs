@@ -69,12 +69,10 @@ pub fn known_camera_control_to_video_capture_property(
 ///  - The backend's backend will default to system level APIs on Linux(V4L2), Mac(AVFoundation), and Windows(Media Foundation). Otherwise, it will decide for itself.
 ///  - If the [`OpenCvCaptureDevice`] is initialized as a `IPCamera`, the [`CameraFormat`]'s `index` value will be [`u32::MAX`](std::u32::MAX) (4294967295).
 ///  - `OpenCV` does not support camera querying. Camera Name and Camera supported resolution/fps/fourcc is a [`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError).
-/// Note: [`resolution()`](crate::CaptureBackendTrait::resolution()), [`frame_format()`](crate::CaptureBackendTrait::frame_format()), and [`frame_rate()`](crate::CaptureBackendTrait::frame_rate()) is not affected.
+/// Note: [`resolution()`](crate::camera_traits::CaptureBackendTrait::resolution()), [`frame_format()`](crate::camera_traits::CaptureBackendTrait::frame_format()), and [`frame_rate()`](crate::camera_traits::CaptureBackendTrait::frame_rate()) is not affected.
 ///  - [`CameraInfo`]'s human name will be "`OpenCV` Capture Device {location}"
 ///  - [`CameraInfo`]'s description will contain the Camera's Index or IP.
 ///  - The API Preference order is the native OS API (linux => `v4l2`, mac => `AVFoundation`, windows => `MSMF`) than [`CAP_AUTO`](https://docs.opencv.org/4.5.2/d4/d15/group__videoio__flags__base.html#gga023786be1ee68a9105bf2e48c700294da77ab1fe260fd182f8ec7655fab27a31d)
-/// - The `Any` type for [`raw_camera_control()`](CaptureBackendTrait::raw_camera_control) is [`i32`], and its return `Any` is a [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
-/// - The `Any` type for `control` for [`set_raw_camera_control()`](CaptureBackendTrait::set_raw_camera_control) is [`i32`] and [`f64`]. Please check [`OpenCV Documentation Constants`](https://docs.rs/opencv/0.53.1/opencv/videoio/index.html) for more.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
 pub struct OpenCvCaptureDevice {
     camera_format: CameraFormat,

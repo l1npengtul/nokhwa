@@ -27,8 +27,6 @@
 //!
 //! Please read the README for more.
 
-extern crate core;
-
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
 mod camera;
