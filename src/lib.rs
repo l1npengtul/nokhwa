@@ -61,6 +61,64 @@ pub use threaded::CallbackCamera;
 
 pub mod utils {
     pub use nokhwa_core::types::*;
+    #[cfg(feature = "input-opencv")]
+    mod opencv_int {
+        use image::Pixel;
+        use nokhwa_core::{
+            error::NokhwaError,
+            pixel_format::FormatDecoder,
+            types::{FrameFormat, Resolution},
+        };
+        use opencv::core::{Mat, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
+
+        /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+        ///
+        /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_as_opencv_mat`](Self::decode_as_opencv_mat).
+        /// # Errors
+        /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+        /// # Safety
+        /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
+        ///
+        /// Most notably, the `data` **must** stay in scope for the duration of the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html) or bad, ***bad*** things happen.
+        #[cfg(feature = "input-opencv")]
+        #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
+        pub fn decode_opencv_mat<F: FormatDecoder>(
+            resolution: Resolution,
+            data: &mut impl AsRef<[u8]>,
+        ) -> Result<Mat, NokhwaError> {
+            let array_type = match F::Output::CHANNEL_COUNT {
+                1 => CV_8UC1,
+                2 => CV_8UC2,
+                3 => CV_8UC3,
+                4 => CV_8UC4,
+                _ => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::RAWRGB,
+                        destination: "OpenCV Mat".to_string(),
+                        error: "Invalid Decoder FormatDecoder Channel Count".to_string(),
+                    })
+                }
+            };
+
+            unsafe {
+                // TODO: Look into removing this unnecessary copy.
+                let mat1 = Mat::new_rows_cols_with_data(
+                    resolution.height_y as i32,
+                    resolution.width_x as i32,
+                    array_type,
+                    data.as_ref().as_mut_ptr().cast(),
+                    Mat_AUTO_STEP,
+                )
+                .map_err(|why| NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: why.to_string(),
+                })?;
+
+                Ok(mat1)
+            }
+        }
+    }
 }
 
 pub mod error {
