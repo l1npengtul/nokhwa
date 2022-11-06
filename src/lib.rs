@@ -62,6 +62,11 @@ pub use threaded::CallbackCamera;
 pub mod utils {
     pub use nokhwa_core::types::*;
     #[cfg(feature = "input-opencv")]
+    #[doc(inline)]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
+    pub use opencv_int::decode_opencv_mat;
+
+    #[cfg(feature = "input-opencv")]
     mod opencv_int {
         use image::Pixel;
         use nokhwa_core::{
@@ -84,7 +89,7 @@ pub mod utils {
         #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
         pub fn decode_opencv_mat<F: FormatDecoder>(
             resolution: Resolution,
-            data: &mut impl AsRef<[u8]>,
+            data: &mut [u8],
         ) -> Result<Mat, NokhwaError> {
             let array_type = match F::Output::CHANNEL_COUNT {
                 1 => CV_8UC1,
@@ -101,12 +106,12 @@ pub mod utils {
             };
 
             unsafe {
-                // TODO: Look into removing this unnecessary copy.
+                #[allow(clippy::cast_possible_wrap)]
                 let mat1 = Mat::new_rows_cols_with_data(
                     resolution.height_y as i32,
                     resolution.width_x as i32,
                     array_type,
-                    data.as_ref().as_mut_ptr().cast(),
+                    data.as_mut().as_mut_ptr().cast(),
                     Mat_AUTO_STEP,
                 )
                 .map_err(|why| NokhwaError::ProcessFrameError {
