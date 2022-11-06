@@ -36,7 +36,7 @@ impl Default for RequestedFormatType {
 
 impl Display for RequestedFormatType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -50,6 +50,7 @@ pub struct RequestedFormat<'a> {
 impl RequestedFormat<'_> {
     /// Creates a new [`RequestedFormat`] by using the [`RequestedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a generic type.
+    #[must_use]
     pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<'static> {
         RequestedFormat {
             requested_format: requested,
@@ -59,6 +60,7 @@ impl RequestedFormat<'_> {
 
     /// Creates a new [`RequestedFormat`] by using the [`RequestedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a statically allocated slice.
+    #[must_use]
     pub fn with_formats(
         requested: RequestedFormatType,
         decoder: &[FrameFormat],
@@ -70,6 +72,7 @@ impl RequestedFormat<'_> {
     }
 
     /// Gets the [`RequestedFormatType`]
+    #[must_use]
     pub fn requested_format_type(&self) -> RequestedFormatType {
         self.requested_format
     }
@@ -77,11 +80,13 @@ impl RequestedFormat<'_> {
     /// Fulfill the requested using a list of all available formats.
     ///
     /// See [`RequestedFormatType`] for more details.
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn fulfill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
         match self.requested_format {
             RequestedFormatType::HighestResolutionAbs => {
                 let mut formats = all_formats.to_vec();
-                formats.sort_by_key(|a| a.resolution());
+                formats.sort_by_key(CameraFormat::resolution);
                 let resolution = *formats.iter().last()?;
                 let mut format_resolutions = formats
                     .into_iter()
@@ -90,12 +95,12 @@ impl RequestedFormat<'_> {
                             && self.wanted_decoder.contains(&fmt.format())
                     })
                     .collect::<Vec<CameraFormat>>();
-                format_resolutions.sort_by_key(|a| a.frame_rate());
+                format_resolutions.sort_by_key(CameraFormat::frame_rate);
                 format_resolutions.last().copied()
             }
             RequestedFormatType::HighestFrameRateAbs => {
                 let mut formats = all_formats.to_vec();
-                formats.sort_by_key(|a| a.frame_rate());
+                formats.sort_by_key(CameraFormat::resolution);
                 let frame_rate = *formats.iter().last()?;
                 let mut format_framerates = formats
                     .into_iter()
@@ -104,7 +109,7 @@ impl RequestedFormat<'_> {
                             && self.wanted_decoder.contains(&fmt.format())
                     })
                     .collect::<Vec<CameraFormat>>();
-                format_framerates.sort_by_key(|a| a.resolution());
+                format_framerates.sort_by_key(CameraFormat::resolution);
                 format_framerates.last().copied()
             }
             RequestedFormatType::HighestResolution(fps) => {
@@ -146,6 +151,7 @@ impl RequestedFormat<'_> {
                     None
                 }
             }
+            #[allow(clippy::cast_possible_wrap)]
             RequestedFormatType::Closest(c) => {
                 let same_fmt_formats = all_formats
                     .iter()
@@ -185,7 +191,7 @@ impl RequestedFormat<'_> {
                         (abs.unsigned_abs(), *x)
                     })
                     .collect::<Vec<(u32, u32)>>();
-                framerate_map.sort();
+                framerate_map.sort_by(|a, b| a.0.cmp(&b.0));
                 let frame_rate = framerate_map.first()?.1;
                 Some(CameraFormat::new(resolution, c.format(), frame_rate))
             }
@@ -199,13 +205,13 @@ impl RequestedFormat<'_> {
 
 impl Display for RequestedFormat<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
 /// Describes the index of the camera.
 /// - Index: A numbered index
-/// - String: A string, used for IPCameras.
+/// - String: A string, used for `IPCameras`.
 #[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum CameraIndex {
@@ -724,7 +730,7 @@ pub enum KnownCameraControlFlag {
 
 impl Display for KnownCameraControlFlag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -1002,11 +1008,7 @@ impl Display for ControlValueDescription {
                 default,
                 step,
             } => {
-                write!(
-                    f,
-                    "(Current: {}, Default: {}, Step: {})",
-                    value, default, step
-                )
+                write!(f, "(Current: {value}, Default: {default}, Step: {step})",)
             }
             ControlValueDescription::IntegerRange {
                 min,
@@ -1017,8 +1019,7 @@ impl Display for ControlValueDescription {
             } => {
                 write!(
                     f,
-                    "(Current: {}, Default: {}, Step: {}, Range: ({}, {}))",
-                    value, default, step, min, max
+                    "(Current: {value}, Default: {default}, Step: {step}, Range: ({min}, {max}))",
                 )
             }
             ControlValueDescription::Float {
@@ -1026,11 +1027,7 @@ impl Display for ControlValueDescription {
                 default,
                 step,
             } => {
-                write!(
-                    f,
-                    "(Current: {}, Default: {}, Step: {})",
-                    value, default, step
-                )
+                write!(f, "(Current: {value}, Default: {default}, Step: {step})",)
             }
             ControlValueDescription::FloatRange {
                 min,
@@ -1041,18 +1038,17 @@ impl Display for ControlValueDescription {
             } => {
                 write!(
                     f,
-                    "(Current: {}, Default: {}, Step: {}, Range: ({}, {}))",
-                    value, default, step, min, max
+                    "(Current: {value}, Default: {default}, Step: {step}, Range: ({min}, {max}))",
                 )
             }
             ControlValueDescription::Boolean { value, default } => {
-                write!(f, "(Current: {}, Default: {})", value, default)
+                write!(f, "(Current: {value}, Default: {default})")
             }
             ControlValueDescription::String { value, default } => {
-                write!(f, "(Current: {}, Default: {:?})", value, default)
+                write!(f, "(Current: {value}, Default: {default:?})")
             }
             ControlValueDescription::Bytes { value, default } => {
-                write!(f, "(Current: {:x?}, Default: {:x?})", value, default)
+                write!(f, "(Current: {value:x?}, Default: {default:x?})")
             }
             ControlValueDescription::KeyValuePair {
                 key,
@@ -1061,8 +1057,8 @@ impl Display for ControlValueDescription {
             } => {
                 write!(
                     f,
-                    "Current: ({}, {}), Default: ({}, {})",
-                    key, value, default.0, default.1
+                    "Current: ({key}, {value}), Default: ({}, {})",
+                    default.0, default.1
                 )
             }
             ControlValueDescription::Point { value, default } => {
@@ -1079,8 +1075,7 @@ impl Display for ControlValueDescription {
             } => {
                 write!(
                     f,
-                    "Current: {}, Possible Values: {:?}, Default: {}",
-                    value, possible, default
+                    "Current: {value}, Possible Values: {possible:?}, Default: {default}",
                 )
             }
             ControlValueDescription::RGB {
@@ -1215,6 +1210,7 @@ pub enum ControlValueSetter {
 }
 
 impl ControlValueSetter {
+    #[must_use]
     pub fn as_none(&self) -> Option<()> {
         if let ControlValueSetter::None = self {
             Some(())
@@ -1222,6 +1218,7 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
 
     pub fn as_integer(&self) -> Option<&i64> {
         if let ControlValueSetter::Integer(i) = self {
@@ -1230,6 +1227,7 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
 
     pub fn as_float(&self) -> Option<&f64> {
         if let ControlValueSetter::Float(f) = self {
@@ -1238,6 +1236,8 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
+
     pub fn as_boolean(&self) -> Option<&bool> {
         if let ControlValueSetter::Boolean(f) = self {
             Some(f)
@@ -1245,6 +1245,8 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
+
     pub fn as_str(&self) -> Option<&str> {
         if let ControlValueSetter::String(s) = self {
             Some(s)
@@ -1252,6 +1254,8 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
+
     pub fn as_bytes(&self) -> Option<&[u8]> {
         if let ControlValueSetter::Bytes(b) = self {
             Some(b)
@@ -1259,6 +1263,8 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
+
     pub fn as_key_value(&self) -> Option<(&i128, &i128)> {
         if let ControlValueSetter::KeyValue(k, v) = self {
             Some((k, v))
@@ -1266,6 +1272,7 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
 
     pub fn as_point(&self) -> Option<(&f64, &f64)> {
         if let ControlValueSetter::Point(x, y) = self {
@@ -1274,6 +1281,7 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
 
     pub fn as_enum(&self) -> Option<&i64> {
         if let ControlValueSetter::EnumValue(e) = self {
@@ -1282,6 +1290,7 @@ impl ControlValueSetter {
             None
         }
     }
+    #[must_use]
 
     pub fn as_rgb(&self) -> Option<(&f64, &f64, &f64)> {
         if let ControlValueSetter::RGB(r, g, b) = self {
@@ -1299,31 +1308,31 @@ impl Display for ControlValueSetter {
                 write!(f, "Value: None")
             }
             ControlValueSetter::Integer(i) => {
-                write!(f, "IntegerValue: {}", i)
+                write!(f, "IntegerValue: {i}")
             }
             ControlValueSetter::Float(d) => {
-                write!(f, "FloatValue: {}", d)
+                write!(f, "FloatValue: {d}")
             }
             ControlValueSetter::Boolean(b) => {
-                write!(f, "BoolValue: {}", b)
+                write!(f, "BoolValue: {b}")
             }
             ControlValueSetter::String(s) => {
-                write!(f, "StrValue: {}", s)
+                write!(f, "StrValue: {s}")
             }
             ControlValueSetter::Bytes(b) => {
-                write!(f, "BytesValue: {:x?}", b)
+                write!(f, "BytesValue: {b:x?}")
             }
             ControlValueSetter::KeyValue(k, v) => {
-                write!(f, "KVValue: ({}, {})", k, v)
+                write!(f, "KVValue: ({k}, {v})")
             }
             ControlValueSetter::Point(x, y) => {
-                write!(f, "PointValue: ({}, {})", x, y)
+                write!(f, "PointValue: ({x}, {y})")
             }
             ControlValueSetter::EnumValue(v) => {
-                write!(f, "EnumValue: {}", v)
+                write!(f, "EnumValue: {v}")
             }
             ControlValueSetter::RGB(r, g, b) => {
-                write!(f, "RGBValue: ({}, {}, {})", r, g, b)
+                write!(f, "RGBValue: ({r}, {g}, {b})")
             }
         }
     }
@@ -1357,8 +1366,7 @@ pub enum ApiBackend {
 
 impl Display for ApiBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let self_str = format!("{:?}", self);
-        write!(f, "{}", self_str)
+        write!(f, "{self:?}")
     }
 }
 
@@ -1705,6 +1713,7 @@ pub fn yuv_420_to_rgb(
 /// Converts a YUYV 4:2:0 datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is wrong.
+#[allow(clippy::similar_names)]
 pub fn buf_yuv_420_to_rgb(
     resolution: Resolution,
     data: &[u8],
@@ -1752,14 +1761,14 @@ pub fn buf_yuv_420_to_rgb(
             let r0_idx = ((w * 2) + (h * resolution.width())) as usize;
             let r1_idx = ((w * 2) + ((h + 1) * resolution.width())) as usize;
 
-            let y0 = data[r0_idx] as i32;
-            let y1 = data[r0_idx + 1] as i32;
-            let y2 = data[r1_idx] as i32;
-            let y3 = data[r1_idx + 1] as i32;
+            let y0 = i32::from(data[r0_idx]);
+            let y1 = i32::from(data[r0_idx + 1]);
+            let y2 = i32::from(data[r1_idx]);
+            let y3 = i32::from(data[r1_idx + 1]);
 
             let cell_number = (h * resolution.width()) + h;
-            let u0 = data[(u_values_start + cell_number) as usize] as i32;
-            let v0 = data[(v_values_start + cell_number) as usize] as i32;
+            let u0 = i32::from(data[(u_values_start + cell_number) as usize]);
+            let v0 = i32::from(data[(v_values_start + cell_number) as usize]);
 
             if rgba {
                 let rgb0 = yuyv444_to_rgba(y0, u0, v0);

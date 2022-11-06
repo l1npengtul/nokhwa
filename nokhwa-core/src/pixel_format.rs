@@ -210,6 +210,7 @@ impl FormatDecoder for LumaFormat {
         &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
 
     #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -246,7 +247,7 @@ impl FormatDecoder for LumaFormat {
             FrameFormat::GRAY => Ok(data.to_vec()),
             FrameFormat::RAWRGB => Ok(data
                 .chunks(3)
-                .map(|px| ((px[0] as i32 + px[1] as i32 + px[2] as i32) / 3) as u8)
+                .map(|px| ((i32::from(px[0]) + i32::from(px[1]) + i32::from(px[2])) / 3) as u8)
                 .collect()),
         }
     }
@@ -258,24 +259,15 @@ impl FormatDecoder for LumaFormat {
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
         match fcc {
-            FrameFormat::MJPEG => {
-                // FIXME: implement!
+            // TODO: implement!
+            FrameFormat::MJPEG | FrameFormat::YUYV | FrameFormat::NV12 => {
                 Err(NokhwaError::ProcessFrameError {
                     src: fcc,
                     destination: "Luma => RGB".to_string(),
                     error: "Conversion Error".to_string(),
                 })
             }
-            FrameFormat::YUYV => Err(NokhwaError::ProcessFrameError {
-                src: fcc,
-                destination: "Luma => RGB".to_string(),
-                error: "Conversion Error".to_string(),
-            }),
-            FrameFormat::NV12 => Err(NokhwaError::ProcessFrameError {
-                src: fcc,
-                destination: "Luma => RGB".to_string(),
-                error: "Conversion Error".to_string(),
-            }),
+
             FrameFormat::GRAY => {
                 data.iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
                     *d = *pxv;
