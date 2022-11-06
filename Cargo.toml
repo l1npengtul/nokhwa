@@ -27,15 +27,13 @@ input-avfoundation = ["nokhwa-bindings-macos"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb"]
-input-ipcam = ["input-opencv"]
-input-gst = ["gstreamer", "glib", "gstreamer-app", "gstreamer-video", "regex", "parking_lot"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
 small-wasm = []
-docs-only = ["input-v4l", "input-opencv", "input-ipcam", "input-gst", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-threaded"]
-docs-nolink = ["glib/dox", "gstreamer-app/dox", "gstreamer/dox", "gstreamer-video/dox", "opencv/docs-only"]
+docs-only = ["input-v4l", "input-opencv", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-threaded"]
+docs-nolink = ["opencv/docs-only"]
 docs-features = []
 test-fail-warning = []
 
@@ -76,7 +74,7 @@ version = "0.14"
 optional = true
 
 [dependencies.opencv]
-version = "0.70"
+version = "0.72"
 default-features = false
 features = ["videoio"]
 optional = true
@@ -93,22 +91,6 @@ optional = true
 [dependencies.nokhwa-bindings-macos]
 version = "0.2"
 path = "nokhwa-bindings-macos"
-optional = true
-
-[dependencies.gstreamer]
-version = "0.18"
-optional = true
-
-[dependencies.gstreamer-app]
-version = "0.18"
-optional = true
-
-[dependencies.gstreamer-video]
-version = "0.18"
-optional = true
-
-[dependencies.glib]
-version = "0.15"
 optional = true
 
 [dependencies.regex]

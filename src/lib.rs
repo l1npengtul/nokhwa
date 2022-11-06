@@ -45,13 +45,13 @@ mod query;
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub mod threaded;
 
-#[cfg(feature = "input-ipcam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-#[deprecated(
-    since = "0.10.0",
-    note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled."
-)]
-pub use backends::capture::NetworkCamera;
+// #[cfg(feature = "input-ipcam")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+// #[deprecated(
+//     since = "0.10.0",
+//     note = "please use `Camera` with `CameraIndex::String` and `input-opencv` enabled."
+// )]
+// pub use backends::capture::NetworkCamera;
 pub use camera::Camera;
 pub use init::*;
 pub use nokhwa_core::buffer::Buffer;

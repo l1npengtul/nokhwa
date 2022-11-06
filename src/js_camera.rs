@@ -95,7 +95,7 @@ fn media_devices(navigator: &Navigator) -> Result<MediaDevices, NokhwaError> {
         Ok(media) => Ok(media),
         Err(why) => Err(NokhwaError::StructureError {
             structure: "MediaDevices".to_string(),
-            error: format!("{:?}", why),
+            error: format!("{why:?}"),
         }),
     }
 }
@@ -115,7 +115,7 @@ fn document_select_elem(doc: &Document, element: &str) -> Result<Element, Nokhwa
         Some(elem) => Ok(elem),
         None => {
             return Err(NokhwaError::StructureError {
-                structure: format!("Document {}", element),
+                structure: format!("Document {element}"),
                 error: "None".to_string(),
             })
         }
@@ -178,7 +178,7 @@ fn set_autoplay_inline(element: &Element) -> Result<(), NokhwaError> {
         return Err(NokhwaError::SetPropertyError {
             property: "Video-autoplay".to_string(),
             value: "autoplay".to_string(),
-            error: format!("{:?}", why),
+            error: format!("{why:?}"),
         });
     }
 
@@ -186,7 +186,7 @@ fn set_autoplay_inline(element: &Element) -> Result<(), NokhwaError> {
         return Err(NokhwaError::SetPropertyError {
             property: "Video-playsinline".to_string(),
             value: "playsinline".to_string(),
-            error: format!("{:?}", why),
+            error: format!("{why:?}"),
         });
     }
 
@@ -217,12 +217,12 @@ pub async fn request_permission() -> Result<(), NokhwaError> {
                         .for_each(|track| MediaStreamTrack::from(track).stop());
                     Ok(())
                 }
-                Err(why) => Err(NokhwaError::OpenStreamError(format!("{:?}", why))),
+                Err(why) => Err(NokhwaError::OpenStreamError(format!("{why:?}"))),
             }
         }
         Err(why) => Err(NokhwaError::StructureError {
             structure: "UserMediaPermission".to_string(),
-            error: format!("{:?}", why),
+            error: format!("{why:?}"),
         }),
     }
 }
@@ -334,13 +334,13 @@ pub async fn query_js_cameras() -> Result<Vec<CameraInfo>, NokhwaError> {
                 }
                 Err(why) => Err(NokhwaError::StructureError {
                     structure: "EnumerateDevicesFuture".to_string(),
-                    error: format!("{:?}", why),
+                    error: format!("{why:?}"),
                 }),
             }
         }
         Err(why) => Err(NokhwaError::StructureError {
             structure: "EnumerateDevices".to_string(),
-            error: format!("{:?}", why),
+            error: format!("{why:?}"),
         }),
     }
 }
@@ -438,14 +438,14 @@ impl Display for JSCameraSupportedCapabilities {
             JSCameraSupportedCapabilities::ResizeMode => "resizeMode",
         };
 
-        write!(f, "{}", cap)
+        write!(f, "{cap}")
     }
 }
 
 impl Debug for JSCameraSupportedCapabilities {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = self.to_string();
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
@@ -502,14 +502,14 @@ impl Display for JSCameraFacingMode {
             JSCameraFacingMode::Right => "right",
             JSCameraFacingMode::Any => "any",
         };
-        write!(f, "{}", cap)
+        write!(f, "{cap}")
     }
 }
 
 impl Debug for JSCameraFacingMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = self.to_string();
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
@@ -536,14 +536,14 @@ impl Display for JSCameraResizeMode {
             JSCameraResizeMode::Any => "",
         };
 
-        write!(f, "{}", cap)
+        write!(f, "{cap}")
     }
 }
 
 impl Debug for JSCameraResizeMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = self.to_string();
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
@@ -1837,7 +1837,7 @@ impl JSCamera {
     #[cfg_attr(feature = "output-wasm", wasm_bindgen(js_name = captureFrameRawData))]
     pub fn js_frame_raw(&mut self) -> Result<Box<[u8]>, JsValue> {
         match self.frame_raw() {
-            Ok(frame) => Ok(frame.to_vec().into_iter().collect()),
+            Ok(frame) => Ok(frame.iter().copied().collect()),
             Err(why) => Err(JsValue::from(why.to_string())),
         }
     }
@@ -1915,7 +1915,7 @@ impl JSCamera {
         let navigator = window.navigator();
         let media_devices = media_devices(&navigator)?;
 
-        let stream: MediaStream = match media_devices.get_user_media_with_constraints(&*constraints)
+        let stream: MediaStream = match media_devices.get_user_media_with_constraints(&constraints)
         {
             Ok(promise) => {
                 let future = JsFuture::from(promise);
@@ -1927,7 +1927,7 @@ impl JSCamera {
                     Err(why) => {
                         return Err(NokhwaError::StructureError {
                             structure: "MediaDevicesGetUserMediaJsFuture".to_string(),
-                            error: format!("{:?}", why),
+                            error: format!("{why:?}"),
                         })
                     }
                 }
@@ -1935,7 +1935,7 @@ impl JSCamera {
             Err(why) => {
                 return Err(NokhwaError::StructureError {
                     structure: "MediaDevicesGetUserMedia".to_string(),
-                    error: format!("{:?}", why),
+                    error: format!("{why:?}"),
                 })
             }
         };
@@ -2060,7 +2060,7 @@ impl JSCamera {
             video_element.set_width(self.resolution().width());
             video_element.set_height(self.resolution().height());
             video_element.set_src_object(Some(&self.media_stream()));
-            video_element.set_id(&format!("{}-video", html_id));
+            video_element.set_id(&format!("{html_id}-video"));
 
             return match selected_element.append_child(&Node::from(video_element)) {
                 Ok(n) => {
@@ -2070,7 +2070,7 @@ impl JSCamera {
                 }
                 Err(why) => Err(NokhwaError::StructureError {
                     structure: "Attach Error".to_string(),
-                    error: format!("{:?}", why),
+                    error: format!("{why:?}"),
                 }),
             };
         }
@@ -2155,7 +2155,7 @@ impl JSCamera {
                 Err(why) => {
                     return Err(NokhwaError::StructureError {
                         structure: "HtmlCanvasElement Context 2D".to_string(),
-                        error: format!("{:?}", why),
+                        error: format!("{why:?}"),
                     });
                 }
             };
@@ -2206,7 +2206,7 @@ impl JSCamera {
                 self.resolution().width().into(),
                 self.resolution().height().into(),
             ) {
-                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+                return Err(NokhwaError::ReadFrameError(format!("{why:?}")));
             }
 
             match context.get_image_data(
@@ -2217,7 +2217,7 @@ impl JSCamera {
             ) {
                 Ok(data) => log_1(&jsv!(data)),
                 Err(why) => {
-                    return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+                    return Err(NokhwaError::ReadFrameError(format!("{why:?}")));
                 }
             };
         } else {
@@ -2226,7 +2226,7 @@ impl JSCamera {
                 Err(why) => {
                     return Err(NokhwaError::StructureError {
                         structure: "Document Video Element".to_string(),
-                        error: format!("{:?}", why.as_string()),
+                        error: format!("{why:?}"),
                     })
                 }
             };
@@ -2264,15 +2264,14 @@ impl JSCamera {
                 self.resolution().width().into(),
                 self.resolution().height().into(),
             ) {
-                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+                return Err(NokhwaError::ReadFrameError(format!("{why:?}")));
             }
 
             match document.body() {
                 Some(body) => {
                     if let Err(why) = body.remove_child(&video_element) {
                         return Err(NokhwaError::ReadFrameError(format!(
-                            "Failed to remove video: {:?}",
-                            why
+                            "Failed to remove video: {why:?}"
                         )));
                     }
                 }
@@ -2313,12 +2312,12 @@ impl JSCamera {
 
             new_canvas.set_width(self.resolution().width());
             new_canvas.set_height(self.resolution().height());
-            new_canvas.set_id(&format!("{}-canvas", html_id));
+            new_canvas.set_id(&format!("{html_id}-canvas"));
 
             if let Err(why) = selected_element.append_child(&new_canvas) {
                 return Err(NokhwaError::StructureError {
                     structure: "HtmlCanvasElement".to_string(),
-                    error: format!("add child: {:?}", why),
+                    error: format!("add child: {why:?}"),
                 });
             }
 
@@ -2335,7 +2334,7 @@ impl JSCamera {
                 Err(why) => {
                     return Err(NokhwaError::StructureError {
                         structure: "CanvasRenderingContext2d".to_string(),
-                        error: format!("context: {:?}", why),
+                        error: format!("context: {why:?}"),
                     });
                 }
             };
@@ -2386,7 +2385,7 @@ impl JSCamera {
                 Err(why) => {
                     return Err(NokhwaError::StructureError {
                         structure: "CanvasRenderingContext2d".to_string(),
-                        error: format!("context: {:?}", why),
+                        error: format!("context: {why:?}"),
                     });
                 }
             };
@@ -2449,7 +2448,7 @@ impl JSCamera {
         ) {
             Ok(data) => data,
             Err(why) => {
-                return Err(NokhwaError::ReadFrameError(format!("{:?}", why)));
+                return Err(NokhwaError::ReadFrameError(format!("{why:?}")));
             }
         };
 
@@ -2479,7 +2478,7 @@ impl JSCamera {
 
         match canvas.to_data_url_with_type_and_encoder_options(mime_type, &image_quality) {
             Ok(uri) => Ok(uri),
-            Err(why) => Err(NokhwaError::ReadFrameError(format!("{:?}", why))),
+            Err(why) => Err(NokhwaError::ReadFrameError(format!("{why:?}"))),
         }
     }
 
@@ -2672,7 +2671,7 @@ impl JSCamera {
                     Err(why) => {
                         return Err(NokhwaError::StructureError {
                             structure: "MediaDevicesGetUserMediaJsFuture".to_string(),
-                            error: format!("{:?}", why),
+                            error: format!("{why:?}"),
                         })
                     }
                 }
@@ -2680,7 +2679,7 @@ impl JSCamera {
             Err(why) => {
                 return Err(NokhwaError::StructureError {
                     structure: "MediaDevicesGetUserMedia".to_string(),
-                    error: format!("{:?}", why),
+                    error: format!("{why:?}"),
                 })
             }
         };

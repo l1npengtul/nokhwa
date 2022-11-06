@@ -11,7 +11,6 @@ default = ["nokhwa/default"]
 input-msmf = ["nokhwa/input-msmf"]
 input-v4l = ["nokhwa/input-v4l"]
 input-opencv = ["nokhwa/input-opencv"]
-input-gst = ["nokhwa/input-gst"]
 input-avfoundation = ["nokhwa/input-avfoundation"]
 
 [dependencies]

@@ -773,7 +773,7 @@ fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         "MJPG" => Some(FrameFormat::MJPEG),
         "GRAY" => Some(FrameFormat::GRAY),
         "RGB3" => Some(FrameFormat::RAWRGB),
-        "NV12" => Some(FrameFormat::NV12)
+        "NV12" => Some(FrameFormat::NV12),
         _ => None,
     }
 }

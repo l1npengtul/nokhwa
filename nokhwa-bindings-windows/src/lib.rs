@@ -1244,8 +1244,6 @@ pub mod wmf {
         ))
     }
 
-    struct Empty;
-
     pub struct MediaFoundationDevice {
         camera: CameraIndex,
     }
@@ -1317,7 +1315,7 @@ pub mod wmf {
             ))
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'a, [u8]>, NokhwaError> {
+        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
             Err(NokhwaError::NotImplementedError(
                 "Only on Windows".to_string(),
             ))
@@ -1326,7 +1324,7 @@ pub mod wmf {
         pub fn stop_stream(&mut self) {}
     }
 
-    impl<'a> Drop for MediaFoundationDevice<'a> {
+    impl Drop for MediaFoundationDevice {
         fn drop(&mut self) {}
     }
 }

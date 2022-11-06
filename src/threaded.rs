@@ -372,8 +372,10 @@ impl CallbackCamera {
     }
 
     /// Sets the control to `control` in the camera.
-    /// Usually, the pipeline is calling [`camera_control()`](crate::CaptureBackendTrait::camera_control()), getting a camera control that way
-    /// then calling one of the methods to set the value: [`set_value()`](CameraControl::set_value()) or [`with_value()`](CameraControl::with_value()).
+    /// Usually, the pipeline is calling [`camera_control()`](crate::CaptureBackendTrait::camera_control()),
+    /// getting a camera control that way
+    /// then constructing a (`ControlValueSetter`)[crate::types::ControlValueSetter] with
+    /// the new value you want by calling [crate::types::CameraControl::]
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.

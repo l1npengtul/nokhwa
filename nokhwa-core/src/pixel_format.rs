@@ -46,7 +46,7 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     ) -> Result<(), NokhwaError>;
 }
 
-/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGB888 in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGB888 in the [`Buffer`](crate::buffer::Buffer)'s [`.decode_image()`](crate::buffer::Buffer::decode_image)
 ///
 /// ```.ignore
 /// use image::{ImageBuffer, Rgb};
@@ -114,7 +114,7 @@ impl FormatDecoder for RgbFormat {
     }
 }
 
-/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGBA8888 in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an RGBA8888 in the [`Buffer`](crate::buffer::Buffer)'s [`.decode_image()`](crate::buffer::Buffer::decode_image)
 ///
 /// ```.ignore
 /// use image::{ImageBuffer, Rgba};
@@ -194,7 +194,7 @@ impl FormatDecoder for RgbAFormat {
     }
 }
 
-/// A Zero-Size-Type that contains the definition to convert a given image stream to an Luma8(Grayscale 8-bit) in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an Luma8(Grayscale 8-bit) in the [`Buffer`](crate::buffer::Buffer)'s [`.decode_image()`](crate::buffer::Buffer::decode_image)
 ///
 /// ```.ignore
 /// use image::{ImageBuffer, Luma};
@@ -291,7 +291,7 @@ impl FormatDecoder for LumaFormat {
     }
 }
 
-/// A Zero-Size-Type that contains the definition to convert a given image stream to an LumaA8(Grayscale 8-bit with 8-bit alpha) in the [`Buffer`](crate::buffer::Buffer)'s [`.to_image()`](crate::buffer::Buffer::to_image)
+/// A Zero-Size-Type that contains the definition to convert a given image stream to an LumaA8(Grayscale 8-bit with 8-bit alpha) in the [`Buffer`](crate::buffer::Buffer)'s [`.decode_image()`](crate::buffer::Buffer::decode_image)
 ///
 /// ```.ignore
 /// use image::{ImageBuffer, LumaA};

@@ -62,23 +62,23 @@ mod uvc_backend;
 #[cfg(feature = "input-uvc")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-uvc")))]
 pub use uvc_backend::UVCCaptureDevice;
-#[cfg(feature = "input-gst")]
-mod gst_backend;
-#[cfg(feature = "input-gst")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
-pub use gst_backend::GStreamerCaptureDevice;
-#[cfg(feature = "input-jscam")]
-mod browser_backend;
-#[cfg(feature = "input-jscam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
-pub use browser_backend::BrowserCaptureDevice;
+// #[cfg(feature = "input-gst")]
+// mod gst_backend;
+// #[cfg(feature = "input-gst")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-gst")))]
+// pub use gst_backend::GStreamerCaptureDevice;
+// #[cfg(feature = "input-jscam")]
+// mod browser_backend;
+// #[cfg(feature = "input-jscam")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
+// pub use browser_backend::BrowserCaptureDevice;
 /// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
-#[cfg(feature = "input-ipcam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-mod network_camera;
-#[cfg(feature = "input-ipcam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
-pub use network_camera::NetworkCamera;
+// #[cfg(feature = "input-ipcam")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+// mod network_camera;
+// #[cfg(feature = "input-ipcam")]
+// #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
+// pub use network_camera::NetworkCamera;
 #[cfg(feature = "input-opencv")]
 mod opencv_backend;
 #[cfg(feature = "input-opencv")]
