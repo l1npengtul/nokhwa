@@ -20,17 +20,7 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 
 ```rust
 // set up the Camera
-let mut camera = Camera::new(
-    0, // index
-    Some(CameraFormat::new_from(640, 480, FrameFormat::MJPEG, 30)), // format
-)
-.unwrap();
-// open stream
-camera.open_stream().unwrap();
-loop {
-    let frame = camera.frame().unwrap();
-    println!("{}, {}", frame.width(), frame.height());
-}
+
 ```
 A command line app made with `nokhwa` can be found in the `examples` folder.
 
@@ -42,20 +32,19 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
- | Backend                                | Input              | Query             | Query-Device       | Platform            |
- |----------------------------------------|--------------------|-------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)               | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF(`input-msmf`)                     | ✅                 | ✅                 | ✅                 | Windows             |
- | AVFoundation(`input-avfoundation`)^^   | ✅                 | ✅                 | ✅                 | Mac                 |
- | libuvc(`input-uvc`) (**DEPRECATED**)^^^| ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
+ | Backend                                 | Input              | Query             | Query-Device       | Platform            |
+-----------------------------------------|----------------------------------------|--------------------|-------------------|--------------------|---------------------|
+ | Video4Linux(`input-v4l`)                | ✅                 | ✅                 | ✅                 | Linux               |
+ | MSMF(`input-msmf`)                      | ✅                 | ✅                 | ✅                 | Windows             |
+ | AVFoundation(`input-avfoundation`)^^    | ✅                 | ✅                 | ✅                 | Mac                 |
+ | libuvc(`input-uvc`) (**DEPRECATED**)^^^ | ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
  | OpenCV(`input-opencv`)^                | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | IPCamera(`input-ipcam`/OpenCV)^        | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | GStreamer(`input-gst`)(**DEPRECATED**) | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)                  | ✅                 | ✅                 | ✅                 | Browser(Web)        |
+ | GStreamer(`input-gst`)(**DEPRECATED**)  | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
+ | JS/WASM(`input-wasm`)                   | ✅                 | ✅                 | ✅                 | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
-  ^ = No CameraFormat setting support.
+  ^ = May be bugged. Also supports IP Cameras. 
 
   ^^ = No FPS setting support.
 

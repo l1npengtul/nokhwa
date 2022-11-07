@@ -19,6 +19,16 @@ use nokhwa_core::{
     types::{ApiBackend, CameraInfo},
 };
 
+/// Gets the native [`ApiBackend`]
+pub fn native_api_backend() -> Option<ApiBackend> {
+    match std::env::consts::OS {
+        "linux" => Some(ApiBackend::Video4Linux),
+        "macos" | "ios" => Some(ApiBackend::AVFoundation),
+        "windows" => Some(ApiBackend::MediaFoundation),
+        _ => None,
+    }
+}
+
 // TODO: Update as this goes
 /// Query the system for a list of available devices. Please refer to the API Backends that support `Query`) <br>
 /// Usually the order goes Native -> UVC -> Gstreamer.
@@ -42,7 +52,7 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
                     } else if cfg!(feature = "input-opencv") {
                         query(ApiBackend::OpenCv)
                     } else {
-                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-v4l`? (Please read the docs.)");
+                        dbg!("Error: No suitable Backends available. Perhaps you meant to enable one of the backends such as `input-v4l`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(ApiBackend::Auto))
                     }
                 }
@@ -52,7 +62,7 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
                     } else if cfg!(feature = "input-opencv") {
                         query(ApiBackend::OpenCv)
                     } else {
-                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-msmf`? (Please read the docs.)");
+                        dbg!("Error: No suitable Backends available. Perhaps you meant to enable one of the backends such as `input-msmf`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(ApiBackend::Auto))
                     }
                 }
@@ -62,7 +72,7 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
                     } else if cfg!(feature = "input-opencv") {
                         query(ApiBackend::OpenCv)
                     } else {
-                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
+                        dbg!("Error: No suitable Backends available. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(ApiBackend::Auto))
                     }
                 }
@@ -70,12 +80,12 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
                     if cfg!(feature = "input-avfoundation") {
                         query(ApiBackend::AVFoundation)
                     } else {
-                        dbg!("Error: No suitable Backends availible. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
+                        dbg!("Error: No suitable Backends available. Perhaps you meant to enable one of the backends such as `input-avfoundation`? (Please read the docs.)");
                         Err(NokhwaError::UnsupportedOperationError(ApiBackend::Auto))
                     }
                 }
                 _ => {
-                    dbg!("Error: No suitable Backends availible. You are on an unsupported platform.");
+                    dbg!("Error: No suitable Backends available. You are on an unsupported platform.");
                     Err(NokhwaError::NotImplementedError("Bad Platform".to_string()))
                 }
             }
@@ -100,6 +110,7 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
 #[allow(clippy::unnecessary_wraps)]
 #[allow(clippy::cast_possible_truncation)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
+    use nokhwa_core::types::CameraIndex;
     Ok({
         let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
             .iter()

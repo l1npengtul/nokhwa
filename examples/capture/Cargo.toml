@@ -1,23 +1,24 @@
 [package]
-name = "capture"
-version = "0.1.0"
-authors = ["l1npengtul <l1npengtul@protonmail.com>"]
+name = "nokhwactl"
+version = "0.10.0"
+authors = ["l1npengtul <l1npengtul@protonmail.com>", "The Nokhwa Contributors"]
 edition = "2018"
-
+about = "An example CLI program to show off Nokhwa's capabilities."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 default = ["nokhwa/default"]
-input-msmf = ["nokhwa/input-msmf"]
-input-v4l = ["nokhwa/input-v4l"]
-input-opencv = ["nokhwa/input-opencv"]
-input-avfoundation = ["nokhwa/input-avfoundation"]
+native = ["nokhwa/input-native"]
 
 [dependencies]
-clap = "4.0.19"
-glium = "0.32.1"
-glutin = "0.30.0"
-flume = "0.10.9"
+ggez = "0.8.1"
+flume = "0.10.14"
+once_cell = "1.16.0"
+image = "0.24.4"
+
+[dependencies.clap]
+version = "4.0.20"
+features = ["derive"]
 
 # Use these as you need
 [dependencies.nokhwa]

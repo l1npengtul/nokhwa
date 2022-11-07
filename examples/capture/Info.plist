@@ -23,7 +23,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copywight © :3 2021 w1npengtuw, the x3 Nyokhwa Contwibutews. Wicensed undew the x3 MPL-2.0. *looks at you* You shouwd have weceived a copy with this softwawe, but if nyot i-it c-can be found at You c-can obtain onye at https://mozilla.org/MPL/2.0/. *huggles tightly*</string>
+	<string>Copywight © :3 2022 w1npengtuw, the x3 Nyokhwa Contwibutews. Wicensed undew the x3 APL-2.0. *looks at you* You shouwd have weceived a copy with this softwawe, but if nyot i-it c-can be found at You c-can obtain onye at https://www.apache.org/licenses/LICENSE-2.0.html. *huggles tightly*</string>
 	<key>NSCameraUsageDescription</key>
 	<string>we *notices buldge* wiww s-s-steaw aww youw webcam and pewsonyaw infowmation undew the x3 guise of b-being a &quot;nyokhwa exampwe c-captuwe app&quot; and a &quot;devewopew toow&quot; &lt;3 :3 *nyuzzwes yuwu*</string>
 	<key>NSMainNibFile</key>

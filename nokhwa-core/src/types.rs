@@ -1,11 +1,11 @@
-use crate::error::NokhwaError;
-use crate::pixel_format::FormatDecoder;
+use crate::{error::NokhwaError, pixel_format::FormatDecoder};
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Borrow,
     cmp::Ordering,
     fmt::{Display, Formatter},
+    str::FromStr,
 };
 
 /// Tells the init function what camera format to pick.
@@ -21,8 +21,8 @@ use std::{
 pub enum RequestedFormatType {
     HighestResolutionAbs,
     HighestFrameRateAbs,
-    HighestResolution(u32),
-    HighestFrameRate(Resolution),
+    HighestResolution(Resolution),
+    HighestFrameRate(u32),
     Exact(CameraFormat),
     Closest(CameraFormat),
     None,
@@ -112,23 +112,7 @@ impl RequestedFormat<'_> {
                 format_framerates.sort_by_key(CameraFormat::resolution);
                 format_framerates.last().copied()
             }
-            RequestedFormatType::HighestResolution(fps) => {
-                let mut formats = all_formats
-                    .iter()
-                    .filter(|x| x.frame_rate == fps)
-                    .copied()
-                    .collect::<Vec<CameraFormat>>();
-                formats.sort_by(|a, b| a.resolution.cmp(&b.resolution));
-                let highest_res = match formats.last() {
-                    Some(cf) => cf.resolution,
-                    None => return None,
-                };
-                formats
-                    .into_iter()
-                    .filter(|x| x.resolution() == highest_res)
-                    .last()
-            }
-            RequestedFormatType::HighestFrameRate(res) => {
+            RequestedFormatType::HighestResolution(res) => {
                 let mut formats = all_formats
                     .iter()
                     .filter(|x| x.resolution == res)
@@ -142,6 +126,22 @@ impl RequestedFormat<'_> {
                 formats
                     .into_iter()
                     .filter(|x| x.frame_rate == highest_fps)
+                    .last()
+            }
+            RequestedFormatType::HighestFrameRate(fps) => {
+                let mut formats = all_formats
+                    .iter()
+                    .filter(|x| x.frame_rate == fps)
+                    .copied()
+                    .collect::<Vec<CameraFormat>>();
+                formats.sort_by(|a, b| a.resolution.cmp(&b.resolution));
+                let highest_res = match formats.last() {
+                    Some(cf) => cf.resolution,
+                    None => return None,
+                };
+                formats
+                    .into_iter()
+                    .filter(|x| x.resolution() == highest_res)
                     .last()
             }
             RequestedFormatType::Exact(fmt) => {
@@ -305,7 +305,7 @@ impl Display for FrameFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FrameFormat::MJPEG => {
-                write!(f, "MJPG")
+                write!(f, "MJPEG")
             }
             FrameFormat::YUYV => {
                 write!(f, "YUYV")
@@ -322,7 +322,23 @@ impl Display for FrameFormat {
         }
     }
 }
+impl FromStr for FrameFormat {
+    type Err = NokhwaError;
 
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.as_ref() {
+            "MJPEG" => Ok(FrameFormat::MJPEG),
+            "YUYV" => Ok(FrameFormat::YUYV),
+            "GRAY" => Ok(FrameFormat::GRAY),
+            "RAWRGB" => Ok(FrameFormat::RAWRGB),
+            "NV12" => Ok(FrameFormat::NV12),
+            _ => Err(NokhwaError::StructureError {
+                structure: "FrameFormat".to_string(),
+                error: format!("No match for {s}"),
+            }),
+        }
+    }
+}
 #[must_use]
 pub const fn frame_formats() -> &'static [FrameFormat] {
     &[
