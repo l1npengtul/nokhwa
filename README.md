@@ -33,14 +33,14 @@ The table below lists current Nokhwa API support.
 - The `Platform` column signifies what Platform this is availible on.
 
  | Backend                                 | Input              | Query             | Query-Device       | Platform            |
------------------------------------------|----------------------------------------|--------------------|-------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)                | ✅                 | ✅                 | ✅                 | Linux               |
- | MSMF(`input-msmf`)                      | ✅                 | ✅                 | ✅                 | Windows             |
- | AVFoundation(`input-avfoundation`)^^    | ✅                 | ✅                 | ✅                 | Mac                 |
- | libuvc(`input-uvc`) (**DEPRECATED**)^^^ | ❌                 | ✅                 | ❌                 | Linux, Windows, Mac |
- | OpenCV(`input-opencv`)^                | ✅                 | ❌                 | ❌                 | Linux, Windows, Mac |
- | GStreamer(`input-gst`)(**DEPRECATED**)  | ✅                 | ✅                 | ✅                 | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)                   | ✅                 | ✅                 | ✅                 | Browser(Web)        |
+ |-----------------------------------------|--------------------|-------------------|--------------------|---------------------|
+ | Video4Linux(`input-v4l`)                | ✅                 | ✅                 | ✅                | Linux               |
+ | MSMF(`input-msmf`)                      | ✅                 | ✅                 | ✅                | Windows             |
+ | AVFoundation(`input-avfoundation`)^^    | ✅                 | ✅                 | ✅                | Mac                 |
+ | libuvc(`input-uvc`) (**DEPRECATED**)^^^ | ❌                 | ✅                 | ❌                | Linux, Windows, Mac |
+ | OpenCV(`input-opencv`)^                 | ✅                 | ❌                 | ❌                | Linux, Windows, Mac |
+ | GStreamer(`input-gst`)(**DEPRECATED**)  | ✅                 | ✅                 | ✅                | Linux, Windows, Mac |
+ | JS/WASM(`input-wasm`)                   | ✅                 | ✅                 | ✅                | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
