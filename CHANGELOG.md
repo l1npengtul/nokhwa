@@ -1,3 +1,14 @@
+# 0.10.0
+- Split core types and traits into `nokhwa-core`
+- Removed support for JS Bindings
+- New CameraControl API
+  - Deprecated `raw_camera_control` API
+- New RequestedFormat API
+- Removed Network Camera Support
+- New Buffer API
+  - PixelFormat API
+- After a year in development, We hope it was worth the wait.
+
 # 0.9.0
 - Fixed Camera Controls for V4L2
 - Disabled UVC Backend.

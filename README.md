@@ -19,7 +19,7 @@ Most likely, you will only use functionality provided by the `Camera` struct. If
 ## Example
 
 ```rust
-// set up the Camera
+// tell what we want to the camera. In this case, we want the absolute highest resolution that 
 
 ```
 A command line app made with `nokhwa` can be found in the `examples` folder.
