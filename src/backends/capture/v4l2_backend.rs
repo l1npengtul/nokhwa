@@ -343,8 +343,8 @@ impl<'a> V4LCaptureDevice<'a> {
                             });
                         }
 
-                        if params.interval.denominator == 1 {
-                            params.interval.numerator
+                        if params.interval.numerator == 1 {
+                            params.interval.denominator
                         } else {
                             params.interval.denominator / params.interval.numerator
                         }
