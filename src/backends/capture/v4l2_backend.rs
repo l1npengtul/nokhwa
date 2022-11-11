@@ -167,11 +167,11 @@ impl<'a> V4LCaptureDevice<'a> {
                         .into_iter()
                         .flat_map(|x| match x.interval {
                             FrameIntervalEnum::Discrete(dis) => {
-                                if dis.denominator == 1 {
+                                if dis.numerator == 1 {
                                     vec![CameraFormat::new(
                                         Resolution::new(x.width, x.height),
                                         framefmt,
-                                        dis.numerator,
+                                        dis.denominator,
                                     )]
                                 } else {
                                     vec![]
@@ -244,7 +244,7 @@ impl<'a> V4LCaptureDevice<'a> {
         };
 
         v4l2.force_refresh_camera_format()?;
-        if v4l2.camera_format() == format {
+        if v4l2.camera_format() != format {
             return Err(NokhwaError::SetPropertyError {
                 property: "CameraFormat".to_string(),
                 value: String::new(),
@@ -331,14 +331,14 @@ impl<'a> V4LCaptureDevice<'a> {
 
                 let fps = match self.device.params() {
                     Ok(params) => {
-                        if params.interval.denominator != 1
-                            || params.interval.numerator % params.interval.denominator != 0
+                        if params.interval.numerator != 1
+                            || params.interval.denominator % params.interval.numerator != 0
                         {
                             return Err(NokhwaError::GetPropertyError {
                                 property: "V4L2 FrameRate".to_string(),
                                 error: format!(
                                     "Framerate not whole number: {} / {}",
-                                    params.interval.numerator, params.interval.denominator
+                                    params.interval.denominator, params.interval.numerator
                                 ),
                             });
                         }
@@ -346,7 +346,7 @@ impl<'a> V4LCaptureDevice<'a> {
                         if params.interval.denominator == 1 {
                             params.interval.numerator
                         } else {
-                            params.interval.numerator / params.interval.denominator
+                            params.interval.denominator / params.interval.numerator
                         }
                     }
                     Err(why) => {
