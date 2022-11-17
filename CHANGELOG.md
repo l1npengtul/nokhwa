@@ -8,6 +8,7 @@
 - New Buffer API
   - PixelFormat API
 - After a year in development, We hope it was worth the wait.
+- Callback Camera: Removed `Result` from the `index()` and `camera_info()` API.
 
 # 0.9.0
 - Fixed Camera Controls for V4L2
