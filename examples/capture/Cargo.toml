@@ -3,7 +3,6 @@ name = "nokhwactl"
 version = "0.10.0"
 authors = ["l1npengtul <l1npengtul@protonmail.com>", "The Nokhwa Contributors"]
 edition = "2018"
-about = "An example CLI program to show off Nokhwa's capabilities."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]

@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.10.0-rc.1"
+version = "0.10.0-rc.2"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -75,7 +75,7 @@ version = "0.14"
 optional = true
 
 [dependencies.opencv]
-version = "0.72"
+version = "0.74"
 default-features = false
 features = ["videoio"]
 optional = true

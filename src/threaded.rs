@@ -20,7 +20,7 @@ use nokhwa_core::{
     error::NokhwaError,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+        FrameFormat, KnownCameraControl, RequestedFormat, RequestedFormatType, Resolution,
     },
 };
 use std::{
@@ -58,10 +58,38 @@ pub struct CallbackCamera {
     frame_callback: HeldCallbackType,
     last_frame_captured: AtomicLock<Buffer>,
     die_bool: Arc<AtomicBool>,
+    current_camera: CameraInfo,
 }
 
 impl CallbackCamera {
-    /// Create a new `ThreadedCamera` from an `index` and `format`. `format` can be `None`.
+    /// Create a new `ThreadedCamera` from a [`CameraIndex`] and [`format`]
+    ///
+    /// Here below is an example function you can pass for `callback`
+    /// ```rust
+    /// fn camera_frame_thread_loop(
+    ///     camera: &AtomicLock<Camera>,
+    ///     frame_callback: &HeldCallbackType,
+    ///     last_frame_captured: &AtomicLock<Buffer>,
+    ///     die_bool: &Arc<AtomicBool>,
+    /// ) {
+    ///     loop {
+    ///          if let Ok(mut camera) = camera.lock() {
+    ///             if let Ok(frame) = camera.frame() {
+    ///                 if let Ok(mut last_frame) = last_frame_captured.lock() {
+    ///                     *last_frame = frame.clone();
+    ///                     if let Ok(mut cb) = frame_callback.lock() {
+    ///                         cb(frame);
+    ///                     }
+    ///                }
+    ///             }
+    ///         }
+    ///         if die_bool.load(Ordering::SeqCst) {
+    ///             break;
+    ///         }
+    ///    }
+    /// }
+    /// ```
+    ///
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
     pub fn new(
@@ -70,6 +98,14 @@ impl CallbackCamera {
         callback: impl FnMut(Buffer) + Send + 'static,
     ) -> Result<Self, NokhwaError> {
         let arc_camera = Arc::new(Mutex::new(Camera::new(index, format)?));
+        let current_camera = arc_camera
+            .lock()
+            .map_err(|why| NokhwaError::GetPropertyError {
+                property: "CameraInfo".to_string(),
+                error: why.to_string(),
+            })?
+            .info()
+            .clone();
         Ok(CallbackCamera {
             camera: arc_camera,
             frame_callback: Arc::new(Mutex::new(Box::new(callback))),
@@ -79,16 +115,13 @@ impl CallbackCamera {
                 FrameFormat::GRAY,
             ))),
             die_bool: Arc::new(Default::default()),
+            current_camera,
         })
     }
 
     /// Gets the current Camera's index.
-    pub fn index(&self) -> Result<&CameraIndex, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .index())
+    pub fn index(&self) -> &CameraIndex {
+        &self.current_camera.index()
     }
 
     /// Sets the current Camera's index. Note that this re-initializes the camera.
@@ -98,7 +131,17 @@ impl CallbackCamera {
         self.camera
             .lock()
             .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_index(new_idx)
+            .set_index(new_idx)?;
+        self.current_camera = self
+            .camera
+            .lock()
+            .map_err(|why| NokhwaError::GetPropertyError {
+                property: "CameraInfo".to_string(),
+                error: why.to_string(),
+            })?
+            .info()
+            .clone();
+        Ok(())
     }
 
     /// Gets the current Camera's backend
@@ -121,12 +164,8 @@ impl CallbackCamera {
     }
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
-    pub fn info(&self) -> Result<&CameraInfo, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .info())
+    pub fn info(&self) -> &CameraInfo {
+        &self.current_camera
     }
 
     /// Gets the current [`CameraFormat`].
@@ -152,10 +191,21 @@ impl CallbackCamera {
             &Vec::default(),
             self.camera_format()?.format(),
         );
-        self.camera
+        let formats = vec![new_fmt.format()];
+        let request = RequestedFormat::with_formats(RequestedFormatType::Exact(new_fmt), &formats);
+        let set_fmt = self
+            .camera
             .lock()
             .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_camera_format(new_fmt)
+            .set_camera_requset(request)?;
+        if new_fmt != set_fmt {
+            return Err(NokhwaError::SetPropertyError {
+                property: "CameraFormat".to_string(),
+                value: "CameraFormat".to_string(),
+                error: "Requested Format Not Consistant".to_string(),
+            });
+        }
+        Ok(())
     }
 
     /// Will set the current [`CameraFormat`], using a [`RequestedFormat.`]
@@ -474,28 +524,5 @@ impl Drop for CallbackCamera {
     fn drop(&mut self) {
         let _stop_stream_err = self.stop_stream();
         self.die_bool.store(true, Ordering::SeqCst);
-    }
-}
-
-fn camera_frame_thread_loop(
-    camera: &AtomicLock<Camera>,
-    frame_callback: &HeldCallbackType,
-    last_frame_captured: &AtomicLock<Buffer>,
-    die_bool: &Arc<AtomicBool>,
-) {
-    loop {
-        if let Ok(mut camera) = camera.lock() {
-            if let Ok(frame) = camera.frame() {
-                if let Ok(last_frame) = last_frame_captured.lock() {
-                    *last_frame = frame.clone();
-                    if let Ok(cb) = frame_callback.lock() {
-                        cb(frame);
-                    }
-                }
-            }
-        }
-        if die_bool.load(Ordering::SeqCst) {
-            break;
-        }
     }
 }
