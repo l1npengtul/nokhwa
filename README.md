@@ -57,38 +57,24 @@ The table below lists current Nokhwa API support.
   ^^^ = `input-uvc` is disabled for now as there are lifetime/soundness holes. You can still query, however.
 ## Feature
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
-As a general rule of thumb, you would want to keep at least `input-uvc` or other backend that has querying enabled so you can get device information from `nokhwa`.
-
-### ***NOTE: It is safe to have `input-v4l`, `input-msmf`, and `input-avfoundation` all enabled at the same time since it is platform gated as well!***
 
 `input-*` features:
- - `input-v4l`: Enables the `Video4Linux` backend. (linux)
- - `input-msmf`: Enables the `MediaFoundation` backennd. (Windows 7 or newer)
- - `input-avfoundation`: Enables the `AVFoundation` backend. (MacOSX 10.7)
- - `input-uvc`: **[DEPRECATED]** Enables the `libuvc` backend. (cross-platform, libuvc statically-linked) 
+ - `input-native`: Uses either V4L2(Linux), MSMF(Windows), or AVFoundation(Mac OS)
  - `input-opencv`: Enables the `opencv` backend. (cross-platform) 
- - `input-ipcam`: Enables the use of IP Cameras, please see the `NetworkCamera` struct. Note that this relies on `opencv`, so it will automatically enable the `input-opencv` feature.
- - `input-gst`: **[DEPRECATED]** Enables the `gstreamer` backend. 
  - `input-jscam`: Enables the use of the `JSCamera` struct, which uses browser APIs. (Web)
 
 Conversely, anything that starts with `output-*` controls a feature that controls the output of something (usually a frame from the camera)
 
 `output-*` features:
  - `output-wgpu`: Enables the API to copy a frame directly into a `wgpu` texture.
- - `output-wasm`: Generate WASM API binding specific functions.
  - `output-threaded`: Enable the threaded/callback based camera. 
 
 Other features:
- - `decoding`: Enables `mozjpeg` decoding. Enabled by default.  
- - `small-wasm`: Makes use of `wee-alloc`. Only enable this if you are building a standalone WASM binary!
-
- Please use the following command for `wasm-pack` in order to get a functional WASM binary:
- ```.ignore
- wasm-pack build --release -- --features "input-jscam, output-wasm, test-fail-warning" --no-default-features 
- ```
+ - `decoding`: Enables `mozjpeg` decoding. Enabled by default.
  - `docs-only`: Documentation feature. Enabled for docs.rs builds.
  - `docs-nolink`: Build documentation **without** linking to any libraries. Enabled for docs.rs builds.
  - `test-fail-warning`: Fails on warning. Enabled in CI.
+
 You many want to pick and choose to reduce bloat.
 
 ## Issues
@@ -111,3 +97,5 @@ Contributions are welcome!
   - [erlend-sh](https://github.com/erlend-sh)
 - $5/mo sponsors:
   - [remifluff](https://github.com/remifluff)
+
+Please consider [donating](https://github.com/sponsors/l1npengtul)! It helps me not look like a failure to my parents!
