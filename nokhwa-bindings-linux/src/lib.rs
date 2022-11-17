@@ -95,6 +95,28 @@ mod internal {
         }
     }
 
+    /// query v4l2 cameras
+    #[allow(clippy::unnecessary_wraps)]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn query() -> Result<Vec<CameraInfo>, NokhwaError> {
+        Ok({
+            let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
+                .iter()
+                .map(|node| {
+                    CameraInfo::new(
+                        &node
+                            .name()
+                            .unwrap_or(format!("{}", node.path().to_string_lossy())),
+                        &format!("Video4Linux Device @ {}", node.path().to_string_lossy()),
+                        "",
+                        CameraIndex::Index(node.index() as u32),
+                    )
+                })
+                .collect();
+            camera_info
+        })
+    }
+
     /// The backend struct that interfaces with V4L2.
     /// To see what this does, please see [`CaptureBackendTrait`].
     /// # Quirks
@@ -311,17 +333,6 @@ mod internal {
                     error: why.to_string(),
                 }),
             }
-        }
-
-        /// Get the inner device (immutable) for e.g. Controls
-        #[allow(clippy::must_use_candidate)]
-        fn inner_device(&self) -> &Device {
-            &self.device
-        }
-
-        /// Get the inner device (mutable) for e.g. Controls
-        fn inner_device_mut(&mut self) -> &mut Device {
-            &mut self.device
         }
 
         /// Force refreshes the inner [`CameraFormat`] state.

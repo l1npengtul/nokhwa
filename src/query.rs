@@ -108,26 +108,8 @@ pub fn query(api: ApiBackend) -> Result<Vec<CameraInfo>, NokhwaError> {
 // TODO: More
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::cast_possible_truncation)]
 fn query_v4l() -> Result<Vec<CameraInfo>, NokhwaError> {
-    use nokhwa_core::types::CameraIndex;
-    Ok({
-        let camera_info: Vec<CameraInfo> = v4l::context::enum_devices()
-            .iter()
-            .map(|node| {
-                CameraInfo::new(
-                    &node
-                        .name()
-                        .unwrap_or(format!("{}", node.path().to_string_lossy())),
-                    &format!("Video4Linux Device @ {}", node.path().to_string_lossy()),
-                    "",
-                    CameraIndex::Index(node.index() as u32),
-                )
-            })
-            .collect();
-        camera_info
-    })
+    nokhwa_bindings_linux::query()
 }
 
 #[cfg(any(not(feature = "input-v4l"), not(target_os = "linux")))]
