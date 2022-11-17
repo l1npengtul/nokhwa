@@ -6,7 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["nokhwa/default"]
+default = ["nokhwa/default", "native"]
 native = ["nokhwa/input-native"]
 
 [dependencies]
@@ -14,6 +14,7 @@ ggez = "0.8.1"
 flume = "0.10.14"
 once_cell = "1.16.0"
 image = "0.24.4"
+color-eyre = "0.6.2"
 
 [dependencies.clap]
 version = "4.0.20"
@@ -22,3 +23,4 @@ features = ["derive"]
 # Use these as you need
 [dependencies.nokhwa]
 path = "../../../nokhwa"
+features = ["output-threaded"]

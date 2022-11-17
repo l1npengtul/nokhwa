@@ -20,6 +20,7 @@ use nokhwa_core::{
 };
 
 /// Gets the native [`ApiBackend`]
+#[must_use]
 pub fn native_api_backend() -> Option<ApiBackend> {
     match std::env::consts::OS {
         "linux" => Some(ApiBackend::Video4Linux),

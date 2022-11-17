@@ -23,6 +23,7 @@ use nokhwa_core::{
         FrameFormat, KnownCameraControl, RequestedFormat, RequestedFormatType, Resolution,
     },
 };
+use std::thread::JoinHandle;
 use std::{
     collections::HashMap,
     sync::{
@@ -59,36 +60,11 @@ pub struct CallbackCamera {
     last_frame_captured: AtomicLock<Buffer>,
     die_bool: Arc<AtomicBool>,
     current_camera: CameraInfo,
+    handle: AtomicLock<Option<JoinHandle<()>>>,
 }
 
 impl CallbackCamera {
     /// Create a new `ThreadedCamera` from a [`CameraIndex`] and [`format`]
-    ///
-    /// Here below is an example function you can pass for `callback`
-    /// ```rust
-    /// fn camera_frame_thread_loop(
-    ///     camera: &AtomicLock<Camera>,
-    ///     frame_callback: &HeldCallbackType,
-    ///     last_frame_captured: &AtomicLock<Buffer>,
-    ///     die_bool: &Arc<AtomicBool>,
-    /// ) {
-    ///     loop {
-    ///          if let Ok(mut camera) = camera.lock() {
-    ///             if let Ok(frame) = camera.frame() {
-    ///                 if let Ok(mut last_frame) = last_frame_captured.lock() {
-    ///                     *last_frame = frame.clone();
-    ///                     if let Ok(mut cb) = frame_callback.lock() {
-    ///                         cb(frame);
-    ///                     }
-    ///                }
-    ///             }
-    ///         }
-    ///         if die_bool.load(Ordering::SeqCst) {
-    ///             break;
-    ///         }
-    ///    }
-    /// }
-    /// ```
     ///
     /// # Errors
     /// This will error if you either have a bad platform configuration (e.g. `input-v4l` but not on linux) or the backend cannot create the camera (e.g. permission denied).
@@ -116,6 +92,7 @@ impl CallbackCamera {
             ))),
             die_bool: Arc::new(Default::default()),
             current_camera,
+            handle: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -447,14 +424,36 @@ impl CallbackCamera {
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     pub fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        self.camera
+        let mut handle_lock = self
+            .handle
             .lock()
-            .map_err(|why| NokhwaError::SetPropertyError {
-                property: "camera".to_string(),
-                value: "callback".to_string(),
+            .map_err(|why| NokhwaError::GetPropertyError {
+                property: "thread handle".to_string(),
                 error: why.to_string(),
-            })?
-            .open_stream()
+            })?;
+        if handle_lock.is_none() {
+            self.camera
+                .lock()
+                .map_err(|why| NokhwaError::SetPropertyError {
+                    property: "camera".to_string(),
+                    value: "callback".to_string(),
+                    error: why.to_string(),
+                })?
+                .open_stream()?;
+            let die_bool_clone = self.die_bool.clone();
+            let camera_clone = self.camera.clone();
+            let last_frame = self.last_frame_captured.clone();
+            let callback = self.frame_callback.clone();
+            let handle = std::thread::spawn(move || {
+                camera_frame_thread_loop(camera_clone, callback, last_frame, die_bool_clone)
+            });
+            *handle_lock = Some(handle);
+            Ok(())
+        } else {
+            Err(NokhwaError::OpenStreamError(
+                "Stream Already Open".to_string(),
+            ))
+        }
     }
 
     /// Sets the frame callback to the new specified function. This function will be called instead of the previous one(s).
@@ -524,5 +523,28 @@ impl Drop for CallbackCamera {
     fn drop(&mut self) {
         let _stop_stream_err = self.stop_stream();
         self.die_bool.store(true, Ordering::SeqCst);
+    }
+}
+
+fn camera_frame_thread_loop(
+    camera: AtomicLock<Camera>,
+    frame_callback: HeldCallbackType,
+    last_frame_captured: AtomicLock<Buffer>,
+    die_bool: Arc<AtomicBool>,
+) {
+    loop {
+        if let Ok(mut camera) = camera.lock() {
+            if let Ok(frame) = camera.frame() {
+                if let Ok(mut last_frame) = last_frame_captured.lock() {
+                    *last_frame = frame.clone();
+                    if let Ok(mut cb) = frame_callback.lock() {
+                        cb(frame);
+                    }
+                }
+            }
+        }
+        if die_bool.load(Ordering::SeqCst) {
+            break;
+        }
     }
 }

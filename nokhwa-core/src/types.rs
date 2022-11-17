@@ -100,7 +100,7 @@ impl RequestedFormat<'_> {
             }
             RequestedFormatType::AbsoluteHighestFrameRate => {
                 let mut formats = all_formats.to_vec();
-                formats.sort_by_key(CameraFormat::resolution);
+                formats.sort_by_key(CameraFormat::frame_rate);
                 let frame_rate = *formats.iter().last()?;
                 let mut format_framerates = formats
                     .into_iter()
@@ -326,7 +326,7 @@ impl FromStr for FrameFormat {
     type Err = NokhwaError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.as_ref() {
+        match s {
             "MJPEG" => Ok(FrameFormat::MJPEG),
             "YUYV" => Ok(FrameFormat::YUYV),
             "GRAY" => Ok(FrameFormat::GRAY),
@@ -1577,6 +1577,13 @@ pub fn buf_mjpeg_to_rgb(_data: &[u8], _dest: &mut [u8], _rgba: bool) -> Result<(
     Err(NokhwaError::NotImplementedError(
         "Not available on WASM".to_string(),
     ))
+}
+
+/// Returns the predicted size of the destination YUYV422 buffer.
+pub fn yuyv422_predicted_size(size: usize, rgba: bool) -> usize {
+    let pixel_size = if rgba { 4 } else { 3 };
+    // yuyv yields 2 3-byte pixels per yuyv chunk
+    (size / 4) * (2 * pixel_size)
 }
 
 // For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2

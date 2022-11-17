@@ -483,7 +483,7 @@ impl CaptureBackendTrait for OpenCvCaptureDevice {
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
         match self.camera_location.clone() {
             CameraIndex::Index(idx) => {
-                match self.video_capture.open_1(idx as i32, get_api_pref_int()) {
+                match self.video_capture.open(idx as i32, get_api_pref_int()) {
                     Ok(open) => {
                         if open {
                             return Ok(());
