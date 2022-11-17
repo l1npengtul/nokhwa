@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.10.0-rc.2"
+version = "0.10.0-rc.3"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -43,7 +43,7 @@ thiserror = "1.0"
 paste = "1.0"
 
 [dependencies.nokhwa-core]
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 path = "nokhwa-core"
 
 [dependencies.serde]
