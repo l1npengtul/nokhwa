@@ -157,12 +157,12 @@ fn nokhwa_main() {
         } => {
             let requested = match requested {
                 Some(req) => match req.format_type.as_str() {
-                    "HighestResolutionAbs" => {
-                        RequestedFormat::new::<RgbFormat>(RequestedFormatType::HighestResolutionAbs)
-                    }
-                    "HighestFrameRateAbs" => {
-                        RequestedFormat::new::<RgbFormat>(RequestedFormatType::HighestFrameRateAbs)
-                    }
+                    "HighestResolutionAbs" => RequestedFormat::new::<RgbFormat>(
+                        RequestedFormatType::AbsoluteHighestResolution,
+                    ),
+                    "HighestFrameRateAbs" => RequestedFormat::new::<RgbFormat>(
+                        RequestedFormatType::AbsoluteHighestFrameRate,
+                    ),
                     "HighestResolution" => {
                         let values = req.format_option.unwrap().split(",").collect::<Vec<&str>>();
                         let x = values[0].parse::<u32>().unwrap();
@@ -262,12 +262,12 @@ fn nokhwa_main() {
             };
             let requested = match requested {
                 Some(req) => match req.format_type.as_str() {
-                    "HighestResolutionAbs" => {
-                        RequestedFormat::new::<RgbFormat>(RequestedFormatType::HighestResolutionAbs)
-                    }
-                    "HighestFrameRateAbs" => {
-                        RequestedFormat::new::<RgbFormat>(RequestedFormatType::HighestFrameRateAbs)
-                    }
+                    "HighestResolutionAbs" => RequestedFormat::new::<RgbFormat>(
+                        RequestedFormatType::AbsoluteHighestResolution,
+                    ),
+                    "HighestFrameRateAbs" => RequestedFormat::new::<RgbFormat>(
+                        RequestedFormatType::AbsoluteHighestFrameRate,
+                    ),
                     "HighestResolution" => {
                         let values = req.format_option.unwrap().split(",").collect::<Vec<&str>>();
                         let x = values[0].parse::<u32>().unwrap();

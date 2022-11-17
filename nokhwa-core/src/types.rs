@@ -9,8 +9,8 @@ use std::{
 };
 
 /// Tells the init function what camera format to pick.
-/// - `HighestResolutionAbs`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
-/// - `HighestFrameRateAbs`: Pick the highest frame rate, then the highest [`Resolution`].
+/// - `AbsoluteHighestResolution`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
+/// - `AbsoluteHighestFrameRate`: Pick the highest frame rate, then the highest [`Resolution`].
 /// - `HighestResolution(Option<u32>)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`). If its `None`, it will pick the highest possible [`Resolution`]
 /// - `HighestFrameRate(Option<Resolution>)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`). If it is `None`, it will pick the highest possinle framerate.
 /// - `Exact`: Pick the exact [`CameraFormat`] provided.
@@ -19,8 +19,8 @@ use std::{
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum RequestedFormatType {
-    HighestResolutionAbs,
-    HighestFrameRateAbs,
+    AbsoluteHighestResolution,
+    AbsoluteHighestFrameRate,
     HighestResolution(Resolution),
     HighestFrameRate(u32),
     Exact(CameraFormat),
@@ -84,7 +84,7 @@ impl RequestedFormat<'_> {
     #[allow(clippy::too_many_lines)]
     pub fn fulfill(&self, all_formats: &[CameraFormat]) -> Option<CameraFormat> {
         match self.requested_format {
-            RequestedFormatType::HighestResolutionAbs => {
+            RequestedFormatType::AbsoluteHighestResolution => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(CameraFormat::resolution);
                 let resolution = *formats.iter().last()?;
@@ -98,7 +98,7 @@ impl RequestedFormat<'_> {
                 format_resolutions.sort_by_key(CameraFormat::frame_rate);
                 format_resolutions.last().copied()
             }
-            RequestedFormatType::HighestFrameRateAbs => {
+            RequestedFormatType::AbsoluteHighestFrameRate => {
                 let mut formats = all_formats.to_vec();
                 formats.sort_by_key(CameraFormat::resolution);
                 let frame_rate = *formats.iter().last()?;

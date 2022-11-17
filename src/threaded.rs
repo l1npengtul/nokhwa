@@ -48,7 +48,7 @@ type HeldCallbackType = Arc<Mutex<Box<dyn FnMut(Buffer) + Send + 'static>>>;
 /// complete before a new frame is available. If you need to do heavy image processing, it may be
 /// beneficial to directly pipe the data to a new thread to process it there.
 ///
-/// Note that this does not have `WGPU` capabilities. However, it should be easy to implement.
+/// Note that this does not have `WGPU` capabilities. This should be implemented in your callback.
 /// # SAFETY
 /// The `Mutex` guarantees exclusive access to the underlying camera struct. They should be safe to
 /// impl `Send` on.

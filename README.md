@@ -8,15 +8,30 @@ A Simple-to-use, cross-platform Rust Webcam Capture Library
 Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
 ```toml
 [dependencies.nokhwa]
-# TODO: replace the "*" with the latest version of `nokhwa`
-version = "*"
-# TODO: add some features
-features = [""]
+version = "0.10.0-rc2"
+# Use the native inputs 
+features = ["input-native", "output-wgpu"]
 ```
 
 Most likely, you will only use functionality provided by the `Camera` struct. If you need lower-level access, you may instead opt to use the raw capture backends found at `nokhwa::backends::capture::*`.
 
 ## Example
+```rust
+// first camera in system
+let index = CameraIndex::index(0); 
+// request the absolute highest resolution CameraFormat that can be decoded to RGB.
+let requested = RequestedFormat::<RgbFormat>::new(RequestedFormatType::AbsoluteHighestFrameRate);
+// make the camera
+let mut camera = Camera::new(index, requested).unwrap();
+
+// get a frame
+let frame = camera.frame().unwrap();
+println!("Captured Single Frame of {}", frame.buffer().len());
+// decode into an ImageBuffer
+let decoded = frame.decode_image::<RgbFormat>().unwrap();
+println!("Decoded Frame of {}", decoded.len());
+```
+
 A command line app made with `nokhwa` can be found in the `examples` folder.
 
 ## API Support
@@ -27,21 +42,17 @@ The table below lists current Nokhwa API support.
 - The `Query-Device` column signifies reading device capabilities
 - The `Platform` column signifies what Platform this is availible on.
 
- | Backend                                 | Input              | Query             | Query-Device       | Platform            |
- |-----------------------------------------|--------------------|-------------------|--------------------|---------------------|
- | Video4Linux(`input-v4l`)                | ✅                 | ✅                 | ✅                | Linux               |
- | MSMF(`input-msmf`)                      | ✅                 | ✅                 | ✅                | Windows             |
- | AVFoundation(`input-avfoundation`)^^    | ✅                 | ✅                 | ✅                | Mac                 |
- | libuvc(`input-uvc`) (**DEPRECATED**)^^^ | ❌                 | ✅                 | ❌                | Linux, Windows, Mac |
- | OpenCV(`input-opencv`)^                 | ✅                 | ❌                 | ❌                | Linux, Windows, Mac |
- | GStreamer(`input-gst`)(**DEPRECATED**)  | ✅                 | ✅                 | ✅                | Linux, Windows, Mac |
- | JS/WASM(`input-wasm`)                   | ✅                 | ✅                 | ✅                | Browser(Web)        |
+ | Backend                              | Input              | Query             | Query-Device       | Platform            |
+ |-----------------------------------------|-------------------|--------------------|-------------------|--------------------|
+ | Video4Linux(`input-native`)          | ✅                 | ✅                 | ✅                | Linux               |
+ | MSMF(`input-native`)                 | ✅                 | ✅                 | ✅                | Windows             |
+ | AVFoundation(`input-native`)   | ✅                 | ✅                 | ✅                | Mac                 |
+ | OpenCV(`input-opencv`)^              | ✅                 | ❌                 | ❌                | Linux, Windows, Mac |
+ | WASM(`input-wasm`)                | ✅                 | ✅                 | ✅                | Browser(Web)        |
 
  ✅: Working, 🔮 : Experimental, ❌ : Not Supported, 🚧: Planned/WIP
 
   ^ = May be bugged. Also supports IP Cameras. 
-
-  ^^ = No FPS setting support.
 
   ^^^ = `input-uvc` is disabled for now as there are lifetime/soundness holes. You can still query, however.
 ## Feature
