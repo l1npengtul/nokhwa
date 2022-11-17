@@ -11,7 +11,7 @@ repository = "https://github.com/l1npengtul/nokhwa"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "nokhwa-core", "examples/*"]
+members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "nokhwa-bindings-linux", "nokhwa-core", "examples/*"]
 exclude = ["examples/jscam"]
 
 [lib]
@@ -21,10 +21,10 @@ crate-type = ["cdylib", "rlib"]
 default = ["flume", "decoding"]
 serialize = ["serde", "nokhwa-core/serialize"]
 decoding = ["nokhwa-core/mjpeg"]
-input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
-input-v4l = ["v4l"]
-input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
+input-msmf = ["nokhwa-bindings-windows"]
+input-v4l = ["nokhwa-bindings-linux"]
+input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb"]
@@ -33,7 +33,7 @@ output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
 small-wasm = []
-docs-only = ["input-v4l", "input-opencv", "input-msmf", "input-avfoundation", "input-jscam","output-wgpu", "output-threaded"]
+docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["opencv/docs-only"]
 docs-features = []
 test-fail-warning = []
@@ -88,6 +88,11 @@ optional = true
 [dependencies.nokhwa-bindings-macos]
 version = "0.2.0-rc.1"
 path = "nokhwa-bindings-macos"
+optional = true
+
+[dependencies.nokhwa-bindings-linux]
+version = "0.1.0"
+path = "nokhwa-bindings-linux"
 optional = true
 
 [dependencies.regex]

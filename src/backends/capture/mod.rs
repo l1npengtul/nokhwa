@@ -15,11 +15,8 @@
  */
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
-// I'm too lazy to set up a skeleton facade for V4L so here it will stay
-mod v4l2_backend;
-#[cfg(all(feature = "input-v4l", target_os = "linux"))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-v4l")))]
-pub use v4l2_backend::V4LCaptureDevice;
+pub use nokhwa_bindings_linux::V4LCaptureDevice;
 #[cfg(any(
     all(feature = "input-msmf", target_os = "windows"),
     all(feature = "docs-only", feature = "docs-nolink", feature = "input-msmf")

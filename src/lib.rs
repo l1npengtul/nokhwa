@@ -25,7 +25,10 @@
 //!
 //! The [`Camera`] struct is what you will likely use.
 //!
-//! Please read the README for more.
+//! The recommended default feature to enable is `input-native`. The library will not work without
+//! at least one `input-*` feature enabled.
+//!
+//! Please read the README.md for more.
 
 /// Raw access to each of Nokhwa's backends.
 pub mod backends;
