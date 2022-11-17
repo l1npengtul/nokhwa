@@ -9,7 +9,7 @@ Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
 ```toml
 [dependencies.nokhwa]
 version = "0.10.0-rc2"
-# Use the native inputs 
+# Use the native input backends, enable WGPU integration
 features = ["input-native", "output-wgpu"]
 ```
 
