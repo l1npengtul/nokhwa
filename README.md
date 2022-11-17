@@ -17,11 +17,6 @@ features = [""]
 Most likely, you will only use functionality provided by the `Camera` struct. If you need lower-level access, you may instead opt to use the raw capture backends found at `nokhwa::backends::capture::*`.
 
 ## Example
-
-```rust
-// tell what we want to the camera. In this case, we want the absolute highest resolution that 
-
-```
 A command line app made with `nokhwa` can be found in the `examples` folder.
 
 ## API Support

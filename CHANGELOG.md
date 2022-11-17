@@ -1,14 +1,16 @@
 # 0.10.0
 - Split core types and traits into `nokhwa-core`
 - Removed support for JS Bindings
+  - This is due to lack of support for non-C style enums in `wasm-bindgen`. 
 - New CameraControl API
   - Deprecated `raw_camera_control` API
 - New RequestedFormat API
-- Removed Network Camera Support
+- Removed Network Camera 
+  - Network Camera is now supported through OpenCV Camera instead.
 - New Buffer API
   - PixelFormat API
-- After a year in development, We hope it was worth the wait.
 - Callback Camera: Removed `Result` from the `index()` and `camera_info()` API.
+- After a year in development, We hope it was worth the wait.
 
 # 0.9.0
 - Fixed Camera Controls for V4L2
