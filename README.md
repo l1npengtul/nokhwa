@@ -54,7 +54,6 @@ The table below lists current Nokhwa API support.
 
   ^ = May be bugged. Also supports IP Cameras. 
 
-  ^^^ = `input-uvc` is disabled for now as there are lifetime/soundness holes. You can still query, however.
 ## Feature
 The default feature includes nothing. Anything starting with `input-*` is a feature that enables the specific backend. 
 
