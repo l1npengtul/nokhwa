@@ -1796,7 +1796,7 @@ pub fn buf_nv12_to_rgb(
             let y1 = block[1];
             // determine the u and v
             let block_offset_idx = y_section + (true_idx * resolution.width() as usize) + cidx * 2;
-            let offset_idx = idx * resolution.height() as usize * rgba_size + cidx * 2 * rgba_size;
+            let offset_idx = idx * resolution.height() as usize * rgba_size + cidx * 2;
             let u = data[block_offset_idx];
             let v = data[block_offset_idx + 1];
             if rgba {
