@@ -51,7 +51,7 @@ pub mod wmf {
     };
     use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
     use windows::Win32::Media::MediaFoundation::{
-        IMFMediaType, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+        IMFMediaType, MFCreateSample, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
     };
     use windows::{
         core::{Interface, GUID, PWSTR},
@@ -427,6 +427,7 @@ pub mod wmf {
 
     impl MediaFoundationDevice {
         pub fn new(index: CameraIndex) -> Result<Self, NokhwaError> {
+            initialize_mf()?;
             match index {
                 CameraIndex::Index(i) => {
                     let (media_source, device_descriptor) =
@@ -1030,7 +1031,6 @@ pub mod wmf {
                 let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
                 bytes[7] = format.frame_rate() as u8;
                 bytes[3] = 0x01;
-                println!("{:?}", bytes);
                 u64::from_le_bytes(bytes)
             };
             let fourcc = frameformat_to_guid(format.format());
@@ -1113,7 +1113,13 @@ pub mod wmf {
         }
 
         pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-            let mut imf_sample: Option<IMFSample> = None;
+            let mut imf_sample: Option<IMFSample> = match unsafe { MFCreateSample() } {
+                Ok(sample) => Some(sample),
+                Err(why) => {
+                    return Err(NokhwaError::ReadFrameError(why.to_string()));
+                }
+            };
+            let mut stream_flags = 0;
             {
                 loop {
                     if let Err(why) = unsafe {
@@ -1121,7 +1127,7 @@ pub mod wmf {
                             MEDIA_FOUNDATION_FIRST_VIDEO_STREAM,
                             0,
                             None,
-                            None,
+                            Some(&mut stream_flags),
                             None,
                             Some(&mut imf_sample),
                         )
@@ -1175,11 +1181,6 @@ pub mod wmf {
                     buffer_start_ptr,
                     buffer_valid_length as usize,
                 ) as &[u8]);
-                // swallow errors
-                if buffer
-                    .Lock(&mut buffer_start_ptr, None, Some(&mut buffer_valid_length))
-                    .is_ok()
-                {}
             }
 
             Ok(Cow::from(data_slice))

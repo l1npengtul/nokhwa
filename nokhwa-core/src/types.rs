@@ -339,6 +339,8 @@ impl FromStr for FrameFormat {
         }
     }
 }
+
+/// Returns all the frame formats
 #[must_use]
 pub const fn frame_formats() -> &'static [FrameFormat] {
     &[
@@ -346,6 +348,17 @@ pub const fn frame_formats() -> &'static [FrameFormat] {
         FrameFormat::YUYV,
         FrameFormat::NV12,
         FrameFormat::GRAY,
+        FrameFormat::RAWRGB,
+    ]
+}
+
+/// Returns all the color frame formats
+#[must_use]
+pub const fn color_frame_formats() -> &'static [FrameFormat] {
+    &[
+        FrameFormat::MJPEG,
+        FrameFormat::YUYV,
+        FrameFormat::NV12,
         FrameFormat::RAWRGB,
     ]
 }
@@ -1716,111 +1729,94 @@ pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
     [r, g, b, 255]
 }
 
-/// Converts a YUYV 4:2:0 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
+/// Converts a YUYV 4:2:0 bi-planar (NV12) datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is wrong.
-pub fn yuv_420_to_rgb(
+pub fn nv12_to_rgb(
     resolution: Resolution,
     data: &[u8],
     rgba: bool,
 ) -> Result<Vec<u8>, NokhwaError> {
     let pxsize = if rgba { 4 } else { 3 };
     let mut dest = vec![0; (pxsize * resolution.width() * resolution.height()) as usize];
-    buf_yuv_420_to_rgb(resolution, data, &mut dest, rgba)?;
+    buf_nv12_to_rgb(resolution, data, &mut dest, rgba)?;
     Ok(dest)
 }
 
 // this depresses me
 // like, everytime i open this codebase all the life is sucked out of me
 // i hate it
-/// Converts a YUYV 4:2:0 datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
+/// Converts a YUYV 4:2:0 bi-planar (NV12) datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is wrong.
 #[allow(clippy::similar_names)]
-pub fn buf_yuv_420_to_rgb(
+pub fn buf_nv12_to_rgb(
     resolution: Resolution,
     data: &[u8],
     out: &mut [u8],
     rgba: bool,
 ) -> Result<(), NokhwaError> {
-    if resolution.x() % 2 != 0 || resolution.y() % 2 != 0 {
+    if resolution.width() % 2 != 0 || resolution.height() % 2 != 0 {
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::NV12,
-            destination: "RGB888".to_string(),
-            error: "Resolution must be even!".to_string(),
+            destination: "RGB".to_string(),
+            error: "bad resolution".to_string(),
         });
     }
 
-    let x_lobcorp = resolution.y() * resolution.x();
-    let u_values = x_lobcorp / 4;
-    let v_values = x_lobcorp / 4;
-
-    if (x_lobcorp + u_values + v_values) as usize != data.len() {
+    if data.len() != ((resolution.width() * resolution.height() * 3) / 2) as usize {
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::NV12,
-            destination: "RGB888".to_string(),
-            error: "Ran out of data!".to_string(),
+            destination: "RGB".to_string(),
+            error: "bad input buffer size".to_string(),
         });
     }
 
-    let px_b_size = if rgba { 4 } else { 3 };
+    let pxsize = if rgba { 4 } else { 3 };
 
-    if (x_lobcorp * px_b_size) as usize > out.len() {
+    if out.len() != (pxsize * resolution.width() * resolution.height()) as usize {
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::NV12,
-            destination: "RGB888".to_string(),
-            error: "Output buffer too small!".to_string(),
+            destination: "RGB".to_string(),
+            error: "bad output buffer size".to_string(),
         });
-    };
+    }
 
-    let u_values_start = x_lobcorp;
-    let v_values_start = x_lobcorp + u_values;
+    let y_section = (resolution.width() * resolution.height()) as usize;
 
-    let half_height = resolution.y() / 2;
-    let half_width = resolution.x() / 2;
-
-    for h in 0..half_height {
-        for w in 0..half_width {
-            let r0_idx = ((w * 2) + (h * resolution.width())) as usize;
-            let r1_idx = ((w * 2) + ((h + 1) * resolution.width())) as usize;
-
-            let y0 = i32::from(data[r0_idx]);
-            let y1 = i32::from(data[r0_idx + 1]);
-            let y2 = i32::from(data[r1_idx]);
-            let y3 = i32::from(data[r1_idx + 1]);
-
-            let cell_number = (h * resolution.width()) + h;
-            let u0 = i32::from(data[(u_values_start + cell_number) as usize]);
-            let v0 = i32::from(data[(v_values_start + cell_number) as usize]);
-
+    for (idx, row) in data[0..y_section]
+        .chunks_exact(resolution.height() as usize)
+        .enumerate()
+    {
+        let true_idx = idx / 2;
+        for (cidx, block) in row.chunks_exact(2).enumerate() {
+            let y0 = block[0];
+            let y1 = block[1];
+            // determine the u and v
+            let block_offset_idx = y_section + (true_idx * resolution.height() as usize) + cidx * 2;
+            let offset_idx = idx * resolution.height() as usize + cidx * 2;
+            let u = data[block_offset_idx];
+            let v = data[block_offset_idx + 1];
             if rgba {
-                let rgb0 = yuyv444_to_rgba(y0, u0, v0);
-                let rgb1 = yuyv444_to_rgba(y1, u0, v0);
-                let rgb2 = yuyv444_to_rgba(y2, u0, v0);
-                let rgb3 = yuyv444_to_rgba(y3, u0, v0);
-
-                for (i, (px0, px1)) in rgb0.into_iter().zip(rgb1.into_iter()).enumerate() {
-                    out[r0_idx + i] = px0;
-                    out[r0_idx + i + 4] = px1;
-                }
-                for (i, (px0, px1)) in rgb2.into_iter().zip(rgb3.into_iter()).enumerate() {
-                    out[r1_idx + i] = px0;
-                    out[r1_idx + i + 4] = px1;
-                }
+                let px0 = yuyv444_to_rgba(y0 as i32, u as i32, v as i32);
+                let px1 = yuyv444_to_rgba(y1 as i32, u as i32, v as i32);
+                out[offset_idx] = px0[0];
+                out[offset_idx + 1] = px0[1];
+                out[offset_idx + 2] = px0[2];
+                out[offset_idx + 3] = px0[3];
+                out[offset_idx + 4] = px1[0];
+                out[offset_idx + 5] = px1[1];
+                out[offset_idx + 6] = px1[2];
+                out[offset_idx + 7] = px1[3];
             } else {
-                let rgb0 = yuyv444_to_rgb(y0, u0, v0);
-                let rgb1 = yuyv444_to_rgb(y1, u0, v0);
-                let rgb2 = yuyv444_to_rgb(y2, u0, v0);
-                let rgb3 = yuyv444_to_rgb(y3, u0, v0);
-
-                for (i, (px0, px1)) in rgb0.into_iter().zip(rgb1.into_iter()).enumerate() {
-                    out[r0_idx + i] = px0;
-                    out[r0_idx + i + 3] = px1;
-                }
-                for (i, (px0, px1)) in rgb2.into_iter().zip(rgb3.into_iter()).enumerate() {
-                    out[r1_idx + i] = px0;
-                    out[r1_idx + i + 3] = px1;
-                }
+                let px0 = yuyv444_to_rgb(y0 as i32, u as i32, v as i32);
+                let px1 = yuyv444_to_rgb(y1 as i32, u as i32, v as i32);
+                out[offset_idx] = px0[0];
+                out[offset_idx + 1] = px0[1];
+                out[offset_idx + 2] = px0[2];
+                out[offset_idx + 3] = px1[0];
+                out[offset_idx + 4] = px1[1];
+                out[offset_idx + 5] = px1[2];
             }
         }
     }

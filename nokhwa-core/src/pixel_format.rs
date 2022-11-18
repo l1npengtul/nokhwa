@@ -15,8 +15,8 @@
  */
 use crate::error::NokhwaError;
 use crate::types::{
-    buf_mjpeg_to_rgb, buf_yuv_420_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, yuv_420_to_rgb,
-    yuyv422_to_rgb, FrameFormat, Resolution,
+    buf_mjpeg_to_rgb, buf_nv12_to_rgb, buf_yuyv422_to_rgb, color_frame_formats, frame_formats,
+    mjpeg_to_rgb, nv12_to_rgb, yuyv422_to_rgb, FrameFormat, Resolution,
 };
 use image::{Luma, LumaA, Pixel, Rgb, Rgba};
 use std::fmt::Debug;
@@ -57,7 +57,7 @@ pub struct RgbFormat;
 
 impl FormatDecoder for RgbFormat {
     type Output = Rgb<u8>;
-    const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
+    const FORMATS: &'static [FrameFormat] = color_frame_formats();
 
     fn write_output(
         fcc: FrameFormat,
@@ -75,7 +75,7 @@ impl FormatDecoder for RgbFormat {
                 })
                 .collect()),
             FrameFormat::RAWRGB => Ok(data.to_vec()),
-            FrameFormat::NV12 => yuv_420_to_rgb(resolution, data, false),
+            FrameFormat::NV12 => nv12_to_rgb(resolution, data, false),
         }
     }
 
@@ -109,7 +109,7 @@ impl FormatDecoder for RgbFormat {
                 dest.copy_from_slice(data);
                 Ok(())
             }
-            FrameFormat::NV12 => buf_yuv_420_to_rgb(resolution, data, dest, false),
+            FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, false),
         }
     }
 }
@@ -126,7 +126,7 @@ pub struct RgbAFormat;
 impl FormatDecoder for RgbAFormat {
     type Output = Rgba<u8>;
 
-    const FORMATS: &'static [FrameFormat] = &[FrameFormat::MJPEG, FrameFormat::YUYV];
+    const FORMATS: &'static [FrameFormat] = color_frame_formats();
 
     fn write_output(
         fcc: FrameFormat,
@@ -147,7 +147,7 @@ impl FormatDecoder for RgbAFormat {
                 .chunks_exact(3)
                 .flat_map(|x| [x[0], x[1], x[2], 255])
                 .collect()),
-            FrameFormat::NV12 => yuv_420_to_rgb(resolution, data, true),
+            FrameFormat::NV12 => nv12_to_rgb(resolution, data, true),
         }
     }
 
@@ -189,7 +189,7 @@ impl FormatDecoder for RgbAFormat {
                 });
                 Ok(())
             }
-            FrameFormat::NV12 => buf_yuv_420_to_rgb(resolution, data, dest, true),
+            FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, true),
         }
     }
 }
@@ -206,8 +206,7 @@ pub struct LumaFormat;
 impl FormatDecoder for LumaFormat {
     type Output = Luma<u8>;
 
-    const FORMATS: &'static [FrameFormat] =
-        &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
+    const FORMATS: &'static [FrameFormat] = frame_formats();
 
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
@@ -235,7 +234,7 @@ impl FormatDecoder for LumaFormat {
                     (avg / 3) as u8
                 })
                 .collect()),
-            FrameFormat::NV12 => Ok(yuv_420_to_rgb(resolution, data, false)?
+            FrameFormat::NV12 => Ok(nv12_to_rgb(resolution, data, false)?
                 .as_slice()
                 .chunks_exact(3)
                 .map(|x| {
@@ -295,9 +294,7 @@ pub struct LumaAFormat;
 impl FormatDecoder for LumaAFormat {
     type Output = LumaA<u8>;
 
-    const FORMATS: &'static [FrameFormat] =
-        &[FrameFormat::MJPEG, FrameFormat::YUYV, FrameFormat::GRAY];
-
+    const FORMATS: &'static [FrameFormat] = frame_formats();
     #[allow(clippy::cast_possible_truncation)]
     fn write_output(
         fcc: FrameFormat,
@@ -323,7 +320,7 @@ impl FormatDecoder for LumaAFormat {
                     [(avg / 3) as u8, 255]
                 })
                 .collect()),
-            FrameFormat::NV12 => Ok(yuv_420_to_rgb(resolution, data, false)?
+            FrameFormat::NV12 => Ok(nv12_to_rgb(resolution, data, false)?
                 .as_slice()
                 .chunks_exact(3)
                 .flat_map(|x| {

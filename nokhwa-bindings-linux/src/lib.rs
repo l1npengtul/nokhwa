@@ -822,7 +822,7 @@ mod internal {
     /// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.
     /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
     #[allow(clippy::cast_possible_truncation)]
-    pub fn known_camera_control_to_id(ctrl: KnownCameraControl) -> u32 {
+    pub fn known_camera_control_to_id(_ctrl: KnownCameraControl) -> u32 {
         0
     }
 
@@ -830,7 +830,7 @@ mod internal {
     /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
     #[allow(clippy::cast_lossless)]
     pub fn id_to_known_camera_control(id: u32) -> KnownCameraControl {
-        KnownCameraControl::Other(id)
+        KnownCameraControl::Other(id as u128)
     }
 
     /// The backend struct that interfaces with V4L2.
