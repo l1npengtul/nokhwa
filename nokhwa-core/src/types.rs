@@ -1787,7 +1787,7 @@ pub fn buf_nv12_to_rgb(
     let y_section = (resolution.width() * resolution.height()) as usize;
 
     for (idx, row) in data[0..y_section]
-        .chunks_exact(resolution.height() as usize)
+        .chunks_exact(resolution.width() as usize)
         .enumerate()
     {
         let true_idx = idx / 2;
@@ -1795,13 +1795,13 @@ pub fn buf_nv12_to_rgb(
             let y0 = block[0];
             let y1 = block[1];
             // determine the u and v
-            let block_offset_idx = y_section + (true_idx * resolution.height() as usize) + cidx * 2;
+            let block_offset_idx = y_section + (true_idx * resolution.width() as usize) + cidx * 2;
             let offset_idx = idx * resolution.height() as usize * rgba_size + cidx * 2 * rgba_size;
             let u = data[block_offset_idx];
             let v = data[block_offset_idx + 1];
             if rgba {
-                let px0 = yuyv444_to_rgba(y0 as i32, v as i32, u as i32);
-                let px1 = yuyv444_to_rgba(y1 as i32, v as i32, u as i32);
+                let px0 = yuyv444_to_rgba(y0 as i32, u as i32, v as i32);
+                let px1 = yuyv444_to_rgba(y1 as i32, u as i32, v as i32);
                 out[offset_idx] = px0[0];
                 out[offset_idx + 1] = px0[1];
                 out[offset_idx + 2] = px0[2];
