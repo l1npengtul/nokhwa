@@ -22,7 +22,7 @@ default = ["flume", "decoding"]
 serialize = ["serde", "nokhwa-core/serialize"]
 decoding = ["nokhwa-core/mjpeg"]
 input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
-input-v4l = ["v4l", "v4l2-sys-mit"]
+input-v4l = ["v4l"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-avfoundation = ["nokhwa-bindings-macos"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
@@ -60,10 +60,6 @@ default-features = false
 
 [dependencies.v4l]
 version = "0.13"
-optional = true
-
-[dependencies.v4l2-sys-mit]
-version = "0.2"
 optional = true
 
 [dependencies.usb_enumeration]

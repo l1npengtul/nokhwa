@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
@@ -22,7 +21,7 @@ use nokhwa_core::{
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
         ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag,
-        RequestedFormat, Resolution,
+        RequestedFormat, RequestedFormatType, Resolution,
     },
 };
 use std::{
