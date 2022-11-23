@@ -14,4 +14,4 @@ default-features = false
 [dependencies.nokhwa]
 path = "../../../nokhwa"
 # EDIT THIS!
-features = ["input-v4l", "output-threaded"]
+features = ["input-avfoundation", "output-threaded"]

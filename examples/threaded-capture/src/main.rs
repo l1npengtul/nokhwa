@@ -14,27 +14,39 @@
  * limitations under the License.
  */
 
-use image::{ImageBuffer, Rgb};
-use nokhwa::{query, ApiBackend, ThreadedCamera};
+use nokhwa::{
+    pixel_format::RgbAFormat,
+    query,
+    utils::{ApiBackend, FrameFormat, RequestedFormat, RequestedFormatType},
+    CallbackCamera,
+};
 
 fn main() {
     let cameras = query(ApiBackend::Auto).unwrap();
     cameras.iter().for_each(|cam| println!("{:?}", cam));
 
-    let mut threaded = ThreadedCamera::new(0, None).unwrap();
-    threaded.open_stream(callback).unwrap();
+    let format = RequestedFormat::with_formats(
+        RequestedFormatType::AbsoluteHighestFrameRate,
+        &[FrameFormat::GRAY],
+    );
+
+    let first_camera = cameras.first().unwrap();
+
+    let mut threaded = CallbackCamera::new(first_camera.index().clone(), format, |buffer| {
+        let image = buffer.decode_image::<RgbAFormat>().unwrap();
+        println!("{}x{} {}", image.width(), image.height(), image.len());
+    })
+    .unwrap();
+    threaded.open_stream().unwrap();
     #[allow(clippy::empty_loop)] // keep it running
     loop {
         let frame = threaded.poll_frame().unwrap();
+        let image = frame.decode_image::<RgbAFormat>().unwrap();
         println!(
             "{}x{} {} naripoggers",
-            frame.width(),
-            frame.height(),
-            frame.len()
+            image.width(),
+            image.height(),
+            image.len()
         );
     }
-}
-
-fn callback(image: ImageBuffer<Rgb<u8>, Vec<u8>>) {
-    println!("{}x{} {}", image.width(), image.height(), image.len());
 }
