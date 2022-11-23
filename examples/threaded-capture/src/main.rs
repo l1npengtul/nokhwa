@@ -15,6 +15,7 @@
  */
 
 use nokhwa::{
+    nokhwa_initialize,
     pixel_format::RgbAFormat,
     query,
     utils::{ApiBackend, FrameFormat, RequestedFormat, RequestedFormatType},
@@ -22,6 +23,10 @@ use nokhwa::{
 };
 
 fn main() {
+    // only needs to be run on OSX
+    nokhwa_initialize(|granted| {
+        println!("User said {}", granted);
+    });
     let cameras = query(ApiBackend::Auto).unwrap();
     cameras.iter().for_each(|cam| println!("{:?}", cam));
 
