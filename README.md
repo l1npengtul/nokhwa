@@ -94,6 +94,7 @@ Contributions are welcome!
 ## Sponsors
 - $40/mo sponsors:
   - [erlend-sh](https://github.com/erlend-sh)
+  - [DanielMSchmidt](https://github.com/DanielMSchmidt)
 - $5/mo sponsors:
   - [remifluff](https://github.com/remifluff)
 
