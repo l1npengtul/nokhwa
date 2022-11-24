@@ -373,7 +373,8 @@ mod internal {
             kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => Some(FrameFormat::MJPEG),
             kCMPixelFormat_8IndexedGray_WhiteIsZero => Some(FrameFormat::GRAY),
             kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
-            | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange => Some(FrameFormat::NV12),
+            | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+            | 875704438 => Some(FrameFormat::NV12),
             kCMPixelFormat_24RGB => Some(FrameFormat::RAWRGB),
             _ => None,
         }
@@ -923,6 +924,7 @@ mod internal {
                             "Not Found".to_string(),
                         )),
                     }
+                    ƒ
                 }
                 CameraIndex::String(id) => Ok(AVCaptureDevice::from_id(id, None)?),
             }
