@@ -16,9 +16,9 @@
 
 use nokhwa::{
     nokhwa_initialize,
-    pixel_format::RgbAFormat,
+    pixel_format::{RgbAFormat, RgbFormat},
     query,
-    utils::{ApiBackend, FrameFormat, RequestedFormat, RequestedFormatType},
+    utils::{ApiBackend, RequestedFormat, RequestedFormatType},
     CallbackCamera,
 };
 
@@ -30,10 +30,7 @@ fn main() {
     let cameras = query(ApiBackend::Auto).unwrap();
     cameras.iter().for_each(|cam| println!("{:?}", cam));
 
-    let format = RequestedFormat::with_formats(
-        RequestedFormatType::AbsoluteHighestFrameRate,
-        &[FrameFormat::GRAY],
-    );
+    let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
     let first_camera = cameras.first().unwrap();
 
