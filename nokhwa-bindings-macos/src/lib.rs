@@ -1031,8 +1031,9 @@ mod internal {
 
         // thank you ffmpeg
         pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), NokhwaError> {
+            self.lock()?;
             let format_list = try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
-                msg_send![self.inner, formats]
+                msg_send![self.inner, valueForKey:"formats"]
             })?;
             let format_description_sel = sel!(formatDescription);
 
@@ -1071,7 +1072,6 @@ mod internal {
                 });
             }
 
-            self.lock()?;
             let _: () =
                 unsafe { msg_send![self.inner, setValue:selected_format forKey:"activeFormat"] };
             let min_frame_duration: *mut Object =
