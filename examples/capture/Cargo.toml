@@ -6,8 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["nokhwa/default", "native"]
-native = ["nokhwa/input-native"]
+default = ["nokhwa/default"]
 
 [dependencies]
 ggez = "0.8.1"
@@ -23,4 +22,4 @@ features = ["derive"]
 # Use these as you need
 [dependencies.nokhwa]
 path = "../../../nokhwa"
-features = ["output-threaded"]
+features = ["input-native", "output-threaded"]

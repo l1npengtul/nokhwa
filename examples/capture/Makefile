@@ -4,13 +4,13 @@ all: build
 .PHONY: app build clean release
 
 build:
-	@cargo build --features "input-avfoundation"
+	@cargo build
 
 clean:
 	@cargo clean
 
 release:
-	@cargo build --features "input-avfoundation" --release
+	@cargo build --release
 
 app:
 	@cd example-capture && xcodebuild
