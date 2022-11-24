@@ -924,7 +924,6 @@ mod internal {
                             "Not Found".to_string(),
                         )),
                     }
-                    ƒ
                 }
                 CameraIndex::String(id) => Ok(AVCaptureDevice::from_id(id, None)?),
             }
