@@ -911,16 +911,7 @@ mod internal {
         pub fn new(index: &CameraIndex) -> Result<Self, NokhwaError> {
             match &index {
                 CameraIndex::Index(idx) => {
-                    let devices = AVCaptureDeviceDiscoverySession::new(
-                        vec![
-                            AVCaptureDeviceType::UltraWide,
-                            AVCaptureDeviceType::Telephoto,
-                            AVCaptureDeviceType::ExternalUnknown,
-                        ],
-                        AVMediaType::Video,
-                        AVCaptureDevicePosition::Unspecified,
-                    )?
-                    .devices();
+                    let devices = query_avfoundation()?;
 
                     match devices.get(*idx as usize) {
                         Some(device) => Ok(AVCaptureDevice::from_id(
