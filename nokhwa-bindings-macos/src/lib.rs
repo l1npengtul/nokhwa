@@ -238,7 +238,7 @@ mod internal {
     use std::{
         borrow::Cow,
         cmp::Ordering,
-        collections::{BTreeMap, HashSet},
+        collections::BTreeMap,
         convert::TryFrom,
         error::Error,
         ffi::{c_float, c_void, CStr},
@@ -325,7 +325,6 @@ mod internal {
         let immutable_array: *mut Object =
             unsafe { msg_send![ns_array_cls, arrayWithArray: mutable_array] };
         let _: *mut c_void = unsafe { msg_send![mutable_array, autorelease] };
-        let _: *mut c_void = unsafe { msg_send![immutable_array, autorelease] };
         immutable_array
     }
 
@@ -441,11 +440,16 @@ mod internal {
                 // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
                 let bufferlck_cv: *mut c_void = unsafe { msg_send![this, bufferPtr] };
                 let buffer_mutex = unsafe {
-                    std::mem::transmute::<*const c_void, Arc<Mutex<(Vec<u8>, FrameFormat)>>>(
+                    std::mem::transmute::<*const c_void, *const Arc<Mutex<(Vec<u8>, FrameFormat)>>>(
                         bufferlck_cv,
                     )
                 };
-                let lock = buffer_mutex.lock();
+                let lock = match unsafe { buffer_mutex.as_ref() } {
+                    Some(v) => v.lock(),
+                    None => {
+                        return;
+                    }
+                };
                 if let Ok(mut buffer) = lock {
                     *buffer = (buffer_as_vec, fourcc);
                 }
@@ -496,9 +500,14 @@ mod internal {
         }
     });
 
-    pub fn request_permission_with_callback(callback: Box<dyn Fn(bool) + Send + Sync + 'static>) {
+    pub fn request_permission_with_callback(callback: impl Fn(bool) + Send + Sync + 'static) {
         let cls = class!(AVCaptureDevice);
-        let objc_fn_block = ConcreteBlock::new(callback);
+
+        let wrapper = move |bool: BOOL| {
+            callback(bool == YES);
+        };
+
+        let objc_fn_block: ConcreteBlock<(BOOL,), (), _> = ConcreteBlock::new(wrapper);
         let objc_fn_pass = objc_fn_block.copy();
 
         unsafe {
@@ -516,49 +525,14 @@ mod internal {
 
     // fuck it, use deprecated APIs
     pub fn query_avfoundation() -> Result<Vec<CameraInfo>, NokhwaError> {
-        let front = AVCaptureDeviceDiscoverySession::new(
-            vec![
-                AVCaptureDeviceType::UltraWide,
-                AVCaptureDeviceType::WideAngle,
-                AVCaptureDeviceType::Telephoto,
-                AVCaptureDeviceType::TrueDepth,
-                AVCaptureDeviceType::ExternalUnknown,
-            ],
-            AVMediaType::Video,
-            AVCaptureDevicePosition::Front,
-        )?
-        .devices();
-        let back = AVCaptureDeviceDiscoverySession::new(
-            vec![
-                AVCaptureDeviceType::UltraWide,
-                AVCaptureDeviceType::WideAngle,
-                AVCaptureDeviceType::Telephoto,
-                AVCaptureDeviceType::TrueDepth,
-                AVCaptureDeviceType::ExternalUnknown,
-            ],
-            AVMediaType::Video,
-            AVCaptureDevicePosition::Back,
-        )?
-        .devices();
-        let unspecified = AVCaptureDeviceDiscoverySession::new(
-            vec![
-                AVCaptureDeviceType::UltraWide,
-                AVCaptureDeviceType::WideAngle,
-                AVCaptureDeviceType::Telephoto,
-                AVCaptureDeviceType::TrueDepth,
-                AVCaptureDeviceType::ExternalUnknown,
-            ],
-            AVMediaType::Video,
-            AVCaptureDevicePosition::Unspecified,
-        )?
-        .devices();
-
-        let mut device_set = HashSet::with_capacity(front.len() + back.len() + unspecified.len());
-        device_set.extend(front);
-        device_set.extend(back);
-        device_set.extend(unspecified);
-
-        Ok(device_set.into_iter().collect())
+        Ok(AVCaptureDeviceDiscoverySession::new(vec![
+            AVCaptureDeviceType::UltraWide,
+            AVCaptureDeviceType::WideAngle,
+            AVCaptureDeviceType::Telephoto,
+            AVCaptureDeviceType::TrueDepth,
+            AVCaptureDeviceType::ExternalUnknown,
+        ])?
+        .devices())
     }
 
     pub fn get_raw_device_info(index: CameraIndex, device: *mut Object) -> CameraInfo {
@@ -727,9 +701,10 @@ mod internal {
             let cls = &CALLBACK_CLASS as &Class;
             let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
             let delegate: *mut Object = unsafe { msg_send![delegate, init] };
+            let buffer_clone = buffer.clone();
             let buffer_as_ptr = unsafe {
-                std::mem::transmute::<*const Mutex<(Vec<u8>, FrameFormat)>, *const c_void>(
-                    Arc::into_raw(buffer),
+                std::mem::transmute::<*const Arc<Mutex<(Vec<u8>, FrameFormat)>>, *const c_void>(
+                    &buffer_clone,
                 )
             };
             unsafe {
@@ -843,18 +818,13 @@ mod internal {
     }
 
     impl AVCaptureDeviceDiscoverySession {
-        pub fn new(
-            device_types: Vec<AVCaptureDeviceType>,
-            media_type: AVMediaType,
-            position: AVCaptureDevicePosition,
-        ) -> Result<Self, NokhwaError> {
+        pub fn new(device_types: Vec<AVCaptureDeviceType>) -> Result<Self, NokhwaError> {
             let device_types = vec_to_ns_arr(device_types);
-            let media_type: *mut Object = media_type.into();
-            let position = position as NSInteger;
+            let position = 0 as NSInteger;
 
             let discovery_session_cls = class!(AVCaptureDeviceDiscoverySession);
             let discovery_session: *mut Object = unsafe {
-                msg_send![discovery_session_cls, discoverySessionWithDeviceTypes:device_types mediaType:media_type position:position]
+                msg_send![discovery_session_cls, discoverySessionWithDeviceTypes:device_types mediaType:(AVMediaTypeVideo.clone()) position:position]
             };
             Ok(AVCaptureDeviceDiscoverySession {
                 inner: discovery_session,
@@ -862,18 +832,14 @@ mod internal {
         }
 
         pub fn default() -> Result<Self, NokhwaError> {
-            AVCaptureDeviceDiscoverySession::new(
-                vec![
-                    AVCaptureDeviceType::UltraWide,
-                    AVCaptureDeviceType::Telephoto,
-                    AVCaptureDeviceType::ExternalUnknown,
-                    AVCaptureDeviceType::Dual,
-                    AVCaptureDeviceType::DualWide,
-                    AVCaptureDeviceType::Triple,
-                ],
-                AVMediaType::Video,
-                AVCaptureDevicePosition::Unspecified,
-            )
+            AVCaptureDeviceDiscoverySession::new(vec![
+                AVCaptureDeviceType::UltraWide,
+                AVCaptureDeviceType::Telephoto,
+                AVCaptureDeviceType::ExternalUnknown,
+                AVCaptureDeviceType::Dual,
+                AVCaptureDeviceType::DualWide,
+                AVCaptureDeviceType::Triple,
+            ])
         }
 
         pub fn devices(&self) -> Vec<CameraInfo> {
@@ -913,7 +879,6 @@ mod internal {
             match &index {
                 CameraIndex::Index(idx) => {
                     let devices = query_avfoundation()?;
-
                     match devices.get(*idx as usize) {
                         Some(device) => Ok(AVCaptureDevice::from_id(
                             &device.misc(),
@@ -924,7 +889,6 @@ mod internal {
                             "Not Found".to_string(),
                         )),
                     }
-                    ƒ
                 }
                 CameraIndex::String(id) => Ok(AVCaptureDevice::from_id(id, None)?),
             }

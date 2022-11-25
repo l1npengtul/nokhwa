@@ -7,16 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D8C007EC26FAE33C00FFB741 /* capture in Resources */ = {isa = PBXBuildFile; fileRef = D8C007EB26FAE33C00FFB741 /* capture */; };
+		B872F2222930FE3900D30F9E /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B872F2212930FE3900D30F9E /* AVFoundation.framework */; };
+		B872F2252930FE4B00D30F9E /* CoreMediaIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B872F2232930FE4B00D30F9E /* CoreMediaIO.framework */; };
+		B872F2262930FE4B00D30F9E /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B872F2242930FE4B00D30F9E /* CoreMedia.framework */; };
+		B872F2282930FE5300D30F9E /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B872F2272930FE5300D30F9E /* CoreVideo.framework */; };
+		D8C007EC26FAE33C00FFB741 /* nokhwactl in Resources */ = {isa = PBXBuildFile; fileRef = D8C007EB26FAE33C00FFB741 /* nokhwactl */; };
 		D8C007EE26FAFFDC00FFB741 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C007ED26FAFFDC00FFB741 /* main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B872F2212930FE3900D30F9E /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		B872F2232930FE4B00D30F9E /* CoreMediaIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMediaIO.framework; path = System/Library/Frameworks/CoreMediaIO.framework; sourceTree = SDKROOT; };
+		B872F2242930FE4B00D30F9E /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
+		B872F2272930FE5300D30F9E /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
 		D8C007C026FAE25E00FFB741 /* example-capture.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "example-capture.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8C007CA26FAE25F00FFB741 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D8C007CB26FAE25F00FFB741 /* example_capture.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = example_capture.entitlements; sourceTree = "<group>"; };
 		D8C007E726FAE29D00FFB741 /* rustpack-capture.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "rustpack-capture.xcodeproj"; path = "rustpack-capture/rustpack-capture.xcodeproj"; sourceTree = "<group>"; };
-		D8C007EB26FAE33C00FFB741 /* capture */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = capture; path = ../../target/debug/capture; sourceTree = "<group>"; };
+		D8C007EB26FAE33C00FFB741 /* nokhwactl */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = nokhwactl; path = ../../../../target/debug/nokhwactl; sourceTree = "<group>"; };
 		D8C007ED26FAFFDC00FFB741 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -25,18 +33,34 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B872F2262930FE4B00D30F9E /* CoreMedia.framework in Frameworks */,
+				B872F2252930FE4B00D30F9E /* CoreMediaIO.framework in Frameworks */,
+				B872F2222930FE3900D30F9E /* AVFoundation.framework in Frameworks */,
+				B872F2282930FE5300D30F9E /* CoreVideo.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B872F2202930FE3900D30F9E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B872F2272930FE5300D30F9E /* CoreVideo.framework */,
+				B872F2242930FE4B00D30F9E /* CoreMedia.framework */,
+				B872F2232930FE4B00D30F9E /* CoreMediaIO.framework */,
+				B872F2212930FE3900D30F9E /* AVFoundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D8C007B726FAE25E00FFB741 = {
 			isa = PBXGroup;
 			children = (
 				D8C007E726FAE29D00FFB741 /* rustpack-capture.xcodeproj */,
 				D8C007C226FAE25E00FFB741 /* example-capture */,
 				D8C007C126FAE25E00FFB741 /* Products */,
+				B872F2202930FE3900D30F9E /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -51,7 +75,7 @@
 		D8C007C226FAE25E00FFB741 /* example-capture */ = {
 			isa = PBXGroup;
 			children = (
-				D8C007EB26FAE33C00FFB741 /* capture */,
+				D8C007EB26FAE33C00FFB741 /* nokhwactl */,
 				D8C007CA26FAE25F00FFB741 /* Info.plist */,
 				D8C007CB26FAE25F00FFB741 /* example_capture.entitlements */,
 				D8C007ED26FAFFDC00FFB741 /* main.swift */,
@@ -93,7 +117,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1170;
-				LastUpgradeCheck = 1170;
+				LastUpgradeCheck = 1250;
 				ORGANIZATIONNAME = "l1npengtul-nokhwa";
 				TargetAttributes = {
 					D8C007BF26FAE25E00FFB741 = {
@@ -131,7 +155,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8C007EC26FAE33C00FFB741 /* capture in Resources */,
+				D8C007EC26FAE33C00FFB741 /* nokhwactl in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -175,6 +199,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -235,6 +260,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -265,9 +291,9 @@
 		D8C007CF26FAE25F00FFB741 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "example-capture/example_capture.entitlements";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = "example-capture/Info.plist";
@@ -285,9 +311,9 @@
 		D8C007D026FAE25F00FFB741 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "example-capture/example_capture.entitlements";
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = "example-capture/Info.plist";

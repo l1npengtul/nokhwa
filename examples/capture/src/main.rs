@@ -239,10 +239,11 @@ impl FromStr for PropertyKind {
 }
 
 fn main() {
-    nokhwa::nokhwa_initialize(|_| {
-        println!("Nokhwa Initalized.");
+    nokhwa::nokhwa_initialize(|x| {
+        println!("Nokhwa Initalized: {x}");
         nokhwa_main()
-    })
+    });
+    std::thread::sleep(Duration::from_millis(2000));
 }
 
 fn nokhwa_main() {

@@ -35,6 +35,6 @@
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>RustBinName</key>
-	<string>capture</string>
+	<string>nokhwactl</string>
 </dict>
 </plist>

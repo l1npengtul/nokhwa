@@ -29,8 +29,7 @@ fn init_avfoundation(callback: impl Fn(bool) + Send + 'static) {
 fn init_avfoundation(callback: impl Fn(bool) + Send + Sync + 'static) {
     use nokhwa_bindings_macos::request_permission_with_callback;
 
-    let boxed: Box<dyn Fn(bool) + Send + Sync + 'static> = Box::new(callback);
-    request_permission_with_callback(boxed);
+    request_permission_with_callback(callback);
 }
 
 #[cfg(not(all(
