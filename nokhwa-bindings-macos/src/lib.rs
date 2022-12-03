@@ -242,7 +242,7 @@ mod internal {
         convert::TryFrom,
         error::Error,
         ffi::{c_float, c_void, CStr},
-        sync::{Arc, Mutex},
+        sync::Arc,
     };
 
     const UTF8_ENCODING: usize = 4;
@@ -304,7 +304,6 @@ mod internal {
                 length:string.len()
                 encoding:UTF8_ENCODING
             ];
-            let _: *mut c_void = msg_send![obj, autorelease];
             obj
         }
     }
@@ -324,7 +323,6 @@ mod internal {
         });
         let immutable_array: *mut Object =
             unsafe { msg_send![ns_array_cls, arrayWithArray: mutable_array] };
-        let _: *mut c_void = unsafe { msg_send![mutable_array, autorelease] };
         immutable_array
     }
 
@@ -336,7 +334,6 @@ mod internal {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::from(item));
         }
-        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         out_vec
     }
 
@@ -352,7 +349,6 @@ mod internal {
             let item = unsafe { NSArray::objectAtIndex(data, index) };
             out_vec.push(T::try_from(item)?);
         }
-        let _: *mut c_void = unsafe { msg_send![data, autorelease] };
         Ok(out_vec)
     }
 
@@ -438,20 +434,13 @@ mod internal {
                 // oooooh scarey unsafe
                 // AAAAAAAAAAAAAAAAAAAAAAAAA
                 // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
-                let bufferlck_cv: *mut c_void = unsafe { msg_send![this, bufferPtr] };
-                let buffer_mutex = unsafe {
-                    std::mem::transmute::<*const c_void, *const Arc<Mutex<(Vec<u8>, FrameFormat)>>>(
-                        bufferlck_cv,
-                    )
+                let bufferlck_cv: *const c_void = unsafe { msg_send![this, bufferPtr] };
+                let buffer_sndr = unsafe {
+                    let ptr = bufferlck_cv.cast::<Sender<(Vec<u8>, FrameFormat)>>();
+                    Arc::from_raw(ptr)
                 };
-                let lock = match unsafe { buffer_mutex.as_ref() } {
-                    Some(v) => v.lock(),
-                    None => {
-                        return;
-                    }
-                };
-                if let Ok(mut buffer) = lock {
-                    *buffer = (buffer_as_vec, fourcc);
+                if let Err(_) = buffer_sndr.send((buffer_as_vec, fourcc)) {
+                    return;
                 }
             }
 
@@ -696,19 +685,17 @@ mod internal {
     impl AVCaptureVideoCallback {
         pub fn new(
             device_spec: &CStr,
-            buffer: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
+            buffer: &Arc<Sender<(Vec<u8>, FrameFormat)>>,
         ) -> Result<Self, NokhwaError> {
             let cls = &CALLBACK_CLASS as &Class;
             let delegate: *mut Object = unsafe { msg_send![cls, alloc] };
             let delegate: *mut Object = unsafe { msg_send![delegate, init] };
-            let buffer_clone = buffer.clone();
-            let buffer_as_ptr = unsafe {
-                std::mem::transmute::<*const Arc<Mutex<(Vec<u8>, FrameFormat)>>, *const c_void>(
-                    &buffer_clone,
-                )
+            let buffer_as_ptr = {
+                let arc_raw = Arc::as_ptr(buffer);
+                arc_raw.cast::<c_void>()
             };
             unsafe {
-                let _: () = msg_send![delegate, setBufferPtr: buffer_as_ptr];
+                let _: () = msg_send![delegate, SetBufferPtr: buffer_as_ptr];
             }
 
             let queue = unsafe {
@@ -728,16 +715,6 @@ mod internal {
 
         pub fn queue(&self) -> &NSObject {
             &self.queue
-        }
-    }
-
-    impl Drop for AVCaptureVideoCallback {
-        fn drop(&mut self) {
-            unsafe {
-                let fnptr: *mut c_void = msg_send![self.delegate, fnptr];
-                let _boxed = Box::from_raw(fnptr); // drop the value
-                let _: () = msg_send![self.delegate, autorelease];
-            }
         }
     }
 
@@ -801,19 +778,12 @@ mod internal {
                     })
                 }
             };
-            let _: *mut c_void = unsafe { msg_send![description_obj, autorelease] };
             Ok(AVCaptureDeviceFormat {
                 internal: value,
                 resolution,
                 fps_list,
                 fourcc,
             })
-        }
-    }
-
-    impl Drop for AVCaptureDeviceFormat {
-        fn drop(&mut self) {
-            unsafe { msg_send![self.internal, autorelease] }
         }
     }
 
@@ -853,19 +823,14 @@ mod internal {
                     device,
                 ));
             }
-            let _: *mut c_void = unsafe { msg_send![device_ns_array, release] };
             devices
         }
     }
 
-    impl Drop for AVCaptureDeviceDiscoverySession {
-        fn drop(&mut self) {
-            unsafe { msg_send![self.inner, autorelease] }
-        }
-    }
     pub struct AVCaptureDevice {
         inner: *mut Object,
         device: CameraInfo,
+        locked: bool,
     }
 
     impl AVCaptureDevice {
@@ -912,6 +877,7 @@ mod internal {
             Ok(AVCaptureDevice {
                 inner: capture,
                 device: camera_info,
+                locked: false,
             })
         }
 
@@ -939,8 +905,7 @@ mod internal {
                         };
 
                         let resolution =
-                            Resolution::new(resolution.height as u32, resolution.width as u32);
-
+                            Resolution::new(resolution.width as u32, resolution.height as u32); // FIXME: what the fuck?
                         CameraFormat::new(resolution, av_fmt.fourcc, fps)
                     })
                 })
@@ -963,6 +928,9 @@ mod internal {
         }
 
         pub fn lock(&self) -> Result<(), NokhwaError> {
+            if self.locked {
+                return Ok(());
+            }
             if self.already_in_use() {
                 return Err(NokhwaError::InitializeError {
                     backend: ApiBackend::AVFoundation,
@@ -989,15 +957,18 @@ mod internal {
             Ok(())
         }
 
-        pub fn unlock(&self) {
-            unsafe { msg_send![self.inner, unlockForConfiguration] }
+        pub fn unlock(&mut self) {
+            if self.locked {
+                self.locked = false;
+                unsafe { msg_send![self.inner, unlockForConfiguration] }
+            }
         }
 
         // thank you ffmpeg
         pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), NokhwaError> {
             self.lock()?;
             let format_list = try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
-                msg_send![self.inner, valueForKey:"formats"]
+                msg_send![self.inner, formats]
             })?;
             let format_description_sel = sel!(formatDescription);
 
@@ -1015,10 +986,9 @@ mod internal {
                     selected_format = format.internal;
 
                     for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
-                        msg_send![format.internal, valueForKey:"videoSupportedFrameRateRanges"]
+                        msg_send![format.internal, videoSupportedFrameRateRanges]
                     }) {
-                        let max_fps: f64 =
-                            unsafe { msg_send![range.inner, valueForKey:"maxFrameRate"] };
+                        let max_fps: f64 = unsafe { msg_send![range.inner, maxFrameRate] };
 
                         if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.01 {
                             selected_range = range.inner;
@@ -1036,15 +1006,19 @@ mod internal {
                 });
             }
 
+            let activefmtkey = str_to_nsstr("activeFormat");
+            let min_frame_duration = str_to_nsstr("minFrameDuration");
+            let active_video_min_frame_duration = str_to_nsstr("activeVideoMinFrameDuration");
+            let active_video_max_frame_duration = str_to_nsstr("activeVideoMaxFrameDuration");
             let _: () =
-                unsafe { msg_send![self.inner, setValue:selected_format forKey:"activeFormat"] };
+                unsafe { msg_send![self.inner, setValue:selected_format forKey:activefmtkey] };
             let min_frame_duration: *mut Object =
-                unsafe { msg_send![selected_range, valueForKey:"minFrameDuration"] };
+                unsafe { msg_send![selected_range, valueForKey: min_frame_duration] };
             let _: () = unsafe {
-                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMinFrameDuration"]
+                msg_send![self.inner, setValue:min_frame_duration forKey:active_video_min_frame_duration]
             };
             let _: () = unsafe {
-                msg_send![self.inner, setValue:min_frame_duration forKey:"activeVideoMaxFrameDuration"]
+                msg_send![self.inner, setValue:min_frame_duration forKey:active_video_max_frame_duration]
             };
             self.unlock();
             Ok(())
@@ -2229,14 +2203,6 @@ mod internal {
         }
     }
 
-    impl Drop for AVCaptureDevice {
-        fn drop(&mut self) {
-            unsafe {
-                let _: () = msg_send![self.inner, release];
-            }
-        }
-    }
-
     impl AVCaptureDeviceInput {
         pub fn new(capture_device: &AVCaptureDevice) -> Result<Self, NokhwaError> {
             let cls = class!(AVCaptureDeviceInput);
@@ -2255,12 +2221,6 @@ mod internal {
             Ok(AVCaptureDeviceInput {
                 inner: capture_input,
             })
-        }
-    }
-
-    impl Drop for AVCaptureDeviceInput {
-        fn drop(&mut self) {
-            unsafe { msg_send![self.inner, autorelease] }
         }
     }
 
@@ -2291,12 +2251,6 @@ mod internal {
             let inner: *mut Object = unsafe { msg_send![cls, new] };
 
             AVCaptureVideoDataOutput { inner }
-        }
-    }
-
-    impl Drop for AVCaptureVideoDataOutput {
-        fn drop(&mut self) {
-            unsafe { msg_send![self.inner, autorelease] }
         }
     }
 
@@ -2380,13 +2334,6 @@ mod internal {
         pub fn is_interrupted(&self) -> bool {
             let interrupted: BOOL = unsafe { msg_send![self.inner, isInterrupted] };
             interrupted == YES
-        }
-    }
-
-    impl Drop for AVCaptureSession {
-        fn drop(&mut self) {
-            self.stop();
-            unsafe { msg_send![self.inner, autorelease] }
         }
     }
 
