@@ -13,28 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use flume::{Receiver, Sender};
 #[cfg(target_os = "macos")]
 use nokhwa_bindings_macos::{
     AVCaptureDevice, AVCaptureDeviceInput, AVCaptureSession, AVCaptureVideoCallback,
     AVCaptureVideoDataOutput,
 };
-use nokhwa_core::pixel_format::RgbFormat;
-use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
+    pixel_format::RgbFormat,
     traits::CaptureBackendTrait,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+        FrameFormat, KnownCameraControl, RequestedFormat, RequestedFormatType, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
 #[cfg(target_os = "macos")]
-use std::{
-    ffi::CString,
-    sync::{Arc, Mutex},
-};
+use std::{ffi::CString, sync::Arc};
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
@@ -55,7 +52,8 @@ pub struct AVFoundationCaptureDevice {
     info: CameraInfo,
     buffer_name: CString,
     format: CameraFormat,
-    frame_buffer_lock: Arc<Mutex<(Vec<u8>, FrameFormat)>>,
+    frame_buffer_receiver: Arc<Receiver<(Vec<u8>, FrameFormat)>>,
+    fbufsnd: Arc<Sender<(Vec<u8>, FrameFormat)>>,
 }
 
 #[cfg(target_os = "macos")]
@@ -67,12 +65,14 @@ impl AVFoundationCaptureDevice {
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new(index: &CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
         let mut device = AVCaptureDevice::new(index)?;
-        device.lock()?;
+
+        // device.lock()?;
         let formats = device.supported_formats()?;
         let camera_fmt = req_fmt.fulfill(&formats).ok_or_else(|| {
             NokhwaError::OpenDeviceError("Cannot fulfill request".to_string(), req_fmt.to_string())
         })?;
         device.set_all(camera_fmt)?;
+
         let device_descriptor = device.info().clone();
         let buffername =
             CString::new(format!("{}_INDEX{}_", device_descriptor, index)).map_err(|why| {
@@ -82,6 +82,7 @@ impl AVFoundationCaptureDevice {
                 }
             })?;
 
+        let (send, recv) = flume::unbounded();
         Ok(AVFoundationCaptureDevice {
             device,
             dev_input: None,
@@ -91,7 +92,8 @@ impl AVFoundationCaptureDevice {
             info: device_descriptor,
             buffer_name: buffername,
             format: camera_fmt,
-            frame_buffer_lock: Arc::new(Mutex::new((vec![], FrameFormat::MJPEG))),
+            frame_buffer_receiver: Arc::new(recv),
+            fbufsnd: Arc::new(send),
         })
     }
 
@@ -239,9 +241,10 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         session.begin_configuration();
         session.add_input(&input)?;
 
-        let frame_mutex = self.frame_buffer_lock.clone();
+        self.device.set_all(self.format)?; // hurr durr im an apple api and im fucking dumb hurr durr
+
         let bufname = &self.buffer_name;
-        let videocallback = AVCaptureVideoCallback::new(bufname, frame_mutex)?;
+        let videocallback = AVCaptureVideoCallback::new(bufname, &self.fbufsnd)?;
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&videocallback)?;
         session.add_output(&output)?;
@@ -277,29 +280,9 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        let mut framebuffer_empty = match self.frame_buffer_lock.lock() {
-            Ok(f) => f.0.is_empty(),
+        match self.frame_buffer_receiver.recv() {
+            Ok(received) => Ok(Cow::from(received.0)),
             Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-
-        loop {
-            if framebuffer_empty {
-                match self.frame_buffer_lock.lock() {
-                    Ok(f) => framebuffer_empty = f.0.is_empty(),
-                    Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-                }
-            } else {
-                break;
-            }
-        }
-
-        match self.frame_buffer_lock.lock() {
-            Ok(mut f) => {
-                let mut new_frame = vec![];
-                std::mem::swap(&mut new_frame, &mut f.0);
-                Ok(Cow::from(new_frame))
-            }
-            Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
         }
     }
 
