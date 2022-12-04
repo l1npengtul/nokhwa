@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#[cfg(target_os = "macos")]
 use flume::{Receiver, Sender};
 #[cfg(target_os = "macos")]
 use nokhwa_bindings_macos::{
@@ -280,7 +281,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        match self.frame_buffer_receiver.recv() {
+        match self.frame_buffer_receiver.drain().last() {
             Ok(received) => Ok(Cow::from(received.0)),
             Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
         }
@@ -309,6 +310,13 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         session.remove_output(output);
         session.remove_input(input);
         session.stop();
+
+        self.frame_buffer_receiver.try_iter();
+        self.dev_input = None;
+        self.session = None;
+        self.data_collect = None;
+        self.data_out = None;
+
         Ok(())
     }
 }
