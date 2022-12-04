@@ -442,6 +442,7 @@ mod internal {
                 if let Err(_) = buffer_sndr.send((buffer_as_vec, fourcc)) {
                     return;
                 }
+                std::mem::forget(buffer_sndr);
             }
 
             #[allow(non_snake_case)]
