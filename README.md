@@ -97,5 +97,6 @@ Contributions are welcome!
   - [DanielMSchmidt](https://github.com/DanielMSchmidt)
 - $5/mo sponsors:
   - [remifluff](https://github.com/remifluff)
+  - [gennyble](https://githubmcom/gennyble)
 
 Please consider [donating](https://github.com/sponsors/l1npengtul)! It helps me not look like a failure to my parents!
