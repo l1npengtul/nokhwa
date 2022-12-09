@@ -282,8 +282,8 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
         match self.frame_buffer_receiver.drain().last() {
-            Ok(received) => Ok(Cow::from(received.0)),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+            Some(received) => Ok(Cow::from(received.0)),
+            None => return Err(NokhwaError::ReadFrameError("No frame!".to_string())),
         }
     }
 
