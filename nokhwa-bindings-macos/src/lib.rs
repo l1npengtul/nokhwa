@@ -230,11 +230,13 @@ mod internal {
             KnownCameraControlFlag, Resolution,
         },
     };
+    use objc::runtime::objc_getClass;
     use objc::{
         declare::ClassDecl,
         runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
     };
     use once_cell::sync::Lazy;
+    use std::ffi::CString;
     use std::{
         borrow::Cow,
         cmp::Ordering,
@@ -314,16 +316,14 @@ mod internal {
     }
 
     fn vec_to_ns_arr<T: Into<*mut Object>>(data: Vec<T>) -> *mut Object {
-        let ns_mut_array_cls = class!(NSMutableArray);
-        let ns_array_cls = class!(NSArray);
-        let mutable_array: *mut Object = unsafe { msg_send![ns_mut_array_cls, array] };
+        let cstr = CString::new("NSMutableArray").unwrap();
+        let ns_arr_cls = unsafe { objc_getClass(cstr.as_ptr()) };
+        let mutable_array: *mut Object = unsafe { msg_send![ns_arr_cls, array] };
         data.into_iter().for_each(|item| {
             let item_obj: *mut Object = item.into();
-            let _: *mut c_void = unsafe { msg_send![mutable_array, addObject: item_obj] };
+            let _: () = unsafe { msg_send![mutable_array, addObject: item_obj] };
         });
-        let immutable_array: *mut Object =
-            unsafe { msg_send![ns_array_cls, arrayWithArray: mutable_array] };
-        immutable_array
+        mutable_array
     }
 
     fn ns_arr_to_vec<T: From<*mut Object>>(data: *mut Object) -> Vec<T> {
@@ -748,6 +748,8 @@ mod internal {
         type Error = NokhwaError;
 
         fn try_from(value: *mut Object) -> Result<Self, Self::Error> {
+            dbg!("a");
+
             let media_type_raw: *mut Object = unsafe { msg_send![value, mediaType] };
             let media_type = AVMediaType::try_from(media_type_raw)?;
             if media_type != AVMediaType::Video {
@@ -760,7 +762,13 @@ mod internal {
                 msg_send![value, videoSupportedFrameRateRanges]
             })
             .into_iter()
-            .flat_map(|v| [v.min(), v.max()])
+            .flat_map(|v| {
+                if v.min() != 0_f64 && v.min() != 1_f64 {
+                    vec![v.min(), v.max()]
+                } else {
+                    vec![v.max()] // this gets deduped!
+                }
+            })
             .collect::<Vec<f64>>();
             fps_list.sort_by(|n, m| n.partial_cmp(m).unwrap_or(Ordering::Equal));
             fps_list.dedup();
@@ -779,6 +787,7 @@ mod internal {
                     })
                 }
             };
+            dbg!("a");
             Ok(AVCaptureDeviceFormat {
                 internal: value,
                 resolution,
@@ -793,10 +802,13 @@ mod internal {
             let device_types = vec_to_ns_arr(device_types);
             let position = 0 as NSInteger;
 
+            let media_type_video = unsafe { AVMediaTypeVideo.clone() }.0;
+
             let discovery_session_cls = class!(AVCaptureDeviceDiscoverySession);
             let discovery_session: *mut Object = unsafe {
-                msg_send![discovery_session_cls, discoverySessionWithDeviceTypes:device_types mediaType:(AVMediaTypeVideo.clone()) position:position]
+                msg_send![discovery_session_cls, discoverySessionWithDeviceTypes:device_types mediaType:media_type_video position:position]
             };
+            dbg!("a");
             Ok(AVCaptureDeviceDiscoverySession {
                 inner: discovery_session,
             })
@@ -814,6 +826,7 @@ mod internal {
         }
 
         pub fn devices(&self) -> Vec<CameraInfo> {
+            dbg!("a");
             let device_ns_array: *mut Object = unsafe { msg_send![self.inner, devices] };
             let objects_len: NSUInteger = unsafe { NSArray::count(device_ns_array) };
             let mut devices = Vec::with_capacity(objects_len as usize);
@@ -824,6 +837,7 @@ mod internal {
                     device,
                 ));
             }
+            dbg!("a");
             devices
         }
     }
@@ -842,9 +856,12 @@ mod internal {
 
     impl AVCaptureDevice {
         pub fn new(index: &CameraIndex) -> Result<Self, NokhwaError> {
+            dbg!("a");
             match &index {
                 CameraIndex::Index(idx) => {
+                    dbg!("a");
                     let devices = query_avfoundation()?;
+                    dbg!("a");
                     match devices.get(*idx as usize) {
                         Some(device) => Ok(AVCaptureDevice::from_id(
                             &device.misc(),
@@ -861,6 +878,7 @@ mod internal {
         }
 
         pub fn from_id(id: &str, index_hint: Option<CameraIndex>) -> Result<Self, NokhwaError> {
+            dbg!("a");
             let nsstr_id = str_to_nsstr(id);
             let avfoundation_capture_cls = class!(AVCaptureDevice);
             let capture: *mut Object =
@@ -875,6 +893,7 @@ mod internal {
                 index_hint.unwrap_or_else(|| CameraIndex::String(id.to_string())),
                 capture,
             );
+            dbg!("a");
             Ok(AVCaptureDevice {
                 inner: capture,
                 device: camera_info,
@@ -899,11 +918,7 @@ mod internal {
                 .flat_map(|av_fmt| {
                     let resolution = av_fmt.resolution;
                     av_fmt.fps_list.iter().map(move |fps_f64| {
-                        let fps = if fps_f64.fract() != 0.0 {
-                            0
-                        } else {
-                            *fps_f64 as u32
-                        };
+                        let fps = *fps_f64 as u32;
 
                         let resolution =
                             Resolution::new(resolution.width as u32, resolution.height as u32); // FIXME: what the fuck?
@@ -1373,7 +1388,7 @@ mod internal {
             ));
 
             // get flash
-            let has_torch: BOOL = unsafe { msg_send![self.inner, torchAvailible] };
+            let has_torch: BOOL = unsafe { msg_send![self.inner, isTorchAvailable] };
             let torch_active: BOOL = unsafe { msg_send![self.inner, isTorchActive] };
             let torch_off: BOOL =
                 unsafe { msg_send![self.inner, isTorchModeSupported:NSInteger::from(0)] };
@@ -1416,8 +1431,8 @@ mod internal {
             }
 
             // get low light boost
-            let has_llb: BOOL = unsafe { msg_send![self.inner, lowLightBoostSupported] };
-            let llb_enabled: BOOL = unsafe { msg_send![self.inner, lowLightBoostEnabled] };
+            let has_llb: BOOL = unsafe { msg_send![self.inner, isLowLightBoostSupported] };
+            let llb_enabled: BOOL = unsafe { msg_send![self.inner, isLowLightBoostEnabled] };
 
             {
                 controls.push(CameraControl::new(
@@ -1460,9 +1475,9 @@ mod internal {
 
             // zoom distortion correction
             let distortion_correction_supported: BOOL =
-                unsafe { msg_send![self.inner, geometricDistortionCorrectionSupported] };
+                unsafe { msg_send![self.inner, isGeometricDistortionCorrectionSupported] };
             let distortion_correction_current_value: BOOL =
-                unsafe { msg_send![self.inner, geometricDistortionCorrectionEnabled] };
+                unsafe { msg_send![self.inner, isGeometricDistortionCorrectionEnabled] };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(6),
@@ -2200,6 +2215,34 @@ mod internal {
                     value: value.to_string(),
                     error: "Unknown Control".to_string(),
                 }),
+            }
+        }
+
+        pub fn active_format(&self) -> Result<CameraFormat, NokhwaError> {
+            let af: *mut Object = unsafe { msg_send![self.inner, activeFormat] };
+            let avf_format = AVCaptureDeviceFormat::try_from(af)?;
+            let resolution = avf_format.resolution;
+            let fourcc = avf_format.fourcc;
+            let mut a = avf_format
+                .fps_list
+                .into_iter()
+                .map(move |fps_f64| {
+                    let fps = fps_f64 as u32;
+
+                    let resolution =
+                        Resolution::new(resolution.width as u32, resolution.height as u32); // FIXME: what the fuck?
+                    CameraFormat::new(resolution, fourcc, fps)
+                })
+                .collect::<Vec<_>>();
+            a.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
+
+            if a.len() != 0 {
+                Ok(a[a.len() - 1])
+            } else {
+                Err(NokhwaError::GetPropertyError {
+                    property: "activeFormat".to_string(),
+                    error: "None??".to_string(),
+                })
             }
         }
     }

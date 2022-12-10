@@ -384,15 +384,17 @@ fn nokhwa_main() {
                 .flatten()
                 .expect("Expected AbsoluteHighestResolution, AbsoluteHighestFrameRate, HighestResolution, HighestFrameRate, Exact, Closest, or None");
 
+            println!("a");
             let mut camera = Camera::new(index, requested).unwrap();
 
             camera.open_stream().unwrap();
             let _ = camera.frame().unwrap();
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(1000));
             let frame = camera.frame().unwrap();
+            dbg!("a");
             println!("Captured Single Frame of {}", frame.buffer().len());
             let decoded = frame.decode_image::<RgbFormat>().unwrap();
-            println!("Decoded Frame of {}", decoded.len());
+            println!("DecodedFrame of {}", decoded.len());
 
             if let Some(path) = save {
                 println!("Saving to {path}");
