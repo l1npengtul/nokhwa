@@ -202,8 +202,8 @@ mod internal {
         AVMediaTypeMetadataObject, AVMediaTypeMuxed, AVMediaTypeSubtitle, AVMediaTypeText,
         AVMediaTypeTimecode, AVMediaTypeVideo, CGPoint, CMSampleBufferGetImageBuffer,
         CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
-        CVPixelBufferGetDataSize, CVPixelBufferGetPixelFormatType, CVPixelBufferLockBaseAddress,
-        CVPixelBufferUnlockBaseAddress, NSObject, OSType,
+        CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
+        NSObject, OSType,
     };
 
     use block::ConcreteBlock;
@@ -416,13 +416,6 @@ mod internal {
                     CVPixelBufferLockBaseAddress(image_buffer, 0);
                 };
 
-                let buffer_codec = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
-
-                let fourcc = match raw_fcc_to_frameformat(buffer_codec) {
-                    Some(fcc) => fcc,
-                    None => return,
-                };
-
                 let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
                 let buffer_ptr = unsafe { CVPixelBufferGetBaseAddress(image_buffer) };
                 let buffer_as_vec = unsafe {
@@ -439,7 +432,8 @@ mod internal {
                     let ptr = bufferlck_cv.cast::<Sender<(Vec<u8>, FrameFormat)>>();
                     Arc::from_raw(ptr)
                 };
-                if let Err(_) = buffer_sndr.send((buffer_as_vec, fourcc)) {
+                if let Err(_) = buffer_sndr.send((buffer_as_vec, FrameFormat::GRAY)) {
+                    // FIXME: dont, what the fuck???
                     return;
                 }
                 std::mem::forget(buffer_sndr);
@@ -748,8 +742,6 @@ mod internal {
         type Error = NokhwaError;
 
         fn try_from(value: *mut Object) -> Result<Self, Self::Error> {
-            dbg!("a");
-
             let media_type_raw: *mut Object = unsafe { msg_send![value, mediaType] };
             let media_type = AVMediaType::try_from(media_type_raw)?;
             if media_type != AVMediaType::Video {
@@ -787,7 +779,7 @@ mod internal {
                     })
                 }
             };
-            dbg!("a");
+
             Ok(AVCaptureDeviceFormat {
                 internal: value,
                 resolution,
@@ -808,7 +800,7 @@ mod internal {
             let discovery_session: *mut Object = unsafe {
                 msg_send![discovery_session_cls, discoverySessionWithDeviceTypes:device_types mediaType:media_type_video position:position]
             };
-            dbg!("a");
+
             Ok(AVCaptureDeviceDiscoverySession {
                 inner: discovery_session,
             })
@@ -826,7 +818,6 @@ mod internal {
         }
 
         pub fn devices(&self) -> Vec<CameraInfo> {
-            dbg!("a");
             let device_ns_array: *mut Object = unsafe { msg_send![self.inner, devices] };
             let objects_len: NSUInteger = unsafe { NSArray::count(device_ns_array) };
             let mut devices = Vec::with_capacity(objects_len as usize);
@@ -837,7 +828,7 @@ mod internal {
                     device,
                 ));
             }
-            dbg!("a");
+
             devices
         }
     }
@@ -856,12 +847,10 @@ mod internal {
 
     impl AVCaptureDevice {
         pub fn new(index: &CameraIndex) -> Result<Self, NokhwaError> {
-            dbg!("a");
             match &index {
                 CameraIndex::Index(idx) => {
-                    dbg!("a");
                     let devices = query_avfoundation()?;
-                    dbg!("a");
+
                     match devices.get(*idx as usize) {
                         Some(device) => Ok(AVCaptureDevice::from_id(
                             &device.misc(),
@@ -878,7 +867,6 @@ mod internal {
         }
 
         pub fn from_id(id: &str, index_hint: Option<CameraIndex>) -> Result<Self, NokhwaError> {
-            dbg!("a");
             let nsstr_id = str_to_nsstr(id);
             let avfoundation_capture_cls = class!(AVCaptureDevice);
             let capture: *mut Object =
@@ -893,7 +881,7 @@ mod internal {
                 index_hint.unwrap_or_else(|| CameraIndex::String(id.to_string())),
                 capture,
             );
-            dbg!("a");
+
             Ok(AVCaptureDevice {
                 inner: capture,
                 device: camera_info,

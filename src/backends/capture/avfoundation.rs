@@ -64,7 +64,6 @@ impl AVFoundationCaptureDevice {
     /// # Errors
     /// This function will error if the camera is currently busy or if `AVFoundation` can't read device information, or permission was not given by the user.
     pub fn new(index: &CameraIndex, req_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
-        dbg!("a");
         let mut device = AVCaptureDevice::new(index)?;
 
         // device.lock()?;
@@ -84,7 +83,6 @@ impl AVFoundationCaptureDevice {
             })?;
 
         let (send, recv) = flume::unbounded();
-        dbg!("a");
         Ok(AVFoundationCaptureDevice {
             device,
             dev_input: None,
@@ -131,7 +129,6 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-        dbg!("a");
         self.format = self.device.active_format()?;
         Ok(())
     }
@@ -240,17 +237,14 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        dbg!("a");
         self.refresh_camera_format()?;
 
         let input = AVCaptureDeviceInput::new(&self.device)?;
         let session = AVCaptureSession::new();
         session.begin_configuration();
         session.add_input(&input)?;
-        dbg!("a");
 
         self.device.set_all(self.format)?; // hurr durr im an apple api and im fucking dumb hurr durr
-        dbg!("a");
 
         let bufname = &self.buffer_name;
         let videocallback = AVCaptureVideoCallback::new(bufname, &self.fbufsnd)?;
@@ -259,7 +253,6 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         session.add_output(&output)?;
         session.commit_configuration();
         session.start()?;
-        dbg!("a");
 
         self.dev_input = Some(input);
         self.session = Some(session);
@@ -283,26 +276,19 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn frame(&mut self) -> Result<Buffer, NokhwaError> {
-        dbg!("a");
         self.refresh_camera_format()?;
         let cfmt = self.camera_format();
         let b = self.frame_raw()?;
-        dbg!("a");
         let buffer = Buffer::new(cfmt.resolution(), b.as_ref(), cfmt.format());
-        dbg!("a");
         let _ = self.frame_buffer_receiver.drain();
-        dbg!("a");
         Ok(buffer)
     }
 
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-        dbg!("a");
         let result = match self.frame_buffer_receiver.recv() {
             Ok(recv) => Ok(Cow::from(recv.0)),
             Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
         };
-        dbg!("a");
-
         result
     }
 
@@ -313,17 +299,32 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
 
         let session = match &self.session {
             Some(session) => session,
-            None => return Ok(()),
+            None => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: "AVCaptureSession".to_string(),
+                    error: "Doesnt Exist".to_string(),
+                })
+            }
         };
 
         let output = match &self.data_out {
             Some(output) => output,
-            None => return Ok(()),
+            None => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: "AVCaptureVideoDataOutput".to_string(),
+                    error: "Doesnt Exist".to_string(),
+                })
+            }
         };
 
         let input = match &self.dev_input {
             Some(input) => input,
-            None => return Ok(()),
+            None => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: "AVCaptureDeviceInput".to_string(),
+                    error: "Doesnt Exist".to_string(),
+                })
+            }
         };
 
         session.remove_output(output);
