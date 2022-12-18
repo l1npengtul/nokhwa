@@ -143,8 +143,5 @@ optional = true
 #version = "1.4"
 #optional = true
 
-[profile.release]
-lto = true
-
 [package.metadata.docs.rs]
 features = ["docs-only", "docs-nolink", "docs-features"]

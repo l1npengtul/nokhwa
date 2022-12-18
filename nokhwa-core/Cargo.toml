@@ -43,3 +43,6 @@ optional = true
 [dependencies.mozjpeg]
 version = "0.9"
 optional = true
+
+[package.metadata.docs.rs]
+features = ["docs-features"]
