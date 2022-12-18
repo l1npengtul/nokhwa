@@ -8,7 +8,7 @@ A Simple-to-use, cross-platform Rust Webcam Capture Library
 Nokhwa can be added to your crate by adding it to your `Cargo.toml`:
 ```toml
 [dependencies.nokhwa]
-version = "0.10.0-rc.2"
+version = "0.10.0"
 # Use the native input backends, enable WGPU integration
 features = ["input-native", "output-wgpu"]
 ```
