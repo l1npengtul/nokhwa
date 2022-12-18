@@ -2,7 +2,10 @@
 name = "nokhwa-bindings-linux"
 version = "0.1.0"
 edition = "2021"
-
+license = "Apache-2.0"
+repository = "https://github.com/l1npengtul/nokhwa"
+description = "The V4L2 bindings crate for `nokhwa`"
+keywords = ["v4l", "v4l2", "linux", "capture", "webcam"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
