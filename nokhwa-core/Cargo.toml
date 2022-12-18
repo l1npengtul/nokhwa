@@ -15,7 +15,7 @@ serialize = ["serde"]
 wgpu-types = ["wgpu"]
 mjpeg = ["mozjpeg"]
 opencv-mat = ["opencv"]
-docs-features = []
+docs-features = ["serialize", "wgpu-types", "opencv/docs-only", "mjpeg"]
 
 
 [dependencies]
