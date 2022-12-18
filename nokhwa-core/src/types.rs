@@ -1789,15 +1789,14 @@ pub fn buf_nv12_to_rgb(
     let width_usize = resolution.width() as usize;
     let height_usize = resolution.height() as usize;
 
-    for (hidx, horizontal_row) in data[0..y_section].chunks_exact(height_usize).enumerate() {
-        let real_row = hidx - 1;
+    for (hidx, horizontal_row) in data[0..y_section].chunks_exact(width_usize).enumerate() {
         for (cidx, column) in horizontal_row.chunks_exact(2).enumerate() {
-            let u = data[y_section + (real_row * width_usize) + (cidx * 2)];
-            let v = data[y_section + (real_row * width_usize) + (cidx * 2) + 1];
+            let v = data[(y_section - 1) + ((hidx / 2) * width_usize) + (cidx * 2)];
+            let u = data[(y_section - 1) + ((hidx / 2) * width_usize) + (cidx * 2) + 1];
 
             let y0 = column[0];
             let y1 = column[1];
-            let base_index = hidx * width_usize + cidx * 2 * rgba_size;
+            let base_index = (hidx * width_usize * rgba_size) + cidx * rgba_size * 2;
 
             if rgba {
                 let px0 = yuyv444_to_rgba(y0 as i32, u as i32, v as i32);
