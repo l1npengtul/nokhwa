@@ -18,7 +18,7 @@
   - NV12
   - RAWRGB
   - GRAY
-- Added warning about decoding reducing performance
+- Added warning about decoding on main thread reducing performance
 - After a year in development, We hope it was worth the wait.
 
 # 0.9.0
