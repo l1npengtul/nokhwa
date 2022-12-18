@@ -1787,12 +1787,12 @@ pub fn buf_nv12_to_rgb(
     let y_section = (resolution.width() * resolution.height()) as usize;
 
     let width_usize = resolution.width() as usize;
-    let height_usize = resolution.height() as usize;
+    // let height_usize = resolution.height() as usize;
 
     for (hidx, horizontal_row) in data[0..y_section].chunks_exact(width_usize).enumerate() {
         for (cidx, column) in horizontal_row.chunks_exact(2).enumerate() {
-            let v = data[(y_section - 1) + ((hidx / 2) * width_usize) + (cidx * 2)];
-            let u = data[(y_section - 1) + ((hidx / 2) * width_usize) + (cidx * 2) + 1];
+            let u = data[(y_section) + ((hidx / 2) * width_usize) + (cidx * 2)];
+            let v = data[(y_section) + ((hidx / 2) * width_usize) + (cidx * 2) + 1];
 
             let y0 = column[0];
             let y1 = column[1];
