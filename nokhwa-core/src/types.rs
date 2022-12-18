@@ -1472,6 +1472,7 @@ impl Display for ApiBackend {
 /// - The input data is of the right size, does not exceed bounds, and/or the final size matches with the initial size.
 #[cfg(all(feature = "mjpeg", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
+#[inline]
 pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1534,6 +1535,7 @@ pub fn mjpeg_to_rgb(_data: &[u8], _rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 /// If the decoding fails (e.g. invalid MJPEG stream), the buffer is not large enough, or you are doing this on `WebAssembly`, this will error.
 #[cfg(all(feature = "mjpeg", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
+#[inline]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     use mozjpeg::Decompress;
 
@@ -1593,6 +1595,7 @@ pub fn buf_mjpeg_to_rgb(_data: &[u8], _dest: &mut [u8], _rgba: bool) -> Result<(
 }
 
 /// Returns the predicted size of the destination YUYV422 buffer.
+#[inline]
 pub fn yuyv422_predicted_size(size: usize, rgba: bool) -> usize {
     let pixel_size = if rgba { 4 } else { 3 };
     // yuyv yields 2 3-byte pixels per yuyv chunk
@@ -1608,6 +1611,7 @@ pub fn yuyv422_predicted_size(size: usize, rgba: bool) -> usize {
 /// Converts a YUYV 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
+#[inline]
 pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     let pixel_size = if rgba { 4 } else { 3 };
     // yuyv yields 2 3-byte pixels per yuyv chunk
@@ -1622,6 +1626,7 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 /// Same as [`yuyv422_to_rgb`] but with a destination buffer instead of a return `Vec<u8>`
 /// # Errors
 /// If the stream is invalid YUYV, or the destination buffer is not large enough, this will error.
+#[inline]
 pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
@@ -1732,6 +1737,7 @@ pub fn yuyv444_to_rgba(y: i32, u: i32, v: i32) -> [u8; 4] {
 /// Converts a YUYV 4:2:0 bi-planar (NV12) datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is wrong.
+#[inline]
 pub fn nv12_to_rgb(
     resolution: Resolution,
     data: &[u8],
@@ -1750,6 +1756,7 @@ pub fn nv12_to_rgb(
 /// # Errors
 /// This may error when the data stream size is wrong.
 #[allow(clippy::similar_names)]
+#[inline]
 pub fn buf_nv12_to_rgb(
     resolution: Resolution,
     data: &[u8],

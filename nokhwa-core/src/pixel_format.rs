@@ -29,6 +29,7 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     /// Allocates and returns a `Vec`
     /// # Errors
     /// If the data is malformed, or the source [`FrameFormat`] is incompatible, this will error.
+    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -38,6 +39,7 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     /// Writes to a user provided buffer.
     /// # Errors
     /// If the data is malformed, the source [`FrameFormat`] is incompatible, or the user-alloted buffer is not large enough, this will error.
+    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         resolution: Resolution,

@@ -1,15 +1,24 @@
 # 0.10.0
 - Split core types and traits into `nokhwa-core`
+  - Now you can use `nokhwa`'s Camera types in your own packages, to e.g. create `nokhwa` extensions or use `nokhwa`'s decoders.  
 - Removed support for JS Bindings
   - This is due to lack of support for non-C style enums in `wasm-bindgen`. 
+  - You can still use `nokhwa` in the browser, you just can't use it from JS.
 - New CameraControl API
   - Deprecated `raw_camera_control` API
 - New RequestedFormat API
 - Removed Network Camera 
   - Network Camera is now supported through OpenCV Camera instead.
 - New Buffer API
-  - PixelFormat API
+- New PixelFormat API
 - Callback Camera: Removed `Result` from the `index()` and `camera_info()` API.
+- AVFoundation Improvements
+- Split V4L2 into its own crate
+- New Formats:
+  - NV12
+  - RAWRGB
+  - GRAY
+- Added warning about decoding reducing performance
 - After a year in development, We hope it was worth the wait.
 
 # 0.9.0

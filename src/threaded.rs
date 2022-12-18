@@ -96,6 +96,24 @@ impl CallbackCamera {
         })
     }
 
+    /// Allows creation of a [`Camera`] with a custom backend. This is useful if you are creating e.g. a custom module.
+    ///
+    /// You **must** have set a format beforehand.
+    pub fn with_custom(camera: Camera, callback: impl FnMut(Buffer) + Send + 'static) -> Self {
+        CallbackCamera {
+            camera: Arc::new(Mutex::new(camera)),
+            frame_callback: Arc::new(Mutex::new(Box::new(callback))),
+            last_frame_captured: Arc::new(Mutex::new(Buffer::new(
+                Resolution::new(0, 0),
+                &vec![],
+                FrameFormat::GRAY,
+            ))),
+            die_bool: Arc::new(Default::default()),
+            current_camera,
+            handle: Arc::new(Mutex::new(None)),
+        }
+    }
+
     /// Gets the current Camera's index.
     pub fn index(&self) -> &CameraIndex {
         &self.current_camera.index()

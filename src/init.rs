@@ -53,6 +53,7 @@ fn status_avfoundation() -> bool {
     )
 }
 
+// todo: make this work on browser code
 /// Initialize `nokhwa`
 /// It is your responsibility to call this function before anything else, but only on `MacOS`.
 ///

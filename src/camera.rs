@@ -81,6 +81,17 @@ impl Camera {
         )
     }
 
+    /// Allows creation of a [`Camera`] with a custom backend. This is useful if you are creating e.g. a custom module.
+    ///
+    /// You **must** have set a format beforehand.
+    pub fn with_custom(
+        idx: CameraIndex,
+        api: ApiBackend,
+        device: Box<dyn CaptureBackendTrait>,
+    ) -> Self {
+        Self { idx, api, device }
+    }
+
     /// Gets the current Camera's index.
     #[must_use]
     pub fn index(&self) -> &CameraIndex {

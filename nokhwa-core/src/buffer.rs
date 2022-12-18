@@ -22,8 +22,10 @@ use crate::{
 use bytes::Bytes;
 use image::ImageBuffer;
 
-/// A buffer returned by a camera to accomodate custom decoding.
+/// A buffer returned by a camera to accommodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
+///
+/// Note that decoding on the main thread **will** decrease your performance and lead to dropped frames.
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Eq)]
 pub struct Buffer {
     resolution: Resolution,
@@ -34,6 +36,7 @@ pub struct Buffer {
 impl Buffer {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
+    #[inline]
     pub fn new(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
         Self {
             resolution: res,
@@ -69,6 +72,7 @@ impl Buffer {
     /// Decodes a image with allocation using the provided [`FormatDecoder`].
     /// # Errors
     /// Will error when the decoding fails.
+    #[inline]
     pub fn decode_image<F: FormatDecoder>(
         &self,
     ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
@@ -86,6 +90,7 @@ impl Buffer {
     /// Decodes a image with allocation using the provided [`FormatDecoder`] into a `buffer`.
     /// # Errors
     /// Will error when the decoding fails, or the provided buffer is too small.
+    #[inline]
     pub fn decode_image_to_buffer<F: FormatDecoder>(
         &self,
         buffer: &mut [u8],
