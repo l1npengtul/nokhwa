@@ -27,10 +27,6 @@
 //!
 //! No support or API stability will be given. Subject to change at any time.
 
-#[cfg(all(target_os = "windows", windows))]
-#[macro_use]
-extern crate lazy_static;
-
 #[cfg(all(windows, not(feature = "docs-only")))]
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
@@ -38,6 +34,7 @@ pub mod wmf {
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
         ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
     };
+    use once_cell::sync::Lazy;
     use std::ffi::c_void;
     use std::{
         borrow::Cow,
@@ -82,10 +79,8 @@ pub mod wmf {
         },
     };
 
-    lazy_static! {
-        static ref INITIALIZED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-        static ref CAMERA_REFCNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    }
+    static INITIALIZED: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
+    static CAMERA_REFCNT: Lazy<Arc<AtomicUsize>> = Lazy::new(|| Arc::new(AtomicUsize::new(0)));
 
     // See: https://stackoverflow.com/questions/80160/what-does-coinit-speed-over-memory-do
     const CO_INIT_APARTMENT_THREADED: COINIT = COINIT(0x2);
