@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-windows"
-version = "0.4.0-rc.6"
+version = "0.4.0"
 authors = ["l1npengtul"]
 edition = "2021"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ keywords = ["media-foundation", "windows", "capture", "webcam"]
 [dependencies]
 
 [dependencies.nokhwa-core]
-version = "0.1.0-rc.6"
+version = "0.1.0"
 path = "../nokhwa-core"
 
 [target.'cfg(target_os="windows")'.dependencies.windows]
