@@ -29,7 +29,6 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     /// Allocates and returns a `Vec`
     /// # Errors
     /// If the data is malformed, or the source [`FrameFormat`] is incompatible, this will error.
-    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -39,7 +38,6 @@ pub trait FormatDecoder: Clone + Sized + Send + Sync {
     /// Writes to a user provided buffer.
     /// # Errors
     /// If the data is malformed, the source [`FrameFormat`] is incompatible, or the user-alloted buffer is not large enough, this will error.
-    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -61,6 +59,7 @@ impl FormatDecoder for RgbFormat {
     type Output = Rgb<u8>;
     const FORMATS: &'static [FrameFormat] = color_frame_formats();
 
+    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -81,6 +80,7 @@ impl FormatDecoder for RgbFormat {
         }
     }
 
+    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -130,6 +130,7 @@ impl FormatDecoder for RgbAFormat {
 
     const FORMATS: &'static [FrameFormat] = color_frame_formats();
 
+    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -153,6 +154,7 @@ impl FormatDecoder for RgbAFormat {
         }
     }
 
+    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -212,6 +214,7 @@ impl FormatDecoder for LumaFormat {
 
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
+    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -253,6 +256,7 @@ impl FormatDecoder for LumaFormat {
         }
     }
 
+    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         _resolution: Resolution,
@@ -297,7 +301,9 @@ impl FormatDecoder for LumaAFormat {
     type Output = LumaA<u8>;
 
     const FORMATS: &'static [FrameFormat] = frame_formats();
+
     #[allow(clippy::cast_possible_truncation)]
+    #[inline]
     fn write_output(
         fcc: FrameFormat,
         resolution: Resolution,
@@ -340,6 +346,7 @@ impl FormatDecoder for LumaAFormat {
         }
     }
 
+    #[inline]
     fn write_output_buffer(
         fcc: FrameFormat,
         _resolution: Resolution,
