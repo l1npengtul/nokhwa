@@ -1,5 +1,7 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
+#![cfg_attr(feature = "test-fail-warning", deny(warnings))]
+#![cfg_attr(feature = "docs-features", feature(doc_cfg))]
 /*
  * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *

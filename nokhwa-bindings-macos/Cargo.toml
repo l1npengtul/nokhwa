@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-macos"
-version = "0.2.0-rc.4"
+version = "0.2.0-rc.5"
 edition = "2021"
 authors = ["l1npengtul"]
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ keywords = ["avfoundation", "macos", "capture", "webcam"]
 
 
 [dependencies.nokhwa-core]
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 path = "../nokhwa-core"
 
 [target.'cfg(any(target_os="macos",target_os="ios"))'.dependencies]

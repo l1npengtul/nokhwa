@@ -31,7 +31,9 @@ use nokhwa_core::{
     },
 };
 #[cfg(target_os = "macos")]
-use std::{borrow::Cow, collections::HashMap, ffi::CString, sync::Arc};
+use std::{ffi::CString, sync::Arc};
+
+use std::{borrow::Cow, collections::HashMap};
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureBackendTrait`].
