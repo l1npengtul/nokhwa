@@ -104,7 +104,7 @@ impl Buffer {
     }
     /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
     ///
-    /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_as_opencv_mat`](Self::decode_as_opencv_mat).
+    /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_opencv_mat`](Self::decode_opencv_mat).
     /// # Errors
     /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
     /// # Safety
@@ -113,7 +113,10 @@ impl Buffer {
     /// Most notably, the `data` **must** stay in scope for the duration of the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html) or bad, ***bad*** things happen.
     #[cfg(feature = "opencv-mat")]
     #[cfg_attr(feature = "docs-features", doc(cfg(feature = "opencv-mat")))]
-    pub fn decode_opencv_mat<F: FormatDecoder>(&self) -> Result<opencv::core::Mat, NokhwaError> {
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn decode_opencv_mat<F: FormatDecoder>(
+        &mut self,
+    ) -> Result<opencv::core::Mat, NokhwaError> {
         use image::Pixel;
         use opencv::core::{Mat, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
 
@@ -137,7 +140,7 @@ impl Buffer {
                 self.resolution.height_y as i32,
                 self.resolution.width_x as i32,
                 array_type,
-                data.as_ref().as_mut_ptr().cast(),
+                self.buffer.as_ref().as_ptr().cast_mut().cast(),
                 Mat_AUTO_STEP,
             )
             .map_err(|why| NokhwaError::ProcessFrameError {

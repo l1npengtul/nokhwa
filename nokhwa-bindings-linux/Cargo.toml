@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-linux"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.6"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
@@ -11,7 +11,7 @@ keywords = ["v4l", "v4l2", "linux", "capture", "webcam"]
 [dependencies]
 
 [dependencies.nokhwa-core]
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.6"
 path = "../nokhwa-core"
 
 [target.'cfg(target_os="linux")'.dependencies]

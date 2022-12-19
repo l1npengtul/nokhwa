@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.10.0-rc.5"
+version = "0.10.0-rc.6"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -34,7 +34,7 @@ output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 output-threaded = []
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
-docs-nolink = ["opencv/docs-only"]
+docs-nolink = ["opencv/docs-only", "nokhwa-core/docs-features"]
 docs-features = []
 test-fail-warning = []
 
@@ -43,7 +43,7 @@ thiserror = "1.0"
 paste = "1.0"
 
 [dependencies.nokhwa-core]
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.6"
 path = "nokhwa-core"
 
 [dependencies.serde]
@@ -81,17 +81,17 @@ version = "0.8"
 optional = true
 
 [dependencies.nokhwa-bindings-windows]
-version = "0.4.0-rc.5"
+version = "0.4.0-rc.6"
 path = "nokhwa-bindings-windows"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
-version = "0.2.0-rc.5"
+version = "0.2.0-rc.6"
 path = "nokhwa-bindings-macos"
 optional = true
 
 [dependencies.nokhwa-bindings-linux]
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.6"
 path = "nokhwa-bindings-linux"
 optional = true
 

@@ -1383,11 +1383,9 @@ pub enum ApiBackend {
     Auto,
     AVFoundation,
     Video4Linux,
-    #[deprecated]
     UniversalVideoClass,
     MediaFoundation,
     OpenCv,
-    #[deprecated]
     GStreamer,
     Network,
     Browser,
