@@ -100,6 +100,7 @@ impl CallbackCamera {
     ///
     /// You **must** have set a format beforehand.
     pub fn with_custom(camera: Camera, callback: impl FnMut(Buffer) + Send + 'static) -> Self {
+        let current_camera = camera.info().clone();
         CallbackCamera {
             camera: Arc::new(Mutex::new(camera)),
             frame_callback: Arc::new(Mutex::new(Box::new(callback))),
