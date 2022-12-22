@@ -9,10 +9,13 @@ edition = "2021"
 default = ["nokhwa/default"]
 
 [dependencies]
-ggez = "0.8.1"
 flume = "0.10.14"
 once_cell = "1.16.0"
 color-eyre = "0.6.2"
+
+[dependencies.ggez]
+version = "0.8.1"
+default-features = false
 
 [dependencies.clap]
 version = "4.0.20"
