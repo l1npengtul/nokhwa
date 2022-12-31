@@ -639,7 +639,10 @@ pub mod wmf {
 
                 let frame_fmt = match guid_to_frameformat(fourcc) {
                     Some(fcc) => fcc,
-                    None => continue,
+                    None => {
+                        index += 1;
+                        continue;
+                    },
                 };
 
                 for frame_rate in framerate_list {
