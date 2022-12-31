@@ -3,19 +3,18 @@
 # While our "example" application has the platform-specific code,
 # for simplicity we are compiling and testing everything on the Ubuntu environment only.
 # For multi-OS testing see the `cross.yml` workflow.
-
 on:
   push:
     paths-ignore:
       - '*.md'
   pull_request: {}
-    
 
-name: Compile all examples
+
+name: Document All
 
 # We specify the examples individually since they might need a different environment
 jobs:
-  compile_example_threaded_capture:
+  docs:
     name: Check
     runs-on: ubuntu-latest
     steps:
@@ -29,25 +28,11 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Cargo Clippy
+      - name: Cargo Doc Core
         run: |
-          cd examples/threaded-capture
-          cargo clippy
-  compile_example_nokhwactl:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-
-      - name: Cargo Check
+          cd nokhwa-core/
+          cargo doc --features "test-fail-warning, docs-features" -- -Dwarnings
+      - name: Cargo Doc Main Crate
         run: |
-          cd examples/capture
-          cargo clippy
+          cd ..
+          cargo doc --features "test-fail-warning, docs-features, docs-nolink, docs-only" -- -Dwarnings

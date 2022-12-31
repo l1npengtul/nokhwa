@@ -12,7 +12,7 @@ keywords = ["avfoundation", "macos", "capture", "webcam"]
 [dependencies]
 
 [dependencies.nokhwa-core]
-version = "0.1.0"
+version = "0.2"
 path = "../nokhwa-core"
 
 [target.'cfg(any(target_os="macos",target_os="ios"))'.dependencies]

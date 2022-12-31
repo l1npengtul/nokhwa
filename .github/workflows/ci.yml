@@ -1,0 +1,123 @@
+# Based on https://github.com/actions-rs/meta/blob/master/recipes/quickstart.md
+#
+# While our "example" application has the platform-specific code,
+# for simplicity we are compiling and testing everything on the Ubuntu environment only.
+# For multi-OS testing see the `cross.yml` workflow.
+on:
+  push:
+    paths-ignore:
+      - '*.md'
+  pull_request: {}
+
+name: Format and Clippy All
+
+# We specify the examples individually since they might need a different environment
+jobs:
+  check_fmt:
+    name: Check RustFMT
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Cargo FMT Check
+        run: cargo fmt --all -- --check
+  check_core:
+    name: Clippy Core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - name: Install nasm and OpenCV
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends nasm libopencv-dev
+
+      - name: Cargo Clippy Core
+        run: |
+          cd nokhwa-core/
+          cargo clippy --all-features -- -Dwarnings
+    check_windows:
+      name: Clippy Core
+      runs-on: windows-latest
+      steps:
+        - name: Checkout sources
+          uses: actions/checkout@v2
+
+        - name: Install nightly toolchain
+          uses: actions-rs/toolchain@v1
+          with:
+            profile: minimal
+            toolchain: nightly
+            override: true
+
+        - name: Cargo Clippy bindings-windows
+          run: |
+            cd nokhwa-bindings-windows/
+            cargo clippy --all-features -- -Dwarnings
+
+        - name: Cargo Clippy Main Crate
+          run: |
+            cd ..
+            cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
+    check_macos:
+      name: Clippy Core bindings-macos
+      runs-on: macos-latest
+      steps:
+        - name: Checkout sources
+          uses: actions/checkout@v2
+
+        - name: Install nightly toolchain
+          uses: actions-rs/toolchain@v1
+          with:
+            profile: minimal
+            toolchain: nightly
+            override: true
+
+        - name: Cargo Clippy bindings-macos
+          run: |
+            cd nokhwa-bindings-macos/
+            cargo clippy --all-features -- -Dwarnings
+
+        - name: Cargo Clippy Main Crate
+          run: |
+            cd ..
+            cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
+    check_linux_opencv:
+      name: Clippy Core bindings-linux
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout sources
+          uses: actions/checkout@v2
+
+        - name: Install nightly toolchain
+          uses: actions-rs/toolchain@v1
+          with:
+            profile: minimal
+            toolchain: nightly
+            override: true
+
+        - name: Install nasm and OpenCV
+          run: sudo apt-get update; sudo apt-get install --no-install-recommends nasm libopencv-dev
+
+        - name: Cargo Clippy bindings-linux
+          run: |
+            cd nokhwa-bindings-linux/
+            cargo clippy --all-features -- -Dwarnings
+
+        - name: Cargo Clippy Main Crate
+          run: |
+            cd ..
+            cargo clippy --features "serialize, decoding, input-opencv, input-native, output-threaded, output-wgpu" -- -Dwarnings

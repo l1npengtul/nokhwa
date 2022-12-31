@@ -11,7 +11,7 @@ keywords = ["v4l", "v4l2", "linux", "capture", "webcam"]
 [dependencies]
 
 [dependencies.nokhwa-core]
-version = "0.1.0"
+version = "0.2"
 path = "../nokhwa-core"
 
 [target.'cfg(target_os="linux")'.dependencies]
