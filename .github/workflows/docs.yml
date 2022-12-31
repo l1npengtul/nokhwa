@@ -27,6 +27,7 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+          components: rustfmt, clippy
 
       - name: Cargo Doc Core
         run: |

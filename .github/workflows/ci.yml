@@ -23,9 +23,9 @@ jobs:
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: nightly
           override: true
+          components: rustfmt
 
       - name: Cargo FMT Check
         run: cargo fmt --all -- --check
@@ -42,6 +42,7 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+          components: rustfmt, clippy
       - name: Install nasm and OpenCV
         run: sudo apt-get update; sudo apt-get install --no-install-recommends nasm libopencv-dev
 
@@ -59,9 +60,9 @@ jobs:
         - name: Install nightly toolchain
           uses: actions-rs/toolchain@v1
           with:
-            profile: minimal
             toolchain: nightly
             override: true
+            components: rustfmt, clippy
 
         - name: Cargo Clippy bindings-windows
           run: |
@@ -82,7 +83,7 @@ jobs:
         - name: Install nightly toolchain
           uses: actions-rs/toolchain@v1
           with:
-            profile: minimal
+            components: rustfmt, clippy
             toolchain: nightly
             override: true
 
@@ -105,7 +106,7 @@ jobs:
         - name: Install nightly toolchain
           uses: actions-rs/toolchain@v1
           with:
-            profile: minimal
+            components: rustfmt, clippy
             toolchain: nightly
             override: true
 

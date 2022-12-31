@@ -25,7 +25,7 @@ jobs:
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
+          components: rustfmt, clippy
           toolchain: nightly
           override: true
 
@@ -43,7 +43,7 @@ jobs:
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
+          components: rustfmt, clippy
           toolchain: nightly
           override: true
 
