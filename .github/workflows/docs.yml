@@ -32,7 +32,8 @@ jobs:
       - name: Cargo Doc Core
         run: |
           cd nokhwa-core/
-          cargo doc --features "test-fail-warning, docs-features"
+          cargo doc --features "test-fail-warnings, docs-features"
+
       - name: Cargo Doc Main Crate
         run: |
           cd ..
