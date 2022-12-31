@@ -50,75 +50,75 @@ jobs:
         run: |
           cd nokhwa-core/
           cargo clippy --all-features -- -Dwarnings
-    check_windows:
-      name: Clippy Core
-      runs-on: windows-latest
-      steps:
-        - name: Checkout sources
-          uses: actions/checkout@v2
+  check_windows:
+    name: Clippy Core
+    runs-on: windows-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
-        - name: Install nightly toolchain
-          uses: actions-rs/toolchain@v1
-          with:
-            toolchain: nightly
-            override: true
-            components: rustfmt, clippy
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
 
-        - name: Cargo Clippy bindings-windows
-          run: |
-            cd nokhwa-bindings-windows/
-            cargo clippy --all-features -- -Dwarnings
+      - name: Cargo Clippy bindings-windows
+        run: |
+          cd nokhwa-bindings-windows/
+          cargo clippy --all-features -- -Dwarnings
 
-        - name: Cargo Clippy Main Crate
-          run: |
-            cd ..
-            cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
-    check_macos:
-      name: Clippy Core bindings-macos
-      runs-on: macos-latest
-      steps:
-        - name: Checkout sources
-          uses: actions/checkout@v2
+      - name: Cargo Clippy Main Crate
+        run: |
+          cd ..
+          cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
+  check_macos:
+    name: Clippy Core bindings-macos
+    runs-on: macos-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
-        - name: Install nightly toolchain
-          uses: actions-rs/toolchain@v1
-          with:
-            components: rustfmt, clippy
-            toolchain: nightly
-            override: true
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt, clippy
+          toolchain: nightly
+          override: true
 
-        - name: Cargo Clippy bindings-macos
-          run: |
-            cd nokhwa-bindings-macos/
-            cargo clippy --all-features -- -Dwarnings
+      - name: Cargo Clippy bindings-macos
+        run: |
+          cd nokhwa-bindings-macos/
+          cargo clippy --all-features -- -Dwarnings
 
-        - name: Cargo Clippy Main Crate
-          run: |
-            cd ..
-            cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
-    check_linux_opencv:
-      name: Clippy Core bindings-linux
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout sources
-          uses: actions/checkout@v2
+      - name: Cargo Clippy Main Crate
+        run: |
+          cd ..
+          cargo clippy --features "serialize, decoding, input-native, output-threaded, output-wgpu" -- -Dwarnings
+  check_linux_opencv:
+    name: Clippy Core bindings-linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
-        - name: Install nightly toolchain
-          uses: actions-rs/toolchain@v1
-          with:
-            components: rustfmt, clippy
-            toolchain: nightly
-            override: true
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt, clippy
+          toolchain: nightly
+          override: true
 
-        - name: Install nasm and OpenCV
-          run: sudo apt-get update; sudo apt-get install --no-install-recommends nasm libopencv-dev
+      - name: Install nasm and OpenCV
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends nasm libopencv-dev
 
-        - name: Cargo Clippy bindings-linux
-          run: |
-            cd nokhwa-bindings-linux/
-            cargo clippy --all-features -- -Dwarnings
+      - name: Cargo Clippy bindings-linux
+        run: |
+          cd nokhwa-bindings-linux/
+          cargo clippy --all-features -- -Dwarnings
 
-        - name: Cargo Clippy Main Crate
-          run: |
-            cd ..
-            cargo clippy --features "serialize, decoding, input-opencv, input-native, output-threaded, output-wgpu" -- -Dwarnings
+      - name: Cargo Clippy Main Crate
+        run: |
+          cd ..
+          cargo clippy --features "serialize, decoding, input-opencv, input-native, output-threaded, output-wgpu" -- -Dwarnings
