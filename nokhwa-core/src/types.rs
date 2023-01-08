@@ -8,6 +8,8 @@ use std::{
     str::FromStr,
 };
 
+pub use crate::frame_format::*;
+
 /// Tells the init function what camera format to pick.
 /// - `AbsoluteHighestResolution`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
 /// - `AbsoluteHighestFrameRate`: Pick the highest frame rate, then the highest [`Resolution`].

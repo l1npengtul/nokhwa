@@ -11,50 +11,16 @@ use std::str::FromStr;
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FrameFormat {
-    // Compressed Formats
-    H265,
-    H264,
-    H263,
-    AVC1,
-    MPEG1,
-    MPEG2,
-    MPEG4,
+    /// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
+    YUYV,
+    /// - NV12 is same as above. Note that a partial compression (e.g. [16, 235] may be coerced to [0, 255].
+    NV12,
+    /// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
     MJPEG,
-    XVid,
-    VP8,
-    VP9,
-
-    // YCbCr formats
-
-    // -> 422 16 BPP
-    Yuv422,
-    Uyv422,
-
-    // 420
-    Nv12,
-    Nv21,
-    Yv12,
-    Imc2,
-    Imc4,
-
-    // UV
-    UV8,
-
-    // Grayscale Formats
-    Luma8,
-    Luma8I,
-    Luma10,
-    Luma10B,
-    Luma12,
-    Luma12I,
-    Luma16,
-
-    // Depth Formats
-    Z16,
-
-    // RGB Formats
-    Rgb8,
-    // Bayer
+    /// - GRAY is a grayscale image format, usually for specialized cameras such as IR Cameras.
+    GRAY,
+    /// - RAWRGB is a Raw RGB888 format.
+    RAWRGB,
 }
 
 impl Display for FrameFormat {
