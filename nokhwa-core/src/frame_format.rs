@@ -3,11 +3,6 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
-/// - YUYV is a mathematical color space. You can read more [here.](https://en.wikipedia.org/wiki/YCbCr)
-/// - NV12 is same as above. Note that a partial compression (e.g. [16, 235] may be coerced to [0, 255].
-/// - MJPEG is a motion-jpeg compressed frame, it allows for high frame rates.
-/// - GRAY is a grayscale image format, usually for specialized cameras such as IR Cameras.
-/// - RAWRGB is a Raw RGB888 format.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FrameFormat {
@@ -15,11 +10,11 @@ pub enum FrameFormat {
     H265,
     H264,
     H263,
-    AVC1,
-    MPEG1,
-    MPEG2,
-    MPEG4,
-    MJPEG,
+    Avc1,
+    Mpeg1,
+    Mpeg2,
+    Mpeg4,
+    MJpeg,
     XVid,
     VP8,
     VP9,
@@ -37,84 +32,73 @@ pub enum FrameFormat {
     Imc2,
     Imc4,
 
-    // UV
-    UV8,
-
     // Grayscale Formats
     Luma8,
-    Luma8I,
-    Luma10,
-    Luma10B,
-    Luma12,
-    Luma12I,
-    Luma16,
-
-    // Depth Formats
-    Z16,
 
     // RGB Formats
     Rgb8,
-    // Bayer
+    RgbA8,
+
+    // Custom
+    Custom(u128),
+}
+
+impl FrameFormat {
+    pub const ALL: &'static [FrameFormat] = &[
+        FrameFormat::H263,
+        FrameFormat::H264,
+        FrameFormat::H265,
+        FrameFormat::Avc1,
+        FrameFormat::Mpeg1,
+        FrameFormat::Mpeg2,
+        FrameFormat::Mpeg4,
+        FrameFormat::MJpeg,
+        FrameFormat::XVid,
+        FrameFormat::VP8,
+        FrameFormat::VP9,
+        FrameFormat::Yuv422,
+        FrameFormat::Uyv422,
+        FrameFormat::Nv12,
+        FrameFormat::Nv21,
+        FrameFormat::Yv12,
+        FrameFormat::Imc2,
+        FrameFormat::Imc4,
+        FrameFormat::Luma8,
+        FrameFormat::Rgb8,
+        FrameFormat::RgbA8,
+    ];
+
+    pub const COMPRESSED: &'static [FrameFormat] = &[
+        FrameFormat::H263,
+        FrameFormat::H264,
+        FrameFormat::H265,
+        FrameFormat::Avc1,
+        FrameFormat::Mpeg1,
+        FrameFormat::Mpeg2,
+        FrameFormat::Mpeg4,
+        FrameFormat::MJpeg,
+        FrameFormat::XVid,
+        FrameFormat::VP8,
+        FrameFormat::VP9,
+    ];
+
+    pub const CHROMA: &'static [FrameFormat] = &[
+        FrameFormat::Yuv422,
+        FrameFormat::Uyv422,
+        FrameFormat::Nv12,
+        FrameFormat::Nv21,
+        FrameFormat::Yv12,
+        FrameFormat::Imc2,
+        FrameFormat::Imc4,
+    ];
+
+    pub const LUMA: &'static [FrameFormat] = &[FrameFormat::Luma8];
+
+    pub const RGB: &'static [FrameFormat] = &[FrameFormat::Rgb8, FrameFormat::RgbA8];
 }
 
 impl Display for FrameFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FrameFormat::MJPEG => {
-                write!(f, "MJPEG")
-            }
-            FrameFormat::YUYV => {
-                write!(f, "YUYV")
-            }
-            FrameFormat::GRAY => {
-                write!(f, "GRAY")
-            }
-            FrameFormat::RAWRGB => {
-                write!(f, "RAWRGB")
-            }
-            FrameFormat::NV12 => {
-                write!(f, "NV12")
-            }
-        }
+        write!(f, "{self:?}")
     }
-}
-impl FromStr for FrameFormat {
-    type Err = NokhwaError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "MJPEG" => Ok(FrameFormat::MJPEG),
-            "YUYV" => Ok(FrameFormat::YUYV),
-            "GRAY" => Ok(FrameFormat::GRAY),
-            "RAWRGB" => Ok(FrameFormat::RAWRGB),
-            "NV12" => Ok(FrameFormat::NV12),
-            _ => Err(NokhwaError::StructureError {
-                structure: "FrameFormat".to_string(),
-                error: format!("No match for {s}"),
-            }),
-        }
-    }
-}
-
-/// Returns all the frame formats
-#[must_use]
-pub const fn frame_formats() -> &'static [FrameFormat] {
-    &[
-        FrameFormat::MJPEG,
-        FrameFormat::YUYV,
-        FrameFormat::NV12,
-        FrameFormat::GRAY,
-        FrameFormat::RAWRGB,
-    ]
-}
-
-/// Returns all the color frame formats
-#[must_use]
-pub const fn color_frame_formats() -> &'static [FrameFormat] {
-    &[
-        FrameFormat::MJPEG,
-        FrameFormat::YUYV,
-        FrameFormat::NV12,
-        FrameFormat::RAWRGB,
-    ]
 }
