@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+use crate::frame_format::FrameFormat;
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
     types::{
-        ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter, FrameFormat,
+        ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
         KnownCameraControl, Resolution,
     },
 };
@@ -165,81 +166,65 @@ pub trait CaptureBackendTrait {
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
-    /// The minimum buffer size needed to write the current frame. If `alpha` is true, it will instead return the minimum size of the buffer with an alpha channel as well.
-    /// This assumes that you are decoding to RGB/RGBA for [`FrameFormat::MJPEG`] or [`FrameFormat::YUYV`] and Luma8/LumaA8 for [`FrameFormat::GRAY`]
-    #[must_use]
-    fn decoded_buffer_size(&self, alpha: bool) -> usize {
-        let cfmt = self.camera_format();
-        let resolution = cfmt.resolution();
-        let pxwidth = match cfmt.format() {
-            FrameFormat::MJPEG | FrameFormat::YUYV | FrameFormat::RAWRGB | FrameFormat::NV12 => 3,
-            FrameFormat::GRAY => 1,
-        };
-        if alpha {
-            return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;
-        }
-        (resolution.width() * resolution.height() * pxwidth) as usize
-    }
-
-    #[cfg(feature = "wgpu-types")]
-    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "wgpu-types")))]
-    /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
-    /// # Errors
-    /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
-    fn frame_texture<'a>(
-        &mut self,
-        device: &WgpuDevice,
-        queue: &WgpuQueue,
-        label: Option<&'a str>,
-    ) -> Result<WgpuTexture, NokhwaError> {
-        use crate::pixel_format::RgbAFormat;
-        use std::num::NonZeroU32;
-        let frame = self.frame()?.decode_image::<RgbAFormat>()?;
-
-        let texture_size = Extent3d {
-            width: frame.width(),
-            height: frame.height(),
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&TextureDescriptor {
-            label,
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-        });
-
-        let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
-            Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-
-        let height_nonzero = match NonZeroU32::try_from(frame.height()) {
-            Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-
-        queue.write_texture(
-            ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: TextureAspect::All,
-            },
-            &frame,
-            ImageDataLayout {
-                offset: 0,
-                bytes_per_row: width_nonzero,
-                rows_per_image: height_nonzero,
-            },
-            texture_size,
-        );
-
-        Ok(texture)
-    }
+    // #[cfg(feature = "wgpu-types")]
+    // #[cfg_attr(feature = "docs-features", doc(cfg(feature = "wgpu-types")))]
+    // /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
+    // /// # Errors
+    // /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
+    // fn frame_texture<'a>(
+    //     &mut self,
+    //     device: &WgpuDevice,
+    //     queue: &WgpuQueue,
+    //     label: Option<&'a str>,
+    // ) -> Result<WgpuTexture, NokhwaError> {
+    //     use crate::pixel_format::RgbAFormat;
+    //     use std::num::NonZeroU32;
+    //     let frame = self.frame()?.decode_image::<RgbAFormat>()?;
+    //
+    //     let texture_size = Extent3d {
+    //         width: frame.width(),
+    //         height: frame.height(),
+    //         depth_or_array_layers: 1,
+    //     };
+    //
+    //     let texture = device.create_texture(&TextureDescriptor {
+    //         label,
+    //         size: texture_size,
+    //         mip_level_count: 1,
+    //         sample_count: 1,
+    //         dimension: TextureDimension::D2,
+    //         format: TextureFormat::Rgba8UnormSrgb,
+    //         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+    //     });
+    //
+    //     let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
+    //         Ok(w) => Some(w),
+    //         Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+    //     };
+    //
+    //     let height_nonzero = match NonZeroU32::try_from(frame.height()) {
+    //         Ok(h) => Some(h),
+    //         Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+    //     };
+    //
+    //     queue.write_texture(
+    //         ImageCopyTexture {
+    //             texture: &texture,
+    //             mip_level: 0,
+    //             origin: wgpu::Origin3d::ZERO,
+    //             aspect: TextureAspect::All,
+    //         },
+    //         &frame,
+    //         ImageDataLayout {
+    //             offset: 0,
+    //             bytes_per_row: width_nonzero,
+    //             rows_per_image: height_nonzero,
+    //         },
+    //         texture_size,
+    //     );
+    //
+    //     Ok(texture)
+    // }
 
     /// Will drop the stream.
     /// # Errors
@@ -251,9 +236,11 @@ impl<T> From<T> for Box<dyn CaptureBackendTrait>
 where
     T: CaptureBackendTrait + 'static,
 {
-    fn from(capbackend: T) -> Self {
-        Box::new(capbackend)
+    fn from(backend: T) -> Self {
+        Box::new(backend)
     }
 }
+
+pub trait AsyncCaptureBackendTrait: CaptureBackendTrait {}
 
 pub trait VirtualBackendTrait {}
