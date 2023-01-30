@@ -15,6 +15,7 @@
  */
 
 use crate::frame_format::FrameFormat;
+use crate::types::RequestedFormat;
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
@@ -39,6 +40,12 @@ use wgpu::{
 /// - Behaviour can differ from backend to backend. While the Camera struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureBackendTrait {
+    /// Initialize the camera, preparing it for use, with a random format (usually the first one).
+    fn init(&mut self) -> Result<(), NokhwaError>;
+
+    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`RequestedFormat`].
+    fn init_with_format(&mut self, format: RequestedFormat) -> Result<CameraFormat, NokhwaError>;
+
     /// Returns the current backend used.
     fn backend(&self) -> ApiBackend;
 
