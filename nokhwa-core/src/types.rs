@@ -1,5 +1,5 @@
 use crate::frame_format::FrameFormat;
-use crate::{error::NokhwaError, pixel_format::FormatDecoder};
+use crate::{error::NokhwaError, pixel_format::FormatDecoders};
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::{
@@ -52,7 +52,9 @@ impl RequestedFormat<'_> {
     /// Creates a new [`RequestedFormat`] by using the [`RequestedFormatType`] and getting the [`FrameFormat`]
     /// constraints from a generic type.
     #[must_use]
-    pub fn new<Decoder: FormatDecoder>(requested: RequestedFormatType) -> RequestedFormat<'static> {
+    pub fn new<Decoder: FormatDecoders>(
+        requested: RequestedFormatType,
+    ) -> RequestedFormat<'static> {
         RequestedFormat {
             requested_format: requested,
             wanted_decoder: Decoder::FORMATS,

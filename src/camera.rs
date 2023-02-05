@@ -168,7 +168,7 @@ impl Camera {
     /// This will return the new [`CameraFormat`]
     /// # Errors
     /// If nothing fits the requested criteria, this will return an error.
-    pub fn set_camera_requset(
+    pub fn set_camera_request(
         &mut self,
         request: RequestedFormat,
     ) -> Result<CameraFormat, NokhwaError> {
@@ -182,7 +182,7 @@ impl Camera {
         Ok(new_format)
     }
 
-    #[deprecated(since = "0.10.0", note = "please use `set_camera_requset` instead.")]
+    #[deprecated(since = "0.10.0", note = "please use `set_camera_request` instead.")]
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
     ///
