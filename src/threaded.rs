@@ -177,7 +177,7 @@ impl CallbackCamera {
     /// This will reset the current stream if used while stream is opened.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
-    #[deprecated(since = "0.10.0", note = "please use `set_camera_requset` instead.")]
+    #[deprecated(since = "0.10.0", note = "please use `set_camera_request` instead.")]
     pub fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
         *self
             .last_frame_captured
@@ -193,7 +193,7 @@ impl CallbackCamera {
             .camera
             .lock()
             .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_camera_requset(request)?;
+            .set_camera_request(request)?;
         if new_fmt != set_fmt {
             return Err(NokhwaError::SetPropertyError {
                 property: "CameraFormat".to_string(),
@@ -212,14 +212,14 @@ impl CallbackCamera {
     /// This will return the new [`CameraFormat`]
     /// # Errors
     /// If nothing fits the requested criteria, this will return an error.
-    pub fn set_camera_requset(
+    pub fn set_camera_request(
         &mut self,
         request: RequestedFormat,
     ) -> Result<CameraFormat, NokhwaError> {
         self.camera
             .lock()
             .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_camera_requset(request)
+            .set_camera_request(request)
     }
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors

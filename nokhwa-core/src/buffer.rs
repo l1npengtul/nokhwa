@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{
-    error::NokhwaError,
-    frame_format::FrameFormat,
-    types::{FrameFormat, Resolution},
-};
+use crate::{error::NokhwaError, frame_format::FrameFormat, types::Resolution};
 use bytes::Bytes;
 use image::ImageBuffer;
 
