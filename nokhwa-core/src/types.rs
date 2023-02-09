@@ -9,26 +9,6 @@ use std::{
     str::FromStr,
 };
 
-/// Tells the init function what camera format to pick.
-/// - `AbsoluteHighestResolution`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
-/// - `AbsoluteHighestFrameRate`: Pick the highest frame rate, then the highest [`Resolution`].
-/// - `HighestResolution(Resolution)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`).
-/// - `HighestFrameRate(u32)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`).
-/// - `Exact`: Pick the exact [`CameraFormat`] provided.
-/// - `Closest`: Pick the closest [`CameraFormat`] provided in order of [`FrameFormat`], [`Resolution`], and FPS.
-/// - `None`: Pick a random [`CameraFormat`]
-#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-pub enum RequestedFormatType {
-    AbsoluteHighestResolution,
-    AbsoluteHighestFrameRate,
-    HighestResolution(Resolution),
-    HighestFrameRate(u32),
-    Exact(CameraFormat),
-    Closest(CameraFormat),
-    None,
-}
-
 impl Default for RequestedFormatType {
     fn default() -> Self {
         RequestedFormatType::None

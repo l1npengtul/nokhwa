@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 use crate::buffer::Buffer;
-use crate::error::NokhwaError;
 use crate::frame_format::FrameFormat;
-use crate::types::{
-    buf_mjpeg_to_rgb, buf_nv12_to_rgb, buf_yuyv422_to_rgb, mjpeg_to_rgb, nv12_to_rgb,
-    yuyv422_to_rgb, Resolution,
-};
-use image::{ImageBuffer, Luma, LumaA, Pixel, Primitive, Rgb, Rgba};
-use std::fmt::Debug;
+use image::{ImageBuffer, Luma, LumaA, Primitive, Rgb, Rgba};
 use std::ops::Deref;
 
 pub trait FormatDecoders: Send + Sync {
