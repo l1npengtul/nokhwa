@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-use crate::{error::NokhwaError, frame_format::FrameFormat, types::Resolution};
+use crate::{frame_format::SourceFrameFormat, types::Resolution};
 use bytes::Bytes;
-use image::ImageBuffer;
 
 /// A buffer returned by a camera to accommodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
@@ -26,14 +25,14 @@ use image::ImageBuffer;
 pub struct Buffer {
     resolution: Resolution,
     buffer: Bytes,
-    source_frame_format: FrameFormat,
+    source_frame_format: SourceFrameFormat,
 }
 
 impl Buffer {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
     #[inline]
-    pub fn new(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
+    pub fn new(res: Resolution, buf: &[u8], source_frame_format: SourceFrameFormat) -> Self {
         Self {
             resolution: res,
             buffer: Bytes::copy_from_slice(buf),
@@ -59,9 +58,9 @@ impl Buffer {
         self.buffer.clone()
     }
 
-    /// Get the [`FrameFormat`] of this buffer.
+    /// Get the [`SourceFrameFormat`] of this buffer.
     #[must_use]
-    pub fn source_frame_format(&self) -> FrameFormat {
+    pub fn source_frame_format(&self) -> SourceFrameFormat {
         self.source_frame_format
     }
 

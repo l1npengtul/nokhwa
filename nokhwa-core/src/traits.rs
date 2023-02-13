@@ -14,23 +14,18 @@
  * limitations under the License.
  */
 
-use crate::frame_format::FrameFormat;
-use crate::types::RequestedFormat;
+use crate::frame_format::SourceFrameFormat;
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
+    format_filter::FormatFilter,
+    frame_format::FrameFormat,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
         KnownCameraControl, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
-#[cfg(feature = "wgpu-types")]
-use wgpu::{
-    Device as WgpuDevice, Extent3d, ImageCopyTexture, ImageDataLayout, Queue as WgpuQueue,
-    Texture as WgpuTexture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
-    TextureUsages,
-};
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
@@ -43,8 +38,8 @@ pub trait CaptureBackendTrait {
     /// Initialize the camera, preparing it for use, with a random format (usually the first one).
     fn init(&mut self) -> Result<(), NokhwaError>;
 
-    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`RequestedFormat`].
-    fn init_with_format(&mut self, format: RequestedFormat) -> Result<CameraFormat, NokhwaError>;
+    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`FormatFilter`].
+    fn init_with_format(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError>;
 
     /// Returns the current backend used.
     fn backend(&self) -> ApiBackend;
@@ -70,10 +65,10 @@ pub trait CaptureBackendTrait {
 
     /// A hashmap of [`Resolution`]s mapped to framerates. Not sorted!
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::error::NokhwaError::UnsupportedOperationError)).
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
     fn compatible_list_by_resolution(
         &mut self,
-        fourcc: FrameFormat,
+        fourcc: SourceFrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
     /// Gets the compatible [`CameraFormat`] of the camera
@@ -94,8 +89,8 @@ pub trait CaptureBackendTrait {
 
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](crate::error::NokhwaError::UnsupportedOperationError)).
-    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
+    fn compatible_fourcc(&mut self) -> Result<Vec<SourceFrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
     fn resolution(&self) -> Resolution;

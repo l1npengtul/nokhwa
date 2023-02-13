@@ -16,7 +16,7 @@ serialize = ["serde"]
 wgpu-types = ["wgpu"]
 mjpeg = ["mozjpeg"]
 opencv-mat = ["opencv"]
-docs-features = ["serialize", "wgpu-types", "opencv/docs-only", "mjpeg"]
+docs-features = ["serialize", "wgpu-types", "mjpeg"]
 test-fail-warnings = []
 
 
@@ -34,11 +34,11 @@ features = ["derive"]
 optional = true
 
 [dependencies.wgpu]
-version = "0.14"
+version = "0.15"
 optional = true
 
 [dependencies.opencv]
-version = "0.74"
+version = "0.76"
 default-features = false
 optional = true
 

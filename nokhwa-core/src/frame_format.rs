@@ -1,6 +1,26 @@
-use crate::error::NokhwaError;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+/*
+ * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+use crate::{buffer::Buffer, types::ApiBackend};
+use image::{ImageBuffer, Pixel};
+use std::{
+    error::Error,
+    fmt::{Display, Formatter},
+    ops::Deref,
+};
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -103,55 +123,34 @@ impl Display for FrameFormat {
     }
 }
 
-/*
- * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-use crate::buffer::Buffer;
-use crate::types::ApiBackend;
-use image::{ImageBuffer, Luma, LumaA, Primitive, Rgb, Rgba};
-use std::ops::Deref;
+/// The Source Format of a [`Buffer`].
+///
+/// May either be a platform specific FourCC, or a FrameFormat
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum SourceFrameFormat {
+    FrameFormat(FrameFormat),
+    PlatformSpecific(ApiBackend, u128),
+}
 
-pub trait FormatDecoders: Send + Sync {
+impl Display for SourceFrameFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+pub trait FormatDecoders<T: Pixel, E: Error>: Send + Sync {
     const NAME: &'static str;
 
     const PRIMARY: &'static [FrameFormat];
 
     const PLATFORM_ACCEPTABLE: &'static [(ApiBackend, &'static [u128])];
 
-    type Primitive: Primitive;
+    type Container: Deref<Target = [T::Subpixel]>;
 
-    type Container: Deref<Target = [Self::Primitive]>;
-}
-
-pub trait RgbDecoder: FormatDecoders {
-    fn decode_rgb(&self, buffer: &Buffer) -> ImageBuffer<Rgb<Self::Primitive>, Self::Container>;
-}
-
-pub trait RgbADecoder: FormatDecoders {
-    fn decode_rgba(&self, buffer: &Buffer) -> ImageBuffer<Rgba<Self::Primitive>, Self::Container>;
-}
-
-pub trait LumaDecoder: FormatDecoders {
-    fn decode_luma(&self, buffer: &Buffer) -> ImageBuffer<Luma<Self::Primitive>, Self::Container>;
-}
-
-pub trait LumaADecoder: FormatDecoders {
-    fn decode_luma_a(
-        &self,
-        buffer: &Buffer,
-    ) -> ImageBuffer<LumaA<Self::Primitive>, Self::Container>;
+    fn decode(&self, buffer: &Buffer) -> Result<ImageBuffer<T, Self::Container>, E>;
 }
 
 // TODO: Wgpu Decoder
+
+// TODO: OpenCV Mat Decoder

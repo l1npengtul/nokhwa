@@ -1,6 +1,8 @@
-use crate::frame_format::FrameFormat;
-use crate::types::{ApiBackend, CameraFormat, Resolution};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use crate::{
+    frame_format::FrameFormat,
+    types::{ApiBackend, CameraFormat, Resolution},
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Tells the init function what camera format to pick.
 /// - `AbsoluteHighestResolution`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
@@ -22,6 +24,7 @@ pub enum RequestedFormatType {
     None,
 }
 
+/// How you get your [`FrameFormat`] from the
 #[derive(Clone, Debug)]
 pub struct FormatFilter {
     filter_pref: RequestedFormatType,
@@ -48,23 +51,29 @@ impl FormatFilter {
 
     pub fn add_allowed_platform_specific(&mut self, platform: ApiBackend, frame_format: u128) {
         match self.fcc_platform.get_mut(&platform) {
-            Some(fccs) => fccs.push(frame_format),
-            None => self
-                .fcc_platform
-                .insert(platform, BTreeSet::from([frame_format])),
+            Some(fccs) => {
+                fccs.insert(frame_format);
+            }
+            None => {
+                self.fcc_platform
+                    .insert(platform, BTreeSet::from([frame_format]));
+            }
         };
     }
 
     pub fn add_allowed_platform_specific_many(
         &mut self,
-        platform_specifics: impl IntoPlatformSpecificMany,
+        platform_specifics: impl AsRef<[(ApiBackend, u128)]>,
     ) {
-        for (platform, frame_format) in platform_specifics.into_psm().into_iter() {
+        for (platform, frame_format) in platform_specifics.as_ref().into_iter() {
             match self.fcc_platform.get_mut(&platform) {
-                Some(fccs) => fccs.push(frame_format),
-                None => self
-                    .fcc_platform
-                    .insert(platform, BTreeSet::from([frame_format])),
+                Some(fccs) => {
+                    fccs.insert(*frame_format);
+                }
+                None => {
+                    self.fcc_platform
+                        .insert(*platform, BTreeSet::from([*frame_format]));
+                }
             };
         }
     }
@@ -87,18 +96,13 @@ impl FormatFilter {
         platform: ApiBackend,
         frame_format: u128,
     ) -> Self {
-        match self.fcc_platform.get_mut(&platform) {
-            Some(fccs) => fccs.push(frame_format),
-            None => self
-                .fcc_platform
-                .insert(platform, BTreeSet::from([frame_format])),
-        };
+        self.add_allowed_platform_specific(platform, frame_format);
         self
     }
 
     pub fn with_allowed_platform_specific_many(
         mut self,
-        platform_specifics: impl IntoPlatformSpecificMany,
+        platform_specifics: impl AsRef<[(ApiBackend, u128)]>,
     ) -> Self {
         self.add_allowed_platform_specific_many(platform_specifics);
         self
@@ -119,63 +123,4 @@ impl Default for FormatFilter {
     }
 }
 
-pub trait IntoPlatformSpecificMany {
-    fn into_psm(self) -> Vec<(ApiBackend, u128)>;
-}
-
-impl<T> IntoPlatformSpecificMany for T
-where
-    T: AsRef<(ApiBackend, u128)>,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        vec![*self.as_ref()]
-    }
-}
-impl<T> IntoPlatformSpecificMany for T
-where
-    T: AsRef<[(ApiBackend, u128)]>,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        self.as_ref().iter().collect()
-    }
-}
-
-impl<T> IntoPlatformSpecificMany for BTreeMap<ApiBackend, T>
-where
-    T: AsRef<[u128]>,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        self.into_iter()
-            .flat_map(|(backend, fourcc_lst)| fourcc_lst.as_ref().iter().map(|fcc| (backend, *fcc)))
-            .collect()
-    }
-}
-
-impl<T> IntoPlatformSpecificMany for HashMap<ApiBackend, T>
-where
-    T: AsRef<[u128]>,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        self.into_iter()
-            .flat_map(|(backend, fourcc_lst)| fourcc_lst.as_ref().iter().map(|fcc| (backend, *fcc)))
-            .collect()
-    }
-}
-
-impl<T> IntoPlatformSpecificMany for &T
-where
-    T: IntoPlatformSpecificMany + Clone,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        self.clone().into_psm()
-    }
-}
-
-impl<T> IntoPlatformSpecificMany for &mut T
-where
-    T: IntoPlatformSpecificMany + Clone,
-{
-    fn into_psm(self) -> Vec<(ApiBackend, u128)> {
-        self.clone().into_psm()
-    }
-}
+pub struct FormatFulfill {}
