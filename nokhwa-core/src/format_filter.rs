@@ -1,3 +1,4 @@
+use crate::frame_format::SourceFrameFormat;
 use crate::{
     frame_format::FrameFormat,
     types::{ApiBackend, CameraFormat, Resolution},
@@ -7,19 +8,23 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Tells the init function what camera format to pick.
 /// - `AbsoluteHighestResolution`: Pick the highest [`Resolution`], then pick the highest frame rate of those provided.
 /// - `AbsoluteHighestFrameRate`: Pick the highest frame rate, then the highest [`Resolution`].
-/// - `HighestResolution(Resolution)`: Pick the highest [`Resolution`] for the given framerate (the `Option<u32>`).
-/// - `HighestFrameRate(u32)`: Pick the highest frame rate for the given [`Resolution`] (the `Option<Resolution>`).
+/// - `HighestResolution(Resolution)`: Pick the highest [`Resolution`] for the given framerate.
+/// - `HighestFrameRate(u32)`: Pick the highest frame rate for the given [`Resolution`].
 /// - `Exact`: Pick the exact [`CameraFormat`] provided.
-/// - `Closest`: Pick the closest [`CameraFormat`] provided in order of [`FrameFormat`], [`Resolution`], and FPS.
+/// - `Closest`: Pick the closest [`CameraFormat`] provided in order of [`Resolution`], and FPS.
+/// - `ClosestGreater`: Pick the closest [`CameraFormat`] provided in order of  [`Resolution`], and FPS. The returned format's [`Resolution`] **and** FPS will be **greater than or equal to** the provided [`CameraFormat`]
+/// - `ClosestLess`: Pick the closest [`CameraFormat`] provided in order of [`Resolution`], and FPS.The returned format's [`Resolution`] **and** FPS will be **less than or equal to** the provided [`CameraFormat`]
 /// - `None`: Pick a random [`CameraFormat`]
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestedFormatType {
     AbsoluteHighestResolution,
     AbsoluteHighestFrameRate,
-    HighestResolution(Resolution),
-    HighestFrameRate(u32),
+    HighestResolution(u32),
+    HighestFrameRate(Resolution),
     Exact(CameraFormat),
+    ClosestGreater(CameraFormat),
+    ClosestLess(CameraFormat),
     Closest(CameraFormat),
     None,
 }
@@ -114,7 +119,7 @@ impl Default for FormatFilter {
         Self {
             filter_pref: RequestedFormatType::Closest(CameraFormat::new(
                 Resolution::new(640, 480),
-                FrameFormat::Yuv422,
+                FrameFormat::Yuv422.into(),
                 30,
             )),
             fcc_primary: BTreeSet::from([FrameFormat::Yuv422]),
@@ -123,4 +128,100 @@ impl Default for FormatFilter {
     }
 }
 
-pub struct FormatFulfill {}
+fn format_fulfill(
+    sources: impl AsRef<[CameraFormat]>,
+    filter: FormatFilter,
+) -> Option<CameraFormat> {
+    let mut sources = sources
+        .as_ref()
+        .into_iter()
+        .filter(|cam_filter| match cam_filter.format() {
+            SourceFrameFormat::FrameFormat(fmt) => filter.fcc_primary.contains(&fmt),
+            SourceFrameFormat::PlatformSpecific(plat) => filter
+                .fcc_platform
+                .get(&plat.backend())
+                .map(|x| x.contains(&plat.format()))
+                .unwrap_or(false),
+        });
+
+    match filter.filter_pref {
+        RequestedFormatType::AbsoluteHighestResolution => {
+            let mut sources = sources.collect::<Vec<CameraFormat>>();
+            sources.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
+            sources.last().map(|x| *x)
+        }
+        RequestedFormatType::AbsoluteHighestFrameRate => {
+            let mut sources = sources.collect::<Vec<CameraFormat>>();
+            sources.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
+            sources.last().map(|x| *x)
+        }
+        RequestedFormatType::HighestResolution(filter_fps) => {
+            let mut sources = sources
+                .filter(|format| format.frame_rate() == filter_fps)
+                .collect::<Vec<CameraFormat>>();
+            sources.sort();
+            sources.last().map(|x| *x)
+        }
+        RequestedFormatType::HighestFrameRate(filter_res) => {
+            let mut sources = sources
+                .filter(|format| format.resolution() == filter_res)
+                .collect::<Vec<CameraFormat>>();
+            sources.sort();
+            sources.last().map(|x| *x)
+        }
+        RequestedFormatType::Exact(exact) => {
+            sources.filter(|format| format == exact).last().map(|x| *x)
+        }
+        RequestedFormatType::Closest(closest) => {
+            let mut sources = sources
+                .map(|format| {
+                    let dist = distance_3d_camerafmt_relative(closest, *format);
+                    (dist, *format)
+                })
+                .collect::<Vec<(f64, CameraFormat)>>();
+            sources.sort_by(|a, b| a.0.total_cmp(&b.0));
+            sources.first().map(|x| *x)
+        }
+        RequestedFormatType::ClosestGreater(closest) => {
+            let mut sources = sources
+                .filter(|format| {
+                    format.resolution() >= closest.resolution()
+                        && format.frame_rate() >= closest.frame_rate()
+                })
+                .map(|format| {
+                    let dist = distance_3d_camerafmt_relative(closest, *format);
+                    (dist, *format)
+                })
+                .collect::<Vec<(f64, CameraFormat)>>();
+            sources.sort_by(|a, b| a.0.total_cmp(&b.0));
+            sources.first().map(|x| *x)
+        }
+        RequestedFormatType::ClosestLess(closest) => {
+            let mut sources = sources
+                .filter(|format| {
+                    format.resolution() <= closest.resolution()
+                        && format.frame_rate() <= closest.frame_rate()
+                })
+                .map(|format| {
+                    let dist = distance_3d_camerafmt_relative(closest, *format);
+                    (dist, *format)
+                })
+                .collect::<Vec<(f64, CameraFormat)>>();
+            sources.sort_by(|a, b| a.0.total_cmp(&b.0));
+            sources.first().map(|x| *x)
+        }
+        RequestedFormatType::None => sources.nth(0).map(|x| *x),
+    }
+}
+
+fn distance_3d_camerafmt_relative(a: CameraFormat, b: CameraFormat) -> f64 {
+    let res_x_diff = b.resolution().x() - a.resolution().x();
+    let res_y_diff = b.resolution().y() - a.resolution().y();
+    let fps_diff = b.frame_rate() - a.frame_rate();
+
+    let x = res_x_diff.pow(2) as f64;
+    let y = res_y_diff.pow(2) as f64;
+    let z = fps_diff.pow(2) as f64;
+
+    (x + y + z)
+}

@@ -123,6 +123,61 @@ impl Display for FrameFormat {
     }
 }
 
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PlatformFrameFormat {
+    backend: ApiBackend,
+    format: u128,
+}
+
+impl PlatformFrameFormat {
+    pub fn new(backend: ApiBackend, format: u128) -> Self {
+        Self { backend, format }
+    }
+
+    pub fn backend(&self) -> ApiBackend {
+        self.backend
+    }
+
+    pub fn format(&self) -> u128 {
+        self.format
+    }
+
+    pub fn as_tuple(&self) -> (ApiBackend, u128) {
+        (self.backend, self.format)
+    }
+}
+
+impl From<(ApiBackend, u128)> for PlatformFrameFormat {
+    fn from(value: (ApiBackend, u128)) -> Self {
+        PlatformFrameFormat::new(value.0, value.1)
+    }
+}
+
+impl From<PlatformFrameFormat> for (ApiBackend, u128) {
+    fn from(value: PlatformFrameFormat) -> Self {
+        value.as_tuple()
+    }
+}
+
+impl PartialEq<(ApiBackend, u128)> for PlatformFrameFormat {
+    fn eq(&self, other: &(ApiBackend, u128)) -> bool {
+        &self.as_tuple() == other
+    }
+}
+
+impl AsRef<(ApiBackend, u128)> for PlatformFrameFormat {
+    fn as_ref(&self) -> &(ApiBackend, u128) {
+        &self.as_tuple()
+    }
+}
+
+impl Display for PlatformFrameFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 /// The Source Format of a [`Buffer`].
 ///
 /// May either be a platform specific FourCC, or a FrameFormat
@@ -130,7 +185,54 @@ impl Display for FrameFormat {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SourceFrameFormat {
     FrameFormat(FrameFormat),
-    PlatformSpecific(ApiBackend, u128),
+    PlatformSpecific(PlatformFrameFormat),
+}
+
+impl From<FrameFormat> for SourceFrameFormat {
+    fn from(value: FrameFormat) -> Self {
+        SourceFrameFormat::FrameFormat(value)
+    }
+}
+
+impl From<(ApiBackend, u128)> for SourceFrameFormat {
+    fn from(value: (ApiBackend, u128)) -> Self {
+        SourceFrameFormat::PlatformSpecific(value.into())
+    }
+}
+
+impl From<PlatformFrameFormat> for SourceFrameFormat {
+    fn from(value: PlatformFrameFormat) -> Self {
+        SourceFrameFormat::PlatformSpecific(value)
+    }
+}
+
+impl PartialEq<FrameFormat> for SourceFrameFormat {
+    fn eq(&self, other: &FrameFormat) -> bool {
+        if let SourceFrameFormat::FrameFormat(ff) = self {
+            ff == other
+        } else {
+            false
+        }
+    }
+}
+
+impl PartialEq<(ApiBackend, u128)> for SourceFrameFormat {
+    fn eq(&self, other: &(ApiBackend, u128)) -> bool {
+        if let SourceFrameFormat::PlatformSpecific(pff) = self {
+            pff == other
+        }  else {
+            false
+        }
+    }
+}
+impl PartialEq<PlatformFrameFormat> for SourceFrameFormat {
+    fn eq(&self, other: &PlatformFrameFormat) -> bool {
+        if let SourceFrameFormat::PlatformSpecific(pff) = self {
+            pff == other
+        }  else {
+            false
+        }
+    }
 }
 
 impl Display for SourceFrameFormat {

@@ -1111,7 +1111,6 @@ impl Display for ControlValueSetter {
 /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
 /// - `OpenCv` - Uses `OpenCV` to capture. Platform agnostic.
 /// - `GStreamer` - ***DEPRECATED*** Uses `GStreamer` RTP to capture. Platform agnostic.
-/// - `Network` - Uses `OpenCV` to capture from an IP.
 /// - `Browser` - Uses browser APIs to capture from a webcam.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
@@ -1123,7 +1122,6 @@ pub enum ApiBackend {
     MediaFoundation,
     OpenCv,
     GStreamer,
-    Network,
     Browser,
 }
 
