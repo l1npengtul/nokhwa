@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-use crate::frame_format::SourceFrameFormat;
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
     format_filter::FormatFilter,
-    frame_format::FrameFormat,
+    frame_format::{FrameFormat, SourceFrameFormat},
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
         KnownCameraControl, Resolution,
@@ -27,14 +26,18 @@ use crate::{
 };
 use std::{borrow::Cow, collections::HashMap};
 
+pub trait Backend {
+    const BACKEND: ApiBackend;
+}
+
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
 ///
 /// **Note**:
 /// - Backends, if not provided with a camera format, will be spawned with 640x480@15 FPS, MJPEG [`CameraFormat`].
 /// - Behaviour can differ from backend to backend. While the Camera struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
-/// - If you call [`stop_stream()`](CaptureBackendTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureBackendTrait::open_stream()) to get more frames from the camera.
-pub trait CaptureBackendTrait {
+/// - If you call [`stop_stream()`](CaptureTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureTrait::open_stream()) to get more frames from the camera.
+pub trait CaptureTrait {
     /// Initialize the camera, preparing it for use, with a random format (usually the first one).
     fn init(&mut self) -> Result<(), NokhwaError>;
 
@@ -53,7 +56,7 @@ pub trait CaptureBackendTrait {
     fn refresh_camera_format(&mut self) -> Result<(), NokhwaError>;
 
     /// Gets the current [`CameraFormat`]. This will force refresh to the current latest if it has changed.
-    fn camera_format(&self) -> CameraFormat;
+    fn camera_format(&self) -> Option<CameraFormat>;
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -93,7 +96,7 @@ pub trait CaptureBackendTrait {
     fn compatible_fourcc(&mut self) -> Result<Vec<SourceFrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn resolution(&self) -> Resolution;
+    fn resolution(&self) -> Option<Resolution>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -104,7 +107,7 @@ pub trait CaptureBackendTrait {
     fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
 
     /// Gets the current camera framerate (See: [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn frame_rate(&self) -> u32;
+    fn frame_rate(&self) -> Option<u32>;
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
@@ -115,7 +118,7 @@ pub trait CaptureBackendTrait {
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn frame_format(&self) -> FrameFormat;
+    fn frame_format(&self) -> SourceFrameFormat;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -123,7 +126,8 @@ pub trait CaptureBackendTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError>;
+    fn set_frame_format(&mut self, fourcc: impl Into<SourceFrameFormat>)
+        -> Result<(), NokhwaError>;
 
     /// Gets the value of [`KnownCameraControl`].
     /// # Errors
@@ -137,7 +141,7 @@ pub trait CaptureBackendTrait {
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError>;
 
     /// Sets the control to `control` in the camera.
-    /// Usually, the pipeline is calling [`camera_control()`](CaptureBackendTrait::camera_control), getting a camera control that way
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureTrait::camera_control), getting a camera control that way
     /// then calling [`value()`](CameraControl::value()) to get a [`ControlValueSetter`] and setting the value that way.
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
@@ -148,7 +152,7 @@ pub trait CaptureBackendTrait {
         value: ControlValueSetter,
     ) -> Result<(), NokhwaError>;
 
-    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureBackendTrait::frame()) before you call [`open_stream()`](CaptureBackendTrait::open_stream()).
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureTrait::frame()) before you call [`open_stream()`](CaptureTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
     fn open_stream(&mut self) -> Result<(), NokhwaError>;
@@ -156,16 +160,16 @@ pub trait CaptureBackendTrait {
     /// Checks if stream if open. If it is, it will return true.
     fn is_stream_open(&self) -> bool;
 
-    /// Will get a frame from the camera as a [`Buffer`]. Depending on the backend, if you have not called [`open_stream()`](CaptureBackendTrait::open_stream()) before you called this,
+    /// Will get a frame from the camera as a [`Buffer`]. Depending on the backend, if you have not called [`open_stream()`](CaptureTrait::open_stream()) before you called this,
     /// it will either return an error.
     /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet,
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet,
     /// this will error.
     fn frame(&mut self) -> Result<Buffer, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
-    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureBackendTrait::open_stream()) has not been called yet, this will error.
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet, this will error.
     fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
     // #[cfg(feature = "wgpu-types")]
@@ -234,15 +238,107 @@ pub trait CaptureBackendTrait {
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
 
-impl<T> From<T> for Box<dyn CaptureBackendTrait>
+impl<T> From<T> for Box<dyn CaptureTrait>
 where
-    T: CaptureBackendTrait + 'static,
+    T: CaptureTrait + 'static,
 {
     fn from(backend: T) -> Self {
         Box::new(backend)
     }
 }
 
-pub trait AsyncCaptureBackendTrait: CaptureBackendTrait {}
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait AsyncCaptureTrait: CaptureTrait {
+    /// Initialize the camera, preparing it for use, with a random format (usually the first one).
+    async fn init(&mut self) -> Result<(), NokhwaError>;
+
+    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`FormatFilter`].
+    async fn init_with_format(&mut self, format: FormatFilter)
+        -> Result<CameraFormat, NokhwaError>;
+
+    /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
+    /// # Errors
+    /// If the camera can not get its most recent [`CameraFormat`]. this will error.
+    async fn refresh_camera_format(&mut self) -> Result<(), NokhwaError>;
+
+    /// Will set the current [`CameraFormat`]
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    /// # Errors
+    /// If you started the stream and the camera rejects the new camera format, this will return an error.
+    async fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
+
+    /// Will set the current [`Resolution`]
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    /// # Errors
+    /// If you started the stream and the camera rejects the new resolution, this will return an error.
+    async fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
+
+    /// Will set the current framerate
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    /// # Errors
+    /// If you started the stream and the camera rejects the new framerate, this will return an error.
+    async fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
+
+    /// Will set the current [`FrameFormat`]
+    /// This will reset the current stream if used while stream is opened.
+    ///
+    /// This will also update the cache.
+    /// # Errors
+    /// If you started the stream and the camera rejects the new frame format, this will return an error.
+    async fn set_frame_format(
+        &mut self,
+        fourcc: impl Into<SourceFrameFormat>,
+    ) -> Result<(), NokhwaError>;
+
+    /// Sets the control to `control` in the camera.
+    /// Usually, the pipeline is calling [`camera_control()`](CaptureTrait::camera_control), getting a camera control that way
+    /// then calling [`value()`](CameraControl::value()) to get a [`ControlValueSetter`] and setting the value that way.
+    /// # Errors
+    /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
+    /// this will error.
+    async fn set_camera_control(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError>;
+
+    /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureTrait::frame()) before you call [`open_stream()`](CaptureTrait::open_stream()).
+    /// # Errors
+    /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
+    async fn open_stream(&mut self) -> Result<(), NokhwaError>;
+
+    /// Will get a frame from the camera as a [`Buffer`]. Depending on the backend, if you have not called [`open_stream()`](CaptureTrait::open_stream()) before you called this,
+    /// it will either return an error.
+    /// # Errors
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet,
+    /// this will error.
+    async fn frame(&mut self) -> Result<Buffer, NokhwaError>;
+
+    /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
+    /// # Errors
+    /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet, this will error.
+    async fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
+
+    /// Will drop the stream.
+    /// # Errors
+    /// Please check the `Quirks` section of each backend.
+    async fn stop_stream(&mut self) -> Result<(), NokhwaError>;
+}
+
+impl<T> From<T> for Box<dyn AsyncCaptureTrait>
+where
+    T: AsyncCaptureTrait + 'static,
+{
+    fn from(backend: T) -> Self {
+        Box::new(backend)
+    }
+}
 
 pub trait VirtualBackendTrait {}

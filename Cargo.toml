@@ -19,10 +19,10 @@ exclude = ["examples/jscam"]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["flume", "decoding"]
+default = ["decoding"]
 serialize = ["serde", "nokhwa-core/serialize"]
 decoding = ["nokhwa-core/mjpeg"]
-input-avfoundation = ["nokhwa-bindings-macos"]
+input-avfoundation = ["nokhwa-bindings-macos", "flume"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-v4l = ["nokhwa-bindings-linux"]
 input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
@@ -33,6 +33,7 @@ input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "was
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
+output-async = ["nokhwa-core/async"]
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["nokhwa-core/docs-features"]
@@ -72,7 +73,7 @@ version = "0.15"
 optional = true
 
 [dependencies.opencv]
-version = "0.76"
+version = "0.77"
 default-features = false
 features = ["videoio"]
 optional = true

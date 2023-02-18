@@ -18,7 +18,7 @@ use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
     pixel_format::RgbFormat,
-    traits::CaptureBackendTrait,
+    traits::CaptureTrait,
     types::{
         all_known_camera_controls, ApiBackend, CameraControl, CameraFormat, CameraIndex,
         CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
@@ -28,7 +28,7 @@ use nokhwa_core::{
 use std::{borrow::Cow, collections::HashMap};
 
 /// The backend that deals with Media Foundation on Windows.
-/// To see what this does, please see [`CaptureBackendTrait`].
+/// To see what this does, please see [`CaptureTrait`].
 ///
 /// Note: This requires Windows 7 or newer to work.
 /// # Quirks
@@ -108,7 +108,7 @@ impl MediaFoundationCaptureDevice {
     }
 }
 
-impl CaptureBackendTrait for MediaFoundationCaptureDevice {
+impl CaptureTrait for MediaFoundationCaptureDevice {
     fn backend(&self) -> ApiBackend {
         ApiBackend::MediaFoundation
     }

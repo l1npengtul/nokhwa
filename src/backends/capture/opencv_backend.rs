@@ -18,7 +18,7 @@ use nokhwa_core::types::RequestedFormatType;
 use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
-    traits::CaptureBackendTrait,
+    traits::CaptureTrait,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
         ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
@@ -61,7 +61,7 @@ pub fn known_camera_control_to_video_capture_property(
 /// The backend struct that interfaces with `OpenCV`. Note that an `opencv` matching the version that this was either compiled on must be present on the user's machine. (usually 4.5.2 or greater)
 /// For more information, please see [`opencv-rust`](https://github.com/twistedfall/opencv-rust) and [`OpenCV VideoCapture Docs`](https://docs.opencv.org/4.5.2/d8/dfe/classcv_1_1VideoCapture.html).
 ///
-/// To see what this does, please see [`CaptureBackendTrait`]
+/// To see what this does, please see [`CaptureTrait`]
 /// # Quirks
 ///  - **Some features don't work properly on this backend (yet)! Setting [`Resolution`], FPS, [`FrameFormat`] does not work and will default to 640x480 30FPS. This is being worked on.**
 ///  - This is a **cross-platform** backend. This means that it will work on most platforms given that `OpenCV` is present.
@@ -69,7 +69,7 @@ pub fn known_camera_control_to_video_capture_property(
 ///  - The backend's backend will default to system level APIs on Linux(V4L2), Mac(AVFoundation), and Windows(Media Foundation). Otherwise, it will decide for itself.
 ///  - If the [`OpenCvCaptureDevice`] is initialized as a `IPCamera`, the [`CameraFormat`]'s `index` value will be [`u32::MAX`](std::u32::MAX) (4294967295).
 ///  - `OpenCV` does not support camera querying. Camera Name and Camera supported resolution/fps/fourcc is a [`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError).
-/// Note: [`resolution()`](crate::camera_traits::CaptureBackendTrait::resolution()), [`frame_format()`](crate::camera_traits::CaptureBackendTrait::frame_format()), and [`frame_rate()`](crate::camera_traits::CaptureBackendTrait::frame_rate()) is not affected.
+/// Note: [`resolution()`](crate::camera_traits::CaptureTrait::resolution()), [`frame_format()`](crate::camera_traits::CaptureTrait::frame_format()), and [`frame_rate()`](crate::camera_traits::CaptureTrait::frame_rate()) is not affected.
 ///  - [`CameraInfo`]'s human name will be "`OpenCV` Capture Device {location}"
 ///  - [`CameraInfo`]'s description will contain the Camera's Index or IP.
 ///  - The API Preference order is the native OS API (linux => `v4l2`, mac => `AVFoundation`, windows => `MSMF`) than [`CAP_AUTO`](https://docs.opencv.org/4.5.2/d4/d15/group__videoio__flags__base.html#gga023786be1ee68a9105bf2e48c700294da77ab1fe260fd182f8ec7655fab27a31d)
@@ -283,7 +283,7 @@ impl OpenCvCaptureDevice {
     }
 }
 
-impl CaptureBackendTrait for OpenCvCaptureDevice {
+impl CaptureTrait for OpenCvCaptureDevice {
     fn backend(&self) -> ApiBackend {
         ApiBackend::OpenCv
     }

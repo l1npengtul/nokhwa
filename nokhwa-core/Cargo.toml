@@ -17,6 +17,7 @@ wgpu-types = ["wgpu"]
 mjpeg = ["mozjpeg"]
 opencv-mat = ["opencv"]
 docs-features = ["serialize", "wgpu-types", "mjpeg"]
+async = ["async-trait"]
 test-fail-warnings = []
 
 
@@ -38,12 +39,16 @@ version = "0.15"
 optional = true
 
 [dependencies.opencv]
-version = "0.76"
+version = "0.77"
 default-features = false
 optional = true
 
 [dependencies.mozjpeg]
 version = "0.9"
+optional = true
+
+[dependencies.async-trait]
+version = "0.1"
 optional = true
 
 [package.metadata.docs.rs]

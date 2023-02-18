@@ -19,7 +19,7 @@ mod internal {
     use nokhwa_core::{
         buffer::Buffer,
         error::NokhwaError,
-        traits::CaptureBackendTrait,
+        traits::CaptureTrait,
         types::{
             ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
             ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
@@ -118,9 +118,9 @@ mod internal {
     }
 
     /// The backend struct that interfaces with V4L2.
-    /// To see what this does, please see [`CaptureBackendTrait`].
+    /// To see what this does, please see [`CaptureTrait`].
     /// # Quirks
-    /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_frame_rate()`](CaptureBackendTrait::set_frame_rate), or [`set_frame_format()`](CaptureBackendTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
+    /// - Calling [`set_resolution()`](CaptureTrait::set_resolution), [`set_frame_rate()`](CaptureTrait::set_frame_rate), or [`set_frame_format()`](CaptureTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureTrait::set_camera_format).
     pub struct V4LCaptureDevice<'a> {
         camera_format: CameraFormat,
         camera_info: CameraInfo,
@@ -391,7 +391,7 @@ mod internal {
         }
     }
 
-    impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
+    impl<'a> CaptureTrait for V4LCaptureDevice<'a> {
         fn backend(&self) -> ApiBackend {
             ApiBackend::Video4Linux
         }
@@ -810,7 +810,7 @@ mod internal {
 mod internal {
     use nokhwa_core::buffer::Buffer;
     use nokhwa_core::error::NokhwaError;
-    use nokhwa_core::traits::CaptureBackendTrait;
+    use nokhwa_core::traits::CaptureTrait;
     use nokhwa_core::types::{
         ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
         FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
@@ -834,9 +834,9 @@ mod internal {
     }
 
     /// The backend struct that interfaces with V4L2.
-    /// To see what this does, please see [`CaptureBackendTrait`].
+    /// To see what this does, please see [`CaptureTrait`].
     /// # Quirks
-    /// - Calling [`set_resolution()`](CaptureBackendTrait::set_resolution), [`set_frame_rate()`](CaptureBackendTrait::set_frame_rate), or [`set_frame_format()`](CaptureBackendTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureBackendTrait::set_camera_format).
+    /// - Calling [`set_resolution()`](CaptureTrait::set_resolution), [`set_frame_rate()`](CaptureTrait::set_frame_rate), or [`set_frame_format()`](CaptureTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureTrait::set_camera_format).
     pub struct V4LCaptureDevice<'a> {
         __holder: PhantomData<&'a str>,
     }
@@ -880,7 +880,7 @@ mod internal {
     }
 
     #[allow(unused_variables)]
-    impl<'a> CaptureBackendTrait for V4LCaptureDevice<'a> {
+    impl<'a> CaptureTrait for V4LCaptureDevice<'a> {
         fn backend(&self) -> ApiBackend {
             ApiBackend::Video4Linux
         }
