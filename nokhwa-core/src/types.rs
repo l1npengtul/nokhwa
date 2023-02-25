@@ -1332,14 +1332,10 @@ pub fn yuyv422_predicted_size(size: usize, rgba: bool) -> usize {
 /// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 #[inline]
 pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
-    let pixel_size = if rgba { 4 } else { 3 };
-    // yuyv yields 2 3-byte pixels per yuyv chunk
-    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
-
-    let mut dest = vec![0; rgb_buf_size];
-    buf_yuyv422_to_rgb(data, &mut dest, rgba)?;
-
-    Ok(dest)
+    let capacity = yuyv422_predicted_size(data.len(), rgba);
+    let mut rgb = vec![0; capacity];
+    buf_yuyv422_to_rgb(data, &mut rgb, rgba)?;
+    Ok(rgb)
 }
 
 /// Same as [`yuyv422_to_rgb`] but with a destination buffer instead of a return `Vec<u8>`
@@ -1347,82 +1343,41 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 /// If the stream is invalid Yuv422, or the destination buffer is not large enough, this will error.
 #[inline]
 pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
+    let mut buf:Vec<u8> = Vec::new();
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::Yuv422,
+            src: FrameFormat::YUV422,
             destination: "RGB888".to_string(),
             error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
                 .to_string(),
         });
     }
+    for chunk in data.chunks_exact(4) {
+        let y0 = chunk[0] as f32;
+        let u = chunk[1] as f32;
+        let y1 = chunk[2] as f32;
+        let v = chunk[3] as f32;
 
-    let pixel_size = if rgba { 4 } else { 3 };
-    // yuyv yields 2 3-byte pixels per yuyv chunk
-    let rgb_buf_size = (data.len() / 4) * (2 * pixel_size);
+        let r0 = y0 + 1.370705 * (v - 128.);
+        let g0 = y0 - 0.698001 * (v - 128.) - 0.337633 * (u - 128.);
+        let b0 = y0 + 1.732446 * (u - 128.);
 
-    if dest.len() != rgb_buf_size {
-        return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::Yuv422,
-            destination: "RGB888".to_string(),
-            error: format!("Assertion failure, the destination RGB buffer is of the wrong size! [expected: {rgb_buf_size}, actual: {}]", dest.len()),
-        });
-    }
+        let r1 = y1 + 1.370705 * (v - 128.);
+        let g1 = y1 - 0.698001 * (v - 128.) - 0.337633 * (u - 128.);
+        let b1 = y1 + 1.732446 * (u - 128.);
 
-    let iter = data.chunks_exact(4);
-
-    if rgba {
-        let mut iter = iter
-            .flat_map(|yuyv| {
-                let y1 = i32::from(yuyv[0]);
-                let u = i32::from(yuyv[1]);
-                let y2 = i32::from(yuyv[2]);
-                let v = i32::from(yuyv[3]);
-                let pixel1 = yuyv444_to_rgba(y1, u, v);
-                let pixel2 = yuyv444_to_rgba(y2, u, v);
-                [pixel1, pixel2]
-            })
-            .flatten();
-        for i in dest.iter_mut().take(rgb_buf_size) {
-            *i = match iter.next() {
-                Some(v) => v,
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::Yuv422,
-                        destination: "RGBA8888".to_string(),
-                        error: "Ran out of RGBA Yuv422 values! (this should not happen, please file an issue: l1npengtul/nokhwa)".to_string()
-                    })
-                }
-            }
-        }
-    } else {
-        let mut iter = iter
-            .flat_map(|yuyv| {
-                let y1 = i32::from(yuyv[0]);
-                let u = i32::from(yuyv[1]);
-                let y2 = i32::from(yuyv[2]);
-                let v = i32::from(yuyv[3]);
-                let pixel1 = yuyv444_to_rgb(y1, u, v);
-                let pixel2 = yuyv444_to_rgb(y2, u, v);
-                [pixel1, pixel2]
-            })
-            .flatten();
-
-        for i in dest.iter_mut().take(rgb_buf_size) {
-            *i = match iter.next() {
-                Some(v) => v,
-                None => {
-                    return Err(NokhwaError::ProcessFrameError {
-                        src: FrameFormat::Yuv422,
-                        destination: "RGB888".to_string(),
-                        error: "Ran out of RGB Yuv422 values! (this should not happen, please file an issue: l1npengtul/nokhwa)".to_string()
-                    })
-                }
-            }
+        if rgba {
+            buf.extend_from_slice(&[
+                r0 as u8, g0 as u8, b0 as u8, 255, r1 as u8, g1 as u8, b1 as u8, 255,
+            ]);
+        } else {
+            buf.extend_from_slice(&[r0 as u8, g0 as u8, b0 as u8, r1 as u8, g1 as u8, b1 as u8]);
         }
     }
-
+    dest.copy_from_slice(&buf);
     Ok(())
 }
+
 
 // equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
 /// Convert `YCbCr` 4:4:4 to a RGB888. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
