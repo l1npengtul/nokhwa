@@ -49,8 +49,6 @@ pub enum FrameFormat {
     Nv12,
     Nv21,
     Yv12,
-    Imc2,
-    Imc4,
 
     // Grayscale Formats
     Luma8,

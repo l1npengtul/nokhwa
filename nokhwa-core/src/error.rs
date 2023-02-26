@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-use crate::frame_format::FrameFormat;
-use crate::types::ApiBackend;
+use crate::{frame_format::FrameFormat, types::ApiBackend};
 use thiserror::Error;
 
 /// All errors in `nokhwa`.

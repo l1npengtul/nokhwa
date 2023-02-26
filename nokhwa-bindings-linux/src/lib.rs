@@ -16,6 +16,7 @@
 
 #[cfg(target_os = "linux")]
 mod internal {
+    use nokhwa_core::format_filter::FormatFilter;
     use nokhwa_core::{
         buffer::Buffer,
         error::NokhwaError,
@@ -122,7 +123,8 @@ mod internal {
     /// # Quirks
     /// - Calling [`set_resolution()`](CaptureTrait::set_resolution), [`set_frame_rate()`](CaptureTrait::set_frame_rate), or [`set_frame_format()`](CaptureTrait::set_frame_format) each internally calls [`set_camera_format()`](CaptureTrait::set_camera_format).
     pub struct V4LCaptureDevice<'a> {
-        camera_format: CameraFormat,
+        init: bool,
+        camera_format: Option<CameraFormat>,
         camera_info: CameraInfo,
         device: Device,
         stream_handle: Option<MmapStream<'a>>,
@@ -133,207 +135,7 @@ mod internal {
         /// # Errors
         /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
         #[allow(clippy::too_many_lines)]
-        pub fn new(index: &CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
-            let index = index.clone();
-            let device = match Device::new(index.as_index()? as usize) {
-                Ok(dev) => dev,
-                Err(why) => {
-                    return Err(NokhwaError::OpenDeviceError(
-                        index.to_string(),
-                        format!("V4L2 Error: {}", why),
-                    ))
-                }
-            };
-
-            // get all formats
-            // get all fcc
-            let mut camera_formats = vec![];
-
-            let frame_formats = match device.enum_formats() {
-                Ok(formats) => {
-                    let mut frame_format_vec = vec![];
-                    formats
-                        .iter()
-                        .for_each(|fmt| frame_format_vec.push(fmt.fourcc));
-                    frame_format_vec.dedup();
-                    Ok(frame_format_vec)
-                }
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "FrameFormat".to_string(),
-                    error: why.to_string(),
-                }),
-            }?;
-
-            for ff in frame_formats {
-                let framefmt = match fourcc_to_frameformat(ff) {
-                    Some(s) => s,
-                    None => continue,
-                };
-                // i write unmaintainable blobs of code because i am so cute uwu~~
-                let mut formats = device
-                    .enum_framesizes(ff)
-                    .map_err(|why| NokhwaError::GetPropertyError {
-                        property: "ResolutionList".to_string(),
-                        error: why.to_string(),
-                    })?
-                    .into_iter()
-                    .flat_map(|x| {
-                        match x.size {
-                            FrameSizeEnum::Discrete(d) => {
-                                [Resolution::new(d.width, d.height)].to_vec()
-                            }
-                            // we step over each step, getting a new resolution.
-                            FrameSizeEnum::Stepwise(s) => (s.min_width..s.max_width)
-                                .step_by(s.step_width as usize)
-                                .zip((s.min_height..s.max_height).step_by(s.step_height as usize))
-                                .map(|(x, y)| Resolution::new(x, y))
-                                .collect(),
-                        }
-                    })
-                    .flat_map(|res| {
-                        device
-                            .enum_frameintervals(ff, res.x(), res.y())
-                            .unwrap_or_default()
-                            .into_iter()
-                            .flat_map(|x| match x.interval {
-                                FrameIntervalEnum::Discrete(dis) => {
-                                    if dis.numerator == 1 {
-                                        vec![CameraFormat::new(
-                                            Resolution::new(x.width, x.height),
-                                            framefmt,
-                                            dis.denominator,
-                                        )]
-                                    } else {
-                                        vec![]
-                                    }
-                                }
-                                FrameIntervalEnum::Stepwise(step) => {
-                                    let mut intvec = vec![];
-                                    for fstep in (step.min.numerator..step.max.numerator)
-                                        .step_by(step.step.numerator as usize)
-                                    {
-                                        if step.max.denominator != 1 || step.min.denominator != 1 {
-                                            intvec.push(CameraFormat::new(
-                                                Resolution::new(x.width, x.height),
-                                                framefmt,
-                                                fstep,
-                                            ));
-                                        }
-                                    }
-                                    intvec
-                                }
-                            })
-                    })
-                    .collect::<Vec<CameraFormat>>();
-                camera_formats.append(&mut formats);
-            }
-
-            let format = cam_fmt
-                .fulfill(&camera_formats)
-                .ok_or(NokhwaError::GetPropertyError {
-                    property: "CameraFormat".to_string(),
-                    error: "Failed to Fufill".to_string(),
-                })?;
-
-            if let Err(why) = device.set_format(&Format::new(
-                format.width(),
-                format.height(),
-                frameformat_to_fourcc(format.format()),
-            )) {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "Resolution, FrameFormat".to_string(),
-                    value: format.to_string(),
-                    error: why.to_string(),
-                });
-            }
-            if let Err(why) = device.set_params(&Parameters::with_fps(format.frame_rate())) {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "Frame rate".to_string(),
-                    value: format.frame_rate().to_string(),
-                    error: why.to_string(),
-                });
-            }
-
-            let device_caps = device
-                .query_caps()
-                .map_err(|why| NokhwaError::GetPropertyError {
-                    property: "Device Capabilities".to_string(),
-                    error: why.to_string(),
-                })?;
-
-            let mut v4l2 = V4LCaptureDevice {
-                camera_format: format,
-                camera_info: CameraInfo::new(
-                    &device_caps.card,
-                    &device_caps.driver,
-                    &format!("{} {:?}", device_caps.bus, device_caps.version),
-                    index,
-                ),
-                device,
-                stream_handle: None,
-            };
-
-            v4l2.force_refresh_camera_format()?;
-            if v4l2.camera_format() != format {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "CameraFormat".to_string(),
-                    value: String::new(),
-                    error: "Not same/Rejected".to_string(),
-                });
-            }
-
-            Ok(v4l2)
-        }
-
-        /// Create a new `V4L2` Camera with desired settings. This may or may not work.
-        /// # Errors
-        /// This function will error if the camera is currently busy or if `V4L2` can't read device information.
-        #[deprecated(since = "0.10.0", note = "please use `new` instead.")]
-        #[allow(clippy::needless_pass_by_value)]
-        pub fn new_with(
-            index: CameraIndex,
-            width: u32,
-            height: u32,
-            fps: u32,
-            fourcc: FrameFormat,
-        ) -> Result<Self, NokhwaError> {
-            let camera_format = CameraFormat::new_from(width, height, fourcc, fps);
-            V4LCaptureDevice::new(
-                &index,
-                RequestedFormat::with_formats(
-                    RequestedFormatType::Exact(camera_format),
-                    vec![camera_format.format()].as_slice(),
-                ),
-            )
-        }
-
-        fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
-            let format = frameformat_to_fourcc(fourcc);
-
-            // match Capture::enum_framesizes(&self.device, format) {
-            match self.device.enum_framesizes(format) {
-                Ok(frame_sizes) => {
-                    let mut resolutions = vec![];
-                    for frame_size in frame_sizes {
-                        match frame_size.size {
-                            FrameSizeEnum::Discrete(dis) => {
-                                resolutions.push(Resolution::new(dis.width, dis.height));
-                            }
-                            FrameSizeEnum::Stepwise(step) => {
-                                resolutions.push(Resolution::new(step.min_width, step.min_height));
-                                resolutions.push(Resolution::new(step.max_width, step.max_height));
-                                // TODO: Respect step size
-                            }
-                        }
-                    }
-                    Ok(resolutions)
-                }
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "Resolutions".to_string(),
-                    error: why.to_string(),
-                }),
-            }
-        }
+        pub fn new(index: &CameraIndex) -> Result<Self, NokhwaError> {}
 
         /// Force refreshes the inner [`CameraFormat`] state.
         /// # Errors
@@ -378,7 +180,7 @@ mod internal {
 
                     self.camera_format = CameraFormat::new(
                         Resolution::new(format.width, format.height),
-                        frame_format,
+                        frame_format: ,
                         fps,
                     );
                     Ok(())
@@ -392,6 +194,14 @@ mod internal {
     }
 
     impl<'a> CaptureTrait for V4LCaptureDevice<'a> {
+        fn init(&mut self) -> Result<(), NokhwaError> {
+            todo!()
+        }
+
+        fn init_with_format(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError> {
+            todo!()
+        }
+
         fn backend(&self) -> ApiBackend {
             ApiBackend::Video4Linux
         }
@@ -786,22 +596,30 @@ mod internal {
 
     fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         match fourcc.str().ok()? {
-            "YUYV" => Some(FrameFormat::YUYV),
-            "MJPG" => Some(FrameFormat::MJPEG),
-            "GRAY" => Some(FrameFormat::GRAY),
-            "RGB3" => Some(FrameFormat::RAWRGB),
-            "NV12" => Some(FrameFormat::NV12),
+            "YUYV" => Some(FrameFormat::Yuv422),
+            "UYVY" => Some(FrameFormat::Uyv422),
+            "YV12" => Some(FrameFormat::Yv12),
+            "MJPG" => Some(FrameFormat::MJpeg),
+            "GRAY" => Some(FrameFormat::Luma8),
+            "RGB3" => Some(FrameFormat::Rgb8),
+            "NV12" => Some(FrameFormat::Nv12),
+            "H264" => Some(FrameFormat::H264),
+            "AVC1" => Some(FrameFormat::Avc1),
+            "H263" => Some(FrameFormat::H263),
+            "XVID" => Some(FrameFormat::XVid),
+            "VP80" => Some(FrameFormat::VP8),
+            "VP90" => Some(FrameFormat::VP9),
+            "MPG1" => Some(FrameFormat::Mpeg1),
+            "MPG2" => Some(FrameFormat::Mpeg2),
+            "MPG4" => Some(FrameFormat::Mpeg4),
             _ => None,
         }
     }
+    
 
     fn frameformat_to_fourcc(fourcc: FrameFormat) -> FourCC {
         match fourcc {
-            FrameFormat::MJPEG => FourCC::new(b"MJPG"),
-            FrameFormat::YUYV => FourCC::new(b"YUYV"),
-            FrameFormat::GRAY => FourCC::new(b"GRAY"),
-            FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
-            FrameFormat::NV12 => FourCC::new(b"NV12"),
+            
         }
     }
 }

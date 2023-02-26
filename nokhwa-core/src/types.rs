@@ -1116,6 +1116,7 @@ impl Display for ControlValueSetter {
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum ApiBackend {
     Auto,
+    Custom(&'static str),
     AVFoundation,
     Video4Linux,
     UniversalVideoClass,

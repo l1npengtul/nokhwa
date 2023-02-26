@@ -38,6 +38,7 @@ mod init;
 #[cfg(feature = "input-jscam")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 pub mod js_camera;
+mod platform_resolver;
 
 pub use nokhwa_core::pixel_format::FormatDecoder;
 #[cfg(feature = "output-async")]
