@@ -29,11 +29,11 @@ input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
-input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
+input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor", "output-async"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
-output-async = ["nokhwa-core/async"]
+output-async = ["nokhwa-core/async", "async-trait"]
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["nokhwa-core/docs-features"]
@@ -115,6 +115,7 @@ features = [
     "MimeType", "MimeTypeArray",
     "Navigator",
     "Node",
+    "OffscreenCanvas",
     "Permissions", "PermissionDescriptor", "PermissionState", "PermissionStatus",
     "Plugin", "PluginArray",
     "Window"
@@ -135,6 +136,10 @@ optional = true
 
 [dependencies.wasm-rs-async-executor]
 version = "0.9"
+optional = true
+
+[dependencies.async-trait]
+version = "0.1"
 optional = true
 
 [package.metadata.docs.rs]

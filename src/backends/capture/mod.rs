@@ -72,17 +72,30 @@ macro_rules! resolver_cross_platform {
 }
 
 resolver_platform!(
-    (v4l, "input-v4l", "linux", nokhwa_bindings_linux::V4LCaptureDevice),
-    (msf, "input-msmf", "windows", msmf_backend::MediaFoundationCaptureDevice)
+    (
+        v4l,
+        "input-v4l",
+        "linux",
+        nokhwa_bindings_linux::V4LCaptureDevice
+    ),
+    (
+        msf,
+        "input-msmf",
+        "windows",
+        msmf_backend::MediaFoundationCaptureDevice
+    )
 );
 
-resolver_platform_2!(
-    (avf, "input-avfoundation", "ios", "macos", avfoundation::AVFoundationCaptureDevice)
-);
+resolver_platform_2!((
+    avf,
+    "input-avfoundation",
+    "ios",
+    "macos",
+    avfoundation::AVFoundationCaptureDevice
+));
 
 resolver_cross_platform!(
-    (opencv, "input-opencv", opencv_backend::OpenCvCaptureDevice)
-    // TODO: wasm
+    (opencv, "input-opencv", opencv_backend::OpenCvCaptureDevice) // TODO: wasm
 );
 
 #[cfg(all(feature = "input-v4l", target_os = "linux"))]
@@ -140,6 +153,8 @@ pub use uvc_backend::UVCCaptureDevice;
 // #[cfg(feature = "input-jscam")]
 // #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
 // pub use browser_backend::BrowserCaptureDevice;
+#[cfg(feature = "input-jscam")]
+mod browser_camera;
 /// A camera that uses `OpenCV` to access IP (rtsp/http) on the local network
 // #[cfg(feature = "input-ipcam")]
 // #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-ipcam")))]
@@ -149,6 +164,7 @@ pub use uvc_backend::UVCCaptureDevice;
 // pub use network_camera::NetworkCamera;
 #[cfg(feature = "input-opencv")]
 mod opencv_backend;
+
 #[cfg(feature = "input-opencv")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-opencv")))]
 pub use opencv_backend::OpenCvCaptureDevice;
