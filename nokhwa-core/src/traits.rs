@@ -210,6 +210,7 @@ pub trait CaptureBackendTrait {
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
         });
 
         let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
