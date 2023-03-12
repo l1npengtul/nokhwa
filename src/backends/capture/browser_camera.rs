@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use js_sys::Array;
 use nokhwa_core::buffer::Buffer;
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::format_filter::FormatFilter;
@@ -8,9 +9,166 @@ use nokhwa_core::types::{
     ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
     KnownCameraControl, Resolution,
 };
+use wasm_bindgen_futures::JsFuture;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use web_sys::{CanvasRenderingContext2d, OffscreenCanvas};
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{
+    CanvasRenderingContext2d, Document, Element, MediaDevices, Navigator, OffscreenCanvas, Window, MediaStream, MediaStreamConstraints, HtmlCanvasElement, MediaDeviceInfo, MediaDeviceKind,
+};
+
+macro_rules! jsv {
+    ($value:expr) => {{
+        JsValue::from($value)
+    }};
+}
+
+macro_rules! obj {
+    ($(($key:expr, $value:expr)),+ ) => {{
+        use js_sys::{Map, Object};
+        use wasm_bindgen::JsValue;
+
+        let map = Map::new();
+        $(
+            map.set(&jsv!($key), &jsv!($value));
+        )+
+        Object::from(map)
+    }};
+    ($object:expr, $(($key:expr, $value:expr)),+ ) => {{
+        use js_sys::{Map, Object};
+        use wasm_bindgen::JsValue;
+
+        let map = Map::new();
+        $(
+            map.set(&jsv!($key), &jsv!($value));
+        )+
+        let o = Object::from(map);
+        Object::assign(&$object, &o)
+    }};
+}
+
+fn window() -> Result<Window, NokhwaError> {
+    match web_sys::window() {
+        Some(win) => Ok(win),
+        None => Err(NokhwaError::StructureError {
+            structure: "web_sys Window".to_string(),
+            error: "None".to_string(),
+        }),
+    }
+}
+
+fn media_devices(navigator: &Navigator) -> Result<MediaDevices, NokhwaError> {
+    match navigator.media_devices() {
+        Ok(media) => Ok(media),
+        Err(why) => Err(NokhwaError::StructureError {
+            structure: "MediaDevices".to_string(),
+            error: format!("{why:?}"),
+        }),
+    }
+}
+
+fn document(window: &Window) -> Result<Document, NokhwaError> {
+    match window.document() {
+        Some(doc) => Ok(doc),
+        None => Err(NokhwaError::StructureError {
+            structure: "web_sys Document".to_string(),
+            error: "None".to_string(),
+        }),
+    }
+}
+
+fn document_select_elem(doc: &Document, element: &str) -> Result<Element, NokhwaError> {
+    match doc.get_element_by_id(element) {
+        Some(elem) => Ok(elem),
+        None => {
+            return Err(NokhwaError::StructureError {
+                structure: format!("Document {element}"),
+                error: "None".to_string(),
+            })
+        }
+    }
+}
+
+fn element_cast<T: JsCast, U: JsCast>(from: T, name: &str) -> Result<U, NokhwaError> {
+    if !from.has_type::<U>() {
+        return Err(NokhwaError::StructureError {
+            structure: name.to_string(),
+            error: "Cannot Cast - No Subtype".to_string(),
+        });
+    }
+
+    let casted = match from.dyn_into::<U>() {
+        Ok(cast) => cast,
+        Err(_) => {
+            return Err(NokhwaError::StructureError {
+                structure: name.to_string(),
+                error: "Casting Error".to_string(),
+            });
+        }
+    };
+    Ok(casted)
+}
+
+fn element_cast_ref<'a, T: JsCast, U: JsCast>(
+    from: &'a T,
+    name: &'a str,
+) -> Result<&'a U, NokhwaError> {
+    if !from.has_type::<U>() {
+        return Err(NokhwaError::StructureError {
+            structure: name.to_string(),
+            error: "Cannot Cast - No Subtype".to_string(),
+        });
+    }
+
+    match from.dyn_ref::<U>() {
+        Some(v_e) => Ok(v_e),
+        None => Err(NokhwaError::StructureError {
+            structure: name.to_string(),
+            error: "Cannot Cast".to_string(),
+        }),
+    }
+}
+
+fn create_element(doc: &Document, element: &str) -> Result<Element, NokhwaError> {
+    match Document::create_element(doc, element) {
+        // ???? thank you intellij
+        Ok(new_element) => Ok(new_element),
+        Err(why) => Err(NokhwaError::StructureError {
+            structure: "Document Video Element".to_string(),
+            error: format!("{:?}", why.as_string()),
+        }),
+    }
+}
+
+fn set_autoplay_inline(element: &Element) -> Result<(), NokhwaError> {
+    if let Err(why) = element.set_attribute("autoplay", "autoplay") {
+        return Err(NokhwaError::SetPropertyError {
+            property: "Video-autoplay".to_string(),
+            value: "autoplay".to_string(),
+            error: format!("{why:?}"),
+        });
+    }
+
+    if let Err(why) = element.set_attribute("playsinline", "playsinline") {
+        return Err(NokhwaError::SetPropertyError {
+            property: "Video-playsinline".to_string(),
+            value: "playsinline".to_string(),
+            error: format!("{why:?}"),
+        });
+    }
+
+    Ok(())
+}
+
+fn media_devices(navigator: &Navigator) -> Result<MediaDevices, NokhwaError> {
+    match navigator.media_devices() {
+        Ok(media) => Ok(media),
+        Err(why) => Err(NokhwaError::StructureError {
+            structure: "MediaDevices".to_string(),
+            error: format!("{why:?}"),
+        }),
+    }
+}
 
 #[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 enum JSCameraFacingMode {
@@ -42,6 +200,11 @@ struct CustomControls {
     pub(crate) group_id_exact: bool,
 }
 
+enum CanvasType {
+    OffScreen(OffscreenCanvas),
+    HtmlCanvas(HtmlCanvasElement),
+}
+
 /// Quirks:
 /// - Regular [`CaptureTrait`] will block. Use [``]
 /// - [REQUIRES AN UP-TO-DATE BROWSER DUE TO USE OF OFFSCREEN CANVAS.](https://caniuse.com/?search=OffscreenCanvas)
@@ -52,15 +215,45 @@ pub struct BrowserCamera {
     format: CameraFormat,
     init: bool,
     controls: CustomControls,
-    cavnas: Option<OffscreenCanvas>,
+    cavnas: Option<CanvasType>,
     context: Option<CanvasRenderingContext2d>,
 }
 
 impl BrowserCamera {
-    pub fn new(index: &CameraIndex) -> Result<BrowserCamera> {}
+    pub fn new(index: &CameraIndex) -> Result<BrowserCamera, NokhwaError> {}
 
-    pub async fn new_async(index: &CameraIndex) -> Result<BrowserCamera> {
-        //
+    pub async fn new_async(index: &CameraIndex) -> Result<BrowserCamera, NokhwaError> {
+        let window = window()?;
+        let media_devices = media_devices(&window.navigator())?;
+
+        let stream: MediaStream = match media_devices.get_user_media_with_constraints(&constraints)
+        {
+            Ok(promise) => {
+                let future = JsFuture::from(promise);
+                match future.await {
+                    Ok(stream) => {
+                        let media_stream: MediaStream = MediaStream::from(stream);
+                        media_stream
+                    }
+                    Err(why) => {
+                        return Err(NokhwaError::StructureError {
+                            structure: "MediaDevicesGetUserMediaJsFuture".to_string(),
+                            error: format!("{why:?}"),
+                        })
+                    }
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::StructureError {
+                    structure: "MediaDevicesGetUserMedia".to_string(),
+                    error: format!("{why:?}"),
+                })
+            }
+        };
+
+
+        
+        
     }
 }
 

@@ -1200,10 +1200,10 @@ impl Display for ApiBackend {
 #[cfg(all(feature = "mjpeg", not(target_arch = "wasm")))]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
 #[inline]
-fn decompress(
-    data: impl AsRef<[u8]>,
+fn decompress<'a>(
+    data: &'a [u8],
     rgba: bool,
-) -> Result<mozjpeg::decompress::DecompressStarted, NokhwaError> {
+) -> Result<mozjpeg::decompress::DecompressStarted<'a>, NokhwaError> {
     use mozjpeg::Decompress;
 
     match Decompress::new_mem(data) {
@@ -1244,8 +1244,6 @@ fn decompress(
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
 #[inline]
 pub fn mjpeg_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
-    use mozjpeg::Decompress;
-
     let mut jpeg_decompress = decompress(data, rgba)?;
 
     let scanlines_res: Option<Vec<u8>> = jpeg_decompress.read_scanlines_flat();
@@ -1282,8 +1280,6 @@ pub fn mjpeg_to_rgb(_data: &[u8], _rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "mjpeg")))]
 #[inline]
 pub fn buf_mjpeg_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
-    use mozjpeg::Decompress;
-
     let mut jpeg_decompress = decompress(data, rgba)?;
 
     // assert_eq!(dest.len(), jpeg_decompress.min_flat_buffer_size());
@@ -1347,7 +1343,7 @@ pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<()
     let mut buf:Vec<u8> = Vec::new();
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::YUV422,
+            src: FrameFormat::Yuv422.into(),
             destination: "RGB888".to_string(),
             error: "Assertion failure, the YUV stream isn't 4:2:2! (wrong number of bytes)"
                 .to_string(),

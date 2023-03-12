@@ -53,14 +53,52 @@ fn status_avfoundation() -> bool {
     )
 }
 
+#[cfg(feature = "input-jscam")]
+pub async fn request_permission() -> Result<(), NokhwaError> {
+    let window: Window = window()?;
+    let navigator = window.navigator();
+    let media_devices = media_devices(&navigator)?;
+
+    match media_devices.get_user_media_with_constraints(
+        MediaStreamConstraints::new()
+            .video(&JsValue::from_bool(true))
+            .audio(&JsValue::from_bool(false)),
+    ) {
+        Ok(promise) => {
+            let js_future = JsFuture::from(promise);
+            match js_future.await {
+                Ok(stream) => {
+                    let media_stream = MediaStream::from(stream);
+                    media_stream
+                        .get_tracks()
+                        .iter()
+                        .for_each(|track| MediaStreamTrack::from(track).stop());
+                    Ok(())
+                }
+                Err(why) => Err(NokhwaError::OpenStreamError(format!("{why:?}"))),
+            }
+        }
+        Err(why) => Err(NokhwaError::StructureError {
+            structure: "UserMediaPermission".to_string(),
+            error: format!("{why:?}"),
+        }),
+    }
+}
+
+#[cfg(not(feature = "input-jscam"))]
+pub async fn request_permission() -> Result<(), NokhwaError> {
+    Ok(())
+}
+
 // todo: make this work on browser code
 /// Initialize `nokhwa`
 /// It is your responsibility to call this function before anything else, but only on `MacOS`.
 ///
 /// The `on_complete` is called after initialization (a.k.a User granted permission). The callback's argument
 /// is weather the initialization was successful or not
-pub fn nokhwa_initialize(on_complete: impl Fn(bool) + Send + Sync + 'static) {
+pub fn nokhwa_initialize_callback(on_complete: impl Fn(bool) + Send + Sync + 'static) {
     init_avfoundation(on_complete);
+    // TODO: implement initialization
 }
 
 /// Check the status if `nokhwa`

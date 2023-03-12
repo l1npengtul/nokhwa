@@ -146,31 +146,31 @@ fn format_fulfill(
 
     match filter.filter_pref {
         RequestedFormatType::AbsoluteHighestResolution => {
-            let mut sources = sources.collect::<Vec<CameraFormat>>();
+            let mut sources = sources.collect::<Vec<&CameraFormat>>();
             sources.sort_by(|a, b| a.resolution().cmp(&b.resolution()));
-            sources.last().map(|x| *x)
+            sources.last().copied().copied()
         }
         RequestedFormatType::AbsoluteHighestFrameRate => {
-            let mut sources = sources.collect::<Vec<CameraFormat>>();
+            let mut sources = sources.collect::<Vec<&CameraFormat>>();
             sources.sort_by(|a, b| a.frame_rate().cmp(&b.frame_rate()));
-            sources.last().map(|x| *x)
+            sources.last().copied().copied()
         }
         RequestedFormatType::HighestResolution(filter_fps) => {
             let mut sources = sources
                 .filter(|format| format.frame_rate() == filter_fps)
-                .collect::<Vec<CameraFormat>>();
+                .collect::<Vec<&CameraFormat>>();
             sources.sort();
-            sources.last().map(|x| *x)
+            sources.last().copied().copied()
         }
         RequestedFormatType::HighestFrameRate(filter_res) => {
             let mut sources = sources
                 .filter(|format| format.resolution() == filter_res)
-                .collect::<Vec<CameraFormat>>();
+                .collect::<Vec<&CameraFormat>>();
             sources.sort();
-            sources.last().map(|x| *x)
+            sources.last().copied().copied()
         }
         RequestedFormatType::Exact(exact) => {
-            sources.filter(|format| format == exact).last().map(|x| *x)
+            sources.filter(|format| format == &&exact).last().copied()
         }
         RequestedFormatType::Closest(closest) => {
             let mut sources = sources
@@ -180,7 +180,7 @@ fn format_fulfill(
                 })
                 .collect::<Vec<(f64, CameraFormat)>>();
             sources.sort_by(|a, b| a.0.total_cmp(&b.0));
-            sources.first().map(|x| *x)
+            sources.first().copied().map(|(_, cf)| cf)
         }
         RequestedFormatType::ClosestGreater(closest) => {
             let mut sources = sources
@@ -194,7 +194,7 @@ fn format_fulfill(
                 })
                 .collect::<Vec<(f64, CameraFormat)>>();
             sources.sort_by(|a, b| a.0.total_cmp(&b.0));
-            sources.first().map(|x| *x)
+            sources.first().copied().map(|(_, cf)| cf)
         }
         RequestedFormatType::ClosestLess(closest) => {
             let mut sources = sources
@@ -208,7 +208,7 @@ fn format_fulfill(
                 })
                 .collect::<Vec<(f64, CameraFormat)>>();
             sources.sort_by(|a, b| a.0.total_cmp(&b.0));
-            sources.first().map(|x| *x)
+            sources.first().copied().map(|(_, cf)| cf)
         }
         RequestedFormatType::None => sources.nth(0).map(|x| *x),
     }
@@ -223,5 +223,5 @@ fn distance_3d_camerafmt_relative(a: CameraFormat, b: CameraFormat) -> f64 {
     let y = res_y_diff.pow(2) as f64;
     let z = fps_diff.pow(2) as f64;
 
-    (x + y + z)
+    x + y + z
 }

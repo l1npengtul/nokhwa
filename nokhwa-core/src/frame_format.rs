@@ -79,8 +79,6 @@ impl FrameFormat {
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
-        FrameFormat::Imc2,
-        FrameFormat::Imc4,
         FrameFormat::Luma8,
         FrameFormat::Rgb8,
         FrameFormat::RgbA8,
@@ -106,8 +104,6 @@ impl FrameFormat {
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
-        FrameFormat::Imc2,
-        FrameFormat::Imc4,
     ];
 
     pub const LUMA: &'static [FrameFormat] = &[FrameFormat::Luma8];
@@ -161,12 +157,6 @@ impl From<PlatformFrameFormat> for (ApiBackend, u128) {
 impl PartialEq<(ApiBackend, u128)> for PlatformFrameFormat {
     fn eq(&self, other: &(ApiBackend, u128)) -> bool {
         &self.as_tuple() == other
-    }
-}
-
-impl AsRef<(ApiBackend, u128)> for PlatformFrameFormat {
-    fn as_ref(&self) -> &(ApiBackend, u128) {
-        &self.as_tuple()
     }
 }
 

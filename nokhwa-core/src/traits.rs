@@ -18,7 +18,7 @@ use crate::{
     buffer::Buffer,
     error::NokhwaError,
     format_filter::FormatFilter,
-    frame_format::{FrameFormat, SourceFrameFormat},
+    frame_format::SourceFrameFormat,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
         KnownCameraControl, Resolution,
@@ -126,7 +126,7 @@ pub trait CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    fn set_frame_format(&mut self, fourcc: impl Into<SourceFrameFormat>)
+    fn set_frame_format(&mut self, fourcc: SourceFrameFormat)
         -> Result<(), NokhwaError>;
 
     /// Gets the value of [`KnownCameraControl`].
@@ -294,7 +294,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     async fn set_frame_format(
         &mut self,
-        fourcc: impl Into<SourceFrameFormat>,
+        fourcc: SourceFrameFormat,
     ) -> Result<(), NokhwaError>;
 
     /// Sets the control to `control` in the camera.
@@ -332,6 +332,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     async fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
 
+#[cfg(feature = "async")]
 impl<T> From<T> for Box<dyn AsyncCaptureTrait>
 where
     T: AsyncCaptureTrait + 'static,
