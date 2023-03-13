@@ -77,6 +77,7 @@ impl FormatDecoder for RgbFormat {
                 .collect()),
             FrameFormat::RAWRGB => Ok(data.to_vec()),
             FrameFormat::NV12 => nv12_to_rgb(resolution, data, false),
+            FrameFormat::L8 => panic!("Unsupported conversion from L8 to RGB"),
         }
     }
 
@@ -112,6 +113,7 @@ impl FormatDecoder for RgbFormat {
                 Ok(())
             }
             FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, false),
+            FrameFormat::L8 => panic!("Unsupported conversion from L8 to RGB"),
         }
     }
 }
@@ -151,6 +153,7 @@ impl FormatDecoder for RgbAFormat {
                 .flat_map(|x| [x[0], x[1], x[2], 255])
                 .collect()),
             FrameFormat::NV12 => nv12_to_rgb(resolution, data, true),
+            FrameFormat::L8 => panic!("Unsupported conversion from L8 to RGBA"),
         }
     }
 
@@ -194,6 +197,7 @@ impl FormatDecoder for RgbAFormat {
                 Ok(())
             }
             FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, true),
+            FrameFormat::L8 => panic!("Unsupported conversion from L8 to RGB"),
         }
     }
 }
@@ -253,6 +257,7 @@ impl FormatDecoder for LumaFormat {
                 .chunks(3)
                 .map(|px| ((i32::from(px[0]) + i32::from(px[1]) + i32::from(px[2])) / 3) as u8)
                 .collect()),
+            FrameFormat::L8 => Ok(data.to_vec()),
         }
     }
 
@@ -273,7 +278,7 @@ impl FormatDecoder for LumaFormat {
                 })
             }
 
-            FrameFormat::GRAY => {
+            FrameFormat::GRAY | FrameFormat::L8 => {
                 data.iter().zip(dest.iter_mut()).for_each(|(pxv, d)| {
                     *d = *pxv;
                 });
@@ -337,7 +342,7 @@ impl FormatDecoder for LumaAFormat {
                     [(avg / 3) as u8, 255]
                 })
                 .collect()),
-            FrameFormat::GRAY => Ok(data.iter().flat_map(|x| [*x, 255]).collect()),
+            FrameFormat::GRAY | FrameFormat::L8 => Ok(data.iter().flat_map(|x| [*x, 255]).collect()),
             FrameFormat::RAWRGB => Err(NokhwaError::ProcessFrameError {
                 src: fcc,
                 destination: "RGB => RGB".to_string(),
@@ -372,7 +377,7 @@ impl FormatDecoder for LumaAFormat {
                 destination: "NV12 => LumaA".to_string(),
                 error: "Conversion Error".to_string(),
             }),
-            FrameFormat::GRAY => {
+            FrameFormat::GRAY | FrameFormat::L8 => {
                 if dest.len() != data.len() * 2 {
                     return Err(NokhwaError::ProcessFrameError {
                         src: fcc,

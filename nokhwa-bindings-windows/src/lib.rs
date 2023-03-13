@@ -35,6 +35,7 @@ pub mod wmf {
         ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
     };
     use once_cell::sync::Lazy;
+    use windows::Win32::Media::KernelStreaming::KSCATEGORY_SENSOR_CAMERA;
     use std::ffi::c_void;
     use std::{
         borrow::Cow,
@@ -48,7 +49,7 @@ pub mod wmf {
     };
     use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
     use windows::Win32::Media::MediaFoundation::{
-        IMFMediaType, MFCreateSample, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+        IMFMediaType, MFCreateSample, MF_SOURCE_READER_FIRST_VIDEO_STREAM, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY,
     };
     use windows::{
         core::{Interface, GUID, PWSTR},
@@ -117,6 +118,12 @@ pub mod wmf {
         0x0010,
         [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
     );
+    const MF_VIDEO_FORMAT_L8: GUID = GUID::from_values(
+        0x0000_0032,
+        0x0000,
+        0x0010,
+        [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+    );
 
     const MEDIA_FOUNDATION_FIRST_VIDEO_STREAM: u32 = 0xFFFF_FFFC;
     const MF_SOURCE_READER_MEDIASOURCE: u32 = 0xFFFF_FFFF;
@@ -169,6 +176,7 @@ pub mod wmf {
             MF_VIDEO_FORMAT_GRAY => Some(FrameFormat::GRAY),
             MF_VIDEO_FORMAT_YUY2 => Some(FrameFormat::YUYV),
             MF_VIDEO_FORMAT_MJPEG => Some(FrameFormat::MJPEG),
+            MF_VIDEO_FORMAT_L8 => Some(FrameFormat::L8),
             _ => None,
         }
     }
@@ -180,6 +188,7 @@ pub mod wmf {
             FrameFormat::NV12 => MF_VIDEO_FORMAT_NV12,
             FrameFormat::GRAY => MF_VIDEO_FORMAT_GRAY,
             FrameFormat::RAWRGB => MF_VIDEO_FORMAT_RGB24,
+            FrameFormat::L8 => MF_VIDEO_FORMAT_L8,
         }
     }
 
@@ -227,6 +236,16 @@ pub mod wmf {
     fn query_activate_pointers() -> Result<Vec<IMFActivate>, NokhwaError> {
         initialize_mf()?;
 
+        let mut devices = query_activate_pointers_internal(false)?;
+        let mut sensors = query_activate_pointers_internal(true)?;
+
+        devices.append(&mut sensors);
+        Ok(devices)
+    }
+
+    fn query_activate_pointers_internal(
+        include_sensors: bool,
+    ) -> Result<Vec<IMFActivate>, NokhwaError> {
         let mut attributes: Option<IMFAttributes> = None;
         if let Err(why) = unsafe { MFCreateAttributes(&mut attributes, 1) } {
             return Err(NokhwaError::GetPropertyError {
@@ -249,6 +268,23 @@ pub mod wmf {
                         error: why.to_string(),
                     });
                 }
+
+                if include_sensors {
+                    if let Err(why) = unsafe {
+                        attr.SetGUID(
+                            &MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY,
+                            &KSCATEGORY_SENSOR_CAMERA,
+                        )
+                    } {
+                        return Err(NokhwaError::SetPropertyError {
+                            property: "GUID MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY"
+                                .to_string(),
+                            value: "KSCATEGORY_SENSOR_CAMERA".to_string(),
+                            error: why.to_string(),
+                        });
+                    }
+                }
+
                 attr
             }
             None => {
@@ -569,6 +605,8 @@ pub mod wmf {
                 self.source_reader
                     .GetNativeMediaType(MEDIA_FOUNDATION_FIRST_VIDEO_STREAM, index)
             } {
+                index += 1;
+
                 let fourcc = match unsafe { media_type.GetGUID(&MF_MT_SUBTYPE) } {
                     Ok(fcc) => fcc,
                     Err(why) => {
@@ -651,8 +689,6 @@ pub mod wmf {
                         ));
                     }
                 }
-
-                index += 1;
             }
             Ok(camera_format_list)
         }

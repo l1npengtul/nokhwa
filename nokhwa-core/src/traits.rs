@@ -173,7 +173,7 @@ pub trait CaptureBackendTrait {
         let resolution = cfmt.resolution();
         let pxwidth = match cfmt.format() {
             FrameFormat::MJPEG | FrameFormat::YUYV | FrameFormat::RAWRGB | FrameFormat::NV12 => 3,
-            FrameFormat::GRAY => 1,
+            FrameFormat::GRAY | FrameFormat::L8 => 1,
         };
         if alpha {
             return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;

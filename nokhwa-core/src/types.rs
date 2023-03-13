@@ -299,6 +299,7 @@ pub enum FrameFormat {
     NV12,
     GRAY,
     RAWRGB,
+    L8,
 }
 
 impl Display for FrameFormat {
@@ -319,6 +320,7 @@ impl Display for FrameFormat {
             FrameFormat::NV12 => {
                 write!(f, "NV12")
             }
+            FrameFormat::L8 => write!(f, "L8"),
         }
     }
 }
@@ -332,6 +334,7 @@ impl FromStr for FrameFormat {
             "GRAY" => Ok(FrameFormat::GRAY),
             "RAWRGB" => Ok(FrameFormat::RAWRGB),
             "NV12" => Ok(FrameFormat::NV12),
+            "L8" => Ok(FrameFormat::L8),
             _ => Err(NokhwaError::StructureError {
                 structure: "FrameFormat".to_string(),
                 error: format!("No match for {s}"),
@@ -349,6 +352,7 @@ pub const fn frame_formats() -> &'static [FrameFormat] {
         FrameFormat::NV12,
         FrameFormat::GRAY,
         FrameFormat::RAWRGB,
+        FrameFormat::L8,
     ]
 }
 
