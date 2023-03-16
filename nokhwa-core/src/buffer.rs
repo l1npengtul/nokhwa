@@ -63,88 +63,153 @@ impl Buffer {
     pub fn source_frame_format(&self) -> SourceFrameFormat {
         self.source_frame_format
     }
+}
 
-    // /// Decodes a image with allocation using the provided [`FormatDecoder`].
-    // /// # Errors
-    // /// Will error when the decoding fails.
-    // #[inline]
-    // pub fn decode_image<F: FormatDecoder>(
-    //     &self,
-    // ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
-    //     let new_data = F::write_output(self.source_frame_format, self.resolution, &self.buffer)?;
-    //     let image =
-    //         ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
-    //             .ok_or(NokhwaError::ProcessFrameError {
-    //                 src: self.source_frame_format,
-    //                 destination: stringify!(F).to_string(),
-    //                 error: "Failed to create buffer".to_string(),
-    //             })?;
-    //     Ok(image)
-    // }
-    //
-    // /// Decodes a image with allocation using the provided [`FormatDecoder`] into a `buffer`.
-    // /// # Errors
-    // /// Will error when the decoding fails, or the provided buffer is too small.
-    // #[inline]
-    // pub fn decode_image_to_buffer<F: FormatDecoder>(
-    //     &self,
-    //     buffer: &mut [u8],
-    // ) -> Result<(), NokhwaError> {
-    //     F::write_output_buffer(
-    //         self.source_frame_format,
-    //         self.resolution,
-    //         &self.buffer,
-    //         buffer,
-    //     )
-    // }
-    // /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
-    // ///
-    // /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_opencv_mat`](Self::decode_opencv_mat).
-    // /// # Errors
-    // /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
-    // /// # Safety
-    // /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
-    // ///
-    // /// Most notably, the `data` **must** stay in scope for the duration of the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html) or bad, ***bad*** things happen.
-    // #[cfg(feature = "opencv-mat")]
-    // #[cfg_attr(feature = "docs-features", doc(cfg(feature = "opencv-mat")))]
-    // #[allow(clippy::cast_possible_wrap)]
-    // pub fn decode_opencv_mat<F: FormatDecoder>(
-    //     &mut self,
-    // ) -> Result<opencv::core::Mat, NokhwaError> {
-    //     use image::Pixel;
-    //     use opencv::core::{Mat, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
-    //
-    //     let array_type = match F::Output::CHANNEL_COUNT {
-    //         1 => CV_8UC1,
-    //         2 => CV_8UC2,
-    //         3 => CV_8UC3,
-    //         4 => CV_8UC4,
-    //         _ => {
-    //             return Err(NokhwaError::ProcessFrameError {
-    //                 src: FrameFormat::RAWRGB,
-    //                 destination: "OpenCV Mat".to_string(),
-    //                 error: "Invalid Decoder FormatDecoder Channel Count".to_string(),
-    //             })
-    //         }
-    //     };
-    //
-    //     unsafe {
-    //         // TODO: Look into removing this unnecessary copy.
-    //         let mat1 = Mat::new_rows_cols_with_data(
-    //             self.resolution.height_y as i32,
-    //             self.resolution.width_x as i32,
-    //             array_type,
-    //             self.buffer.as_ref().as_ptr().cast_mut().cast(),
-    //             Mat_AUTO_STEP,
-    //         )
-    //         .map_err(|why| NokhwaError::ProcessFrameError {
-    //             src: FrameFormat::RAWRGB,
-    //             destination: "OpenCV Mat".to_string(),
-    //             error: why.to_string(),
-    //         })?;
-    //
-    //         Ok(mat1)
-    //     }
-    // }
+#[cfg(feature = "opencv-mat")]
+impl Buffer {
+    /// Decodes a image with allocation using the provided [`FormatDecoder`].
+    /// # Errors
+    /// Will error when the decoding fails.
+    #[inline]
+    pub fn decode_image<F: FormatDecoder>(
+        &self,
+    ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
+        let new_data = F::write_output(self.source_frame_format, self.resolution, &self.buffer)?;
+        let image =
+            ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
+                .ok_or(NokhwaError::ProcessFrameError {
+                    src: self.source_frame_format,
+                    destination: stringify!(F).to_string(),
+                    error: "Failed to create buffer".to_string(),
+                })?;
+        Ok(image)
+    }
+    
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a `buffer`.
+    /// # Errors
+    /// Will error when the decoding fails, or the provided buffer is too small.
+    #[inline]
+    pub fn decode_image_to_buffer<F: FormatDecoder>(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        F::write_output_buffer(
+            self.source_frame_format,
+            self.resolution,
+            &self.buffer,
+            buffer,
+        )
+    }
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    ///
+    /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_opencv_mat`](Self::decode_opencv_mat).
+    /// # Errors
+    /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    /// # Safety
+    /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
+    ///
+    /// Most notably, the `data` **must** stay in scope for the duration of the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html) or bad, ***bad*** things happen.
+    #[cfg(feature = "opencv-mat")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "opencv-mat")))]
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn decode_opencv_mat<F: FormatDecoder>(
+        &mut self,
+    ) -> Result<opencv::core::Mat, NokhwaError> {
+        use image::Pixel;
+        use opencv::core::{Mat, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
+    
+        let array_type = match F::Output::CHANNEL_COUNT {
+            1 => CV_8UC1,
+            2 => CV_8UC2,
+            3 => CV_8UC3,
+            4 => CV_8UC4,
+            _ => {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Invalid Decoder FormatDecoder Channel Count".to_string(),
+                })
+            }
+        };
+    
+        unsafe {
+            // TODO: Look into removing this unnecessary copy.
+            let mat1 = Mat::new_rows_cols_with_data(
+                self.resolution.height_y as i32,
+                self.resolution.width_x as i32,
+                array_type,
+                self.buffer.as_ref().as_ptr().cast_mut().cast(),
+                Mat_AUTO_STEP,
+            )
+            .map_err(|why| NokhwaError::ProcessFrameError {
+                src: FrameFormat::RAWRGB,
+                destination: "OpenCV Mat".to_string(),
+                error: why.to_string(),
+            })?;
+    
+            Ok(mat1)
+        }
+    }
+}
+
+#[cfg(feature = "wgpu-types")]
+impl Buffer {
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "wgpu-types")))]
+    /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
+    /// # Errors
+    /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
+    fn frame_texture<'a>(
+        &mut self,
+        device: &WgpuDevice,
+        queue: &WgpuQueue,
+        label: Option<&'a str>,
+    ) -> Result<WgpuTexture, NokhwaError> {
+        use crate::pixel_format::RgbAFormat;
+        use std::num::NonZeroU32;
+        let frame = self.frame()?.decode_image::<RgbAFormat>()?;
+    
+        let texture_size = Extent3d {
+            width: frame.width(),
+            height: frame.height(),
+            depth_or_array_layers: 1,
+        };
+    
+        let texture = device.create_texture(&TextureDescriptor {
+            label,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+        });
+    
+        let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
+            Ok(w) => Some(w),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+        };
+    
+        let height_nonzero = match NonZeroU32::try_from(frame.height()) {
+            Ok(h) => Some(h),
+            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
+        };
+    
+        queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            },
+            &frame,
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: width_nonzero,
+                rows_per_image: height_nonzero,
+            },
+            texture_size,
+        );
+    
+        Ok(texture)
+    }
 }

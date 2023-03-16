@@ -251,16 +251,16 @@ where
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait AsyncCaptureTrait: CaptureTrait {
     /// Initialize the camera, preparing it for use, with a random format (usually the first one).
-    async fn init(&mut self) -> Result<(), NokhwaError>;
+    async fn init_async(&mut self) -> Result<(), NokhwaError>;
 
     /// Initialize the camera, preparing it for use, with a format that fits the supplied [`FormatFilter`].
-    async fn init_with_format(&mut self, format: FormatFilter)
+    async fn init_with_format_async(&mut self, format: FormatFilter)
         -> Result<CameraFormat, NokhwaError>;
 
     /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
     /// # Errors
     /// If the camera can not get its most recent [`CameraFormat`]. this will error.
-    async fn refresh_camera_format(&mut self) -> Result<(), NokhwaError>;
+    async fn refresh_camera_format_async(&mut self) -> Result<(), NokhwaError>;
 
     /// Will set the current [`CameraFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -268,7 +268,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
-    async fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
+    async fn set_camera_format_async(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -276,7 +276,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new resolution, this will return an error.
-    async fn set_resolution(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
+    async fn set_resolution_async(&mut self, new_res: Resolution) -> Result<(), NokhwaError>;
 
     /// Will set the current framerate
     /// This will reset the current stream if used while stream is opened.
@@ -284,7 +284,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
-    async fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
+    async fn set_frame_rate_async(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -292,7 +292,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    async fn set_frame_format(
+    async fn set_frame_format_async(
         &mut self,
         fourcc: SourceFrameFormat,
     ) -> Result<(), NokhwaError>;
@@ -303,7 +303,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.
-    async fn set_camera_control(
+    async fn set_camera_control_async(
         &mut self,
         id: KnownCameraControl,
         value: ControlValueSetter,
@@ -312,24 +312,24 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](CaptureTrait::frame()) before you call [`open_stream()`](CaptureTrait::open_stream()).
     /// # Errors
     /// If the specific backend fails to open the camera (e.g. already taken, busy, doesn't exist anymore) this will error.
-    async fn open_stream(&mut self) -> Result<(), NokhwaError>;
+    async fn open_stream_async(&mut self) -> Result<(), NokhwaError>;
 
     /// Will get a frame from the camera as a [`Buffer`]. Depending on the backend, if you have not called [`open_stream()`](CaptureTrait::open_stream()) before you called this,
     /// it will either return an error.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), the decoding fails (e.g. MJPEG -> u8), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet,
     /// this will error.
-    async fn frame(&mut self) -> Result<Buffer, NokhwaError>;
+    async fn frame_async(&mut self) -> Result<Buffer, NokhwaError>;
 
     /// Will get a frame from the camera **without** any processing applied, meaning you will usually get a frame you need to decode yourself.
     /// # Errors
     /// If the backend fails to get the frame (e.g. already taken, busy, doesn't exist anymore), or [`open_stream()`](CaptureTrait::open_stream()) has not been called yet, this will error.
-    async fn frame_raw(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
+    async fn frame_raw_async(&mut self) -> Result<Cow<[u8]>, NokhwaError>;
 
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
-    async fn stop_stream(&mut self) -> Result<(), NokhwaError>;
+    async fn stop_stream_async(&mut self) -> Result<(), NokhwaError>;
 }
 
 #[cfg(feature = "async")]
@@ -339,6 +339,34 @@ where
 {
     fn from(backend: T) -> Self {
         Box::new(backend)
+    }
+}
+
+pub trait OneShot: CaptureTrait {
+    fn one_shot(&mut self) -> Result<Buffer, NokhwaError> {
+        if self.is_stream_open() {
+            self.frame()
+        } else {
+            self.open_stream()?;
+            let frame = self.frame()?;
+            self.stop_stream()?;
+            Ok(frame)
+        }
+    }
+}
+
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+pub trait AsyncOneShot: AsyncCaptureTrait {
+    async fn one_shot(&mut self) -> Result<Buffer, NokhwaError> {
+        if self.is_stream_open() {
+            self.frame_async().await
+        } else {
+            self.open_stream_async().await?;
+            let frame = self.frame_async().await?;
+            self.stop_stream_async().await?;
+            Ok(frame)
+        }
     }
 }
 

@@ -29,12 +29,15 @@ pub enum RequestedFormatType {
     None,
 }
 
+// TODO: Format Filter Builder to provide more interactive API for fulfillment of formats. 
+
 /// How you get your [`FrameFormat`] from the
 #[derive(Clone, Debug)]
 pub struct FormatFilter {
     filter_pref: RequestedFormatType,
     fcc_primary: BTreeSet<FrameFormat>,
     fcc_platform: BTreeMap<ApiBackend, BTreeSet<u128>>,
+    
 }
 
 impl FormatFilter {
@@ -128,7 +131,7 @@ impl Default for FormatFilter {
     }
 }
 
-fn format_fulfill(
+pub fn format_fulfill(
     sources: impl AsRef<[CameraFormat]>,
     filter: FormatFilter,
 ) -> Option<CameraFormat> {

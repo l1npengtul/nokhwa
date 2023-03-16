@@ -12,6 +12,7 @@ use nokhwa_core::types::{
 use wasm_bindgen_futures::JsFuture;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::future::Future;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
     CanvasRenderingContext2d, Document, Element, MediaDevices, Navigator, OffscreenCanvas, Window, MediaStream, MediaStreamConstraints, HtmlCanvasElement, MediaDeviceInfo, MediaDeviceKind,
@@ -205,6 +206,8 @@ enum CanvasType {
     HtmlCanvas(HtmlCanvasElement),
 }
 
+
+
 /// Quirks:
 /// - Regular [`CaptureTrait`] will block. Use [``]
 /// - [REQUIRES AN UP-TO-DATE BROWSER DUE TO USE OF OFFSCREEN CANVAS.](https://caniuse.com/?search=OffscreenCanvas)
@@ -220,7 +223,9 @@ pub struct BrowserCamera {
 }
 
 impl BrowserCamera {
-    pub fn new(index: &CameraIndex) -> Result<BrowserCamera, NokhwaError> {}
+    pub fn new(index: &CameraIndex) -> Result<BrowserCamera, NokhwaError> {
+        wasm_rs_async_executor::single_threaded::block_on(Self::new_async(index))
+    }
 
     pub async fn new_async(index: &CameraIndex) -> Result<BrowserCamera, NokhwaError> {
         let window = window()?;
@@ -236,24 +241,87 @@ impl BrowserCamera {
                         media_stream
                     }
                     Err(why) => {
-                        return Err(NokhwaError::StructureError {
-                            structure: "MediaDevicesGetUserMediaJsFuture".to_string(),
-                            error: format!("{why:?}"),
-                        })
+                        return Err(NokhwaError::OpenDeviceError(
+                            "MediaDevicesGetUserMediaJsFuture".to_string(), format!("{why:?}"),
+                        ))
                     }
                 }
             }
             Err(why) => {
-                return Err(NokhwaError::StructureError {
-                    structure: "MediaDevicesGetUserMedia".to_string(),
-                    error: format!("{why:?}"),
-                })
+                return Err(NokhwaError::OpenDeviceError(
+                    "MediaDevicesGetUserMedia".to_string(), format!("{why:?}"),
+                ))
             }
         };
 
+        let media_info = match media_devices.enumerate_devices() {
+            Ok(i) => {
+                let future = JsFuture::from(promise);
+                match future.await {
+                    Ok(devs) => {
+                        let arr = Array::from(&devs);
+                        match index {
+                            CameraIndex::Index(i) => {
+                                let dr = arr.get(i as u32);
 
+                                if dr == JsValue::UNDEFINED {
+                                    return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo".to_string(), error: "undefined".to_string() })
+                                }
+
+                                MediaDeviceInfo::from(dr)
+                            }
+                            CameraIndex::String(s) => {
+                                match arr.iter().map(MediaDeviceInfo::from)
+                                .filter(|mdi| {
+                                    mdi.device_id() == s
+                                }).nth(0) {
+                                    Some(i) => i,
+                                    None => return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo".to_string(), error: "no id".to_string() })
+
+                                }
+                            }
+                        }
+                    }
+                    Err(why) => {
+                        return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo Enumerate Devices Promise".to_string(), error: format!("{why:?}") })
+                    }
+                }
+            }
+            Err(why) => {
+                return Err(NokhwaError::GetPropertyError { property: "MediaDeviceInfo".to_string(), error: format!("{why:?}") })
+            },
+        };
+
+        let info = CameraInfo {
+            human_name: media_info.label(),
+            description: "videoinfo".to_string(),
+            misc: media_info.device_id(),
+            index: index.clone(),
+        };
+
+        let controls = CustomControls { 
+            min_aspect_ratio: None,
+            aspect_ratio: 0.00,
+            max_aspect_ratio: None,
+            facing_mode: JSCameraFacingMode::Any,
+            facing_mode_exact: false,
+            resize_mode: JSCameraResizeMode::None,
+            resize_mode_exact: false,
+            device_id: media_info.device_id(), 
+            device_id_exact: true,
+            group_id: media_info.group_id(), 
+            group_id_exact: true, 
+        };
         
+        Ok(BrowserCamera { index:  index.clone(), info, format: CameraFormat::default(), init: false, controls, cavnas: None, context: None })
+    }
+
+    async fn measure_controls(&mut self) -> Result<(), NokhwaError> {
         
+    }
+
+    async fn measure_info(&mut self) -> Result<(), NokhwaError> {
+        todo!()
     }
 }
 
