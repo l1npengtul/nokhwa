@@ -140,8 +140,5 @@ optional = true
 version = "0.9"
 optional = true
 
-[dev-dependencies]
-anyhow = "1.0.70"
-
 [package.metadata.docs.rs]
 features = ["docs-only", "docs-nolink", "docs-features"]
