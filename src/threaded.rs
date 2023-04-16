@@ -33,12 +33,6 @@ use std::{
 };
 
 type AtomicLock<T> = Arc<Mutex<T>>;
-pub type CallbackFn = fn(
-    _camera: &Arc<Mutex<Camera>>,
-    _frame_callback: &Arc<Mutex<Option<Box<dyn FnMut(Buffer) + Send + 'static>>>>,
-    _last_frame_captured: &Arc<Mutex<Buffer>>,
-    _die_bool: &Arc<AtomicBool>,
-);
 type HeldCallbackType = Arc<Mutex<Box<dyn FnMut(Buffer) + Send + 'static>>>;
 
 /// Creates a camera that runs in a different thread that you can use a callback to access the frames of.
@@ -55,7 +49,8 @@ type HeldCallbackType = Arc<Mutex<Box<dyn FnMut(Buffer) + Send + 'static>>>;
 /// impl `Send` on.
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub struct CallbackCamera {
-    camera: AtomicLock<Camera>,
+    // Important: this needs a fair mutex so that the capture loop doesn't block other accessors from touching the camera forever.
+    camera: Arc<parking_lot::FairMutex<Camera>>,
     frame_callback: HeldCallbackType,
     last_frame_captured: AtomicLock<Buffer>,
     die_bool: Arc<AtomicBool>,
@@ -73,27 +68,7 @@ impl CallbackCamera {
         format: RequestedFormat,
         callback: impl FnMut(Buffer) + Send + 'static,
     ) -> Result<Self, NokhwaError> {
-        let arc_camera = Arc::new(Mutex::new(Camera::new(index, format)?));
-        let current_camera = arc_camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "CameraInfo".to_string(),
-                error: why.to_string(),
-            })?
-            .info()
-            .clone();
-        Ok(CallbackCamera {
-            camera: arc_camera,
-            frame_callback: Arc::new(Mutex::new(Box::new(callback))),
-            last_frame_captured: Arc::new(Mutex::new(Buffer::new(
-                Resolution::new(0, 0),
-                &vec![],
-                FrameFormat::GRAY,
-            ))),
-            die_bool: Arc::new(Default::default()),
-            current_camera,
-            handle: Arc::new(Mutex::new(None)),
-        })
+        Ok(Self::with_custom(Camera::new(index, format)?, callback))
     }
 
     /// Allows creation of a [`Camera`] with a custom backend. This is useful if you are creating e.g. a custom module.
@@ -102,7 +77,7 @@ impl CallbackCamera {
     pub fn with_custom(camera: Camera, callback: impl FnMut(Buffer) + Send + 'static) -> Self {
         let current_camera = camera.info().clone();
         CallbackCamera {
-            camera: Arc::new(Mutex::new(camera)),
+            camera: Arc::new(parking_lot::FairMutex::new(camera)),
             frame_callback: Arc::new(Mutex::new(Box::new(callback))),
             last_frame_captured: Arc::new(Mutex::new(Buffer::new(
                 Resolution::new(0, 0),
@@ -124,39 +99,22 @@ impl CallbackCamera {
     /// # Errors
     /// The Backend may fail to initialize.
     pub fn set_index(&mut self, new_idx: &CameraIndex) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_index(new_idx)?;
-        self.current_camera = self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "CameraInfo".to_string(),
-                error: why.to_string(),
-            })?
-            .info()
-            .clone();
+        let mut camera = self.camera.lock();
+        camera.set_index(new_idx)?;
+        self.current_camera = camera.info().clone();
         Ok(())
     }
 
     /// Gets the current Camera's backend
     pub fn backend(&self) -> Result<ApiBackend, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .backend())
+        Ok(self.camera.lock().backend())
     }
 
     /// Sets the current Camera's backend. Note that this re-initializes the camera.
     /// # Errors
     /// The new backend may not exist or may fail to initialize the new camera.
     pub fn set_backend(&mut self, new_backend: ApiBackend) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_backend(new_backend)
+        self.camera.lock().set_backend(new_backend)
     }
 
     /// Gets the camera information such as Name and Index as a [`CameraInfo`].
@@ -166,11 +124,7 @@ impl CallbackCamera {
 
     /// Gets the current [`CameraFormat`].
     pub fn camera_format(&self) -> Result<CameraFormat, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .camera_format())
+        Ok(self.camera.lock().camera_format())
     }
 
     /// Will set the current [`CameraFormat`]
@@ -189,11 +143,7 @@ impl CallbackCamera {
         );
         let formats = vec![new_fmt.format()];
         let request = RequestedFormat::with_formats(RequestedFormatType::Exact(new_fmt), &formats);
-        let set_fmt = self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_camera_requset(request)?;
+        let set_fmt = self.camera.lock().set_camera_requset(request)?;
         if new_fmt != set_fmt {
             return Err(NokhwaError::SetPropertyError {
                 property: "CameraFormat".to_string(),
@@ -216,10 +166,7 @@ impl CallbackCamera {
         &mut self,
         request: RequestedFormat,
     ) -> Result<CameraFormat, NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .set_camera_requset(request)
+        self.camera.lock().set_camera_requset(request)
     }
     /// A hashmap of [`Resolution`]s mapped to framerates
     /// # Errors
@@ -228,32 +175,19 @@ impl CallbackCamera {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .compatible_list_by_resolution(fourcc)
+        self.camera.lock().compatible_list_by_resolution(fourcc)
     }
 
     /// A Vector of compatible [`FrameFormat`]s.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a [`UnsupportedOperationError`](crate::NokhwaError::UnsupportedOperationError).
     pub fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GeneralError(why.to_string()))?
-            .compatible_fourcc()
+        self.camera.lock().compatible_fourcc()
     }
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]).
     pub fn resolution(&self) -> Result<Resolution, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "Resolution".to_string(),
-                error: why.to_string(),
-            })?
-            .resolution())
+        Ok(self.camera.lock().resolution())
     }
 
     /// Will set the current [`Resolution`]
@@ -266,26 +200,12 @@ impl CallbackCamera {
             .lock()
             .map_err(|why| NokhwaError::GeneralError(why.to_string()))? =
             Buffer::new(new_res, &Vec::default(), self.camera_format()?.format());
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::SetPropertyError {
-                property: "Resolution".to_string(),
-                value: new_res.to_string(),
-                error: why.to_string(),
-            })?
-            .set_resolution(new_res)
+        self.camera.lock().set_resolution(new_res)
     }
 
     /// Gets the current camera framerate (See: [`CameraFormat`]).
     pub fn frame_rate(&self) -> Result<u32, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "Framerate".to_string(),
-                error: why.to_string(),
-            })?
-            .frame_rate())
+        Ok(self.camera.lock().frame_rate())
     }
 
     /// Will set the current framerate
@@ -293,26 +213,12 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new framerate, this will return an error.
     pub fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::SetPropertyError {
-                property: "Framerate".to_string(),
-                value: new_fps.to_string(),
-                error: why.to_string(),
-            })?
-            .set_frame_rate(new_fps)
+        self.camera.lock().set_frame_rate(new_fps)
     }
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]).
     pub fn frame_format(&self) -> Result<FrameFormat, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "Frameformat".to_string(),
-                error: why.to_string(),
-            })?
-            .frame_format())
+        Ok(self.camera.lock().frame_format())
     }
 
     /// Will set the current [`FrameFormat`]
@@ -320,27 +226,14 @@ impl CallbackCamera {
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::SetPropertyError {
-                property: "Framerate".to_string(),
-                value: fourcc.to_string(),
-                error: why.to_string(),
-            })?
-            .set_frame_format(fourcc)
+        self.camera.lock().set_frame_format(fourcc)
     }
 
     /// Gets the current supported list of [`KnownCameraControl`]
     /// # Errors
     /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
     pub fn supported_camera_controls(&self) -> Result<Vec<KnownCameraControl>, NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "Supported Camera Controls".to_string(),
-                error: why.to_string(),
-            })?
-            .supported_camera_controls()
+        self.camera.lock().supported_camera_controls()
     }
 
     /// Gets the current supported list of [`CameraControl`]s keyed by its name as a `String`.
@@ -408,13 +301,7 @@ impl CallbackCamera {
         &self,
         control: KnownCameraControl,
     ) -> Result<CameraControl, NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "Camera Control".to_string(),
-                error: why.to_string(),
-            })?
-            .camera_control(control)
+        self.camera.lock().camera_control(control)
     }
 
     /// Sets the control to `control` in the camera.
@@ -428,14 +315,7 @@ impl CallbackCamera {
         id: KnownCameraControl,
         control: ControlValueSetter,
     ) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::SetPropertyError {
-                property: "Camera Control".to_string(),
-                value: format!("{}: {}", id, control),
-                error: why.to_string(),
-            })?
-            .set_camera_control(id, control)
+        self.camera.lock().set_camera_control(id, control)
     }
 
     /// Will open the camera stream with set parameters. This will be called internally if you try and call [`frame()`](crate::Camera::frame()) before you call [`open_stream()`](crate::Camera::open_stream()).
@@ -451,14 +331,7 @@ impl CallbackCamera {
                 error: why.to_string(),
             })?;
         if handle_lock.is_none() {
-            self.camera
-                .lock()
-                .map_err(|why| NokhwaError::SetPropertyError {
-                    property: "camera".to_string(),
-                    value: "callback".to_string(),
-                    error: why.to_string(),
-                })?
-                .open_stream()?;
+            self.camera.lock().open_stream()?;
             let die_bool_clone = self.die_bool.clone();
             let camera_clone = self.camera.clone();
             let last_frame = self.last_frame_captured.clone();
@@ -494,11 +367,7 @@ impl CallbackCamera {
     /// # Errors
     /// This will error if the camera fails to capture a frame.
     pub fn poll_frame(&mut self) -> Result<Buffer, NokhwaError> {
-        let frame = self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::ReadFrameError(why.to_string()))?
-            .frame()?;
+        let frame = self.camera.lock().frame()?;
         *self
             .last_frame_captured
             .lock()
@@ -517,24 +386,14 @@ impl CallbackCamera {
 
     /// Checks if stream if open. If it is, it will return true.
     pub fn is_stream_open(&self) -> Result<bool, NokhwaError> {
-        Ok(self
-            .camera
-            .lock()
-            .map_err(|why| NokhwaError::GetPropertyError {
-                property: "is stream open".to_string(),
-                error: why.to_string(),
-            })?
-            .is_stream_open())
+        Ok(self.camera.lock().is_stream_open())
     }
 
     /// Will drop the stream.
     /// # Errors
     /// Please check the `Quirks` section of each backend.
     pub fn stop_stream(&mut self) -> Result<(), NokhwaError> {
-        self.camera
-            .lock()
-            .map_err(|why| NokhwaError::StreamShutdownError(why.to_string()))?
-            .stop_stream()
+        self.camera.lock().stop_stream()
     }
 }
 
@@ -546,19 +405,18 @@ impl Drop for CallbackCamera {
 }
 
 fn camera_frame_thread_loop(
-    camera: AtomicLock<Camera>,
+    camera: Arc<parking_lot::FairMutex<Camera>>,
     frame_callback: HeldCallbackType,
     last_frame_captured: AtomicLock<Buffer>,
     die_bool: Arc<AtomicBool>,
 ) {
     loop {
-        if let Ok(mut camera) = camera.lock() {
-            if let Ok(frame) = camera.frame() {
-                if let Ok(mut last_frame) = last_frame_captured.lock() {
-                    *last_frame = frame.clone();
-                    if let Ok(mut cb) = frame_callback.lock() {
-                        cb(frame);
-                    }
+        let mut camera = camera.lock();
+        if let Ok(frame) = camera.frame() {
+            if let Ok(mut last_frame) = last_frame_captured.lock() {
+                *last_frame = frame.clone();
+                if let Ok(mut cb) = frame_callback.lock() {
+                    cb(frame);
                 }
             }
         }
