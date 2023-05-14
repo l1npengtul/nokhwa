@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-core"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "Core type definitions for nokhwa"
