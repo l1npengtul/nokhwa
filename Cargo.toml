@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.10.3"
+version = "0.10.4"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -68,11 +68,11 @@ version = "0.2"
 optional = true
 
 [dependencies.wgpu]
-version = "0.14"
+version = "0.16"
 optional = true
 
 [dependencies.opencv]
-version = "0.74"
+version = "0.80"
 default-features = false
 features = ["videoio"]
 optional = true
@@ -87,7 +87,7 @@ path = "nokhwa-bindings-windows"
 optional = true
 
 [dependencies.nokhwa-bindings-macos]
-version = "0.2.0"
+version = "0.2.1"
 path = "nokhwa-bindings-macos"
 optional = true
 
