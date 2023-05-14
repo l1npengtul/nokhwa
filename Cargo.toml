@@ -28,14 +28,14 @@ input-v4l = ["nokhwa-bindings-linux"]
 input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
-input-opencv = ["opencv", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
+input-opencv = ["opencv", "opencv/videoio", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
-docs-nolink = ["opencv/docs-only", "nokhwa-core/docs-features"]
+docs-nolink = ["nokhwa-core/docs-features"]
 docs-features = []
 test-fail-warning = []
 
@@ -72,9 +72,8 @@ version = "0.16"
 optional = true
 
 [dependencies.opencv]
-version = "0.80"
+version = "0.81"
 default-features = false
-features = ["videoio"]
 optional = true
 
 [dependencies.rgb]
