@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use js_sys::Array;
+use js_sys::{Array, Object};
 use nokhwa_core::buffer::Buffer;
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::format_filter::FormatFilter;
@@ -11,11 +11,11 @@ use nokhwa_core::types::{
 };
 use wasm_bindgen_futures::JsFuture;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap, HashSet};
 use std::future::Future;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, MediaDevices, Navigator, OffscreenCanvas, Window, MediaStream, MediaStreamConstraints, HtmlCanvasElement, MediaDeviceInfo, MediaDeviceKind,
+    CanvasRenderingContext2d, Document, Element, MediaDevices, Navigator, OffscreenCanvas, Window, MediaStream, MediaStreamConstraints, HtmlCanvasElement, MediaDeviceInfo, MediaDeviceKind, MediaStreamTrack,
 };
 
 macro_rules! jsv {
@@ -187,37 +187,29 @@ enum JSCameraResizeMode {
     CropAndScale,
 }
 
-struct CustomControls {
-    pub(crate) min_aspect_ratio: Option<f64>,
-    pub(crate) aspect_ratio: f64,
-    pub(crate) max_aspect_ratio: Option<f64>,
-    pub(crate) facing_mode: JSCameraFacingMode,
-    pub(crate) facing_mode_exact: bool,
-    pub(crate) resize_mode: JSCameraResizeMode,
-    pub(crate) resize_mode_exact: bool,
-    pub(crate) device_id: String,
-    pub(crate) device_id_exact: bool,
-    pub(crate) group_id: String,
-    pub(crate) group_id_exact: bool,
-}
-
 enum CanvasType {
     OffScreen(OffscreenCanvas),
     HtmlCanvas(HtmlCanvasElement),
 }
 
-
-
 /// Quirks:
-/// - Regular [`CaptureTrait`] will block. Use [``]
+/// - Regular [`CaptureTrait`] will block, something that is undesired in web applications. Use [`AsyncCaptureTrait`]
 /// - [REQUIRES AN UP-TO-DATE BROWSER DUE TO USE OF OFFSCREEN CANVAS.](https://caniuse.com/?search=OffscreenCanvas)
-/// - [`SourceFrameFormat`]/[`FrameFormat`] does NOT apply, due to browser non-support. All returned streams will be RGB.
+/// - [`SourceFrameFormat`]/[`FrameFormat`] does NOT apply, due to browser non-support. All returned streams will be RGB (autodecoded by browser).
+/// - Custom Controls
+///     - aspectRatio: 8
+///     - facingMode: 16
+///     - resizeMode: 32
+///     - attachedCanvasMode: 64
 pub struct BrowserCamera {
     index: CameraIndex,
     info: CameraInfo,
     format: CameraFormat,
+    media_stream: MediaStream,
     init: bool,
-    controls: CustomControls,
+    custom_controls: HashMap<u128, CameraControl>,
+    controls: HashMap<KnownCameraControl, CameraControl>,
+    supported_controls: HashSet<KnownCameraControl>,
     cavnas: Option<CanvasType>,
     context: Option<CanvasRenderingContext2d>,
 }
@@ -294,34 +286,60 @@ impl BrowserCamera {
 
         let info = CameraInfo {
             human_name: media_info.label(),
-            description: "videoinfo".to_string(),
-            misc: media_info.device_id(),
+            description: media_info.kind().to_string(),
+            misc: format!("{}:{}", media_info.group_id().to_string(), media_info.device_id().to_string()),
             index: index.clone(),
         };
 
-        let controls = CustomControls { 
-            min_aspect_ratio: None,
-            aspect_ratio: 0.00,
-            max_aspect_ratio: None,
-            facing_mode: JSCameraFacingMode::Any,
-            facing_mode_exact: false,
-            resize_mode: JSCameraResizeMode::None,
-            resize_mode_exact: false,
-            device_id: media_info.device_id(), 
-            device_id_exact: true,
-            group_id: media_info.group_id(), 
-            group_id_exact: true, 
-        };
-        
-        Ok(BrowserCamera { index:  index.clone(), info, format: CameraFormat::default(), init: false, controls, cavnas: None, context: None })
+        Ok(BrowserCamera { index:  index.clone(), info, format: CameraFormat::default(), init: false, cavnas: None, context: None, media_stream: stream, controls: HashMap::new(), custom_controls: HashMap::new(), supported_controls: HashSet::new() })
     }
 
     async fn measure_controls(&mut self) -> Result<(), NokhwaError> {
-        
-    }
+        let tracks = self.media_stream.get_video_tracks().iter().nth(0).ok_or(NokhwaError::GetPropertyError { property: "VideoTrack".to_string(), error: "Not Found".to_string() })?;
+        let tracks = MediaStreamTrack::from(tracks);
 
-    async fn measure_info(&mut self) -> Result<(), NokhwaError> {
-        todo!()
+        let constraints = {
+            let c = tracks.get_constraints();
+            Object::entries(&c.value_of()).iter().map(|field| {
+                let element = Array::from(&field);
+                let key = element.get(0);
+                let value = element.get(1);
+                (key.as_string().unwrap_or_default(), value)
+            }).collect::<HashMap<String, JsValue>>()
+        };
+        
+        let settings = {
+            let c = tracks.get_settings();
+            Object::entries(&c.value_of()).iter().map(|field| {
+                let element = Array::from(&field);
+                let key = element.get(0);
+                let value = element.get(1);
+                (key.as_string().unwrap_or_default(), value)
+            }).collect::<HashMap<String, JsValue>>()
+        };
+
+        let window = window()?;
+        let media_devices = media_devices(&window.navigator())?;
+        let supported_constraints = Object::keys(&media_devices.get_supported_constraints())
+            .iter()
+            .map(|item| item.as_string().unwrap())
+            .map(|constraint| {
+                match constraint.as_str() {
+                    "aspectRatio" => KnownCameraControl::Other(8),
+                    "facingMode" => KnownCameraControl::Other(16),
+                    "resizeMode" => KnownCameraControl::Other(32),
+                    "frameRate" => KnownCameraControl::Other(64), // if you're looking through the source to see if i missed anything, ignore these
+                    "width" => KnownCameraControl::Other(65),     // they're only here to make sure we support the basics
+                    "height" => KnownCameraControl::Other(66),   
+                    "deviceId" => KnownCameraControl::Other(67),
+                    "groupId" => KnownCameraControl::Other(68),
+                    _ => KnownCameraControl::Other(u128::MAX),
+                }
+            }).collect::<HashSet<KnownCameraControl>>();
+
+        let 
+
+        // set custom control properties
     }
 }
 
@@ -433,6 +451,7 @@ impl CaptureTrait for BrowserCamera {
     }
 }
 
+#[cfg(feature = "output-async")]
 #[async_trait::async_trait]
 impl AsyncCaptureTrait for BrowserCamera {
     async fn init(&mut self) -> Result<(), NokhwaError> {
