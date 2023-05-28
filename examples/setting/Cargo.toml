@@ -12,6 +12,6 @@ version = "0.23.14"
 default-features = false
 
 [dependencies.nokhwa]
-path = "../../../nokhwa"
+path = "../.."
 # EDIT THIS!
 features = ["input-v4l"]
