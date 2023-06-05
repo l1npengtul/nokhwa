@@ -15,5 +15,5 @@ version = "0.1.0"
 path = "../nokhwa-core"
 
 [target.'cfg(target_os="linux")'.dependencies]
-v4l = "0.13"
-v4l2-sys-mit = "0.2"
+v4l = "0.14"
+v4l2-sys-mit = "0.3"
