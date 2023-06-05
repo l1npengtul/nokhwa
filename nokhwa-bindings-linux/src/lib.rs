@@ -35,7 +35,7 @@ mod internal {
         control::{Control, Flags, Type, Value},
         frameinterval::FrameIntervalEnum,
         framesize::FrameSizeEnum,
-        io::traits::CaptureStream,
+        io::traits::{CaptureStream, Stream},
         prelude::MmapStream,
         video::{capture::Parameters, Capture},
         Device, Format, FourCC,
@@ -209,7 +209,7 @@ mod internal {
                                 }
                                 FrameIntervalEnum::Stepwise(step) => {
                                     let mut intvec = vec![];
-                                    for fstep in (step.min.numerator..step.max.numerator)
+                                    for fstep in (step.min.numerator..=step.max.numerator)
                                         .step_by(step.step.numerator as usize)
                                     {
                                         if step.max.denominator != 1 || step.min.denominator != 1 {
@@ -742,10 +742,15 @@ mod internal {
         }
 
         fn open_stream(&mut self) -> Result<(), NokhwaError> {
-            let stream = match MmapStream::new(&self.device, v4l::buffer::Type::VideoCapture) {
+            let mut stream = match MmapStream::new(&self.device, v4l::buffer::Type::VideoCapture) {
                 Ok(s) => s,
                 Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
             };
+            // Explicitly start now, or won't work with the RPi. As a consequence, buffers will only be used as required.
+            match stream.start() {
+                Ok(s) => s,
+                Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
+            }
             self.stream_handle = Some(stream);
             Ok(())
         }
