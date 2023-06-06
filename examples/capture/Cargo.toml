@@ -23,7 +23,7 @@ features = ["derive"]
 
 # Use these as you need
 [dependencies.nokhwa]
-path = "../../../nokhwa"
+path = "../.."
 features = ["input-native", "output-threaded"]
 
 [dependencies.image]
