@@ -270,6 +270,24 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// If you started the stream and the camera rejects the new camera format, this will return an error.
     async fn set_camera_format_async(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError>;
 
+    /// A hashmap of [`Resolution`]s mapped to framerates. Not sorted!
+    /// # Errors
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
+    async fn compatible_list_by_resolution_async(
+        &mut self,
+        fourcc: SourceFrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
+
+    /// Gets the compatible [`CameraFormat`] of the camera
+    /// # Errors
+    /// If it fails to get, this will error.
+    async fn compatible_camera_formats_async(&mut self) -> Result<Vec<CameraFormat>, NokhwaError>;
+
+    /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
+    /// # Errors
+    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
+    async fn compatible_fourcc_async(&mut self) -> Result<Vec<SourceFrameFormat>, NokhwaError>;
+
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
     ///
@@ -296,6 +314,17 @@ pub trait AsyncCaptureTrait: CaptureTrait {
         &mut self,
         fourcc: SourceFrameFormat,
     ) -> Result<(), NokhwaError>;
+
+    /// Gets the value of [`KnownCameraControl`].
+    /// # Errors
+    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
+    /// this will error.
+    async fn camera_control_async(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError>;
+
+    /// Gets the current supported list of [`KnownCameraControl`]
+    /// # Errors
+    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
+    async fn camera_controls_async(&self) -> Result<Vec<CameraControl>, NokhwaError>;
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureTrait::camera_control), getting a camera control that way

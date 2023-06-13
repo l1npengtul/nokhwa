@@ -35,11 +35,11 @@ features = ["derive"]
 optional = true
 
 [dependencies.wgpu]
-version = "0.15"
+version = "0.16"
 optional = true
 
 [dependencies.opencv]
-version = "0.77"
+version = "0.80"
 default-features = false
 optional = true
 
