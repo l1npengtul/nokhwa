@@ -117,6 +117,142 @@ mod internal {
         })
     }
 
+    type SharedDevice = std::sync::Arc<std::sync::Mutex<Device>>;
+    type WeakSharedDevice = std::sync::Weak<std::sync::Mutex<Device>>;
+
+    struct WeakSharedDeviceEntry {
+        device: WeakSharedDevice,
+        index: usize,
+    }
+
+    type SharedDeviceList = std::sync::OnceLock<std::sync::Mutex<Vec<WeakSharedDeviceEntry>>>;
+
+    /// Global array that keep track of every Device that are currently open.
+    /// This is used to open multiple handle to the same device.
+    /// This is a workaround for the fact that the v4l2 backend does not support multiple handles to the same device.
+    /// This replicate behavior of MF backend.
+    /// The reference is a reference of Weak<Mutex<Device>>, so that the Device can be dropped when the last handle is closed.
+    /// This list might need some cleanup because it will accumulate every device that is opened, this should not be a problem because the list should not grow too much.
+    /// The list is also protected by a mutex, so it should be thread safe.
+    static DEVICES: SharedDeviceList = std::sync::OnceLock::new();
+
+    fn cleanup_dropped_devices(devices: &mut Vec<WeakSharedDeviceEntry>) {
+        devices.retain(|entry| entry.device.strong_count() > 0);
+    }
+
+    fn new_shared_device(index: usize) -> Result<SharedDevice, NokhwaError> {
+        let mut devices = DEVICES
+            .get_or_init(|| std::sync::Mutex::new(Vec::new()))
+            .lock()
+            .map_err(|e| NokhwaError::InitializeError {
+                backend: ApiBackend::Video4Linux,
+                error: format!("Fail to lock global device list mutex: {}", e),
+            })?;
+
+        // do some cleanup, this will avoid here memory to grow forever
+        // if for some reason someone has tons of camera plugged in
+        cleanup_dropped_devices(&mut devices);
+
+        if let Some(entry) = devices.iter().find(|entry| entry.index == index) {
+            if let Some(device) = entry.device.upgrade() {
+                return Ok(device);
+            }
+        }
+
+        // Cleanup a second, the device we are interested might have been dropped during before upgrade call
+        // For this point on we are assured that the device is not in the list
+        cleanup_dropped_devices(&mut devices);
+
+        // Let's be extra sure, this code should never panic, but maybe will help catch some race condition
+        assert!(
+            devices.iter().find(|entry| entry.index == index).is_none(),
+            "Device {index} should not be in the list"
+        );
+
+        // Now we can open the device, and never run into a busy io error,
+        // as long as the device isn't opened by other programs.
+        let device = match Device::new(index) {
+            Ok(dev) => dev,
+            Err(why) => {
+                return Err(NokhwaError::OpenDeviceError(
+                    index.to_string(),
+                    format!("V4L2 Error: {}", why),
+                ))
+            }
+        };
+
+        let device = std::sync::Arc::new(std::sync::Mutex::new(device));
+        devices.push(WeakSharedDeviceEntry {
+            device: std::sync::Arc::downgrade(&device),
+            index,
+        });
+
+        // Last check to be sure that every devices have a unique index
+        // and that the data isn't corrupted
+        if devices.len() > 1 {
+            assert_eq!(
+                devices
+                    .windows(2)
+                    .filter(|window| window[0].index == window[1].index)
+                    .count(),
+                devices.len(),
+                "Device list should not contain duplicate indexes"
+            );
+        }
+
+        Ok(device)
+    }
+
+    fn get_device_format(device: &Device) -> Result<CameraFormat, NokhwaError> {
+        match device.format() {
+            Ok(format) => {
+                let frame_format =
+                    fourcc_to_frameformat(format.fourcc).ok_or(NokhwaError::GetPropertyError {
+                        property: "FrameFormat".to_string(),
+                        error: "unsupported".to_string(),
+                    })?;
+
+                let fps = match device.params() {
+                    Ok(params) => {
+                        if params.interval.numerator != 1
+                            || params.interval.denominator % params.interval.numerator != 0
+                        {
+                            return Err(NokhwaError::GetPropertyError {
+                                property: "V4L2 FrameRate".to_string(),
+                                error: format!(
+                                    "Framerate not whole number: {} / {}",
+                                    params.interval.denominator, params.interval.numerator
+                                ),
+                            });
+                        }
+
+                        if params.interval.numerator == 1 {
+                            params.interval.denominator
+                        } else {
+                            params.interval.denominator / params.interval.numerator
+                        }
+                    }
+                    Err(why) => {
+                        return Err(NokhwaError::GetPropertyError {
+                            property: "V4L2 FrameRate".to_string(),
+                            error: why.to_string(),
+                        })
+                    }
+                };
+
+                Ok(CameraFormat::new(
+                    Resolution::new(format.width, format.height),
+                    frame_format,
+                    fps,
+                ))
+            }
+            Err(why) => Err(NokhwaError::GetPropertyError {
+                property: "parameters".to_string(),
+                error: why.to_string(),
+            }),
+        }
+    }
+
     /// The backend struct that interfaces with V4L2.
     /// To see what this does, please see [`CaptureBackendTrait`].
     /// # Quirks
@@ -124,7 +260,7 @@ mod internal {
     pub struct V4LCaptureDevice<'a> {
         camera_format: CameraFormat,
         camera_info: CameraInfo,
-        device: Device,
+        device: SharedDevice,
         stream_handle: Option<MmapStream<'a>>,
     }
 
@@ -135,15 +271,14 @@ mod internal {
         #[allow(clippy::too_many_lines)]
         pub fn new(index: &CameraIndex, cam_fmt: RequestedFormat) -> Result<Self, NokhwaError> {
             let index = index.clone();
-            let device = match Device::new(index.as_index()? as usize) {
-                Ok(dev) => dev,
-                Err(why) => {
-                    return Err(NokhwaError::OpenDeviceError(
-                        index.to_string(),
-                        format!("V4L2 Error: {}", why),
-                    ))
-                }
-            };
+
+            let shared_device = new_shared_device(index.as_index()? as usize)?;
+            let device = shared_device
+                .lock()
+                .map_err(|e| NokhwaError::InitializeError {
+                    backend: ApiBackend::Video4Linux,
+                    error: format!("Fail to lock device mutex: {}", e),
+                })?;
 
             // get all formats
             // get all fcc
@@ -235,23 +370,33 @@ mod internal {
                     error: "Failed to Fufill".to_string(),
                 })?;
 
-            if let Err(why) = device.set_format(&Format::new(
-                format.width(),
-                format.height(),
-                frameformat_to_fourcc(format.format()),
-            )) {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "Resolution, FrameFormat".to_string(),
-                    value: format.to_string(),
-                    error: why.to_string(),
-                });
+            let current_format = get_device_format(&device)?;
+
+            if current_format.width() != format.width()
+                || current_format.height() != format.height()
+                || current_format.format() != format.format()
+            {
+                if let Err(why) = device.set_format(&Format::new(
+                    format.width(),
+                    format.height(),
+                    frameformat_to_fourcc(format.format()),
+                )) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "Resolution, FrameFormat".to_string(),
+                        value: format.to_string(),
+                        error: why.to_string(),
+                    });
+                }
             }
-            if let Err(why) = device.set_params(&Parameters::with_fps(format.frame_rate())) {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "Frame rate".to_string(),
-                    value: format.frame_rate().to_string(),
-                    error: why.to_string(),
-                });
+
+            if current_format.frame_rate() != format.frame_rate() {
+                if let Err(why) = device.set_params(&Parameters::with_fps(format.frame_rate())) {
+                    return Err(NokhwaError::SetPropertyError {
+                        property: "Frame rate".to_string(),
+                        value: format.frame_rate().to_string(),
+                        error: why.to_string(),
+                    });
+                }
             }
 
             let device_caps = device
@@ -261,6 +406,8 @@ mod internal {
                     error: why.to_string(),
                 })?;
 
+            drop(device);
+
             let mut v4l2 = V4LCaptureDevice {
                 camera_format: format,
                 camera_info: CameraInfo::new(
@@ -269,7 +416,7 @@ mod internal {
                     &format!("{} {:?}", device_caps.bus, device_caps.version),
                     index,
                 ),
-                device,
+                device: shared_device,
                 stream_handle: None,
             };
 
@@ -307,11 +454,16 @@ mod internal {
             )
         }
 
+        fn lock_device(&self) -> Result<std::sync::MutexGuard<'_, Device>, NokhwaError> {
+            self.device
+                .lock()
+                .map_err(|e| NokhwaError::GeneralError(format!("Failed to lock device: {}", e)))
+        }
+
         fn get_resolution_list(&self, fourcc: FrameFormat) -> Result<Vec<Resolution>, NokhwaError> {
             let format = frameformat_to_fourcc(fourcc);
 
-            // match Capture::enum_framesizes(&self.device, format) {
-            match self.device.enum_framesizes(format) {
+            match self.lock_device()?.enum_framesizes(format) {
                 Ok(frame_sizes) => {
                     let mut resolutions = vec![];
                     for frame_size in frame_sizes {
@@ -339,55 +491,9 @@ mod internal {
         /// # Errors
         /// If the internal representation in the driver is invalid, this will error.
         pub fn force_refresh_camera_format(&mut self) -> Result<(), NokhwaError> {
-            match self.device.format() {
-                Ok(format) => {
-                    let frame_format = fourcc_to_frameformat(format.fourcc).ok_or(
-                        NokhwaError::GetPropertyError {
-                            property: "FrameFormat".to_string(),
-                            error: "unsupported".to_string(),
-                        },
-                    )?;
-
-                    let fps = match self.device.params() {
-                        Ok(params) => {
-                            if params.interval.numerator != 1
-                                || params.interval.denominator % params.interval.numerator != 0
-                            {
-                                return Err(NokhwaError::GetPropertyError {
-                                    property: "V4L2 FrameRate".to_string(),
-                                    error: format!(
-                                        "Framerate not whole number: {} / {}",
-                                        params.interval.denominator, params.interval.numerator
-                                    ),
-                                });
-                            }
-
-                            if params.interval.numerator == 1 {
-                                params.interval.denominator
-                            } else {
-                                params.interval.denominator / params.interval.numerator
-                            }
-                        }
-                        Err(why) => {
-                            return Err(NokhwaError::GetPropertyError {
-                                property: "V4L2 FrameRate".to_string(),
-                                error: why.to_string(),
-                            })
-                        }
-                    };
-
-                    self.camera_format = CameraFormat::new(
-                        Resolution::new(format.width, format.height),
-                        frame_format,
-                        fps,
-                    );
-                    Ok(())
-                }
-                Err(why) => Err(NokhwaError::GetPropertyError {
-                    property: "parameters".to_string(),
-                    error: why.to_string(),
-                }),
-            }
+            let camera_format = get_device_format(&*self.lock_device()?)?;
+            self.camera_format = camera_format;
+            Ok(())
         }
     }
 
@@ -409,7 +515,8 @@ mod internal {
         }
 
         fn set_camera_format(&mut self, new_fmt: CameraFormat) -> Result<(), NokhwaError> {
-            let prev_format = match Capture::format(&self.device) {
+            let device = self.lock_device()?;
+            let prev_format = match Capture::format(&*device) {
                 Ok(fmt) => fmt,
                 Err(why) => {
                     return Err(NokhwaError::GetPropertyError {
@@ -418,7 +525,7 @@ mod internal {
                     })
                 }
             };
-            let prev_fps = match Capture::params(&self.device) {
+            let prev_fps = match Capture::params(&*device) {
                 Ok(fps) => fps,
                 Err(why) => {
                     return Err(NokhwaError::GetPropertyError {
@@ -439,14 +546,14 @@ mod internal {
             let format = Format::new(new_fmt.width(), new_fmt.height(), v4l_fcc);
             let frame_rate = Parameters::with_fps(new_fmt.frame_rate());
 
-            if let Err(why) = Capture::set_format(&self.device, &format) {
+            if let Err(why) = Capture::set_format(&*device, &format) {
                 return Err(NokhwaError::SetPropertyError {
                     property: "Resolution, FrameFormat".to_string(),
                     value: format.to_string(),
                     error: why.to_string(),
                 });
             }
-            if let Err(why) = Capture::set_params(&self.device, &frame_rate) {
+            if let Err(why) = Capture::set_params(&*device, &frame_rate) {
                 return Err(NokhwaError::SetPropertyError {
                     property: "Frame rate".to_string(),
                     value: frame_rate.to_string(),
@@ -454,19 +561,22 @@ mod internal {
                 });
             }
 
+            drop(device);
+
             if self.stream_handle.is_some() {
                 return match self.open_stream() {
                     Ok(_) => Ok(()),
                     Err(why) => {
                         // undo
-                        if let Err(why) = Capture::set_format(&self.device, &prev_format) {
+                        let device = self.lock_device()?;
+                        if let Err(why) = Capture::set_format(&*device, &prev_format) {
                             return Err(NokhwaError::SetPropertyError {
                                 property: format!("Attempt undo due to stream acquisition failure with error {}. Resolution, FrameFormat", why),
                                 value: prev_format.to_string(),
                                 error: why.to_string(),
                             });
                         }
-                        if let Err(why) = Capture::set_params(&self.device, &prev_fps) {
+                        if let Err(why) = Capture::set_params(&*device, &prev_fps) {
                             return Err(NokhwaError::SetPropertyError {
                                 property:
                                 format!("Attempt undo due to stream acquisition failure with error {}. Frame rate", why),
@@ -502,7 +612,7 @@ mod internal {
             for res in resolutions {
                 let mut compatible_fps = vec![];
                 match self
-                    .device
+                    .lock_device()?
                     .enum_frameintervals(format, res.width(), res.height())
                 {
                     Ok(intervals) => {
@@ -536,7 +646,7 @@ mod internal {
         }
 
         fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError> {
-            match self.device.enum_formats() {
+            match self.lock_device()?.enum_formats() {
                 Ok(formats) => {
                     let mut frame_format_vec = vec![];
                     for format in formats {
@@ -604,7 +714,8 @@ mod internal {
 
         #[allow(clippy::cast_possible_wrap)]
         fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-            self.device
+            let device = self.lock_device()?;
+            device
                 .query_controls()
                 .map_err(|why| NokhwaError::GetPropertyError {
                     property: "V4L2 Controls".to_string(),
@@ -613,7 +724,7 @@ mod internal {
                 .into_iter()
                 .map(|desc| {
                     let id_as_kcc = id_to_known_camera_control(desc.id);
-                    let ctrl_current = self.device.control(desc.id)?.value;
+                    let ctrl_current = device.control(desc.id)?.value;
 
                     let ctrl_value_desc = match (desc.typ, ctrl_current) {
                         (
@@ -718,7 +829,7 @@ mod internal {
                     })
                 }
             };
-            self.device
+            self.lock_device()?
                 .set_control(Control {
                     id: known_camera_control_to_id(id),
                     value: conv_value,
@@ -742,10 +853,11 @@ mod internal {
         }
 
         fn open_stream(&mut self) -> Result<(), NokhwaError> {
-            let mut stream = match MmapStream::new(&self.device, v4l::buffer::Type::VideoCapture) {
-                Ok(s) => s,
-                Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
-            };
+            let mut stream =
+                match MmapStream::new(&*self.lock_device()?, v4l::buffer::Type::VideoCapture) {
+                    Ok(s) => s,
+                    Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
+                };
             // Explicitly start now, or won't work with the RPi. As a consequence, buffers will only be used as required.
             match stream.start() {
                 Ok(s) => s,
