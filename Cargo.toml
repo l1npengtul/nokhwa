@@ -32,7 +32,7 @@ input-opencv = ["opencv", "opencv/videoio", "opencv/rgb", "rgb", "nokhwa-core/op
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
-output-threaded = []
+output-threaded = ["parking_lot"]
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["nokhwa-core/docs-features"]
@@ -97,6 +97,10 @@ optional = true
 
 [dependencies.regex]
 version = "1.7"
+optional = true
+
+[dependencies.parking_lot]
+version = "0.12"
 optional = true
 
 [dependencies.web-sys]
