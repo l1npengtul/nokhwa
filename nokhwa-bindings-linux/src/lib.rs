@@ -853,12 +853,17 @@ mod internal {
         }
 
         fn open_stream(&mut self) -> Result<(), NokhwaError> {
+            // Disable mut warning, since mut is only required when not using arena buffers
+            #[allow(unused_mut)]
             let mut stream =
                 match MmapStream::new(&*self.lock_device()?, v4l::buffer::Type::VideoCapture) {
                     Ok(s) => s,
                     Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),
                 };
+
             // Explicitly start now, or won't work with the RPi. As a consequence, buffers will only be used as required.
+            // WARNING: This will cause drop of half of the frames
+            #[cfg(feature = "no-arena-buffer")]
             match stream.start() {
                 Ok(s) => s,
                 Err(why) => return Err(NokhwaError::OpenStreamError(why.to_string())),

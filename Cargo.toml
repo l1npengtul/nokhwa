@@ -25,6 +25,11 @@ decoding = ["nokhwa-core/mjpeg"]
 input-avfoundation = ["nokhwa-bindings-macos"]
 input-msmf = ["nokhwa-bindings-windows"]
 input-v4l = ["nokhwa-bindings-linux"]
+# Disable arena buffer on v4l
+# This should fix crash on Raspberry Pi that have faulty v4l driver.
+# WARNING: This create a performance regression, half of the frames will be dropped
+# You shouldn't enable this unless you have to.
+input-v4l-no-arena-buffer = ["nokhwa-bindings-linux/no-arena-buffer"]
 input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
