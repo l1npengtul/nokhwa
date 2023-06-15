@@ -213,15 +213,9 @@ pub trait CaptureBackendTrait {
             view_formats: &[],
         });
 
-        let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
-            Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
+        let width_nonzero = 4 * frame.width();
 
-        let height_nonzero = match NonZeroU32::try_from(frame.height()) {
-            Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
+        let height_nonzero = frame.height();
 
         queue.write_texture(
             ImageCopyTexture {
