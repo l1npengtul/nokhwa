@@ -8,6 +8,11 @@ description = "The V4L2 bindings crate for `nokhwa`"
 keywords = ["v4l", "v4l2", "linux", "capture", "webcam"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+# Disable arena buffer of v4l2 for the crate to work on raspberry pi with faulty v4l2 driver
+# https://github.com/l1npengtul/nokhwa/pull/121
+no-arena-buffer = []
+
 [dependencies]
 
 [dependencies.nokhwa-core]
