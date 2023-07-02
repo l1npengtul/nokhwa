@@ -1,0 +1,1 @@
+pub struct NV12Decoder {}

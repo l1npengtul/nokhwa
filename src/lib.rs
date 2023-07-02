@@ -49,6 +49,7 @@ mod query;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub mod threaded;
+pub mod decoders;
 
 pub use camera::Camera;
 pub use init::*;
