@@ -34,7 +34,6 @@ output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
 output-async = ["nokhwa-core/async", "async-trait"]
-small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["nokhwa-core/docs-features"]
 docs-features = []
@@ -43,6 +42,7 @@ test-fail-warning = []
 [dependencies]
 thiserror = "1.0"
 paste = "1.0"
+dcv-color-primitives = "0.5"
 
 [dependencies.nokhwa-core]
 version = "0.2"
@@ -60,10 +60,6 @@ optional = true
 version = "0.24"
 default-features = false
 
-[dependencies.v4l]
-version = "0.13"
-optional = true
-
 [dependencies.usb_enumeration]
 version = "0.2"
 optional = true
@@ -73,7 +69,7 @@ version = "0.16"
 optional = true
 
 [dependencies.opencv]
-version = "0.80"
+version = "0.82"
 default-features = false
 features = ["videoio"]
 optional = true
