@@ -19,7 +19,7 @@ use crate::{
     pixel_format::FormatDecoder,
     types::{FrameFormat, Resolution},
 };
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use image::ImageBuffer;
 
 /// A buffer returned by a camera to accommodate custom decoding.
@@ -102,6 +102,7 @@ impl Buffer {
             buffer,
         )
     }
+
     /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
     ///
     /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_opencv_mat`](Self::decode_opencv_mat).
@@ -117,8 +118,32 @@ impl Buffer {
     pub fn decode_opencv_mat<F: FormatDecoder>(
         &mut self,
     ) -> Result<opencv::core::Mat, NokhwaError> {
+        use opencv::core::Mat;
+        let mut mat = Mat::default();
+        self.decode_into_opencv_mat::<F>(&mut mat)?;
+        Ok(mat)
+    }
+
+    /// Decodes a image with allocation using the provided [`FormatDecoder`] into a [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    ///
+    /// Note that this does a clone when creating the buffer, to decouple the lifetime of the internal data to the temporary Buffer. If you want to avoid this, please see [`decode_opencv_mat`](Self::decode_opencv_mat).
+    /// # Errors
+    /// Will error when the decoding fails, or `OpenCV` failed to create/copy the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html).
+    /// # Safety
+    /// This function uses `unsafe` in order to create the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html). Please see [`Mat::new_rows_cols_with_data`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html#method.new_rows_cols_with_data) for more.
+    ///
+    /// Most notably, the `data` **must** stay in scope for the duration of the [`Mat`](https://docs.rs/opencv/latest/opencv/core/struct.Mat.html) or bad, ***bad*** things happen.
+    #[cfg(feature = "opencv-mat")]
+    #[cfg_attr(feature = "docs-features", doc(cfg(feature = "opencv-mat")))]
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn decode_into_opencv_mat<F: FormatDecoder>(
+        &mut self,
+        dst: &mut opencv::core::Mat,
+    ) -> Result<(), NokhwaError> {
         use image::Pixel;
-        use opencv::core::{Mat, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4};
+        use opencv::core::{
+            Mat, MatTraitConst, MatTraitManual, Mat_AUTO_STEP, CV_8UC1, CV_8UC2, CV_8UC3, CV_8UC4,
+        };
 
         let array_type = match F::Output::CHANNEL_COUNT {
             1 => CV_8UC1,
@@ -134,22 +159,63 @@ impl Buffer {
             }
         };
 
-        unsafe {
-            // TODO: Look into removing this unnecessary copy.
-            let mat1 = Mat::new_rows_cols_with_data(
-                self.resolution.height_y as i32,
-                self.resolution.width_x as i32,
-                array_type,
-                self.buffer.as_ref().as_ptr().cast_mut().cast(),
-                Mat_AUTO_STEP,
-            )
-            .map_err(|why| NokhwaError::ProcessFrameError {
-                src: FrameFormat::RAWRGB,
-                destination: "OpenCV Mat".to_string(),
-                error: why.to_string(),
-            })?;
+        // If destination is no_array(), create a new matrix.
+        if dst.empty() {
+            *dst = unsafe {
+                Mat::new_rows_cols_with_data(
+                    self.resolution.height_y as i32,
+                    self.resolution.width_x as i32,
+                    array_type,
+                    self.buffer.as_ref().as_ptr().cast_mut().cast(),
+                    Mat_AUTO_STEP,
+                )
+                .map_err(|why| NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: why.to_string(),
+                })?
+            };
+        } else {
+            // ..
+            if dst.typ() != array_type {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Invalid Matrix Channel Count".to_string(),
+                });
+            }
 
-            Ok(mat1)
+            if dst.typ() != array_type {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Invalid Matrix Channel Count".to_string(),
+                });
+            }
+
+            let mut bytes = match dst.data_bytes_mut() {
+                Ok(bytes) => bytes,
+                Err(_e) => {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: FrameFormat::RAWRGB,
+                        destination: "OpenCV Mat".to_string(),
+                        error: "Matrix Must Be Continuous".to_string(),
+                    })
+                }
+            };
+
+            let mut buffer = self.buffer.as_ref();
+            if bytes.len() != buffer.len() {
+                return Err(NokhwaError::ProcessFrameError {
+                    src: FrameFormat::RAWRGB,
+                    destination: "OpenCV Mat".to_string(),
+                    error: "Matrix Buffer Size Mismatch".to_string(),
+                });
+            }
+
+            buffer.copy_to_slice(&mut bytes);
         }
+
+        Ok(())
     }
 }
