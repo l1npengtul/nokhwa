@@ -206,11 +206,13 @@ impl Buffer {
                 });
             }
 
-            if dst.typ() != array_type {
+            if dst.rows() != self.resolution.height_y as _
+                || dst.cols() != self.resolution.width_x as _
+            {
                 return Err(NokhwaError::ProcessFrameError {
                     src: FrameFormat::RAWRGB,
                     destination: "OpenCV Mat".to_string(),
-                    error: "Invalid Matrix Channel Count".to_string(),
+                    error: "Invalid Matrix Dimensions".to_string(),
                 });
             }
         }
