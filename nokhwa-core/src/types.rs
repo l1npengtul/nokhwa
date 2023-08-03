@@ -1333,15 +1333,6 @@ pub fn yuyv422_predicted_size(size: usize, rgba: bool) -> usize {
     (size / 4) * (2 * pixel_size)
 }
 
-// For those maintaining this, I recommend you read: https://docs.microsoft.com/en-us/windows/win32/medfound/recommended-8-bit-yuv-formats-for-video-rendering#yuy2
-// https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
-// and this too: https://stackoverflow.com/questions/16107165/convert-from-yuv-420-to-imagebgr-byte
-// The YUY2(Yuv422) format is a 16 bit format. We read 4 bytes at a time to get 6 bytes of RGB888.
-// First, the YUY2 is converted to YCbCr 4:4:4 (4:2:2 -> 4:4:4)
-// then it is converted to 6 bytes (2 pixels) of RGB888
-/// Converts a Yuv422 4:2:2 datastream to a RGB888 Stream. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
-/// # Errors
-/// This may error when the data stream size is not divisible by 4, a i32 -> u8 conversion fails, or it fails to read from a certain index.
 #[inline]
 pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
     let capacity = yuyv422_predicted_size(data.len(), rgba);

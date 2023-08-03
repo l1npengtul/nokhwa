@@ -16,6 +16,8 @@
 
 use crate::{frame_format::SourceFrameFormat, types::Resolution};
 use bytes::Bytes;
+use image::ImageBuffer;
+use crate::error::NokhwaError;
 
 /// A buffer returned by a camera to accommodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
@@ -153,6 +155,9 @@ impl Buffer {
 }
 
 #[cfg(feature = "wgpu-types")]
+use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, ImageCopyTexture, TextureAspect, ImageDataLayout};
+
+#[cfg(feature = "wgpu-types")]
 impl Buffer {
     #[cfg_attr(feature = "docs-features", doc(cfg(feature = "wgpu-types")))]
     /// Directly copies a frame to a Wgpu texture. This will automatically convert the frame into a RGBA frame.
@@ -160,12 +165,10 @@ impl Buffer {
     /// If the frame cannot be captured or the resolution is 0 on any axis, this will error.
     fn frame_texture<'a>(
         &mut self,
-        device: &WgpuDevice,
-        queue: &WgpuQueue,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         label: Option<&'a str>,
-    ) -> Result<WgpuTexture, NokhwaError> {
-        use crate::pixel_format::RgbAFormat;
-        use std::num::NonZeroU32;
+    ) -> Result<wgpu::Texture, NokhwaError> {
         let frame = self.frame()?.decode_image::<RgbAFormat>()?;
     
         let texture_size = Extent3d {
@@ -182,17 +185,11 @@ impl Buffer {
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[TextureFormat::Rgba8UnormSrgb],
         });
     
-        let width_nonzero = match NonZeroU32::try_from(4 * frame.width()) {
-            Ok(w) => Some(w),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
-    
-        let height_nonzero = match NonZeroU32::try_from(frame.height()) {
-            Ok(h) => Some(h),
-            Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
-        };
+        let width_nonzero = 4 * frame.width();
+        let height_nonzero = frame.height();
     
         queue.write_texture(
             ImageCopyTexture {
