@@ -561,6 +561,10 @@ pub enum ControlValueDescription {
         max: (f64, f64, f64),
         default: (f64, f64, f64),
     },
+    StringList {
+        value: String,
+        availible: Vec<String>
+    }
 }
 
 impl ControlValueDescription {
@@ -594,6 +598,7 @@ impl ControlValueDescription {
             ControlValueDescription::RGB { value, .. } => {
                 ControlValueSetter::RGB(value.0, value.1, value.2)
             }
+            ControlValueDescription::StringList { value, .. } => ControlValueSetter::StringList(value.clone()),
         }
     }
 
@@ -688,6 +693,9 @@ impl ControlValueDescription {
             ControlValueDescription::RGB { max, .. } => match setter.as_rgb() {
                 Some(v) => *v.0 >= max.0 && *v.1 >= max.1 && *v.2 >= max.2,
                 None => false,
+            },
+            ControlValueDescription::StringList { value, availible } => {
+                availible.contains(setter.as_str())
             },
         }
 
@@ -854,6 +862,9 @@ impl Display for ControlValueDescription {
                     value.0, value.1, value.2, max.0, max.1, max.2, default.0, default.1, default.2
                 )
             }
+            ControlValueDescription::StringList { value, availible } => {
+                write!(f, "Current: {value}, Availible: {availible:?}")
+            },
         }
     }
 }
@@ -972,6 +983,7 @@ pub enum ControlValueSetter {
     Point(f64, f64),
     EnumValue(i64),
     RGB(f64, f64, f64),
+    StringList(String),
 }
 
 impl ControlValueSetter {
@@ -1099,6 +1111,9 @@ impl Display for ControlValueSetter {
             ControlValueSetter::RGB(r, g, b) => {
                 write!(f, "RGBValue: ({r}, {g}, {b})")
             }
+            ControlValueSetter::StringList(s) => {
+                write!(f, "StringListValue: {s}")
+            },
         }
     }
 }
