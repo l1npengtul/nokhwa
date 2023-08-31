@@ -21,8 +21,9 @@
 //! Core type definitions for `nokhwa`
 pub mod buffer;
 pub mod error;
-pub mod format_filter;
+pub mod format_request;
 pub mod frame_format;
 pub mod traits;
 pub mod types;
 pub mod decoder;
+pub mod utils;

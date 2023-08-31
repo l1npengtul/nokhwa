@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use nokhwa_core::format_filter::FormatFilter;
+use nokhwa_core::format_request::FormatFilter;
 use nokhwa_core::frame_format::SourceFrameFormat;
 use nokhwa_core::traits::Backend;
 use nokhwa_core::{

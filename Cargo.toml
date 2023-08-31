@@ -29,7 +29,8 @@ input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
-input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor", "output-async"]
+# FIXME: Change me back to web-sys being optional! People will be mad otherwise peg!
+input-jscam = [ "wasm-bindgen-futures", "wasm-rs-async-executor", "output-async"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
@@ -65,11 +66,11 @@ version = "0.2"
 optional = true
 
 [dependencies.wgpu]
-version = "0.16"
+version = "0.17"
 optional = true
 
 [dependencies.opencv]
-version = "0.82"
+version = "0.84"
 default-features = false
 features = ["videoio"]
 optional = true
@@ -97,6 +98,7 @@ optional = true
 version = "1.7"
 optional = true
 
+# TODO: Change me back!
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -116,15 +118,13 @@ features = [
     "Plugin", "PluginArray",
     "Window"
 ]
-optional = true
 
+# FIXME: Change me back! Pls! REMEMBER PEG!
 [dependencies.js-sys]
 version = "0.3"
-optional = true
 
 [dependencies.wasm-bindgen]
 version = "0.2"
-optional = true
 
 [dependencies.wasm-bindgen-futures]
 version = "0.4"

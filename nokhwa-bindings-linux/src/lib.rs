@@ -16,7 +16,7 @@
 
 #[cfg(target_os = "linux")]
 mod internal {
-    use nokhwa_core::format_filter::FormatFilter;
+    use nokhwa_core::format_request::FormatFilter;
     use nokhwa_core::{
         buffer::Buffer,
         error::NokhwaError,

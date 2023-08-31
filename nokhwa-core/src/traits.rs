@@ -17,7 +17,7 @@
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
-    format_filter::FormatFilter,
+    format_request::FormatFilter,
     frame_format::SourceFrameFormat,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
@@ -314,17 +314,6 @@ pub trait AsyncCaptureTrait: CaptureTrait {
         &mut self,
         fourcc: SourceFrameFormat,
     ) -> Result<(), NokhwaError>;
-
-    /// Gets the value of [`KnownCameraControl`].
-    /// # Errors
-    /// If the `control` is not supported or there is an error while getting the camera control values (e.g. unexpected value, too high, etc)
-    /// this will error.
-    async fn camera_control_async(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError>;
-
-    /// Gets the current supported list of [`KnownCameraControl`]
-    /// # Errors
-    /// If the list cannot be collected, this will error. This can be treated as a "nothing supported".
-    async fn camera_controls_async(&self) -> Result<Vec<CameraControl>, NokhwaError>;
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](CaptureTrait::camera_control), getting a camera control that way

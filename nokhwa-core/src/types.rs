@@ -1,25 +1,101 @@
 use crate::{
     error::NokhwaError,
-    format_filter::RequestedFormatType,
     frame_format::{FrameFormat, SourceFrameFormat},
 };
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::{
     borrow::Borrow,
     cmp::Ordering,
     fmt::{Display, Formatter},
 };
 
-impl Default for RequestedFormatType {
-    fn default() -> Self {
-        RequestedFormatType::None
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub struct Range<T>
+where
+    T: Copy + Clone + Debug + PartialOrd + PartialEq,
+{
+    minimum: Option<T>,
+    lower_inclusive: bool,
+    maximum: Option<T>,
+    upper_inclusive: bool,
+    preferred: T,
+}
+
+impl<T> Range<T>
+where
+    T: Copy + Clone + Debug + PartialOrd + PartialEq,
+{
+    pub fn new(preferred: T, min: Option<T>, max: Option<T>) -> Self {
+        Self {
+            minimum: min,
+            lower_inclusive: true,
+            maximum: max,
+            upper_inclusive: false,
+            preferred,
+        }
+    }
+
+    pub fn with_inclusive(
+        preferred: T,
+        min: Option<T>,
+        lower_inclusive: bool,
+        max: Option<T>,
+        upper_inclusive: bool,
+    ) -> Self {
+        Self {
+            minimum: min,
+            lower_inclusive,
+            maximum: max,
+            upper_inclusive,
+            preferred,
+        }
+    }
+
+    pub fn does_fit(&self, item: T) -> bool {
+        if item == self.preferred {
+            true
+        }
+
+        if let Some(min) = self.minimum {
+            let test = if self.lower_inclusive {
+                min >= item
+            } else {
+                min > item
+            };
+            if test {
+                return false;
+            }
+        }
+
+        if let Some(max) = self.maximum {
+            let test = if self.lower_inclusive {
+                max <= item
+            } else {
+                max < item
+            };
+            if test {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
-impl Display for RequestedFormatType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
+impl<T> Default for Range<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Range {
+            minimum: None,
+            lower_inclusive: true,
+            maximum: None,
+            upper_inclusive: false,
+            preferred: T::default(),
+        }
     }
 }
 
@@ -308,7 +384,7 @@ impl CameraInfo {
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
     // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
-    pub fn new(human_name: &str, description: &str, misc: &str, index: CameraIndex) -> Self {
+    pub fn new(human_name: &str, description: &str, misc: &str, index: &CameraIndex) -> Self {
         CameraInfo {
             human_name: human_name.to_string(),
             description: description.to_string(),
@@ -563,8 +639,8 @@ pub enum ControlValueDescription {
     },
     StringList {
         value: String,
-        availible: Vec<String>
-    }
+        availible: Vec<String>,
+    },
 }
 
 impl ControlValueDescription {
@@ -598,7 +674,9 @@ impl ControlValueDescription {
             ControlValueDescription::RGB { value, .. } => {
                 ControlValueSetter::RGB(value.0, value.1, value.2)
             }
-            ControlValueDescription::StringList { value, .. } => ControlValueSetter::StringList(value.clone()),
+            ControlValueDescription::StringList { value, .. } => {
+                ControlValueSetter::StringList(value.clone())
+            }
         }
     }
 
@@ -696,7 +774,7 @@ impl ControlValueDescription {
             },
             ControlValueDescription::StringList { value, availible } => {
                 availible.contains(setter.as_str())
-            },
+            }
         }
 
         // match setter {
@@ -864,7 +942,7 @@ impl Display for ControlValueDescription {
             }
             ControlValueDescription::StringList { value, availible } => {
                 write!(f, "Current: {value}, Availible: {availible:?}")
-            },
+            }
         }
     }
 }
@@ -1113,7 +1191,7 @@ impl Display for ControlValueSetter {
             }
             ControlValueSetter::StringList(s) => {
                 write!(f, "StringListValue: {s}")
-            },
+            }
         }
     }
 }
@@ -1346,7 +1424,7 @@ pub fn yuyv422_to_rgb(data: &[u8], rgba: bool) -> Result<Vec<u8>, NokhwaError> {
 /// If the stream is invalid Yuv422, or the destination buffer is not large enough, this will error.
 #[inline]
 pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<(), NokhwaError> {
-    let mut buf:Vec<u8> = Vec::new();
+    let mut buf: Vec<u8> = Vec::new();
     if data.len() % 4 != 0 {
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::Yuv422.into(),
@@ -1380,7 +1458,6 @@ pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<()
     dest.copy_from_slice(&buf);
     Ok(())
 }
-
 
 // equation from https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB
 /// Convert `YCbCr` 4:4:4 to a RGB888. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)

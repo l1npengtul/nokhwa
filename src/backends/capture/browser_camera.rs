@@ -1,24 +1,25 @@
 use async_trait::async_trait;
-use js_sys::{Array, Object, Reflect, Map, Function};
+use js_sys::{Array, Function, Map, Reflect};
 use nokhwa_core::buffer::Buffer;
 use nokhwa_core::error::NokhwaError;
-use nokhwa_core::format_filter::FormatFilter;
+use nokhwa_core::format_request::FormatFilter;
 use nokhwa_core::frame_format::{FrameFormat, SourceFrameFormat};
 use nokhwa_core::traits::{AsyncCaptureTrait, Backend, CaptureTrait};
 use nokhwa_core::types::{
     ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-    KnownCameraControl, Resolution, KnownCameraControlFlag,
+    KnownCameraControl, KnownCameraControlFlag, Resolution,
 };
-use v4l::Control;
-use wasm_bindgen_futures::JsFuture;
+use nokhwa_core::utils::min_max_range;
 use std::borrow::Cow;
-use std::collections::{HashMap, BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::future::Future;
 use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, MediaDevices, Navigator, OffscreenCanvas, Window, MediaStream, MediaStreamConstraints, HtmlCanvasElement, MediaDeviceInfo, MediaDeviceKind, MediaStreamTrack, MediaTrackSettings,
+    CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, MediaDeviceInfo,
+    MediaDeviceKind, MediaDevices, MediaStream, MediaStreamConstraints, MediaStreamTrack,
+    MediaTrackSettings, Navigator, OffscreenCanvas, Window,
 };
-
 
 macro_rules! jsv {
     ($value:expr) => {{
@@ -180,16 +181,17 @@ fn control_to_str(control: KnownCameraControl) -> &'static str {
         KnownCameraControl::Exposure => "exposureMode",
         KnownCameraControl::Iris => "focusDistance",
         KnownCameraControl::Focus => "focusMode",
-        KnownCameraControl::Other(u) => {
-            match u {
-                8 => "aspectRatio",
-                16 => "facingMode",
-                32 => "resizeMode",
-                64 => "attachedCanvasMode",
-                128 => "pointsOfInterest",
-                8192 => "torch",
-                _ => "",
-            }
+        KnownCameraControl::Other(u) => match u {
+            0 => "frameRate",
+            1 => "width",
+            2 => "height",
+            8 => "aspectRatio",
+            16 => "facingMode",
+            32 => "resizeMode",
+            64 => "attachedCanvasMode",
+            128 => "pointsOfInterest",
+            8192 => "torch",
+            _ => "",
         },
     }
 }
@@ -233,7 +235,7 @@ impl AsRef<str> for JSCameraMeteringMode {
             JSCameraMeteringMode::Continuous => "continuous",
         }
     }
-} 
+}
 
 impl Into<JsValue> for JSCameraMeteringMode {
     fn into(self) -> JsValue {
@@ -262,12 +264,10 @@ pub struct BrowserCamera {
     info: CameraInfo,
     format: CameraFormat,
     media_stream: MediaStream,
-    track: MediaStreamTrack,
     init: bool,
-    custom_controls: HashMap<u128, CameraControl>,
-    controls: HashMap<KnownCameraControl, CameraControl>,
+    canvas_attachment: Option<String>,
     supported_controls: HashSet<KnownCameraControl>,
-    cavnas: Option<CanvasType>,
+    cavnas: Option<String>,
     context: Option<CanvasRenderingContext2d>,
 }
 
@@ -285,10 +285,9 @@ impl BrowserCamera {
         video_constraints.set(&JsValue::from_str("tilt"), &JsValue::TRUE);
         video_constraints.set(&JsValue::from_str("zoom"), &JsValue::TRUE);
 
-        let stream: MediaStream = match media_devices.get_user_media_with_constraints(&MediaStreamConstraints::new().video(
-            &video_constraints
-        ))
-        {
+        let stream: MediaStream = match media_devices.get_user_media_with_constraints(
+            &MediaStreamConstraints::new().video(&video_constraints),
+        ) {
             Ok(promise) => {
                 let future = JsFuture::from(promise);
                 match future.await {
@@ -298,21 +297,23 @@ impl BrowserCamera {
                     }
                     Err(why) => {
                         return Err(NokhwaError::OpenDeviceError(
-                            "MediaDevicesGetUserMediaJsFuture".to_string(), format!("{why:?}"),
+                            "MediaDevicesGetUserMediaJsFuture".to_string(),
+                            format!("{why:?}"),
                         ))
                     }
                 }
             }
             Err(why) => {
                 return Err(NokhwaError::OpenDeviceError(
-                    "MediaDevicesGetUserMedia".to_string(), format!("{why:?}"),
+                    "MediaDevicesGetUserMedia".to_string(),
+                    format!("{why:?}"),
                 ))
             }
         };
 
         let media_info = match media_devices.enumerate_devices() {
             Ok(i) => {
-                let future = JsFuture::from(promise);
+                let future = JsFuture::from(i);
                 match future.await {
                     Ok(devs) => {
                         let arr = Array::from(&devs);
@@ -321,46 +322,69 @@ impl BrowserCamera {
                                 let dr = arr.get(i as u32);
 
                                 if dr == JsValue::UNDEFINED {
-                                    return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo".to_string(), error: "undefined".to_string() })
+                                    return Err(NokhwaError::StructureError {
+                                        structure: "MediaDeviceInfo".to_string(),
+                                        error: "undefined".to_string(),
+                                    });
                                 }
 
                                 MediaDeviceInfo::from(dr)
                             }
                             CameraIndex::String(s) => {
-                                match arr.iter().map(MediaDeviceInfo::from)
-                                .filter(|mdi| {
-                                    mdi.device_id() == s
-                                }).nth(0) {
+                                match arr
+                                    .iter()
+                                    .map(MediaDeviceInfo::from)
+                                    .filter(|mdi| mdi.device_id() == s)
+                                    .nth(0)
+                                {
                                     Some(i) => i,
-                                    None => return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo".to_string(), error: "no id".to_string() })
-
+                                    None => {
+                                        return Err(NokhwaError::StructureError {
+                                            structure: "MediaDeviceInfo".to_string(),
+                                            error: "no id".to_string(),
+                                        })
+                                    }
                                 }
                             }
                         }
                     }
                     Err(why) => {
-                        return Err(NokhwaError::StructureError { structure: "MediaDeviceInfo Enumerate Devices Promise".to_string(), error: format!("{why:?}") })
+                        return Err(NokhwaError::StructureError {
+                            structure: "MediaDeviceInfo Enumerate Devices Promise".to_string(),
+                            error: format!("{why:?}"),
+                        })
                     }
                 }
             }
             Err(why) => {
-                return Err(NokhwaError::GetPropertyError { property: "MediaDeviceInfo".to_string(), error: format!("{why:?}") })
-            },
+                return Err(NokhwaError::GetPropertyError {
+                    property: "MediaDeviceInfo".to_string(),
+                    error: format!("{why:?}"),
+                })
+            }
         };
 
-        let info = CameraInfo::new(&media_info.label(), media_info.kind().to_string(), &format!("{}:{}", media_info.group_id().to_string(), media_info.device_id().to_string()),index);
-        let track = stream.get_video_tracks().iter().nth(0).map(|x| element_cast(, name));
-        Ok(BrowserCamera { 
-            index:  index.clone(),
-             info, format: CameraFormat::default(),
-              init: false,
-               cavnas: None,
-                context: None, 
-                media_stream: stream,
-                controls: HashMap::new(),
-                 custom_controls: HashMap::new(), 
-                 supported_controls: HashSet::new(),
-                  track: todo!(),  })
+        let info = CameraInfo::new(
+            &media_info.label(),
+            &*media_info.kind().to_string(),
+            &format!(
+                "{}:{}",
+                media_info.group_id().to_string(),
+                media_info.device_id().to_string()
+            ),
+            index,
+        );
+        Ok(BrowserCamera {
+            index: index.clone(),
+            info,
+            format: CameraFormat::default(),
+            init: false,
+            cavnas: None,
+            context: None,
+            media_stream: stream,
+            supported_controls: HashSet::new(),
+            canvas_attachment: None,
+        })
     }
 }
 
@@ -369,9 +393,7 @@ impl Backend for BrowserCamera {
 }
 
 impl CaptureTrait for BrowserCamera {
-    fn init(&mut self) -> Result<(), NokhwaError> {
-
-    }
+    fn init(&mut self) -> Result<(), NokhwaError> {}
 
     fn init_with_format(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError> {
         self.init()?;
@@ -436,7 +458,191 @@ impl CaptureTrait for BrowserCamera {
     }
 
     fn camera_control(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        
+        // TODO: Werid Controls like framerate and attach support
+
+        if let KnownCameraControl::Other(custom) = control {
+            if custom == 64 {
+                // attached canvas mode
+                return Ok(CameraControl::new(
+                    KnownCameraControl::Other(64),
+                    "AttachedCanvasMode".to_string(),
+                    nokhwa_core::types::ControlValueDescription::String {
+                        value: self.canvas_attachment,
+                        default: None,
+                    },
+                    vec![],
+                    active,
+                ));
+            }
+        }
+
+        let cam_str = control_to_str(contorl);
+        let capabilities_fn = match unsafe { Reflect::get(&self.track, "getCapabilities") } {
+            Ok(v) => match v.dyn_ref::<Function>() {
+                Some(fx) => fx,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "getCapabilities".to_string(),
+                        error: "getCapabilities is not a function!".to_string(),
+                    })
+                }
+            },
+            Err(why) => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: "getCapabilities".to_string(),
+                    error: why.as_string().unwrap_or_default(),
+                })
+            }
+        };
+        let capabilities = match capabilities_fn.call0(&self.track) {
+            Ok(c) => c,
+            Err(v) => NokhwaError::GetPropertyError {
+                property: "getCapabilities".to_string(),
+                error: why.as_string().unwrap_or_default(),
+            }, // ok i guess, thanks vscode
+        };
+        let settings = self.track.get_settings();
+        let constraint_value = match unsafe { Reflect::get(&constraints, cam_str) } {
+            Ok(v) => v,
+            Err(why) => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: cam_str.to_string(),
+                    error: why.as_string().unwrap_or_default(),
+                })
+            }
+        };
+        let setting_value = match unsafe { Reflect::get(&settings, cam_str) } {
+            Ok(v) => v,
+            Err(why) => {
+                return Err(NokhwaError::GetPropertyError {
+                    property: cam_str.to_string(),
+                    error: why.as_string().unwrap_or_default(),
+                })
+            }
+        };
+
+        // setting range!
+        if unsafe { Reflect::get(&setting_value, "min").is_ok() } {
+            let min = match unsafe { Reflect::get(&setting_value, "min") } {
+                Ok(v) => v.as_f64(),
+                Err(why) => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "min".to_string(),
+                        error: why.as_string().unwrap_or_default(),
+                    })
+                }
+            };
+            let min = match min {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "min".to_string(),
+                        error: "Not a f64! Did the API change?".to_string(),
+                    })
+                }
+            };
+            let max = match unsafe { Reflect::get(&setting_value, "max") } {
+                Ok(v) => v.as_f64(),
+                Err(why) => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "max".to_string(),
+                        error: why.as_string().unwrap_or_default(),
+                    })
+                }
+            };
+            let max = match max {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "max".to_string(),
+                        error: "Not a f64! Did the API change?".to_string(),
+                    })
+                }
+            };
+            let step = match unsafe { Reflect::get(&setting_value, "step") } {
+                Ok(v) => v.as_f64(),
+                Err(why) => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "step".to_string(),
+                        error: why.as_string().unwrap_or_default(),
+                    })
+                }
+            };
+            let step = match step {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "step".to_string(),
+                        error: "Not a f64! Did the API change?".to_string(),
+                    })
+                }
+            };
+
+            let value = match constraint_value.as_f64() {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "value".to_string(),
+                        error: "Not a f64! Did the API change?".to_string(),
+                    })
+                }
+            };
+
+            return Ok(CameraControl::new(
+                control,
+                cam_str.to_string(),
+                nokhwa_core::types::ControlValueDescription::FloatRange {
+                    min,
+                    max,
+                    value,
+                    step,
+                    default: f64::default(),
+                },
+                vec![],
+                true,
+            ));
+        }
+        // im a sequence<DOMString>
+        else if setting_value.is_array() {
+            let availible = Array::from(&setting_value)
+                .iter()
+                .map(|x| match x.as_string() {
+                    Some(v) => format!("{v}:"),
+                    None => String::new(),
+                })
+                .collect::<String>();
+
+            let value = match constraint_value.as_string() {
+                Some(v) => v,
+                None => {
+                    return Err(NokhwaError::GetPropertyError {
+                        property: "value".to_string(),
+                        error: "Not a String! Did the API change?".to_string(),
+                    })
+                }
+            };
+            return Ok(CameraControl::new(
+                control,
+                cam_str.to_string(),
+                nokhwa_core::types::ControlValueDescription::StringList { value, availible },
+                vec![],
+                true,
+            ));
+        }
+        // nope im a bool
+        else {
+            let is_truthy = constraint_value.is_truthy();
+            return Ok(CameraControl::new(
+                control,
+                cam_str.to_string(),
+                nokhwa_core::types::ControlValueDescription::Boolean {
+                    value: is_truthy,
+                    default: false,
+                },
+                flag,
+                true,
+            ));
+        }
     }
 
     fn camera_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
@@ -479,7 +685,6 @@ impl AsyncCaptureTrait for BrowserCamera {
         let media_devices = media_devices(&window.navigator())?;
 
         // request permission for camera
-         
 
         // first populate supported controls and see if we have our required controls
         // required: FPS, Resolution (width + height)
@@ -490,149 +695,245 @@ impl AsyncCaptureTrait for BrowserCamera {
         let mut supported_constraints = HashSet::new();
 
         let defaults_satisfied = {
-            Reflect::get(&browser_constraints, "frameRate".into()).map(|x| x.is_truthy()).unwrap_or(false) && Reflect::get(&browser_constraints, "width".into()).map(|x| x.is_truthy()).unwrap_or(false) && Reflect::get(&browser_constraints, "height".into()).map(|x| x.is_truthy()).unwrap_or(false)
+            unsafe { Reflect::get(&browser_constraints, "frameRate".into()) }
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+                && unsafe { Reflect::get(&browser_constraints, "width".into()) }
+                    .map(|x| x.is_truthy())
+                    .unwrap_or(false)
+                && unsafe { Reflect::get(&browser_constraints, "height".into()) }
+                    .map(|x| x.is_truthy())
+                    .unwrap_or(false)
         };
+
+        if !defaults_satisfied {
+            return Err(NokhwaError::InitializeError { backend: ApiBackend::Browser, error: "Your browser does not support the required constraints! (frameRate, width, height)".to_string() });
+        }
 
         // STAY ~~WHITE~~ CLEAN WITH US! JOIN ~~WHITE~~ MATCH EXPRESSION SOCIETY!
 
-        // aspectRatio
-        if Reflect::get(&browser_constraints, "aspectRatio".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Other(8));
-        }
+        // SAFETY: /shurg
+        unsafe {
+            // aspectRatio
+            if Reflect::get(&browser_constraints, "aspectRatio".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Other(8));
+            }
 
-        // facingMode
-        if Reflect::get(&browser_constraints, "facingMode".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Other(16));
-        }
+            // facingMode
+            if Reflect::get(&browser_constraints, "facingMode".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Other(16));
+            }
 
-        // resizeMode
-        if Reflect::get(&browser_constraints, "resizeMode".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Other(32));
-        }
+            // resizeMode
+            if Reflect::get(&browser_constraints, "resizeMode".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Other(32));
+            }
 
-        // attachedCanvasMode
-        supported_constraints.insert(KnownCameraControl::Other(64));
+            // attachedCanvasMode
+            supported_constraints.insert(KnownCameraControl::Other(64));
 
-        // whiteBalanceMode
-        if Reflect::get(&browser_constraints, "whiteBalanceMode".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::WhiteBalance);
-        }
+            // whiteBalanceMode
+            if Reflect::get(&browser_constraints, "whiteBalanceMode".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::WhiteBalance);
+            }
 
-        // exposureMode
-        if Reflect::get(&browser_constraints, "exposureMode".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Exposure);
-        }
+            // exposureMode
+            if Reflect::get(&browser_constraints, "exposureMode".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Exposure);
+            }
 
-        // focusMode
-        if Reflect::get(&browser_constraints, "focusMode".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Focus);
-        }
+            // focusMode
+            if Reflect::get(&browser_constraints, "focusMode".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Focus);
+            }
 
-        // pointsOfInterest
-        if Reflect::get(&browser_constraints, "pointsOfInterest".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Other(128));
-        }
+            // pointsOfInterest
+            if Reflect::get(&browser_constraints, "pointsOfInterest".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Other(128));
+            }
 
-        // exposureCompensation
-        if Reflect::get(&browser_constraints, "exposureCompensation".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::BacklightComp);
-        }
+            // exposureCompensation
+            if Reflect::get(&browser_constraints, "exposureCompensation".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::BacklightComp);
+            }
 
-        // exposureTime
-        if Reflect::get(&browser_constraints, "exposureTime".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Gamma);
-        }
+            // exposureTime
+            if Reflect::get(&browser_constraints, "exposureTime".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Gamma);
+            }
 
-        // colorTemprature
-        if Reflect::get(&browser_constraints, "colorTemprature".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Hue);
-        }
+            // colorTemprature
+            if Reflect::get(&browser_constraints, "colorTemprature".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Hue);
+            }
 
-        // iso
-        if Reflect::get(&browser_constraints, "iso".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Gain);
-        }
+            // iso
+            if Reflect::get(&browser_constraints, "iso".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Gain);
+            }
 
-        // brightness
-        if Reflect::get(&browser_constraints, "brightness".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Brightness);
-        }
+            // brightness
+            if Reflect::get(&browser_constraints, "brightness".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Brightness);
+            }
 
-        // contrast
-        if Reflect::get(&browser_constraints, "contrast".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Contrast);
-        }
+            // contrast
+            if Reflect::get(&browser_constraints, "contrast".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Contrast);
+            }
 
-        // pan
-        if Reflect::get(&browser_constraints, "pan".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Pan);
-        }
+            // pan
+            if Reflect::get(&browser_constraints, "pan".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Pan);
+            }
 
-        // saturation
-        if Reflect::get(&browser_constraints, "saturation".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Saturation);
-        }
+            // saturation
+            if Reflect::get(&browser_constraints, "saturation".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Saturation);
+            }
 
-        // sharpness
-        if Reflect::get(&browser_constraints, "sharpness".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Sharpness);
-        }
+            // sharpness
+            if Reflect::get(&browser_constraints, "sharpness".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Sharpness);
+            }
 
-        // focusDistance
-        if Reflect::get(&browser_constraints, "focusDistance".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Iris);
-        }
+            // focusDistance
+            if Reflect::get(&browser_constraints, "focusDistance".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Iris);
+            }
 
-        // tilt
-        if Reflect::get(&browser_constraints, "tilt".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Tilt);
-        }
+            // tilt
+            if Reflect::get(&browser_constraints, "tilt".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Tilt);
+            }
 
-        // zoom
-        if Reflect::get(&browser_constraints, "zoom".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Zoom);
-        }
+            // zoom
+            if Reflect::get(&browser_constraints, "zoom".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Zoom);
+            }
 
-        // torch
-        if Reflect::get(&browser_constraints, "torch".into()).map(|x| x.is_truthy()).unwrap_or(false) {
-            supported_constraints.insert(KnownCameraControl::Other(8192));
+            // torch
+            if Reflect::get(&browser_constraints, "torch".into())
+                .map(|x| x.is_truthy())
+                .unwrap_or(false)
+            {
+                supported_constraints.insert(KnownCameraControl::Other(8192));
+            }
         }
 
         // PUT ME INTO THE CHARLOTTE VESSEL COACH I'LL PROVE FREE WILL IS REAL
 
         self.supported_controls = supported_constraints;
+        self.init = true;
 
-        // get values for supported controls
-
-        for control in self.supported_controls {
-            match control {
-                KnownCameraControl::Brightness => {
-                    
-                }
-                KnownCameraControl::Contrast => todo!(),
-                KnownCameraControl::Hue => todo!(),
-                KnownCameraControl::Saturation => todo!(),
-                KnownCameraControl::Sharpness => todo!(),
-                KnownCameraControl::Gamma => todo!(),
-                KnownCameraControl::WhiteBalance => todo!(),
-                KnownCameraControl::BacklightComp => todo!(),
-                KnownCameraControl::Gain => todo!(),
-                KnownCameraControl::Pan => todo!(),
-                KnownCameraControl::Tilt => todo!(),
-                KnownCameraControl::Zoom => todo!(),
-                KnownCameraControl::Exposure => todo!(),
-                KnownCameraControl::Iris => todo!(),
-                KnownCameraControl::Focus => todo!(),
-                KnownCameraControl::Other(_) => todo!(),
-
-            }
-        }
-
-        todo!()
+        Ok(())
     }
 
-    async fn init_with_format_async(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError> {
-        todo!()
+    async fn init_with_format_async(
+        &mut self,
+        format: FormatFilter,
+    ) -> Result<CameraFormat, NokhwaError> {
+        self.init_async()?;
+
+        // now we need to get all formats possible
+
+        let frame_rates = match self
+            .camera_control(KnownCameraControl::Other(0))?
+            .description()
+        {
+            nokhwa_core::types::ControlValueDescription::FloatRange { min, max, step, .. } => {
+                min_max_range(min, max, step)
+            }
+            _ => Err(NokhwaError::GetPropertyError {
+                property: "frameRate".to_string(),
+                error: "Bad FrameRate Type".to_string(),
+            }),
+        };
+
+        let widths = match self
+            .camera_control(KnownCameraControl::Other(1))?
+            .description()
+        {
+            nokhwa_core::types::ControlValueDescription::FloatRange { min, max, step, .. } => {
+                min_max_range(min, max, step)
+            }
+            _ => Err(NokhwaError::GetPropertyError {
+                property: "width".to_string(),
+                error: "Bad width Type".to_string(),
+            }),
+        };
+
+        let heights = match self
+            .camera_control(KnownCameraControl::Other(2))?
+            .description()
+        {
+            nokhwa_core::types::ControlValueDescription::FloatRange { min, max, step, .. } => {
+                min_max_range(min, max, step)
+            }
+            _ => Err(NokhwaError::GetPropertyError {
+                property: "height".to_string(),
+                error: "Bad height Type".to_string(),
+            }),
+        };
+        
+        
     }
 
     async fn refresh_camera_format_async(&mut self) -> Result<(), NokhwaError> {
@@ -643,7 +944,10 @@ impl AsyncCaptureTrait for BrowserCamera {
         todo!()
     }
 
-    async fn compatible_list_by_resolution_async(&mut self, fourcc: SourceFrameFormat) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
+    async fn compatible_list_by_resolution_async(
+        &mut self,
+        fourcc: SourceFrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
         todo!()
     }
 
@@ -663,103 +967,18 @@ impl AsyncCaptureTrait for BrowserCamera {
         todo!()
     }
 
-    async fn set_frame_format_async(&mut self, fourcc: SourceFrameFormat) -> Result<(), NokhwaError> {
+    async fn set_frame_format_async(
+        &mut self,
+        fourcc: SourceFrameFormat,
+    ) -> Result<(), NokhwaError> {
         todo!()
     }
 
-    // TODO: Verify that constraint_value and setting_value are in the right place and order!
-    async fn camera_control_async(&self, control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-        // TODO: Werid Controls like framerate and attach support
-        let cam_str = control_to_str(contorl);
-        let capabilities_fn = match Reflect::get(&self.track, "getCapabilities") {
-            Ok(v) => match v.dyn_ref::<Function>() {
-                Some(fx) => fx,
-                None => return Err(NokhwaError::GetPropertyError{ property: "getCapabilities".to_string(), error: "getCapabilities is not a function!".to_string() }),
-            },
-            Err(why) => return Err(NokhwaError::GetPropertyError{ property: "getCapabilities".to_string(), error: why.as_string().unwrap_or_default() }),
-        };
-        let capabilities = match capabilities_fn.call0(&self.track) {
-            Ok(c) => c,
-            Err(V4L2_HDR10_MASTERING_WHITE_POINT_Y_HIGH) => NokhwaError::GetPropertyError{ property: "getCapabilities".to_string(), error: why.as_string().unwrap_or_default() }, // ok i guess, thanks vscode
-        };
-        let settings = self.track.get_settings();
-        let constraint_value = match Reflect::get(&constraints, cam_str) {
-            Ok(v) => v,
-            Err(why) => return Err(NokhwaError::GetPropertyError{ property: cam_str.to_string(), error: why.as_string().unwrap_or_default() }),
-        };
-        let setting_value = match Reflect::get(&settings, cam_str) {
-            Ok(v) => v,
-            Err(why) => return Err(NokhwaError::GetPropertyError{ property: cam_str.to_string(), error: why.as_string().unwrap_or_default() }),
-        };
-
-        // setting range!
-        if Reflect::get(&setting_value, "min").is_ok() {
-            let min = match Reflect::get(&setting_value, "min") {
-                Ok(v) => v.as_f64(),
-                Err(why) => return Err(NokhwaError::GetPropertyError{ property: "min".to_string(), error: why.as_string().unwrap_or_default() }),
-            };
-            let min = match min {
-                Some(v) => v,
-                None => return Err(NokhwaError::GetPropertyError{ property: "min".to_string(), error: "Not a f64! Did the API change?".to_string() }),
-            };
-            let max = match Reflect::get(&setting_value, "max") {
-                Ok(v) => v.as_f64(),
-                Err(why) => return Err(NokhwaError::GetPropertyError{ property: "max".to_string(), error: why.as_string().unwrap_or_default() }),
-            };
-            let max = match max {
-                Some(v) => v,
-                None => return Err(NokhwaError::GetPropertyError{ property: "max".to_string(), error: "Not a f64! Did the API change?".to_string() }),
-            };
-            let step = match Reflect::get(&setting_value, "step") {
-                Ok(v) => v.as_f64(),
-                Err(why) => return Err(NokhwaError::GetPropertyError{ property: "step".to_string(), error: why.as_string().unwrap_or_default() }),
-            };
-            let step = match step {
-                Some(v) => v,
-                None => return Err(NokhwaError::GetPropertyError{ property: "step".to_string(), error: "Not a f64! Did the API change?".to_string() }),
-            };
-
-            let value = match constraint_value.as_f64() {
-                Some(v) => v,
-                None => return Err(NokhwaError::GetPropertyError{ property: "value".to_string(), error: "Not a f64! Did the API change?".to_string() }),
-            };
-
-            return Ok(
-                CameraControl::new(control, cam_str.to_string(), nokhwa_core::types::ControlValueDescription::FloatRange { min, max, value, step, default: f64::default() }, vec![], true)
-            )   
-        }
-        // im a sequence<DOMString>
-        else if setting_value.is_array() {
-            let availible = Array::from(&setting_value).iter().map(|x| {
-                match x.as_string() {
-                    Some(v) => format!("{v}:"),
-                    None => String::new(),
-                }
-            }).collect::<String>();
-
-            let value = match constraint_value.as_string() {
-                Some(v) => v,
-                None => return Err(NokhwaError::GetPropertyError{ property: "value".to_string(), error: "Not a String! Did the API change?".to_string() }),
-            };
-            return Ok(
-                CameraControl::new(control, cam_str.to_string(), nokhwa_core::types::ControlValueDescription::StringList { value, availible }, vec![], true)
-            )
-        }
-        // nope im a bool
-        else {
-            let is_truthy = constraint_value.is_truthy();
-            return Ok(
-                CameraControl::new(control, cam_str.to_string(), nokhwa_core::types::ControlValueDescription::Boolean { value: is_truthy, default: false }, flag, true)
-            )
-        }
-
-    }
-
-    async fn camera_controls_async(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-        todo!()
-    }
-
-    async fn set_camera_control_async(&mut self, id: KnownCameraControl, value: ControlValueSetter) -> Result<(), NokhwaError> {
+    async fn set_camera_control_async(
+        &mut self,
+        id: KnownCameraControl,
+        value: ControlValueSetter,
+    ) -> Result<(), NokhwaError> {
         todo!()
     }
 
