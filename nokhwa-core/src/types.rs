@@ -53,6 +53,16 @@ where
         }
     }
 
+    pub fn with_preferred(preferred: T) -> Self {
+        Self {
+            minimum: None,
+            lower_inclusive: true,
+            maximum: None,
+            upper_inclusive: false,
+            preferred,
+        }
+    }
+
     pub fn does_fit(&self, item: T) -> bool {
         if item == self.preferred {
             true
@@ -81,6 +91,39 @@ where
         }
 
         true
+    }
+
+
+    pub fn set_minimum(&mut self, minimum: Option<T>) {
+        self.minimum = minimum;
+    }
+    pub fn set_lower_inclusive(&mut self, lower_inclusive: bool) {
+        self.lower_inclusive = lower_inclusive;
+    }
+    pub fn set_maximum(&mut self, maximum: Option<T>) {
+        self.maximum = maximum;
+    }
+    pub fn set_upper_inclusive(&mut self, upper_inclusive: bool) {
+        self.upper_inclusive = upper_inclusive;
+    }
+    pub fn set_preferred(&mut self, preferred: T) {
+        self.preferred = preferred;
+    }
+
+    pub fn minimum(&self) -> Option<T> {
+        self.minimum
+    }
+    pub fn lower_inclusive(&self) -> bool {
+        self.lower_inclusive
+    }
+    pub fn maximum(&self) -> Option<T> {
+        self.maximum
+    }
+    pub fn upper_inclusive(&self) -> bool {
+        self.upper_inclusive
+    }
+    pub fn preferred(&self) -> T {
+        self.preferred
     }
 }
 

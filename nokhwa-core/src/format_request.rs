@@ -4,7 +4,135 @@ use crate::{
     frame_format::FrameFormat,
     types::{ApiBackend, CameraFormat, Resolution},
 };
+use paste::paste;
 use std::collections::{BTreeMap, BTreeSet};
+
+macro_rules! range_set_fields {
+    ($(($range_type:ty, $name:ident),)*) => {
+        $(
+        paste! {
+            pub fn [< with_maximum_ $name >](mut self, $name: $range_type) -> Self {
+                match &mut self.$name {
+                    Some(r) => {
+                        r.set_maximum(Some($name))
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: Some($name),
+                            minimum: None,
+                            preferred: $range_type::default()
+                        });
+                    }
+                }
+                self
+            }
+
+            pub fn [< reset_maximum_ $name >](mut self) -> Self {
+                if let Some(r) = self.$name {
+                    self.$name.set_maximum(None)
+                }
+
+                self
+            }
+
+
+            pub fn [< set_maximum_ $name >](&mut self, $name: Option<$range_type>) {
+                match &mut self.$name {
+                    Some(r) => {
+                        r.set_maximum($name)
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: $name,
+                            minimum: None,
+                            preferred: $range_type::default()
+                        });
+                    }
+                }
+            }
+
+            pub fn [< with_preferred_ $name >](mut self, $name: $range_type) -> Self {
+                match self.$name {
+                    Some(r) => {
+                        r.set_preferred(Some($name))
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: None,
+                            minimum: None,
+                            preferred: $range_type::default()
+                        });
+                    }
+                }
+                self
+            }
+
+            pub fn [< set_preferred_ $name >](&mut self, $name: $range_type) {
+                match &mut self.$name {
+                    Some(r) => {
+                        r.set_preferred($name)
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: None,
+                            minimum: None,
+                            preferred: $range_type
+                        });
+                    }
+                }
+            }
+
+            pub fn [< with_minimum_ $name >](mut self, $name: $range_type) -> Self {
+                match self.$name {
+                    Some(r) => {
+                        r.set_minimum(Some($name))
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: None,
+                            minimum: Some($name),
+                            preferred: $range_type::default()
+                        });
+                    }
+                }
+                self
+            }
+
+            pub fn [< reset_minimum_ $name >](mut self) -> Self {
+                if let Some(r) = self.$name {
+                    self.$name.set_minimum(None)
+                }
+
+                self
+            }
+
+            pub fn [< set_minimum_ $name >](&mut self, $name: Option<$range_type>) {
+                match &mut self.$name {
+                    Some(r) => {
+                        r.set_minimum($name)
+                    }
+                    None => {
+                        self.$name: Option<Range<$range_type>> = Some(Range {
+                            maximum: None,
+                            minimum: $name,
+                            preferred: $range_type::default()
+                        });
+                    }
+                }
+            }
+
+            pub fn [< with_ $name _range >](mut self, $name: Option<Range<$range_type>>) -> Self {
+                self.$name = $name
+                Self
+            }
+
+            pub fn [< set_ $name _range >](&mut self, $name: Option<Range<$range_type>>) {
+                self.$name = $name
+            }
+        }
+        )*
+    };
+}
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CustomFormatRequestType {
@@ -24,35 +152,6 @@ pub struct FormatRequest {
 impl FormatRequest {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn with_resolution(mut self, resolution: Resolution, exact: bool) -> Self {
-        self.resolution = Some(resolution);
-        self.resolution_exact = exact;
-        self
-    }
-
-    pub fn reset_resolution(mut self) -> Self {
-        self.resolution = None;
-        self.resolution_exact = false;
-        self
-    }
-    pub fn with_frame_rate(mut self, frame_rate: u32, exact: bool) -> Self {
-        self.frame_rate = Some(frame_rate);
-        self.frame_rate_exact = exact;
-        self
-    }
-
-    pub fn with_standard_frame_rate() {}
-
-    pub fn reset_frame_rate(mut self) -> Self {
-        self.frame_rate = None;
-        self.frame_rate_exact = false;
-        self
-    }
-    pub fn with_frame_formats(mut self, frame_formats: Vec<FrameFormat>) -> Self {
-        self.frame_format = Some(frame_formats);
-        self
     }
 
     pub fn with_standard_frame_formats(mut self) -> Self {
@@ -108,9 +207,12 @@ impl FormatRequest {
     }
 }
 
+range_set_fields!((Resolution, resolution), (u32, frame_rate),);
+
+// tomorrow wont come for those without FRAME FORMATS
 pub fn resolve_format_request(
     request: FormatRequest,
     availible_formats: Vec<CameraFormat>,
 ) -> CameraFormat {
-    // filter out by
+    // filter out by parts first
 }
