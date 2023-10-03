@@ -59,6 +59,7 @@ pub enum FrameFormat {
 
     // Custom
     Custom(u128),
+    PlatformSpecificCustomFormat(PlatformFrameFormat),
 }
 
 impl FrameFormat {
@@ -165,82 +166,3 @@ impl Display for PlatformFrameFormat {
         write!(f, "{self:?}")
     }
 }
-
-/// The Source Format of a [`Buffer`].
-///
-/// May either be a platform specific FourCC, or a FrameFormat
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum SourceFrameFormat {
-    FrameFormat(FrameFormat),
-    PlatformSpecific(PlatformFrameFormat),
-}
-
-impl From<FrameFormat> for SourceFrameFormat {
-    fn from(value: FrameFormat) -> Self {
-        SourceFrameFormat::FrameFormat(value)
-    }
-}
-
-impl From<(ApiBackend, u128)> for SourceFrameFormat {
-    fn from(value: (ApiBackend, u128)) -> Self {
-        SourceFrameFormat::PlatformSpecific(value.into())
-    }
-}
-
-impl From<PlatformFrameFormat> for SourceFrameFormat {
-    fn from(value: PlatformFrameFormat) -> Self {
-        SourceFrameFormat::PlatformSpecific(value)
-    }
-}
-
-impl PartialEq<FrameFormat> for SourceFrameFormat {
-    fn eq(&self, other: &FrameFormat) -> bool {
-        if let SourceFrameFormat::FrameFormat(ff) = self {
-            ff == other
-        } else {
-            false
-        }
-    }
-}
-
-impl PartialEq<(ApiBackend, u128)> for SourceFrameFormat {
-    fn eq(&self, other: &(ApiBackend, u128)) -> bool {
-        if let SourceFrameFormat::PlatformSpecific(pff) = self {
-            pff == other
-        }  else {
-            false
-        }
-    }
-}
-impl PartialEq<PlatformFrameFormat> for SourceFrameFormat {
-    fn eq(&self, other: &PlatformFrameFormat) -> bool {
-        if let SourceFrameFormat::PlatformSpecific(pff) = self {
-            pff == other
-        }  else {
-            false
-        }
-    }
-}
-
-impl Display for SourceFrameFormat {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-pub trait FormatDecoders<T: Pixel, E: Error>: Send + Sync {
-    const NAME: &'static str;
-
-    const PRIMARY: &'static [FrameFormat];
-
-    const PLATFORM_ACCEPTABLE: &'static [(ApiBackend, &'static [u128])];
-
-    type Container: Deref<Target = [T::Subpixel]>;
-
-    fn decode(&self, buffer: &Buffer) -> Result<ImageBuffer<T, Self::Container>, E>;
-}
-
-// TODO: Wgpu Decoder
-
-// TODO: OpenCV Mat Decoder

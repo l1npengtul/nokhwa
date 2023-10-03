@@ -2,12 +2,12 @@ use std::ops::Deref;
 use image::{ImageBuffer, Pixel};
 use serde::de::Error;
 use crate::buffer::Buffer;
-use crate::frame_format::{SourceFrameFormat};
+use crate::frame_format::FrameFormat;
 
 /// Trait to define a struct that can decode a [`Buffer`]
 pub trait Decoder {
     /// Formats that the decoder can decode.
-    const ALLOWED_FORMATS: &'static [SourceFrameFormat];
+    const ALLOWED_FORMATS: &'static FrameFormat;
     /// Output pixel type (e.g. [`Rgb<u8>`](image::Rgb))
     type Pixel: Pixel;
     /// Container for [`Self::Pixel`] - must have the same [`Pixel::Subpixel`]

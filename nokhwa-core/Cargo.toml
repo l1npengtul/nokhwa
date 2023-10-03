@@ -14,9 +14,8 @@ repository = "https://github.com/l1npengtul/nokhwa"
 default = []
 serialize = ["serde"]
 wgpu-types = ["wgpu"]
-mjpeg = ["mozjpeg"]
 opencv-mat = ["opencv"]
-docs-features = ["serialize", "wgpu-types", "mjpeg"]
+docs-features = ["serialize", "wgpu-types"]
 async = ["async-trait"]
 test-fail-warnings = []
 

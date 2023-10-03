@@ -144,7 +144,7 @@ impl Buffer {
                 Mat_AUTO_STEP,
             )
             .map_err(|why| NokhwaError::ProcessFrameError {
-                src: FrameFormat::RAWRGB,
+                src: FrameFormat::Rgb8,
                 destination: "OpenCV Mat".to_string(),
                 error: why.to_string(),
             })?;
@@ -156,6 +156,7 @@ impl Buffer {
 
 #[cfg(feature = "wgpu-types")]
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, ImageCopyTexture, TextureAspect, ImageDataLayout};
+use crate::frame_format::FrameFormat;
 
 #[cfg(feature = "wgpu-types")]
 impl Buffer {
