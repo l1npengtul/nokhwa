@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn main() {
-    println!("cargo:rustc-link-lib=framework=CoreMedia");
-    println!("cargo:rustc-link-lib=framework=AVFoundation");
-    println!("cargo:rustc-link-lib=framework=CoreVideo");
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+    if target_os == "macos" || target_os == "ios" {
+        println!("cargo:rustc-link-lib=framework=CoreMedia");
+        println!("cargo:rustc-link-lib=framework=AVFoundation");
+        println!("cargo:rustc-link-lib=framework=CoreVideo");
+    }
 }
-
-#[cfg(not(any(target_os = "macos", target_os = "ios")))]
-fn main() {}
