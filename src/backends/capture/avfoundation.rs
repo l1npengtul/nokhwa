@@ -252,6 +252,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         let videocallback = AVCaptureVideoCallback::new(bufname, &self.fbufsnd)?;
         let output = AVCaptureVideoDataOutput::new();
         output.add_delegate(&videocallback)?;
+        output.set_frame_format(self.camera_format().format())?;
         session.add_output(&output)?;
         session.commit_configuration();
         session.start()?;

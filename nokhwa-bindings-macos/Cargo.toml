@@ -19,6 +19,7 @@ path = "../nokhwa-core"
 core-media-sys = "0.1"
 core-video-sys = "0.1"
 cocoa-foundation = "0.1"
+core-foundation = "0.9.3"
 objc = { version = "0.2", features = ["exception"] }
 block = "0.1"
 flume = "0.10"
