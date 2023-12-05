@@ -515,6 +515,7 @@ mod internal {
             AVCaptureDeviceType::Telephoto,
             AVCaptureDeviceType::TrueDepth,
             AVCaptureDeviceType::ExternalUnknown,
+            AVCaptureDeviceType::External
         ])?
         .devices())
     }
@@ -545,6 +546,7 @@ mod internal {
         Telephoto,
         TrueDepth,
         ExternalUnknown,
+        External
     }
 
     impl From<AVCaptureDeviceType> for *mut Object {
@@ -572,6 +574,7 @@ mod internal {
                 AVCaptureDeviceType::ExternalUnknown => {
                     str_to_nsstr("AVCaptureDeviceTypeExternalUnknown")
                 }
+                AVCaptureDeviceType::External => str_to_nsstr("AVCaptureDeviceTypeExternal"),
             }
         }
     }
@@ -814,6 +817,7 @@ mod internal {
                 AVCaptureDeviceType::Dual,
                 AVCaptureDeviceType::DualWide,
                 AVCaptureDeviceType::Triple,
+                AVCaptureDeviceType::External
             ])
         }
 
