@@ -1714,9 +1714,9 @@ pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
     let c298 = (y - 16) * 298;
     let d = u - 128;
     let e = v - 128;
-    let r = ((c298 + 409 * e + 128) >> 8) as u8;
-    let g = ((c298 - 100 * d - 208 * e + 128) >> 8) as u8;
-    let b = ((c298 + 516 * d + 128) >> 8) as u8;
+    let r = ((c298 + 409 * e + 128) >> 8).clamp(0, 255) as u8;
+    let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
+    let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
     [r, g, b]
 }
 
