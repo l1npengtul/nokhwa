@@ -995,15 +995,14 @@ mod internal {
                         msg_send![format.internal, videoSupportedFrameRateRanges]
                     }) {
                         let max_fps: f64 = unsafe { msg_send![range.inner, maxFrameRate] };
-
-                        if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.01 {
+                        // Older Apple cameras (i.e. iMac 2013) return 29.97000002997 as FPS.
+                        if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.999 {
                             selected_range = range.inner;
                             break;
                         }
                     }
                 }
             }
-
             if selected_range.is_null() || selected_format.is_null() {
                 return Err(NokhwaError::SetPropertyError {
                     property: "CameraFormat".to_string(),
