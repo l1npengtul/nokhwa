@@ -20,25 +20,25 @@ where
     lower_inclusive: bool,
     maximum: Option<T>,
     upper_inclusive: bool,
-    preferred: T,
+    preferred: Option<T>,
 }
 
 impl<T> Range<T>
 where
     T: Copy + Clone + Debug + PartialOrd + PartialEq,
 {
-    pub fn new(preferred: T, min: Option<T>, max: Option<T>) -> Self {
+    pub fn new(preferred: Option<T>, min: Option<T>, max: Option<T>) -> Self {
         Self {
             minimum: min,
             lower_inclusive: true,
             maximum: max,
-            upper_inclusive: false,
+            upper_inclusive: true,
             preferred,
         }
     }
 
     pub fn with_inclusive(
-        preferred: T,
+        preferred: Option<T>,
         min: Option<T>,
         lower_inclusive: bool,
         max: Option<T>,
@@ -58,14 +58,16 @@ where
             minimum: None,
             lower_inclusive: true,
             maximum: None,
-            upper_inclusive: false,
-            preferred,
+            upper_inclusive: true,
+            preferred: Some(preferred),
         }
     }
 
-    pub fn does_fit(&self, item: T) -> bool {
-        if item == self.preferred {
-            true
+    pub fn in_range(&self, item: T) -> bool {
+        if let Some(pref) = self.preferred {
+            if pref == item {
+                return true
+            }
         }
 
         if let Some(min) = self.minimum {
@@ -107,9 +109,12 @@ where
         self.upper_inclusive = upper_inclusive;
     }
     pub fn set_preferred(&mut self, preferred: T) {
-        self.preferred = preferred;
+        self.preferred = Some(preferred);
     }
 
+    pub fn reset_preferred(&mut self) {
+        self.preferred = None
+    }
     pub fn minimum(&self) -> Option<T> {
         self.minimum
     }
@@ -122,7 +127,7 @@ where
     pub fn upper_inclusive(&self) -> bool {
         self.upper_inclusive
     }
-    pub fn preferred(&self) -> T {
+    pub fn preferred(&self) -> Option<T> {
         self.preferred
     }
 }
@@ -136,11 +141,13 @@ where
             minimum: None,
             lower_inclusive: true,
             maximum: None,
-            upper_inclusive: false,
-            preferred: T::default(),
+            upper_inclusive: true,
+            preferred: None,
         }
     }
 }
+
+
 
 /// Describes the index of the camera.
 /// - Index: A numbered index
@@ -337,16 +344,16 @@ impl FrameRate {
 
     pub fn as_float(&self) -> f32 {
         match self {
-            FrameRate::Integer(fps) => fps as f32,
+            FrameRate::Integer(fps) => *fps as f32,
             FrameRate::Float(fps) => fps,
-            FrameRate::Fraction { numerator, denominator } => (numerator as f32) / (denominator as f32)
+            FrameRate::Fraction { numerator, denominator } => (*numerator as f32) / (*denominator as f32)
         }
     }
 
     pub fn as_u32(&self) -> u32 {
         match self {
             FrameRate::Integer(fps) => *fps,
-            FrameRate::Float(fps) => fps as u32,
+            FrameRate::Float(fps) => *fps as u32,
             FrameRate::Fraction { numerator, denominator } => numerator / denominator,
         }
     }
@@ -536,7 +543,7 @@ impl CameraInfo {
             human_name: human_name.to_string(),
             description: description.to_string(),
             misc: misc.to_string(),
-            index,
+            index: index.clone(),
         }
     }
 
@@ -919,8 +926,8 @@ impl ControlValueDescription {
                 Some(v) => *v.0 >= max.0 && *v.1 >= max.1 && *v.2 >= max.2,
                 None => false,
             },
-            ControlValueDescription::StringList { value, availible } => {
-                availible.contains(setter.as_str())
+            ControlValueDescription::StringList { availible, .. } => {
+                availible.contains(&(setter.as_str().unwrap_or("").to_string())) // what the fuck??
             }
         }
 

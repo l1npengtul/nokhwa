@@ -52,6 +52,7 @@ pub enum FrameFormat {
 
     // Grayscale Formats
     Luma8,
+    Luma16,
 
     // RGB Formats
     Rgb8,
@@ -81,6 +82,7 @@ impl FrameFormat {
         FrameFormat::Nv21,
         FrameFormat::Yv12,
         FrameFormat::Luma8,
+        FrameFormat::Luma16,
         FrameFormat::Rgb8,
         FrameFormat::RgbA8,
     ];
@@ -107,9 +109,34 @@ impl FrameFormat {
         FrameFormat::Yv12,
     ];
 
-    pub const LUMA: &'static [FrameFormat] = &[FrameFormat::Luma8];
+    pub const LUMA: &'static [FrameFormat] = &[FrameFormat::Luma8, FrameFormat::Luma16];
 
     pub const RGB: &'static [FrameFormat] = &[FrameFormat::Rgb8, FrameFormat::RgbA8];
+    
+    pub const COLOR_FORMATS: &'static [FrameFormat] = &[
+        FrameFormat::H265,
+        FrameFormat::H264,
+        FrameFormat::H263,
+        FrameFormat::Avc1,
+        FrameFormat::Mpeg1,
+        FrameFormat::Mpeg2,
+        FrameFormat::Mpeg4,
+        FrameFormat::MJpeg,
+        FrameFormat::XVid,
+        FrameFormat::VP8,
+        FrameFormat::VP9,
+        FrameFormat::Yuv422,
+        FrameFormat::Uyv422,
+        FrameFormat::Nv12,
+        FrameFormat::Nv21,
+        FrameFormat::Yv12,
+        FrameFormat::Rgb8,
+        FrameFormat::RgbA8,
+    ];
+    
+    pub const GRAYSCALE: &'static [FrameFormat] = {
+        FrameFormat::Luma8
+    }
 }
 
 impl Display for FrameFormat {

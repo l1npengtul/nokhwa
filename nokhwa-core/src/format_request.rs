@@ -1,11 +1,10 @@
-use crate::frame_format::SourceFrameFormat;
-use crate::types::Range;
+use std::collections::{BTreeMap, BTreeSet};
+use crate::types::{FrameRate, Range};
 use crate::{
     frame_format::FrameFormat,
-    types::{ApiBackend, CameraFormat, Resolution},
+    types::{ CameraFormat, Resolution},
 };
 use paste::paste;
-use std::collections::{BTreeMap, BTreeSet};
 
 macro_rules! range_set_fields {
     ($(($range_type:ty, $name:ident),)*) => {
@@ -136,7 +135,7 @@ macro_rules! range_set_fields {
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CustomFormatRequestType {
-    HighestFPS,
+    HighestFrameRate,
     HighestResolution,
     Closest,
 }
@@ -144,7 +143,7 @@ pub enum CustomFormatRequestType {
 #[derive(Clone, Debug, Default, PartialOrd, PartialEq)]
 pub struct FormatRequest {
     resolution: Option<Range<Resolution>>,
-    frame_rate: Option<Range<u32>>,
+    frame_rate: Option<Range<FrameRate>>,
     frame_format: Option<Vec<FrameFormat>>,
     req_type: Option<CustomFormatRequestType>,
 }
@@ -205,14 +204,95 @@ impl FormatRequest {
         self.req_type = None;
         self
     }
+
+    pub fn satisfied_by_format(&self, format: &CameraFormat) -> bool {
+        // check resolution
+        let resolution_satisfied = match self.resolution {
+            Some(res_range) => res_range.in_range(format.resolution()),
+            None => true,
+        };
+
+        let frame_rate_satisfied = match self.frame_rate {
+            Some(fps_range) => fps_range.in_range(format.frame_rate()),
+            None => true,
+        };
+
+        let frame_format_satisfied = match &self.frame_format {
+            Some(frame_formats) => frame_formats.contains(&format.format()),
+            None => true,
+        };
+
+        // we ignore custom bc that only makes sense in multiple formats
+
+        resolution_satisfied && frame_rate_satisfied && frame_format_satisfied
+    }
+
+    pub fn resolve(&self, list_of_formats: &[CameraFormat]) -> CameraFormat {
+        let mut remaining_formats = list_of_formats.iter().filter(|x| self.satisfied_by_format(*x)).collect::<Vec<CameraFormat>>();
+        match self.req_type {
+            Some(request) => {
+                match request {
+                    CustomFormatRequestType::HighestFrameRate => {
+                        remaining_formats.sort_by(|a, b| {
+                            a.frame_rate().cmp(&b.frame_rate())
+                        });
+                        remaining_formats[0]
+                    }
+                    CustomFormatRequestType::HighestResolution => {
+                        remaining_formats.sort_by(|a, b| {
+                            a.resolution().cmp(&b.resolution())
+                        });
+                        remaining_formats[0]
+                    }
+                    CustomFormatRequestType::Closest => {
+                        enum ClosestType {
+                            Resolution,
+                            FrameRate,
+                            Both,
+                            None,
+                        }
+                        let mut closest_type = ClosestType::Resolution;
+                        
+                        if let None = self.resolution {
+                            closest_type = ClosestType::FrameRate
+                        } 
+                        
+                        if let None = self.frame_rate {
+                            if closest_type == ClosestType::FrameRate {
+                                closest_type = ClosestType::None;
+                            }
+                            closest_type = ClosestType::Resolution
+                        } else {
+                            if ClosestType::Resolution {
+                                closest_type = ClosestType::Both
+                            }
+                        }
+
+
+                        match closest_type {
+                            ClosestType::Resolution => {
+                                let resolution_point = self.resolution.unwrap().preferred();
+                            }
+                            ClosestType::FrameRate => {
+                                let frame_rate_point = self.frame_rate.unwrap().preferred();
+                            }
+                            ClosestType::Both => {
+                                let resolution_point = self.resolution.unwrap().preferred();
+                                let frame_rate_point = self.frame_rate.unwrap().preferred();
+
+                            }
+                            ClosestType::None => {
+                                remaining_formats[0]
+                            }
+                        }
+                    }
+                }
+            }
+            None => {
+                remaining_formats[0]
+            }
+        }
+    }
 }
 
-range_set_fields!((Resolution, resolution), (u32, frame_rate),);
-
-// tomorrow wont come for those without FRAME FORMATS
-pub fn resolve_format_request(
-    request: FormatRequest,
-    availible_formats: Vec<CameraFormat>,
-) -> CameraFormat {
-    // filter out by parts first
-}
+range_set_fields!((Resolution, resolution), (FrameRate, frame_rate),);
