@@ -30,8 +30,7 @@ input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
-# FIXME: Change me back to web-sys being optional! People will be mad otherwise peg!
-input-jscam = [ "wasm-bindgen-futures", "wasm-rs-async-executor", "output-async"]
+input-jscam = [ "wasm-bindgen-futures", "wasm-rs-async-executor", "output-async", "js-sys", "web-sys"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
@@ -46,11 +45,11 @@ thiserror = "1.0"
 paste = "1.0"
 
 [dependencies.mozjpeg]
-version = "0.9"
+version = "0.10"
 optional = true
 
 [dependencies.dcv-color-primitives]
-version = "0.5"
+version = "0.6"
 optional = true
 
 [dependencies.nokhwa-core]
@@ -62,11 +61,11 @@ version = "1.0"
 optional = true
 
 [dependencies.flume]
-version = "0.10"
+version = "0.11"
 optional = true
 
 [dependencies.image]
-version = "0.24"
+version = "0.25"
 default-features = false
 
 [dependencies.usb_enumeration]
@@ -74,11 +73,11 @@ version = "0.2"
 optional = true
 
 [dependencies.wgpu]
-version = "0.17"
+version = "0.19"
 optional = true
 
 [dependencies.opencv]
-version = "0.84"
+version = "0.89"
 default-features = false
 features = ["videoio"]
 optional = true
@@ -106,7 +105,6 @@ optional = true
 version = "1.7"
 optional = true
 
-# TODO: Change me back!
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -126,13 +124,16 @@ features = [
     "Plugin", "PluginArray",
     "Window"
 ]
+optional = true
 
 # FIXME: Change me back! Pls! REMEMBER PEG!
 [dependencies.js-sys]
 version = "0.3"
+optional = true
 
 [dependencies.wasm-bindgen]
 version = "0.2"
+optional = true
 
 [dependencies.wasm-bindgen-futures]
 version = "0.4"

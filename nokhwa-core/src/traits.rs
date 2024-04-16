@@ -17,14 +17,14 @@
 use crate::{
     buffer::Buffer,
     error::NokhwaError,
-    format_request::FormatFilter,
-    frame_format::SourceFrameFormat,
     types::{
         ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
         KnownCameraControl, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
+use crate::frame_format::FrameFormat;
+use crate::types::FrameRate;
 
 pub trait Backend {
     const BACKEND: ApiBackend;
@@ -40,10 +40,7 @@ pub trait Backend {
 pub trait CaptureTrait {
     /// Initialize the camera, preparing it for use, with a random format (usually the first one).
     fn init(&mut self) -> Result<(), NokhwaError>;
-
-    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`FormatFilter`].
-    fn init_with_format(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError>;
-
+    
     /// Returns the current backend used.
     fn backend(&self) -> ApiBackend;
 
@@ -71,8 +68,8 @@ pub trait CaptureTrait {
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
     fn compatible_list_by_resolution(
         &mut self,
-        fourcc: SourceFrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
+        fourcc: FrameFormat,
+    ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
 
     /// Gets the compatible [`CameraFormat`] of the camera
     /// # Errors
@@ -93,7 +90,7 @@ pub trait CaptureTrait {
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
-    fn compatible_fourcc(&mut self) -> Result<Vec<SourceFrameFormat>, NokhwaError>;
+    fn compatible_fourcc(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Gets the current camera resolution (See: [`Resolution`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
     fn resolution(&self) -> Option<Resolution>;
@@ -118,7 +115,7 @@ pub trait CaptureTrait {
     fn set_frame_rate(&mut self, new_fps: u32) -> Result<(), NokhwaError>;
 
     /// Gets the current camera's frame format (See: [`FrameFormat`], [`CameraFormat`]). This will force refresh to the current latest if it has changed.
-    fn frame_format(&self) -> SourceFrameFormat;
+    fn frame_format(&self) -> FrameFormat;
 
     /// Will set the current [`FrameFormat`]
     /// This will reset the current stream if used while stream is opened.
@@ -126,7 +123,7 @@ pub trait CaptureTrait {
     /// This will also update the cache.
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
-    fn set_frame_format(&mut self, fourcc: SourceFrameFormat)
+    fn set_frame_format(&mut self, fourcc: FrameFormat)
         -> Result<(), NokhwaError>;
 
     /// Gets the value of [`KnownCameraControl`].
@@ -253,10 +250,6 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// Initialize the camera, preparing it for use, with a random format (usually the first one).
     async fn init_async(&mut self) -> Result<(), NokhwaError>;
 
-    /// Initialize the camera, preparing it for use, with a format that fits the supplied [`FormatFilter`].
-    async fn init_with_format_async(&mut self, format: FormatFilter)
-        -> Result<CameraFormat, NokhwaError>;
-
     /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
     /// # Errors
     /// If the camera can not get its most recent [`CameraFormat`]. this will error.
@@ -275,7 +268,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
     async fn compatible_list_by_resolution_async(
         &mut self,
-        fourcc: SourceFrameFormat,
+        fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
 
     /// Gets the compatible [`CameraFormat`] of the camera
@@ -286,7 +279,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
     /// # Errors
     /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
-    async fn compatible_fourcc_async(&mut self) -> Result<Vec<SourceFrameFormat>, NokhwaError>;
+    async fn compatible_fourcc_async(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -312,7 +305,7 @@ pub trait AsyncCaptureTrait: CaptureTrait {
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     async fn set_frame_format_async(
         &mut self,
-        fourcc: SourceFrameFormat,
+        fourcc: FrameFormat,
     ) -> Result<(), NokhwaError>;
 
     /// Sets the control to `control` in the camera.
@@ -389,3 +382,7 @@ pub trait AsyncOneShot: AsyncCaptureTrait {
 }
 
 pub trait VirtualBackendTrait {}
+
+pub trait Distance<T> where T: PartialEq {
+    fn distance_from(&self, other: &Self) -> T;
+}

@@ -4,17 +4,23 @@ use crate::{
 };
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 use std::{
+    fmt::{
+        Debug,
+        Display,
+        Formatter
+    },
     borrow::Borrow,
     cmp::Ordering,
-    fmt::{Display, Formatter},
+    hash::{Hash, Hasher}
 };
+use crate::traits::Distance;
 
+/// Creates a range of values.
+///
+/// Inclusive by default.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Range<T>
-where
-    T: Copy + Clone + Debug + PartialOrd + PartialEq,
 {
     minimum: Option<T>,
     lower_inclusive: bool,
@@ -27,6 +33,7 @@ impl<T> Range<T>
 where
     T: Copy + Clone + Debug + PartialOrd + PartialEq,
 {
+    /// Create an upper and lower inclusive [`Range`]
     pub fn new(preferred: Option<T>, min: Option<T>, max: Option<T>) -> Self {
         Self {
             minimum: min,
@@ -113,7 +120,7 @@ where
     }
 
     pub fn reset_preferred(&mut self) {
-        self.preferred = None
+        self.preferred = None;
     }
     pub fn minimum(&self) -> Option<T> {
         self.minimum
@@ -311,9 +318,21 @@ impl Ord for Resolution {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+impl Distance<u32> for Resolution {
+    fn distance_from(&self, other: &Self) -> u32 {
+        let x1 = self.x();
+        let x2 = other.x();
+
+        let y1 = self.y();
+        let y2 = other.y();
+
+        (x2 - x1).pow(2) + (y2 - y1).pow(2)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-/// The frame rate of a camera.
+/// The frame rate of a camera. DO NOT CONSTRUCT THIS ENUM DIRECTLY. YOU WILL VIOLATE INVARIANTS. Use [`FrameRate::new_integer`], [`FrameRate::new_fraction`], or [`FrameRate::new_float`] instead. 
 pub enum FrameRate {
     /// The driver reports the frame rate as a clean integer (e.g. 30 FPS).
     Integer(u32),
@@ -327,25 +346,39 @@ pub enum FrameRate {
 }
 
 impl FrameRate {
-    pub fn new_integer(fps: u32) -> Self {
-        FrameRate::Integer(fps)
-    }
-
-    pub fn new_float(fps: f32) -> Self {
-        FrameRate::Float(fps)
-    }
-
-    pub fn new_fraction(numerator: u16, denominator: u16) -> Self {
-        FrameRate::Fraction {
-            numerator,
-            denominator,
+    pub fn new_integer(fps: u32) -> Result<Self, NokhwaError> {
+        if fps == 0 {
+            return Err(NokhwaError::StructureError { structure: "FrameRate".to_string(), error: "Framerate cannot be 0".to_string() })
         }
+        
+        Ok(FrameRate::Integer(fps))
+    }
+
+    pub fn new_float(fps: f32) -> Result<Self, NokhwaError> {
+        if fps.is_nan() || fps.is_infinite() || fps.is_sign_negative() || (fps > f32::EPSILON) {
+            return Err(NokhwaError::StructureError { structure: "FrameRate".to_string(), error: "Invalid F32 FrameRate".to_string() })
+        }
+        
+        Ok(FrameRate::Float(fps))
+    }
+
+    pub fn new_fraction(numerator: u16, denominator: u16) -> Result<Self, NokhwaError> {
+        if numerator == 0 || denominator == 0 {
+            return Err(NokhwaError::StructureError { structure: "FrameRate".to_string(), error: "Invalid Fraction (denominator or numerator is 0)".to_string() })
+        }
+        
+        Ok(
+            FrameRate::Fraction {
+                numerator,
+                denominator,
+            }
+        )
     }
 
     pub fn as_float(&self) -> f32 {
         match self {
             FrameRate::Integer(fps) => *fps as f32,
-            FrameRate::Float(fps) => fps,
+            FrameRate::Float(fps) => *fps,
             FrameRate::Fraction { numerator, denominator } => (*numerator as f32) / (*denominator as f32)
         }
     }
@@ -354,7 +387,7 @@ impl FrameRate {
         match self {
             FrameRate::Integer(fps) => *fps,
             FrameRate::Float(fps) => *fps as u32,
-            FrameRate::Fraction { numerator, denominator } => numerator / denominator,
+            FrameRate::Fraction { numerator, denominator } => (numerator / denominator) as u32,
         }
     }
 }
@@ -373,11 +406,20 @@ impl PartialOrd for FrameRate {
     }
 }
 
-impl Ord for FrameRate {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let this_float = self.as_float();
-        let other = other.as_float();
-        this_float.total_cmp(&other)
+impl Hash for FrameRate {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            FrameRate::Integer(i) => {
+                state.write_u32(*i)
+            }
+            FrameRate::Float(f) => {
+                state.write(f.to_string().as_bytes())
+            }
+            FrameRate::Fraction { denominator, numerator } => {
+                state.write_u16(*denominator);
+                state.write_u16(*numerator);
+            }
+        }
     }
 }
 
@@ -391,6 +433,15 @@ impl Display for FrameRate {
                 write!(f, "Framerate: {as_float} FPS")
             }
         }
+    }
+}
+
+impl Distance<f32> for FrameRate {
+    fn distance_from(&self, other: &Self) -> f32 {
+        let self_as_float = self.as_float();
+        let other_as_float = other.as_float();
+
+        self_as_float.powi(2) + other_as_float.powi(2)
     }
 }
 
@@ -416,8 +467,8 @@ impl From<(u16, u16)> for FrameRate {
 }
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
-/// It consists of a [`Resolution`], [`FrameFormat`], and a frame rate(u8).
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+/// It consists of a [`Resolution`], [`FrameFormat`], and a [`FrameRate`].
+#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -1593,13 +1644,13 @@ pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<()
         let y1 = chunk[2] as f32;
         let v = chunk[3] as f32;
 
-        let r0 = y0 + 1.370705 * (v - 128.);
-        let g0 = y0 - 0.698001 * (v - 128.) - 0.337633 * (u - 128.);
-        let b0 = y0 + 1.732446 * (u - 128.);
+        let r0 = y0 + 1.370_705 * (v - 128.);
+        let g0 = y0 - 0.698_001 * (v - 128.) - 0.337_633 * (u - 128.);
+        let b0 = y0 + 1.732_446 * (u - 128.);
 
-        let r1 = y1 + 1.370705 * (v - 128.);
-        let g1 = y1 - 0.698001 * (v - 128.) - 0.337633 * (u - 128.);
-        let b1 = y1 + 1.732446 * (u - 128.);
+        let r1 = y1 + 1.370_705 * (v - 128.);
+        let g1 = y1 - 0.698_001 * (v - 128.) - 0.337_633 * (u - 128.);
+        let b1 = y1 + 1.732_446 * (u - 128.);
 
         if rgba {
             buf.extend_from_slice(&[

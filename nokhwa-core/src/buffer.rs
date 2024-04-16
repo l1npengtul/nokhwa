@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-use crate::{frame_format::SourceFrameFormat, types::Resolution};
+use crate::{ types::Resolution};
 use bytes::Bytes;
-use image::ImageBuffer;
-use crate::error::NokhwaError;
 
 /// A buffer returned by a camera to accommodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
@@ -27,14 +25,14 @@ use crate::error::NokhwaError;
 pub struct Buffer {
     resolution: Resolution,
     buffer: Bytes,
-    source_frame_format: SourceFrameFormat,
+    source_frame_format: FrameFormat,
 }
 
 impl Buffer {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
     #[inline]
-    pub fn new(res: Resolution, buf: &[u8], source_frame_format: SourceFrameFormat) -> Self {
+    pub fn new(res: Resolution, buf: &[u8], source_frame_format: FrameFormat) -> Self {
         Self {
             resolution: res,
             buffer: Bytes::copy_from_slice(buf),
@@ -62,13 +60,19 @@ impl Buffer {
 
     /// Get the [`SourceFrameFormat`] of this buffer.
     #[must_use]
-    pub fn source_frame_format(&self) -> SourceFrameFormat {
+    pub fn source_frame_format(&self) -> FrameFormat {
         self.source_frame_format
     }
 }
 
 #[cfg(feature = "opencv-mat")]
+use crate::error::NokhwaError;
+#[cfg(feature = "opencv-mat")]
+use image::ImageBuffer;
+
+#[cfg(feature = "opencv-mat")]
 impl Buffer {
+    
     /// Decodes a image with allocation using the provided [`FormatDecoder`].
     /// # Errors
     /// Will error when the decoding fails.

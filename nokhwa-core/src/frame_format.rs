@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-use crate::{buffer::Buffer, types::ApiBackend};
-use image::{ImageBuffer, Pixel};
-use std::{
-    error::Error,
-    fmt::{Display, Formatter},
-    ops::Deref,
-};
+use std::fmt::{Display, Formatter};
+
+use crate::types::ApiBackend;
 
 /// Describes a frame format (i.e. how the bytes themselves are encoded). Often called `FourCC`.
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -60,7 +56,7 @@ pub enum FrameFormat {
 
     // Custom
     Custom(u128),
-    PlatformSpecificCustomFormat(PlatformFrameFormat),
+    PlatformSpecificCustomFormat(PlatformSpecific),
 }
 
 impl FrameFormat {
@@ -134,9 +130,7 @@ impl FrameFormat {
         FrameFormat::RgbA8,
     ];
     
-    pub const GRAYSCALE: &'static [FrameFormat] = {
-        FrameFormat::Luma8
-    }
+    pub const GRAYSCALE: &'static [FrameFormat] = &[FrameFormat::Luma8, FrameFormat::Luma16];
 }
 
 impl Display for FrameFormat {
@@ -147,12 +141,12 @@ impl Display for FrameFormat {
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PlatformFrameFormat {
+pub struct PlatformSpecific {
     backend: ApiBackend,
     format: u128,
 }
 
-impl PlatformFrameFormat {
+impl PlatformSpecific {
     pub fn new(backend: ApiBackend, format: u128) -> Self {
         Self { backend, format }
     }
@@ -170,25 +164,25 @@ impl PlatformFrameFormat {
     }
 }
 
-impl From<(ApiBackend, u128)> for PlatformFrameFormat {
+impl From<(ApiBackend, u128)> for PlatformSpecific {
     fn from(value: (ApiBackend, u128)) -> Self {
-        PlatformFrameFormat::new(value.0, value.1)
+        PlatformSpecific::new(value.0, value.1)
     }
 }
 
-impl From<PlatformFrameFormat> for (ApiBackend, u128) {
-    fn from(value: PlatformFrameFormat) -> Self {
+impl From<PlatformSpecific> for (ApiBackend, u128) {
+    fn from(value: PlatformSpecific) -> Self {
         value.as_tuple()
     }
 }
 
-impl PartialEq<(ApiBackend, u128)> for PlatformFrameFormat {
+impl PartialEq<(ApiBackend, u128)> for PlatformSpecific {
     fn eq(&self, other: &(ApiBackend, u128)) -> bool {
         &self.as_tuple() == other
     }
 }
 
-impl Display for PlatformFrameFormat {
+impl Display for PlatformSpecific {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
