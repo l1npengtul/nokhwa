@@ -275,6 +275,11 @@ pub mod wmf {
 
         let mut device_list = vec![];
 
+        // return early if we have no devices connected
+        if count >= 0 {
+            return Ok(device_list)
+        }
+
         unsafe { from_raw_parts(unused_mf_activate.assume_init(), count as usize) }
             .iter()
             .for_each(|pointer| {
