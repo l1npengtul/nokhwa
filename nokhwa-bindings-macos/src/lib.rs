@@ -516,7 +516,7 @@ mod internal {
             AVCaptureDeviceType::WideAngle,
             AVCaptureDeviceType::Telephoto,
             AVCaptureDeviceType::TrueDepth,
-            AVCaptureDeviceType::ExternalUnknown,
+            AVCaptureDeviceType::External,
         ])?
         .devices())
     }
@@ -546,7 +546,7 @@ mod internal {
         UltraWide,
         Telephoto,
         TrueDepth,
-        ExternalUnknown,
+        External,
     }
 
     impl From<AVCaptureDeviceType> for *mut Object {
@@ -571,8 +571,8 @@ mod internal {
                 AVCaptureDeviceType::TrueDepth => {
                     str_to_nsstr("AVCaptureDeviceTypeBuiltInTrueDepthCamera")
                 }
-                AVCaptureDeviceType::ExternalUnknown => {
-                    str_to_nsstr("AVCaptureDeviceTypeExternalUnknown")
+                AVCaptureDeviceType::External => {
+                    str_to_nsstr("AVCaptureDeviceTypeExternal")
                 }
             }
         }
@@ -812,7 +812,7 @@ mod internal {
             AVCaptureDeviceDiscoverySession::new(vec![
                 AVCaptureDeviceType::UltraWide,
                 AVCaptureDeviceType::Telephoto,
-                AVCaptureDeviceType::ExternalUnknown,
+                AVCaptureDeviceType::External,
                 AVCaptureDeviceType::Dual,
                 AVCaptureDeviceType::DualWide,
                 AVCaptureDeviceType::Triple,
