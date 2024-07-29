@@ -44,7 +44,7 @@ default-features = false
 optional = true
 
 [dependencies.mozjpeg]
-version = "0.9"
+version = "0.10"
 optional = true
 
 [dependencies.async-trait]
