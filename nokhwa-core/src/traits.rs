@@ -15,20 +15,13 @@
  */
 
 use crate::{
-    buffer::Buffer,
-    error::NokhwaError,
-    types::{
-        ApiBackend, CameraControl, CameraFormat, CameraInfo, ControlValueSetter,
-        KnownCameraControl, Resolution,
-    },
+    buffer::Buffer, error::NokhwaError, format_request::FormatRequest, types::{
+        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter, KnownCameraControl, Resolution
+    }
 };
 use std::{borrow::Cow, collections::HashMap};
 use crate::frame_format::FrameFormat;
 use crate::types::FrameRate;
-
-pub trait Backend {
-    const BACKEND: ApiBackend;
-}
 
 /// This trait is for any backend that allows you to grab and take frames from a camera.
 /// Many of the backends are **blocking**, if the camera is occupied the library will block while it waits for it to become available.
@@ -38,9 +31,6 @@ pub trait Backend {
 /// - Behaviour can differ from backend to backend. While the Camera struct abstracts most of this away, if you plan to use the raw backend structs please read the `Quirks` section of each backend.
 /// - If you call [`stop_stream()`](CaptureTrait::stop_stream()), you will usually need to call [`open_stream()`](CaptureTrait::open_stream()) to get more frames from the camera.
 pub trait CaptureTrait {
-    /// Initialize the camera, preparing it for use, with a random format (usually the first one).
-    fn init(&mut self) -> Result<(), NokhwaError>;
-    
     /// Returns the current backend used.
     fn backend(&self) -> ApiBackend;
 
@@ -235,6 +225,14 @@ pub trait CaptureTrait {
     fn stop_stream(&mut self) -> Result<(), NokhwaError>;
 }
 
+/// A trait to open the capture backend.
+pub trait OpenCaptureTrait: CaptureTrait {
+    /// Opens a camera. 
+    /// # Errors
+    /// Please see implementations for errors. 
+    fn open(index: &CameraIndex, camera_fmt: FormatRequest) -> Result<Self, NokhwaError> where Self: Sized;
+}
+
 impl<T> From<T> for Box<dyn CaptureTrait>
 where
     T: CaptureTrait + 'static,
@@ -247,9 +245,6 @@ where
 #[cfg(feature = "async")]
 #[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait AsyncCaptureTrait: CaptureTrait {
-    /// Initialize the camera, preparing it for use, with a random format (usually the first one).
-    async fn init_async(&mut self) -> Result<(), NokhwaError>;
-
     /// Forcefully refreshes the stored camera format, bringing it into sync with "reality" (current camera state)
     /// # Errors
     /// If the camera can not get its most recent [`CameraFormat`]. this will error.
@@ -270,16 +265,6 @@ pub trait AsyncCaptureTrait: CaptureTrait {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError>;
-
-    /// Gets the compatible [`CameraFormat`] of the camera
-    /// # Errors
-    /// If it fails to get, this will error.
-    async fn compatible_camera_formats_async(&mut self) -> Result<Vec<CameraFormat>, NokhwaError>;
-
-    /// A Vector of compatible [`FrameFormat`]s. Will only return 2 elements at most.
-    /// # Errors
-    /// This will error if the camera is not queryable or a query operation has failed. Some backends will error this out as a Unsupported Operation ([`UnsupportedOperationError`](NokhwaError::UnsupportedOperationError)).
-    async fn compatible_fourcc_async(&mut self) -> Result<Vec<FrameFormat>, NokhwaError>;
 
     /// Will set the current [`Resolution`]
     /// This will reset the current stream if used while stream is opened.
@@ -353,7 +338,11 @@ where
     }
 }
 
+/// Capture one frame from the camera and immediately stop.
 pub trait OneShot: CaptureTrait {
+    /// Captures one frame from the camera, returning a [`Buffer`]
+    /// # Errors
+    /// If opening the stream or closing the stream has an error, this will also fail. 
     fn one_shot(&mut self) -> Result<Buffer, NokhwaError> {
         if self.is_stream_open() {
             self.frame()
@@ -381,7 +370,19 @@ pub trait AsyncOneShot: AsyncCaptureTrait {
     }
 }
 
-pub trait VirtualBackendTrait {}
+
+#[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
+/// A trait to open the capture backend.
+pub trait AsyncOpenCaptureTrait: AsyncCaptureTrait {
+    /// Opens a camera. 
+    /// # Errors
+    /// Please see implementations for errors. 
+    async fn open(index: &CameraIndex, camera_fmt: FormatRequest) -> Result<Self, NokhwaError> where Self: Sized;
+}
+
+
+// pub trait VirtualBackendTrait {}
 
 pub trait Distance<T> where T: PartialEq {
     fn distance_from(&self, other: &Self) -> T;

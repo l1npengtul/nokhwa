@@ -1,5 +1,8 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_possible_truncation)]
 #![cfg_attr(feature = "test-fail-warning", deny(warnings))]
 #![cfg_attr(feature = "docs-features", feature(doc_cfg))]
 /*
@@ -25,5 +28,5 @@ pub mod format_request;
 pub mod frame_format;
 pub mod traits;
 pub mod types;
-pub mod decoder;
+pub mod decoders;
 pub mod utils;

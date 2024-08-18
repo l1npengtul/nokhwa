@@ -11,7 +11,7 @@ pub fn min_max_range<N: Copy + PartialOrd + AddAssign<N> + Sized>(min: N, max: N
             break
         }
 
-        nums.push(counter)
+        nums.push(counter);
     }
 
     nums

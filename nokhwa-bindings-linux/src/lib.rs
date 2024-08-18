@@ -178,11 +178,11 @@ mod internal {
                         }
                     };
 
-                    self.camera_format = CameraFormat::new(
+                    self.camera_format = Some(CameraFormat::new(
                         Resolution::new(format.width, format.height),
                         frame_format: ,
                         fps,
-                    );
+                    ));
                     Ok(())
                 }
                 Err(why) => Err(NokhwaError::GetPropertyError {
@@ -195,10 +195,6 @@ mod internal {
 
     impl<'a> CaptureTrait for V4LCaptureDevice<'a> {
         fn init(&mut self) -> Result<(), NokhwaError> {
-            todo!()
-        }
-
-        fn init_with_format(&mut self, format: FormatFilter) -> Result<CameraFormat, NokhwaError> {
             todo!()
         }
 
@@ -596,8 +592,8 @@ mod internal {
 
     fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         match fourcc.str().ok()? {
-            "YUYV" => Some(FrameFormat::Yuv422),
-            "UYVY" => Some(FrameFormat::Uyv422),
+            "YUYV" => Some(FrameFormat::Yuy2_422),
+            "UYVY" => Some(FrameFormat::Uyvy_422),
             "YV12" => Some(FrameFormat::Yv12),
             "MJPG" => Some(FrameFormat::MJpeg),
             "GRAY" => Some(FrameFormat::Luma8),

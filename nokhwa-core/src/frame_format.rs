@@ -36,15 +36,20 @@ pub enum FrameFormat {
     VP9,
 
     // YCbCr formats
+    
+    Yuv444,
 
     // -> 422 16 BPP
-    Yuv422,
-    Uyv422,
+    Yuy2_422,
+    Uyvy_422,
 
     // 420
     Nv12,
     Nv21,
     Yv12,
+    I420,
+    I422,
+    I444,
 
     // Grayscale Formats
     Luma8,
@@ -72,8 +77,8 @@ impl FrameFormat {
         FrameFormat::XVid,
         FrameFormat::VP8,
         FrameFormat::VP9,
-        FrameFormat::Yuv422,
-        FrameFormat::Uyv422,
+        FrameFormat::Yuy2_422,
+        FrameFormat::Uyvy_422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
@@ -98,8 +103,8 @@ impl FrameFormat {
     ];
 
     pub const CHROMA: &'static [FrameFormat] = &[
-        FrameFormat::Yuv422,
-        FrameFormat::Uyv422,
+        FrameFormat::Yuy2_422,
+        FrameFormat::Uyvy_422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
@@ -121,8 +126,8 @@ impl FrameFormat {
         FrameFormat::XVid,
         FrameFormat::VP8,
         FrameFormat::VP9,
-        FrameFormat::Yuv422,
-        FrameFormat::Uyv422,
+        FrameFormat::Yuy2_422,
+        FrameFormat::Uyvy_422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
@@ -147,18 +152,22 @@ pub struct PlatformSpecific {
 }
 
 impl PlatformSpecific {
+    #[must_use]
     pub fn new(backend: ApiBackend, format: u128) -> Self {
         Self { backend, format }
     }
 
+    #[must_use]
     pub fn backend(&self) -> ApiBackend {
         self.backend
     }
 
+    #[must_use]
     pub fn format(&self) -> u128 {
         self.format
     }
 
+    #[must_use]
     pub fn as_tuple(&self) -> (ApiBackend, u128) {
         (self.backend, self.format)
     }

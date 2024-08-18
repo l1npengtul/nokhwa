@@ -16,6 +16,7 @@ serialize = ["serde"]
 wgpu-types = ["wgpu"]
 opencv-mat = ["opencv"]
 docs-features = ["serialize", "wgpu-types"]
+conversions = ["dcv-color-primitives", "yuvutils-rs", "mozjpeg"]
 async = ["async-trait"]
 test-fail-warnings = []
 
@@ -35,11 +36,11 @@ features = ["derive"]
 optional = true
 
 [dependencies.wgpu]
-version = "0.19"
+version = "22"
 optional = true
 
 [dependencies.opencv]
-version = "0.89.0"
+version = "0.92"
 default-features = false
 optional = true
 
@@ -49,6 +50,14 @@ optional = true
 
 [dependencies.async-trait]
 version = "0.1"
+optional = true
+
+[dependencies.dcv-color-primitives]
+version = "0.6"
+optional = true
+
+[dependencies.yuvutils-rs]
+version = "0.3"
 optional = true
 
 [package.metadata.docs.rs]

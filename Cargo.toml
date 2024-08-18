@@ -30,7 +30,7 @@ input-native = ["input-avfoundation", "input-v4l", "input-msmf"]
 # Re-enable it once soundness has been proven + mozjpeg is updated to 0.9.x
 # input-uvc = ["uvc", "uvc/vendor", "usb_enumeration", "lazy_static"]
 input-opencv = ["opencv", "opencv/rgb", "rgb", "nokhwa-core/opencv-mat"]
-input-jscam = [ "wasm-bindgen-futures", "wasm-rs-async-executor", "output-async", "js-sys", "web-sys"]
+input-jscam = [ "wasm-bindgen-futures", "wasm-rs-async-executor", "output-async", "js-sys", "web-sys", "serde-wasm-bindgen", "serde"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
 output-threaded = []
@@ -73,11 +73,11 @@ version = "0.2"
 optional = true
 
 [dependencies.wgpu]
-version = "0.19"
+version = "0.20"
 optional = true
 
 [dependencies.opencv]
-version = "0.89"
+version = "0.92"
 default-features = false
 features = ["videoio"]
 optional = true
@@ -141,6 +141,10 @@ optional = true
 
 [dependencies.wasm-rs-async-executor]
 version = "0.9"
+optional = true
+
+[dependencies.serde-wasm-bindgen]
+version = "0.6"
 optional = true
 
 [dependencies.async-trait]
