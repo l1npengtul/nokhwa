@@ -49,10 +49,12 @@ impl<D> Decoder for GeneralPurposeDecoder<D> where D: PixelWithColorType {
             // already decoded
             FrameFormat::Rgb8 => PixelFormat::Rgb,
             FrameFormat::RgbA8 => {
-                PixelFormat::Rgba
+                PixelFormat::Rgb
             }
             _ => return Err(()),
         };
+        
+        dcv_color_primitives::convert_image(buffer.resolution().width(), buffer.resolution().height(), )
         
     }
 }

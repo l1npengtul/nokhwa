@@ -4,9 +4,10 @@ use std::{
 };
 use crate::{
     frame_format::FrameFormat,
-    types::{CameraFormat, Resolution, FrameRate, Range},
-    traits::Distance
+    traits::Distance,
+    types::{CameraFormat, FrameRate, Resolution}
 };
+use crate::ranges::Range;
 
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
 enum ClosestType {

@@ -35,12 +35,8 @@ pub mod backends;
 mod camera;
 mod init;
 /// A camera that uses native browser APIs meant for WASM applications.
-#[cfg(feature = "input-jscam")]
-#[cfg_attr(feature = "docs-features", doc(cfg(feature = "input-jscam")))]
-pub mod js_camera;
 mod platform_resolver;
 
-pub use nokhwa_core::pixel_format::FormatDecoder;
 #[cfg(feature = "output-async")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-async")))]
 pub mod async_camera;
@@ -49,7 +45,6 @@ mod query;
 #[cfg(feature = "output-threaded")]
 #[cfg_attr(feature = "docs-features", doc(cfg(feature = "output-threaded")))]
 pub mod threaded;
-pub mod decoders;
 
 pub use camera::Camera;
 pub use init::*;
@@ -70,10 +65,6 @@ pub mod error {
 
 pub mod camera_traits {
     pub use nokhwa_core::traits::*;
-}
-
-pub mod pixel_format {
-    pub use nokhwa_core::pixel_format::*;
 }
 
 pub mod buffer {

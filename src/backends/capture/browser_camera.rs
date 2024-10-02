@@ -7,30 +7,31 @@ use serde::{de, Serialize};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{window, MediaDeviceInfo, MediaDevices, MediaStream, MediaStreamConstraints, MediaStreamTrack, MediaTrackConstraints, Navigator};
 use nokhwa_core::buffer::Buffer;
+use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_format::FrameFormat;
 use nokhwa_core::traits::{AsyncCaptureTrait, AsyncOpenCaptureTrait, CaptureTrait, OpenCaptureTrait};
-use nokhwa_core::types::{ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter, FrameRate, KnownCameraControl, Resolution};
+use nokhwa_core::types::{ApiBackend, CameraFormat, CameraIndex, CameraInfo, FrameRate, Resolution};
 
 async fn resolve_to<T: JsCast>(promise: Promise) -> Result<T, NokhwaError> {
     let future = JsFuture::from(promise);
     let jsv = match future.await {
         Ok(v) => v,
-        Err(why) => NokhwaError::ConversionError(why.as_string().unwrap_or_default())
+        Err(why) => return Err(NokhwaError::ConversionError(why.as_string().unwrap_or_default()))
     };
     // we do a little checking
     if !T::has_type(&jsv) {
         return Err(NokhwaError::ConversionError("Bad Conversion - No Type".to_string()))
     }
-    Ok(unsafe { cast_js_value(v) })
+    Ok(unsafe { cast_js_value(jsv) })
 }
 
 fn checked_js_cast<T: JsCast>(from: JsValue) -> Result<T, NokhwaError> {
     // we do a little checking
-    if !T::has_type(&jsv) {
+    if !T::has_type(&from) {
         return Err(NokhwaError::ConversionError("Bad Conversion - No Type".to_string()))
     }
-    Ok(unsafe { cast_js_value(v) })
+    Ok(unsafe { cast_js_value(from) })
 }
 
 // PLEASE CHECK WHAT YOU'RE DOING OH MY GOD
@@ -79,6 +80,14 @@ struct ConstrainedULong {
     pub max: Option<u64>,
     pub exact: Option<u64>,
 }
+
+pub enum BrowserCameraControls {
+    FacingMode,
+    ResizeMode,
+    AttachedCanvasId,
+    AttachedCanvasMode,
+}
+
 
 
 pub struct BrowserCaptureDevice {
@@ -130,7 +139,7 @@ impl BrowserCaptureDevice {
         let mut constraint = MediaStreamConstraints::new();
         let mut video_constraint = MediaTrackConstraints::new();
 
-        video_constraint = video_constraint.device_id(&JsValue::from_str(&device_id));
+        video_constraint.device_id(&JsValue::from_str(&device_id));
 
         match camera_fmt {
             FormatRequest::Closest { resolution, frame_rate, frame_format } => {
@@ -170,9 +179,9 @@ impl BrowserCaptureDevice {
                     None => ConstrainedDouble::default(),
                 };
 
-                video_constraint = video_constraint.width(width.into());
-                video_constraint = video_constraint.height(height.into());
-                video_constraint = video_constraint.frame_rate(frame_rate.into());
+                video_constraint.width(width.into());
+                video_constraint.height(height.into());
+                video_constraint.frame_rate(frame_rate.into());
             }
             FormatRequest::HighestFrameRate { frame_rate, frame_format } => {
                 let frame_rate = match frame_rate {
@@ -185,7 +194,7 @@ impl BrowserCaptureDevice {
                     None => ConstrainedDouble::default(),
                 };
 
-                video_constraint = video_constraint.frame_rate(frame_rate.into());
+                video_constraint.frame_rate(frame_rate.into());
             }
             FormatRequest::HighestResolution { resolution, frame_format } => {
                 let (_aspect_ratio, width, height) = match resolution {
@@ -214,8 +223,8 @@ impl BrowserCaptureDevice {
                     ),
                 };
 
-                video_constraint = video_constraint.width(width.into());
-                video_constraint = video_constraint.height(height.into());
+                video_constraint.width(width.into());
+                video_constraint.height(height.into());
             }
             FormatRequest::Exact { resolution, frame_rate, frame_format } => {
                 let (_aspect_ratio, width, height) = match resolution {
@@ -254,13 +263,13 @@ impl BrowserCaptureDevice {
                     None => ConstrainedDouble::default(),
                 };
 
-                video_constraint = video_constraint.width(width.into());
-                video_constraint = video_constraint.height(height.into());
-                video_constraint = video_constraint.frame_rate(frame_rate.into());
+                video_constraint.width(width.into());
+                video_constraint.height(height.into());
+                video_constraint.frame_rate(frame_rate.into());
             }
         }
 
-        constraint = constraint.video(&video_constraint);
+        constraint.video(&video_constraint);
 
         let media_stream: MediaStream = resolve_to(media_devices.get_user_media_with_constraints(&constraint)).await?;
 

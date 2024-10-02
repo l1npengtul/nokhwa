@@ -22,8 +22,8 @@ mod internal {
         error::NokhwaError,
         traits::CaptureTrait,
         types::{
-            ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-            ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
+            ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+            FrameFormat,
             KnownCameraControlFlag, RequestedFormat, RequestedFormatType, Resolution,
         },
     };
@@ -34,8 +34,8 @@ mod internal {
     };
     use v4l::{
         control::{Control, Flags, Type, Value},
-        frameinterval::FrameIntervalEnum,
-        framesize::FrameSizeEnum,
+        frameinterval::FrameIntervalEnum
+        ,
         io::traits::CaptureStream,
         prelude::MmapStream,
         video::{capture::Parameters, Capture},
@@ -47,6 +47,7 @@ mod internal {
         V4L2_CID_IRIS_RELATIVE, V4L2_CID_PAN_RELATIVE, V4L2_CID_SATURATION, V4L2_CID_SHARPNESS,
         V4L2_CID_TILT_RELATIVE, V4L2_CID_WHITE_BALANCE_TEMPERATURE, V4L2_CID_ZOOM_RELATIVE,
     };
+    use nokhwa_core::controls::{CameraControl, ControlValueDescription, ControlValueSetter, KnownCameraControl};
 
     /// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.
     /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)
@@ -626,12 +627,13 @@ mod internal {
     use nokhwa_core::error::NokhwaError;
     use nokhwa_core::traits::CaptureTrait;
     use nokhwa_core::types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormat, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+        FrameFormat, RequestedFormat, Resolution,
     };
     use std::borrow::Cow;
     use std::collections::HashMap;
     use std::marker::PhantomData;
+    use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 
     /// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.
     /// If the associated control is not found, this will return `None` (`ColorEnable`, `Roll`)

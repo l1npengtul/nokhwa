@@ -20,12 +20,13 @@ use nokhwa_core::{
     pixel_format::RgbFormat,
     traits::CaptureTrait,
     types::{
-        all_known_camera_controls, ApiBackend, CameraControl, CameraFormat, CameraIndex,
-        CameraInfo, ControlValueSetter, FrameFormat, KnownCameraControl, RequestedFormat,
+        ApiBackend, CameraFormat, CameraIndex,
+        CameraInfo, FrameFormat, RequestedFormat,
         RequestedFormatType, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
+use nokhwa_core::controls::{all_known_camera_controls, CameraControl, ControlValueSetter, KnownCameraControl};
 
 /// The backend that deals with Media Foundation on Windows.
 /// To see what this does, please see [`CaptureTrait`].

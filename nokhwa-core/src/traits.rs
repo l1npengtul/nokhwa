@@ -16,10 +16,11 @@
 
 use crate::{
     buffer::Buffer, error::NokhwaError, format_request::FormatRequest, types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter, KnownCameraControl, Resolution
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo, Resolution
     }
 };
 use std::{borrow::Cow, collections::HashMap};
+use crate::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 use crate::frame_format::FrameFormat;
 use crate::types::FrameRate;
 

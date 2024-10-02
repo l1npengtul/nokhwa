@@ -16,6 +16,7 @@
 
 use crate::{frame_format::FrameFormat, types::ApiBackend};
 use thiserror::Error;
+use crate::ranges::RangeValidationResult;
 
 /// All errors in `nokhwa`.
 #[allow(clippy::module_name_repetitions)]

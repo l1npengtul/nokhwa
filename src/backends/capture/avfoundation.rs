@@ -26,14 +26,15 @@ use nokhwa_core::{
     pixel_format::RgbFormat,
     traits::CaptureTrait,
     types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormat, RequestedFormatType, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+        FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
     },
 };
 #[cfg(target_os = "macos")]
 use std::{ffi::CString, sync::Arc};
 
 use std::{borrow::Cow, collections::HashMap};
+use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 
 /// The backend struct that interfaces with V4L2.
 /// To see what this does, please see [`CaptureTrait`].

@@ -40,7 +40,7 @@ version = "22"
 optional = true
 
 [dependencies.opencv]
-version = "0.92"
+version = "0.93"
 default-features = false
 optional = true
 
@@ -57,8 +57,11 @@ version = "0.6"
 optional = true
 
 [dependencies.yuvutils-rs]
-version = "0.3"
+version = "0.4"
 optional = true
+
+[dependencies.rgb]
+version = "0.8"
 
 [package.metadata.docs.rs]
 features = ["docs-features"]

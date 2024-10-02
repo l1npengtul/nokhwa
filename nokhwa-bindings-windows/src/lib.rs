@@ -31,8 +31,8 @@
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
     use nokhwa_core::types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueDescription,
-        ControlValueSetter, FrameFormat, KnownCameraControl, KnownCameraControlFlag, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+        FrameFormat, KnownCameraControlFlag, Resolution,
     };
     use once_cell::sync::Lazy;
     use std::ffi::c_void;
@@ -46,6 +46,7 @@ pub mod wmf {
             Arc,
         },
     };
+    use nokhwa_core::controls::{CameraControl, ControlValueDescription, ControlValueSetter, KnownCameraControl};
     use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
     use windows::Win32::Media::MediaFoundation::{
         IMFMediaType, MFCreateSample, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
@@ -1225,10 +1226,10 @@ pub mod wmf {
 pub mod wmf {
     use nokhwa_core::error::NokhwaError;
     use nokhwa_core::types::{
-        CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        KnownCameraControl,
+        CameraFormat, CameraIndex, CameraInfo,
     };
     use std::borrow::Cow;
+    use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(

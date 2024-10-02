@@ -225,8 +225,8 @@ mod internal {
     use nokhwa_core::{
         error::NokhwaError,
         types::{
-            ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo,
-            ControlValueDescription, ControlValueSetter, FrameFormat, KnownCameraControl,
+            ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+            FrameFormat,
             KnownCameraControlFlag, Resolution,
         },
     };
@@ -246,6 +246,7 @@ mod internal {
         ffi::{c_float, c_void, CStr},
         sync::Arc,
     };
+    use nokhwa_core::controls::{CameraControl, ControlValueDescription, ControlValueSetter, KnownCameraControl};
 
     const UTF8_ENCODING: usize = 4;
     type CGFloat = c_float;

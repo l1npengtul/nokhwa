@@ -23,13 +23,12 @@ use nokhwa_core::{
     pixel_format::FormatDecoder,
     traits::CaptureTrait,
     types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormatType, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo
+        , RequestedFormatType, Resolution,
     },
 };
 use std::{borrow::Cow, collections::HashMap};
-#[cfg(feature = "output-wgpu")]
-use wgpu::{Device as WgpuDevice, Queue as WgpuQueue, Texture as WgpuTexture};
+use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 
 /// The main `Camera` struct. This is the struct that abstracts over all the backends, providing a simplified interface for use.
 pub struct Camera {

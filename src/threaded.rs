@@ -19,8 +19,8 @@ use nokhwa_core::{
     buffer::Buffer,
     error::NokhwaError,
     types::{
-        ApiBackend, CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
-        FrameFormat, KnownCameraControl, RequestedFormat, RequestedFormatType, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, CameraInfo,
+        FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
     },
 };
 use std::thread::JoinHandle;
@@ -31,6 +31,7 @@ use std::{
         Arc, Mutex,
     },
 };
+use nokhwa_core::controls::{CameraControl, ControlValueSetter, KnownCameraControl};
 
 type AtomicLock<T> = Arc<Mutex<T>>;
 pub type CallbackFn = fn(
@@ -419,7 +420,7 @@ impl CallbackCamera {
 
     /// Sets the control to `control` in the camera.
     /// Usually, the pipeline is calling [`camera_control()`](crate::camera_traits::CaptureTrait::camera_control), getting a camera control that way
-    /// then calling [`value()`](crate::utils::CameraControl::value()) to get a [`ControlValueSetter`](crate::utils::ControlValueSetter) and setting the value that way.
+    /// then calling [`value()`](nokhwa_core::controls::CameraControl::value()) to get a [`ControlValueSetter`](nokhwa_core::controls::ControlValueSetter) and setting the value that way.
     /// # Errors
     /// If the `control` is not supported, the value is invalid (less than min, greater than max, not in step), or there was an error setting the control,
     /// this will error.

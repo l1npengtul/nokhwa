@@ -16,3 +16,23 @@ pub fn min_max_range<N: Copy + PartialOrd + AddAssign<N> + Sized>(min: N, max: N
 
     nums
 }
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct FailedMathOp;
+
+pub(crate) trait FallibleDiv {
+    type Output;
+
+    type Error: Default;
+
+    fn fallible_div(&self, other: &Self) -> Result<Self::Output, Self::Error>;
+}
+
+pub(crate) trait FallibleSub {
+    type Output;
+
+    type Error: Default;
+
+    fn fallible_sub(&self, other: &Self) -> Result<Self::Output, Self::Error>;
+}
+
