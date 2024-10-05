@@ -4,11 +4,17 @@ use std::{
     collections::{HashMap, HashSet}
 };
 use std::cmp::Ordering;
-use crate::ranges::{ArrayRange, Options, Range, Simple};
-use crate::utils::{FailedMathOp, FallibleDiv, FallibleSub};
+use crate::error::NokhwaError;
+use crate::ranges::{ArrayRange, IndicatedRange, KeyValue, Options, Range, RangeValidationFailure, Simple, ValidatableRange};
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct ControlValidationFailure;
+
+impl From<RangeValidationFailure> for ControlValidationFailure {
+    fn from(_: RangeValidationFailure) -> Self {
+        Self
+    }
+}
 
 // TODO: Replace Controls API with Properties. (this one)
 /// Properties of a Camera.
@@ -100,12 +106,57 @@ impl CameraProperties {
         self.facing.as_ref()
     }
 
-    pub fn other(&self) -> &HashMap<String, CameraPropertyDescriptor> {
-        &self.other
+    pub fn other(&self, property: &str) -> Option<&CameraPropertyDescriptor> {
+        self.other.get(property)
+    }
+
+    pub fn set_other(&mut self, property: &str, value: CameraPropertyValue) -> Result<(), NokhwaError> {
+        if let Some(prop) = self.other.get_mut(property) {
+            prop.set_value(value)?;
+            return Ok(());
+        }
+
+        Err(
+            NokhwaError::SetPropertyError {
+                property: property.to_string(),
+                value: value.to_string(),
+                error: String::from("Is null."),
+            }
+        )
     }
 }
 
+macro_rules! generate_property_sets {
+    ( $( $name:ident, )* ) => {
+        {
+            impl CameraProperties {
+                paste::paste! {
+                $(
+                pub fn [<set_ $name>](&mut self, value: CameraPropertyValue) -> Result<(), NokhwaError> {
+                    if let Some(descriptor) = self.$name {
+                        descriptor.set_value(value)?;
+                        return Ok(())
+                    }
+                    return Err(
+                        NokhwaError::SetPropertyError {
+                            property: std::stringify!($name),
+                            value: value.to_string(),
+                            error: String::from("Is null."),
+                        }
+                    );
+                }
+                )*
+            }
+            }
+        }
+    };
+}
+
+generate_property_sets!( brightness, contrast, hue, saturation, sharpness, gamma, white_balance,
+    backlight_compensation, gain, pan, tilt, zoom, exposure, iris, focus, facing, );
+
 /// Describes an individual property.
+#[derive(Clone, Debug)]
 pub struct CameraPropertyDescriptor {
     flags: HashSet<CameraPropertyFlag>,
     platform_specific_id: Option<CameraCustomPropertyPlatformId>,
@@ -113,7 +164,67 @@ pub struct CameraPropertyDescriptor {
     value: CameraPropertyValue,
 }
 
+impl CameraPropertyDescriptor {
+    pub fn new(flags: &[CameraPropertyFlag], platform_id: Option<CameraCustomPropertyPlatformId>, range: CameraPropertyRange, value: CameraPropertyValue) -> Self {
+        CameraPropertyDescriptor {
+            flags: HashSet::from(flags),
+            platform_specific_id: platform_id,
+            range,
+            value,
+        }
+    }
+    
+    pub fn is_read_only(&self) -> Result<(), NokhwaError> {
+        if self.flags.contains(&CameraPropertyFlag::ReadOnly) {
+            return Err(NokhwaError::SetPropertyError {
+                property: "Flag".to_string(),
+                value: "N/A".to_string(),
+                error: "Read Only".to_string(),
+            })
+        }
+        Ok(())
+    }
+    
+    pub fn is_write_only(&self) -> Result<(), NokhwaError> {
+        if self.flags.contains(&CameraPropertyFlag::WriteOnly) {
+            return Err(NokhwaError::GetPropertyError {
+                property: "Flag".to_string(),
+                error: "Write Only".to_string(),
+            })
+        }
+        Ok(())
+    }
+    
+    pub fn is_disabled(&self) -> Result<(), NokhwaError> {
+        if self.flags.contains(&CameraPropertyFlag::Disabled) {
+            return Err(NokhwaError::StructureError { structure: "CameraPropertyDescriptor".to_string(), error: "Disabled".to_string() })
+        }
+        Ok(())
+    }
 
+    pub fn flags(&self) -> Result<&HashSet<CameraPropertyFlag>, NokhwaError> {
+        self.is_disabled()?;
+        Ok(&self.flags)
+    }
+    
+    pub fn platform_specific(&self) -> Option<&CameraCustomPropertyPlatformId> {
+        self.platform_specific_id.as_ref()
+    }
+
+    pub fn range(&self) -> &CameraPropertyRange {
+        &self.range
+    }
+
+    pub fn value(&self) -> &CameraPropertyValue {
+        &self.value
+    }
+
+    pub fn set_value(&mut self, value: CameraPropertyValue) -> Result<(), NokhwaError> {
+        self.range.check_value(&value)?;
+        self.value = value;
+        Ok(())
+    }
+}
 
 /// Platform Specific Camera Property. This is not useful, unless you are manually dealing with
 /// camera properties in `other`.
@@ -154,21 +265,111 @@ impl Display for CameraPropertyFlag {
 
 /// Ranges (Available Options of a Camera
 #[non_exhaustive]
+#[derive(Clone, Debug)]
 pub enum CameraPropertyRange {
     Null,
     Boolean(Simple<bool>),
-    Integer(Range<i64>),
-    LongInteger(Range<i128>),
-    Float(Range<f32>),
-    Double(Range<f64>),
+    Integer(IndicatedRange<i64>),
+    LongInteger(IndicatedRange<i128>),
+    Float(IndicatedRange<f32>),
+    Double(IndicatedRange<f64>),
     String(Simple<String>),
-    Array(ArrayRange<Box<CameraPropertyValue>>),
-    Enumeration(Options<Box<CameraPropertyValue>>),
+    Array(ArrayRange<Vec<CameraPropertyValue>>),
+    Enumeration(Options<CameraPropertyValue>),
     Binary(Simple<Vec<u8>>),
-    Pair(),
-    Triple(rgb::RGB<f64>),
-    Quadruple(Box<CameraPropertyValue>, Box<CameraPropertyValue>),
-    KeyValuePair(Box<CameraPropertyValue>, Box<CameraPropertyValue>)
+    Pair(IndicatedRange<f32>, IndicatedRange<f32>),
+    Triple(IndicatedRange<f32>, IndicatedRange<f32>, IndicatedRange<f32>),
+    Quadruple(IndicatedRange<f32>, IndicatedRange<f32>, IndicatedRange<f32>, IndicatedRange<f32>),
+    KeyValuePair(KeyValue<String, CameraPropertyValue>)
+}
+
+impl CameraPropertyRange {
+    pub fn check_value(&self, value: &CameraPropertyValue) -> Result<(), ControlValidationFailure> {
+        match self {
+            CameraPropertyRange::Null => {
+                if let CameraPropertyValue::Null = value {
+                    return Ok(())
+                }
+            }
+            CameraPropertyRange::Boolean(chk_b) => {
+                if let CameraPropertyValue::Boolean(b) = value {
+                    chk_b.validate(b)?
+                }
+            }
+            CameraPropertyRange::Integer(chk_i) => {
+                if let CameraPropertyValue::Integer(i) = value {
+                    chk_i.validate(i)?
+                }
+            }
+            CameraPropertyRange::LongInteger(chk_long) => {
+                if let CameraPropertyValue::LongInteger(long) = value {
+                    chk_long.validate(long)?
+                }
+            }
+            CameraPropertyRange::Float(chk_float) => {
+                if let CameraPropertyValue::Float(fl) = value {
+                    chk_float.validate(fl)?;
+                }
+            }
+            CameraPropertyRange::Double(chk_double) => {
+                if let CameraPropertyValue::Double(dl) = value {
+                    chk_double.validate(dl)?;
+                }
+            }
+            CameraPropertyRange::String(chk_string) => {
+                if let CameraPropertyValue::String(st) = value {
+                    chk_string.validate(st)?;
+                }
+            }
+            CameraPropertyRange::Array(chk_array) => {
+                if let CameraPropertyValue::Array(arr) = value {
+                    chk_array.validate(arr)?;
+                }
+            }
+            CameraPropertyRange::Enumeration(chk_enum) => {
+                if let CameraPropertyValue::EnumValue(en) = value {
+                    chk_enum.validate(en)?;
+                }
+            }
+            CameraPropertyRange::Binary(chk_bin) => {
+                if let CameraPropertyValue::Binary(bin) = value {
+                    chk_bin.validate(bin)?;
+                }
+            }
+            CameraPropertyRange::Pair(chk_a, chk_b) => {
+                if let CameraPropertyValue::Pair(a, b) = value {
+                    chk_a.validate(a)?;
+                    chk_b.validate(b)?;
+                }
+            }
+            CameraPropertyRange::Triple(chk_x, chk_y, chk_z) => {
+                if let CameraPropertyValue::Triple(x, y, z) = value {
+                    chk_x.validate(x)?;
+                    chk_y.validate(y)?;
+                    chk_z.validate(z)?;
+                }
+            }
+            CameraPropertyRange::Quadruple(chk_x, chk_y, chk_z, chk_w) => {
+                if let CameraPropertyValue::Quadruple(x, y, z, w) = value {
+                    chk_x.validate(x)?;
+                    chk_y.validate(y)?;
+                    chk_z.validate(z)?;
+                    chk_w.validate(w)?;
+                }
+            }
+            CameraPropertyRange::KeyValuePair(kv) => {
+                if let CameraPropertyValue::KeyValue(st, va) = value {
+                    if let Some(vk) = kv.by_key(st) {
+                        if vk.is_same_type(va) {
+                            return Ok(())
+                        }
+                    }
+                }
+            }
+            _ => return Err(ControlValidationFailure),
+        }
+        Err(ControlValidationFailure)
+    }
 }
 
 /// A possible value of
@@ -187,55 +388,31 @@ pub enum CameraPropertyValue {
     Array(Vec<CameraPropertyValue>),
     EnumValue(Box<CameraPropertyValue>),
     Binary(Vec<u8>),
-    Pair(Box<CameraPropertyValue>, Box<CameraPropertyValue>),
-    Triple(Box<CameraPropertyValue>, Box<CameraPropertyValue>, Box<CameraPropertyValue>),
-    Quadruple(Box<CameraPropertyValue>, Box<CameraPropertyValue>, Box<CameraPropertyValue>, Box<CameraPropertyValue>),
+    Pair(f32, f32),
+    Triple(f32, f32, f32),
+    Quadruple(f32, f32, f32, f32),
+    KeyValue(String, Box<CameraPropertyValue>)
 }
 
 impl CameraPropertyValue {
-    pub fn check_self(&self) -> Result<(), ControlValidationFailure> {
-        if self.is_simple_type() {
-            return Ok(());
+    pub fn is_same_type(&self, other: &CameraPropertyValue) -> bool {
+        match (self, other) {
+            (CameraPropertyValue::Null, CameraPropertyValue::Null) => true,
+            (CameraPropertyValue::Boolean(_), CameraPropertyValue::Boolean(_)) => true,
+            (CameraPropertyValue::Integer(_), CameraPropertyValue::Integer(_)) => true,
+            (CameraPropertyValue::LongInteger(_), CameraPropertyValue::LongInteger(_)) => true,
+            (CameraPropertyValue::Float(_), CameraPropertyValue::Float(_)) => true,
+            (CameraPropertyValue::Double(_), CameraPropertyValue::Double(_)) => true,
+            (CameraPropertyValue::String(_), CameraPropertyValue::String(_)) => true,
+            (CameraPropertyValue::Array(_), CameraPropertyValue::Array(_)) => true,
+            (CameraPropertyValue::EnumValue(_), CameraPropertyValue::EnumValue(_)) => true,
+            (CameraPropertyValue::Binary(_), CameraPropertyValue::Binary(_)) => true,
+            (CameraPropertyValue::Pair(..), CameraPropertyValue::Pair(..)) => true,
+            (CameraPropertyValue::Triple(..), CameraPropertyValue::Triple(..)) => true,
+            (CameraPropertyValue::Quadruple(..), CameraPropertyValue::Quadruple(..)) => true,
+            (CameraPropertyValue::KeyValue(..), CameraPropertyValue::KeyValue(..)) => true,
+            (_, _) => false,
         }
-
-        match self {
-            CameraPropertyValue::Array(v) => {
-                for value in v {
-                    if !value.is_simple_type() {
-                        return Err(ControlValidationFailure);
-                    }
-                }
-            }
-            CameraPropertyValue::EnumValue(e) => {
-                if !e.is_simple_type() {
-                    return Err(ControlValidationFailure);
-                }
-            }
-            CameraPropertyValue::Pair(k, v) => {
-                if !k.is_simple_type() || !v.is_simple_type() {
-                    return Err(ControlValidationFailure);
-                }
-            }
-            CameraPropertyValue::Triple(x, y, z) => {
-                if !x.is_simple_type() || !y.is_simple_type() || !z.is_simple_type() {
-                    return Err(ControlValidationFailure);
-                }
-            }
-            CameraPropertyValue::Quadruple(x, y, z, w) => {
-                if !x.is_simple_type() || !y.is_simple_type() || !z.is_simple_type() || !w.is_simple_type() {
-                    return Err(ControlValidationFailure);
-                }
-            }
-            _ => return Err(ControlValidationFailure),
-        }
-        Ok(())
-    }
-
-    pub fn is_simple_type(&self) -> bool {
-        if let (CameraPropertyValue::Null | CameraPropertyValue::Boolean(_) | CameraPropertyValue::Integer(_) | CameraPropertyValue::LongInteger(_) | CameraPropertyValue::Float(_)  | CameraPropertyValue::Double(_) | CameraPropertyValue::String(_) | CameraPropertyValue::Binary(_)) = self {
-            return true;
-        }
-        false
     }
 }
 
@@ -307,6 +484,12 @@ impl PartialEq for CameraPropertyValue {
                     return (x == ox) && (y == oy) && (z == oz) && (w == ow)
                 }
             }
+            CameraPropertyValue::KeyValue(k, v) => {
+                if let CameraPropertyValue::KeyValue(ok, ov ) = other {
+                    return (k == ok) && (v == ov)
+                }
+            }
+            _ => {}
         }
         false
     }
@@ -484,755 +667,8 @@ impl PartialOrd for CameraPropertyValue {
     }
 }
 
-impl FallibleDiv for CameraPropertyValue {
-    type Output = CameraPropertyValue;
-    type Error = FailedMathOp;
-
-    fn fallible_div(&self, rhs: &Self) -> Result<Self::Output, Self::Error> {
-        match self {
-            CameraPropertyValue::Integer(i) => {
-                if let CameraPropertyValue::Integer(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Integer(i / rhs));
-                }
-            }
-            CameraPropertyValue::LongInteger(li) => {
-                if let CameraPropertyValue::LongInteger(rhs) = rhs {
-                    return Ok(CameraPropertyValue::LongInteger(li / rhs));
-                }
-            }
-            CameraPropertyValue::Float(f) => {
-                if let CameraPropertyValue::Float(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Float(f / rhs));
-                }
-            }
-            CameraPropertyValue::Double(d) => {
-                if let CameraPropertyValue::Double(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Double(d / rhs));
-                }
-            }
-            _ => return Err(Default::default()),
-        }
-        Err(Default::default())
+impl Display for CameraPropertyValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }
-
-impl FallibleSub for CameraPropertyValue {
-    type Output = CameraPropertyValue;
-    type Error = FailedMathOp;
-
-    fn fallible_sub(&self, rhs: &Self) -> Result<Self::Output, Self::Error> {
-        match self {
-            CameraPropertyValue::Integer(i) => {
-                if let CameraPropertyValue::Integer(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Integer(i - rhs));
-                }
-            }
-            CameraPropertyValue::LongInteger(li) => {
-                if let CameraPropertyValue::LongInteger(rhs) = rhs {
-                    return Ok(CameraPropertyValue::LongInteger(li - rhs));
-                }
-            }
-            CameraPropertyValue::Float(f) => {
-                if let CameraPropertyValue::Float(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Float(f - rhs));
-                }
-            }
-            CameraPropertyValue::Double(d) => {
-                if let CameraPropertyValue::Double(rhs) = rhs {
-                    return Ok(CameraPropertyValue::Double(d - rhs));
-                }
-            }
-            _ => return Err(Self::Error::default()),
-        }
-        Err(Self::Error::default())
-    }
-}
-
-// /// All camera controls in an array.
-// #[must_use]
-// pub const fn all_known_camera_controls() -> &'static [KnownCameraControl] {
-//     &[
-//         KnownCameraControl::Brightness,
-//         KnownCameraControl::Contrast,
-//         KnownCameraControl::Hue,
-//         KnownCameraControl::Saturation,
-//         KnownCameraControl::Sharpness,
-//         KnownCameraControl::Gamma,
-//         KnownCameraControl::WhiteBalance,
-//         KnownCameraControl::BacklightComp,
-//         KnownCameraControl::Gain,
-//         KnownCameraControl::Pan,
-//         KnownCameraControl::Tilt,
-//         KnownCameraControl::Zoom,
-//         KnownCameraControl::Exposure,
-//         KnownCameraControl::Iris,
-//         KnownCameraControl::Focus,
-//         KnownCameraControl::Facing,
-//     ]
-// }
-
-// /// The list of known camera controls to the library. <br>
-// /// These can control the picture brightness, etc. <br>
-// /// Note that not all backends/devices support all these. Run [`supported_camera_controls()`](crate::traits::CaptureTrait::camera_controls) to see which ones can be set.
-// #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub enum KnownCameraControl {
-//     Brightness,
-//     Contrast,
-//     Hue,
-//     Saturation,
-//     Sharpness,
-//     Gamma,
-//     WhiteBalance,
-//     BacklightComp,
-//     Gain,
-//     Pan,
-//     Tilt,
-//     Zoom,
-//     Exposure,
-//     Iris,
-//     Focus,
-//     Facing,
-//     /// Other camera control. Listed is the ID.
-//     /// Wasteful, however is needed for a unified API across Windows, Linux, and MacOSX due to Microsoft's usage of GUIDs.
-//     ///
-//     /// THIS SHOULD ONLY BE USED WHEN YOU KNOW THE PLATFORM THAT YOU ARE RUNNING ON.
-//     Other(u128),
-// }
-//
-// impl Display for KnownCameraControl {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{:?}", &self)
-//     }
-// }
-//
-// /// This tells you weather a [`KnownCameraControl`] is automatically managed by the OS/Driver
-// /// or manually managed by you, the programmer.
-// #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub enum CameraPropertyFlag {
-//     Automatic,
-//     Manual,
-//     Continuous,
-//     ReadOnly,
-//     WriteOnly,
-//     Volatile,
-//     Disabled,
-// }
-//
-// impl Display for CameraPropertyFlag {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{self:?}")
-//     }
-// }
-//
-// impl ControlValueDescription {
-//     /// Get the value of this [`ControlValueDescription`]
-//     #[must_use]
-//     pub fn value(&self) -> ControlValueSetter {
-//         match self {
-//             ControlValueDescription::None => ControlValueSetter::None,
-//             ControlValueDescription::Integer { value, .. }
-//             | ControlValueDescription::IntegerRange { value, .. } => {
-//                 ControlValueSetter::Integer(*value)
-//             }
-//             ControlValueDescription::Float { value, .. }
-//             | ControlValueDescription::FloatRange { value, .. } => {
-//                 ControlValueSetter::Float(*value)
-//             }
-//             ControlValueDescription::Boolean { value, .. } => ControlValueSetter::Boolean(*value),
-//             ControlValueDescription::String { value, .. } => {
-//                 ControlValueSetter::String(value.clone())
-//             }
-//             ControlValueDescription::Bytes { value, .. } => {
-//                 ControlValueSetter::Bytes(value.clone())
-//             }
-//             ControlValueDescription::KeyValuePair { key, value, .. } => {
-//                 ControlValueSetter::KeyValue(*key, *value)
-//             }
-//             ControlValueDescription::Point { value, .. } => {
-//                 ControlValueSetter::Point(value.0, value.1)
-//             }
-//             ControlValueDescription::Enum { value, .. } => ControlValueSetter::EnumValue(*value),
-//             ControlValueDescription::RGB { value, .. } => {
-//                 ControlValueSetter::RGB(value.0, value.1, value.2)
-//             }
-//             ControlValueDescription::StringList { value, .. } => {
-//                 ControlValueSetter::StringList(value.clone())
-//             }
-//         }
-//     }
-//
-//     /// Verifies if the [setter](ControlValueSetter) is valid for the provided [`ControlValueDescription`].
-//     /// - `true` => Is valid.
-//     /// - `false` => Is not valid.
-//     ///
-//     /// If the step is 0, it will automatically return `true`.
-//     #[must_use]
-//     pub fn verify_setter(&self, setter: &ControlValueSetter) -> bool {
-//         match self {
-//             ControlValueDescription::None => setter.as_none().is_some(),
-//             ControlValueDescription::Integer {
-//                 value,
-//                 default,
-//                 step,
-//             } => {
-//                 if *step == 0 {
-//                     return true;
-//                 }
-//                 match setter.as_integer() {
-//                     Some(i) => (i + default) % step == 0 || (i + value) % step == 0,
-//                     None => false,
-//                 }
-//             }
-//             ControlValueDescription::IntegerRange {
-//                 min,
-//                 max,
-//                 value,
-//                 step,
-//                 default,
-//             } => {
-//                 if *step == 0 {
-//                     return true;
-//                 }
-//                 match setter.as_integer() {
-//                     Some(i) => {
-//                         ((i + default) % step == 0 || (i + value) % step == 0)
-//                             && i >= min
-//                             && i <= max
-//                     }
-//                     None => false,
-//                 }
-//             }
-//             ControlValueDescription::Float {
-//                 value,
-//                 default,
-//                 step,
-//             } => {
-//                 if step.abs() == 0_f64 {
-//                     return true;
-//                 }
-//                 match setter.as_float() {
-//                     Some(f) => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
-//                     None => false,
-//                 }
-//             }
-//             ControlValueDescription::FloatRange {
-//                 min,
-//                 max,
-//                 value,
-//                 step,
-//                 default,
-//             } => {
-//                 if step.abs() == 0_f64 {
-//                     return true;
-//                 }
-//
-//                 match setter.as_float() {
-//                     Some(f) => {
-//                         ((f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64)
-//                             && f >= min
-//                             && f <= max
-//                     }
-//                     None => false,
-//                 }
-//             }
-//             ControlValueDescription::Boolean { .. } => setter.as_boolean().is_some(),
-//             ControlValueDescription::String { .. } => setter.as_str().is_some(),
-//             ControlValueDescription::Bytes { .. } => setter.as_bytes().is_some(),
-//             ControlValueDescription::KeyValuePair { .. } => setter.as_key_value().is_some(),
-//             ControlValueDescription::Point { .. } => match setter.as_point() {
-//                 Some(pt) => {
-//                     !pt.0.is_nan() && !pt.1.is_nan() && pt.0.is_finite() && pt.1.is_finite()
-//                 }
-//                 None => false,
-//             },
-//             ControlValueDescription::Enum { possible, .. } => match setter.as_enum() {
-//                 Some(e) => possible.contains(e),
-//                 None => false,
-//             },
-//             ControlValueDescription::RGB { max, .. } => match setter.as_rgb() {
-//                 Some(v) => *v.0 >= max.0 && *v.1 >= max.1 && *v.2 >= max.2,
-//                 None => false,
-//             },
-//             ControlValueDescription::StringList { availible, .. } => {
-//                 availible.contains(&(setter.as_str().unwrap_or("").to_string())) // what the fuck??
-//             }
-//         }
-//
-//         // match setter {
-//         //     ControlValueSetter::None => {
-//         //         matches!(self, ControlValueDescription::None)
-//         //     }
-//         //     ControlValueSetter::Integer(i) => match self {
-//         //         ControlValueDescription::Integer {
-//         //             value,
-//         //             default,
-//         //             step,
-//         //         } => (i - default).abs() % step == 0 || (i - value) % step == 0,
-//         //         ControlValueDescription::IntegerRange {
-//         //             min,
-//         //             max,
-//         //             value,
-//         //             step,
-//         //             default,
-//         //         } => {
-//         //             if value > max || value < min {
-//         //                 return false;
-//         //             }
-//         //
-//         //             (i - default) % step == 0 || (i - value) % step == 0
-//         //         }
-//         //         _ => false,
-//         //     },
-//         //     ControlValueSetter::Float(f) => match self {
-//         //         ControlValueDescription::Float {
-//         //             value,
-//         //             default,
-//         //             step,
-//         //         } => (f - default).abs() % step == 0_f64 || (f - value) % step == 0_f64,
-//         //         ControlValueDescription::FloatRange {
-//         //             min,
-//         //             max,
-//         //             value,
-//         //             step,
-//         //             default,
-//         //         } => {
-//         //             if value > max || value < min {
-//         //                 return false;
-//         //             }
-//         //
-//         //             (f - default) % step == 0_f64 || (f - value) % step == 0_f64
-//         //         }
-//         //         _ => false,
-//         //     },
-//         //     ControlValueSetter::Boolean(b) => {
-//         //
-//         //     }
-//         //     ControlValueSetter::String(_) => {
-//         //         matches!(self, ControlValueDescription::String { .. })
-//         //     }
-//         //     ControlValueSetter::Bytes(_) => {
-//         //         matches!(self, ControlValueDescription::Bytes { .. })
-//         //     }
-//         //     ControlValueSetter::KeyValue(_, _) => {
-//         //         matches!(self, ControlValueDescription::KeyValuePair { .. })
-//         //     }
-//         //     ControlValueSetter::Point(_, _) => {
-//         //         matches!(self, ControlValueDescription::Point { .. })
-//         //     }
-//         //     ControlValueSetter::EnumValue(_) => {
-//         //         matches!(self, ControlValueDescription::Enum { .. })
-//         //     }
-//         //     ControlValueSetter::RGB(_, _, _) => {
-//         //         matches!(self, ControlValueDescription::RGB { .. })
-//         //     }
-//         // }
-//     }
-// }
-//
-// /// This struct tells you everything about a particular [`KnownCameraControl`].
-// ///
-// /// However, you should never need to instantiate this struct, since its usually generated for you by `nokhwa`.
-// /// The only time you should be modifying this struct is when you need to set a value and pass it back to the camera.
-// /// NOTE: Assume the values for `min` and `max` as **non-inclusive**!.
-// /// E.g. if the [`CameraControl`] says `min` is 100, the minimum is actually 101.
-// #[derive(Clone, Debug, PartialOrd, PartialEq)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub struct CameraControl {
-//     control: KnownCameraControl,
-//     name: String,
-//     description: ControlValueDescription,
-//     flag: Vec<KnownCameraControlFlag>,
-//     active: bool,
-// }
-//
-// impl CameraControl {
-//     /// Creates a new [`CameraControl`]
-//     #[must_use]
-//     pub fn new(
-//         control: KnownCameraControl,
-//         name: String,
-//         description: ControlValueDescription,
-//         flag: Vec<KnownCameraControlFlag>,
-//         active: bool,
-//     ) -> Self {
-//         CameraControl {
-//             control,
-//             name,
-//             description,
-//             flag,
-//             active,
-//         }
-//     }
-//
-//     /// Gets the name of this [`CameraControl`]
-//     #[must_use]
-//     pub fn name(&self) -> &str {
-//         &self.name
-//     }
-//
-//     /// Gets the [`ControlValueDescription`] of this [`CameraControl`]
-//     #[must_use]
-//     pub fn description(&self) -> &ControlValueDescription {
-//         &self.description
-//     }
-//
-//     /// Gets the [`ControlValueSetter`] of the [`ControlValueDescription`] of this [`CameraControl`]
-//     #[must_use]
-//     pub fn value(&self) -> ControlValueSetter {
-//         self.description.value()
-//     }
-//
-//     /// Gets the [`KnownCameraControl`] of this [`CameraControl`]
-//     #[must_use]
-//     pub fn control(&self) -> KnownCameraControl {
-//         self.control
-//     }
-//
-//     /// Gets the [`KnownCameraControlFlag`] of this [`CameraControl`],
-//     /// telling you weather this control is automatically set or manually set.
-//     #[must_use]
-//     pub fn flag(&self) -> &[KnownCameraControlFlag] {
-//         &self.flag
-//     }
-//
-//     /// Gets `active` of this [`CameraControl`],
-//     /// telling you weather this control is currently active(in-use).
-//     #[must_use]
-//     pub fn active(&self) -> bool {
-//         self.active
-//     }
-//
-//     /// Gets `active` of this [`CameraControl`],
-//     /// telling you weather this control is currently active(in-use).
-//     pub fn set_active(&mut self, active: bool) {
-//         self.active = active;
-//     }
-// }
-//
-// impl Display for CameraControl {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "Control: {}, Name: {}, Value: {}, Flag: {:?}, Active: {}",
-//             self.control, self.name, self.description, self.flag, self.active
-//         )
-//     }
-// }
-//
-// /// The setter for a control value
-// #[derive(Clone, Debug, PartialEq, PartialOrd)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub enum ControlValueSetter {
-//     None,
-//     Integer(i64),
-//     Float(f64),
-//     Boolean(bool),
-//     String(String),
-//     Bytes(Vec<u8>),
-//     KeyValue(i128, i128),
-//     Point(f64, f64),
-//     EnumValue(i64),
-//     RGB(f64, f64, f64),
-//     StringList(String),
-// }
-//
-// impl ControlValueSetter {
-//     #[must_use]
-//     pub fn as_none(&self) -> Option<()> {
-//         if let ControlValueSetter::None = self {
-//             Some(())
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_integer(&self) -> Option<&i64> {
-//         if let ControlValueSetter::Integer(i) = self {
-//             Some(i)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_float(&self) -> Option<&f64> {
-//         if let ControlValueSetter::Float(f) = self {
-//             Some(f)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_boolean(&self) -> Option<&bool> {
-//         if let ControlValueSetter::Boolean(f) = self {
-//             Some(f)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_str(&self) -> Option<&str> {
-//         if let ControlValueSetter::String(s) = self {
-//             Some(s)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_bytes(&self) -> Option<&[u8]> {
-//         if let ControlValueSetter::Bytes(b) = self {
-//             Some(b)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_key_value(&self) -> Option<(&i128, &i128)> {
-//         if let ControlValueSetter::KeyValue(k, v) = self {
-//             Some((k, v))
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_point(&self) -> Option<(&f64, &f64)> {
-//         if let ControlValueSetter::Point(x, y) = self {
-//             Some((x, y))
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_enum(&self) -> Option<&i64> {
-//         if let ControlValueSetter::EnumValue(e) = self {
-//             Some(e)
-//         } else {
-//             None
-//         }
-//     }
-//     #[must_use]
-//
-//     pub fn as_rgb(&self) -> Option<(&f64, &f64, &f64)> {
-//         if let ControlValueSetter::RGB(r, g, b) = self {
-//             Some((r, g, b))
-//         } else {
-//             None
-//         }
-//     }
-// }
-//
-// impl Display for ControlValueSetter {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             ControlValueSetter::None => {
-//                 write!(f, "Value: None")
-//             }
-//             ControlValueSetter::Integer(i) => {
-//                 write!(f, "IntegerValue: {i}")
-//             }
-//             ControlValueSetter::Float(d) => {
-//                 write!(f, "FloatValue: {d}")
-//             }
-//             ControlValueSetter::Boolean(b) => {
-//                 write!(f, "BoolValue: {b}")
-//             }
-//             ControlValueSetter::String(s) => {
-//                 write!(f, "StrValue: {s}")
-//             }
-//             ControlValueSetter::Bytes(b) => {
-//                 write!(f, "BytesValue: {b:x?}")
-//             }
-//             ControlValueSetter::KeyValue(k, v) => {
-//                 write!(f, "KVValue: ({k}, {v})")
-//             }
-//             ControlValueSetter::Point(x, y) => {
-//                 write!(f, "PointValue: ({x}, {y})")
-//             }
-//             ControlValueSetter::EnumValue(v) => {
-//                 write!(f, "EnumValue: {v}")
-//             }
-//             ControlValueSetter::RGB(r, g, b) => {
-//                 write!(f, "RGBValue: ({r}, {g}, {b})")
-//             }
-//             ControlValueSetter::StringList(s) => {
-//                 write!(f, "StringListValue: {s}")
-//             }
-//         }
-//     }
-// }
-//
-// /// The values for a [`CameraControl`].
-// ///
-// /// This provides a wide range of values that can be used to control a camera.
-// #[derive(Clone, Debug, PartialEq, PartialOrd)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub enum ControlValueDescription {
-//     None,
-//     Integer {
-//         value: i64,
-//         default: i64,
-//         step: i64,
-//     },
-//     IntegerRange {
-//         min: i64,
-//         max: i64,
-//         value: i64,
-//         step: i64,
-//         default: i64,
-//     },
-//     Float {
-//         value: f64,
-//         default: f64,
-//         step: f64,
-//     },
-//     FloatRange {
-//         min: f64,
-//         max: f64,
-//         value: f64,
-//         step: f64,
-//         default: f64,
-//     },
-//     Boolean {
-//         value: bool,
-//         default: bool,
-//     },
-//     String {
-//         value: String,
-//         default: Option<String>,
-//     },
-//     Bytes {
-//         value: Vec<u8>,
-//         default: Vec<u8>,
-//     },
-//     KeyValuePair {
-//         key: i128,
-//         value: i128,
-//         default: (i128, i128),
-//     },
-//     Point {
-//         value: (f64, f64),
-//         default: (f64, f64),
-//     },
-//     Enum {
-//         value: i64,
-//         possible: Vec<i64>,
-//         default: i64,
-//     },
-//     RGB {
-//         value: (f64, f64, f64),
-//         max: (f64, f64, f64),
-//         default: (f64, f64, f64),
-//     },
-//     StringList {
-//         value: String,
-//         availible: Vec<String>,
-//     },
-// }
-//
-// impl Display for ControlValueDescription {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             ControlValueDescription::None => {
-//                 write!(f, "(None)")
-//             }
-//             ControlValueDescription::Integer {
-//                 value,
-//                 default,
-//                 step,
-//             } => {
-//                 write!(f, "(Current: {value}, Default: {default}, Step: {step})",)
-//             }
-//             ControlValueDescription::IntegerRange {
-//                 min,
-//                 max,
-//                 value,
-//                 step,
-//                 default,
-//             } => {
-//                 write!(
-//                     f,
-//                     "(Current: {value}, Default: {default}, Step: {step}, Range: ({min}, {max}))",
-//                 )
-//             }
-//             ControlValueDescription::Float {
-//                 value,
-//                 default,
-//                 step,
-//             } => {
-//                 write!(f, "(Current: {value}, Default: {default}, Step: {step})",)
-//             }
-//             ControlValueDescription::FloatRange {
-//                 min,
-//                 max,
-//                 value,
-//                 step,
-//                 default,
-//             } => {
-//                 write!(
-//                     f,
-//                     "(Current: {value}, Default: {default}, Step: {step}, Range: ({min}, {max}))",
-//                 )
-//             }
-//             ControlValueDescription::Boolean { value, default } => {
-//                 write!(f, "(Current: {value}, Default: {default})")
-//             }
-//             ControlValueDescription::String { value, default } => {
-//                 write!(f, "(Current: {value}, Default: {default:?})")
-//             }
-//             ControlValueDescription::Bytes { value, default } => {
-//                 write!(f, "(Current: {value:x?}, Default: {default:x?})")
-//             }
-//             ControlValueDescription::KeyValuePair {
-//                 key,
-//                 value,
-//                 default,
-//             } => {
-//                 write!(
-//                     f,
-//                     "Current: ({key}, {value}), Default: ({}, {})",
-//                     default.0, default.1
-//                 )
-//             }
-//             ControlValueDescription::Point { value, default } => {
-//                 write!(
-//                     f,
-//                     "Current: ({}, {}), Default: ({}, {})",
-//                     value.0, value.1, default.0, default.1
-//                 )
-//             }
-//             ControlValueDescription::Enum {
-//                 value,
-//                 possible,
-//                 default,
-//             } => {
-//                 write!(
-//                     f,
-//                     "Current: {value}, Possible Values: {possible:?}, Default: {default}",
-//                 )
-//             }
-//             ControlValueDescription::RGB {
-//                 value,
-//                 max,
-//                 default,
-//             } => {
-//                 write!(
-//                     f,
-//                     "Current: ({}, {}, {}), Max: ({}, {}, {}), Default: ({}, {}, {})",
-//                     value.0, value.1, value.2, max.0, max.1, max.2, default.0, default.1, default.2
-//                 )
-//             }
-//             ControlValueDescription::StringList { value, availible } => {
-//                 write!(f, "Current: {value}, Availible: {availible:?}")
-//             }
-//         }
-//     }
-// }

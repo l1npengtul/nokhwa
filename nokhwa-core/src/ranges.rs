@@ -15,7 +15,7 @@ pub trait ValidatableRange {
     type Validation;
 
     /// Validates the value.
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure>;
+    fn validate(&self, value: &Self::Validation) -> Result<(), RangeValidationFailure>;
 }
 
 /// Creates a range of values.
@@ -184,84 +184,9 @@ where
 impl<T> ValidatableRange for IndicatedRange<T> where T: Copy + PartialEq + PartialOrd + Div<Output = T> + Sub<Output = T> + Number {
     type Validation = T;
 
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure> {
+    fn validate(&self, value: &Self::Validation) -> Result<(), RangeValidationFailure> {
         if let Some(step) = &self.step {
             let prepared_value = value - &self.minimum;
-            // We can check the step if we subtract the value from the minimum value
-            // then see if the remainder of prepared value and step is zero.
-            // e.g. 4, 12, value is 7, step is 3
-            // 7 - 4 = 3
-            // 3 % 3 = 0 Valid!
-            if prepared_value % step != 0 {
-                return Err(RangeValidationFailure::default())
-            }
-        }
-
-        num_range_validate(self.minimum.as_ref(), self.maximum.as_ref(), &self.default, self.lower_inclusive, self.upper_inclusive, &value)
-    }
-}
-
-impl<T> Display for IndicatedRange<T> where T: Debug {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let lower_inclusive_char = bool_to_inclusive_char(self.lower_inclusive, false);
-        let upper_inclusive_char = bool_to_inclusive_char(self.upper_inclusive, true);
-        let default = default_to_string(&self.default);
-        let step = default_to_string(&self.step);
-
-        // Ex) IndicatedRange: (5, 19], Step: 3, Default: 8
-        write!(f, "IndicatedRange: {lower_inclusive_char}{}, {}{upper_inclusive_char}, Step: {step}, Default: {default}", self.minimum, self.maximum)
-    }
-}
-
-#[derive(Clone, Debug, PartialOrd, PartialEq)]
-pub struct NonCopyRange<T> where T: Clone + Debug + PartialOrd + PartialEq {
-    minimum: T,
-    lower_inclusive: bool,
-    maximum: T,
-    upper_inclusive: bool,
-    step: Option<T>,
-    default: Option<T>,
-}
-
-impl<T> NonCopyRange<T>
-where
-    T: Clone + Debug + PartialOrd + PartialEq
-{
-    pub fn new(minimum: T, lower_inclusive: bool, maximum: T, upper_inclusive: bool, step: Option<T>, default: Option<T>) -> Self {
-        Self { minimum, lower_inclusive, maximum, upper_inclusive, step, default }
-    }
-
-    pub fn minimum(&self) -> &T {
-        &self.minimum
-    }
-
-    pub fn lower_inclusive(&self) -> bool {
-        self.lower_inclusive
-    }
-
-    pub fn maximum(&self) -> &T {
-        &self.maximum
-    }
-
-    pub fn upper_inclusive(&self) -> bool {
-        self.upper_inclusive
-    }
-
-    pub fn step(&self) -> Option<&T> {
-        self.step.as_ref()
-    }
-
-    pub fn default_value(&self) -> Option<&T> {
-        self.default.as_ref()
-    }
-}
-
-impl<T> ValidatableRange for NonCopyRange<T> where T: Clone + PartialEq + PartialOrd + Div<Output = T> + Sub<Output = T> {
-    type Validation = T;
-
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure> {
-        if let Some(step) = &self.step {
-            let prepared_value = value.clone() - &self.minimum;
             // We can check the step if we subtract the value from the minimum value
             // then see if the remainder of prepared value and step is zero.
             // e.g. 4, 12, value is 7, step is 3
@@ -317,7 +242,7 @@ where
 impl<T> ValidatableRange for Options<T> where T: PartialEq {
     type Validation = T;
 
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure> {
+    fn validate(&self, value: &Self::Validation) -> Result<(), RangeValidationFailure> {
         if self.available.contains(value) {
             return Ok(());
         }
@@ -355,17 +280,6 @@ where
     
     pub fn by_key(&self, key: &K) -> Option<&V> {
         self.defaults.get(key)
-    }
-}
-
-impl<T> ValidatableRange for KeyValue<T, _> where T: Eq + Hash {
-    type Validation = T;
-
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure> {
-        if self.defaults.contains_key(&value) {
-            return Ok(())
-        }
-        Err(RangeValidationFailure::default())
     }
 }
 
@@ -408,7 +322,7 @@ impl<T> ArrayRange<T> where T: Clone + Debug + PartialEq {
 impl<T> ValidatableRange for ArrayRange<T> where T: PartialEq {
     type Validation = T;
 
-    fn validate(&self, value: Self::Validation) -> Result<(), RangeValidationFailure> {
+    fn validate(&self, value: &Self::Validation) -> Result<(), RangeValidationFailure> {
         if self.appendable_options.contains(value) {
             return Ok(());
         }
@@ -442,7 +356,7 @@ impl<T> Simple<T> where T: Clone + Debug {
 impl<T> ValidatableRange for Simple<T> {
     type Validation = T;
 
-    fn validate(&self, _: Self::Validation) -> Result<(), RangeValidationFailure> {
+    fn validate(&self, _: &Self::Validation) -> Result<(), RangeValidationFailure> {
         Ok(())
     }
 }
