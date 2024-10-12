@@ -19,7 +19,7 @@ use crate::{
     pixel_format::FormatDecoder,
     types::{FrameFormat, Resolution},
 };
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use image::ImageBuffer;
 
 /// A buffer returned by a camera to accommodate custom decoding.

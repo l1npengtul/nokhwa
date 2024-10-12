@@ -578,5 +578,5 @@ fn init_camera(
     Ok(camera_backend)
 }
 
-#[cfg(feature = "output-threaded")]
+#[cfg(feature = "camera-sync-impl")]
 unsafe impl Send for Camera {}

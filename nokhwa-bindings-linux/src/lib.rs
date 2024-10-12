@@ -35,12 +35,12 @@ mod internal {
         control::{Control, Flags, Type, Value},
         frameinterval::FrameIntervalEnum,
         framesize::FrameSizeEnum,
-        io::traits::{CaptureStream, Stream},
+        io::traits::CaptureStream,
         prelude::MmapStream,
         video::{capture::Parameters, Capture},
         Device, Format, FourCC,
     };
-    use v4l2_sys_mit::{
+    use v4l::v4l_sys::{
         V4L2_CID_BACKLIGHT_COMPENSATION, V4L2_CID_BRIGHTNESS, V4L2_CID_CONTRAST, V4L2_CID_EXPOSURE,
         V4L2_CID_FOCUS_RELATIVE, V4L2_CID_GAIN, V4L2_CID_GAMMA, V4L2_CID_HUE,
         V4L2_CID_IRIS_RELATIVE, V4L2_CID_PAN_RELATIVE, V4L2_CID_SATURATION, V4L2_CID_SHARPNESS,

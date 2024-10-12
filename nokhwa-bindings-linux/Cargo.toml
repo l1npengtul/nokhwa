@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa-bindings-linux"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/l1npengtul/nokhwa"
@@ -20,5 +20,4 @@ version = "0.1.0"
 path = "../nokhwa-core"
 
 [target.'cfg(target_os="linux")'.dependencies]
-v4l = "0.14"
-v4l2-sys-mit = "0.3"
+v4l = { version = "0.14", features = ["v4l2-sys"] }

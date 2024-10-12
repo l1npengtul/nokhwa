@@ -1,6 +1,6 @@
 [package]
 name = "nokhwa"
-version = "0.10.4"
+version = "0.10.5"
 authors = ["l1npengtul <l1npengtul@protonmail.com>"]
 edition = "2021"
 description = "A Simple-to-use, cross-platform Rust Webcam Capture Library"
@@ -37,7 +37,8 @@ input-opencv = ["opencv", "opencv/videoio", "opencv/rgb", "rgb", "nokhwa-core/op
 input-jscam = ["web-sys", "js-sys", "wasm-bindgen-futures", "wasm-bindgen", "wasm-rs-async-executor"]
 output-wgpu = ["wgpu", "nokhwa-core/wgpu-types"]
 #output-wasm = ["input-jscam"]
-output-threaded = ["parking_lot"]
+output-threaded = ["parking_lot", "camera-sync-impl"]
+camera-sync-impl = []
 small-wasm = []
 docs-only = ["input-native", "input-opencv", "input-jscam","output-wgpu", "output-threaded", "serialize"]
 docs-nolink = ["nokhwa-core/docs-features"]
@@ -57,27 +58,23 @@ version = "1.0"
 optional = true
 
 [dependencies.flume]
-version = "0.10"
+version = "0.11"
 optional = true
 
 [dependencies.image]
-version = "0.24"
+version = "0.25"
 default-features = false
-
-[dependencies.v4l]
-version = "0.13"
-optional = true
 
 [dependencies.usb_enumeration]
 version = "0.2"
 optional = true
 
 [dependencies.wgpu]
-version = "0.16"
+version = "22"
 optional = true
 
 [dependencies.opencv]
-version = "0.81"
+version = "0.93"
 default-features = false
 optional = true
 
