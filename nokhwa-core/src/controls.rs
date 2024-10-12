@@ -16,159 +16,105 @@ impl From<RangeValidationFailure> for ControlValidationFailure {
     }
 }
 
+#[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum CameraPropertyId {
+    Brightness,
+    Contrast,
+    Hue,
+    Saturation,
+    Sharpness,
+    Gamma,
+    WhiteBalance,
+    BacklightCompensation,
+    Gain,
+    Pan,
+    Tilt,
+    Zoom,
+    Exposure,
+    Iris,
+    Focus,
+    Facing,
+    Custom(String)
+}
+
 // TODO: Replace Controls API with Properties. (this one)
 /// Properties of a Camera.
 /// 
 /// If the property is not supported, it is `None`.
 /// Custom or platform-specific properties go into `other`
 pub struct CameraProperties {
-    brightness: Option<CameraPropertyDescriptor>,
-    contrast: Option<CameraPropertyDescriptor>,
-    hue: Option<CameraPropertyDescriptor>,
-    saturation: Option<CameraPropertyDescriptor>,
-    sharpness: Option<CameraPropertyDescriptor>,
-    gamma: Option<CameraPropertyDescriptor>,
-    white_balance: Option<CameraPropertyDescriptor>,
-    backlight_compensation: Option<CameraPropertyDescriptor>,
-    gain: Option<CameraPropertyDescriptor>,
-    pan: Option<CameraPropertyDescriptor>,
-    tilt: Option<CameraPropertyDescriptor>,
-    zoom: Option<CameraPropertyDescriptor>,
-    exposure: Option<CameraPropertyDescriptor>,
-    iris: Option<CameraPropertyDescriptor>,
-    focus: Option<CameraPropertyDescriptor>,
-    facing: Option<CameraPropertyDescriptor>,
-    other: HashMap<String, CameraPropertyDescriptor>,
+    props: HashMap<CameraPropertyId, CameraPropertyDescriptor>,
 }
 
-impl CameraProperties {
-    pub fn brightness(&self) -> Option<&CameraPropertyDescriptor> {
-        self.brightness.as_ref()
-    }
-
-    pub fn contrast(&self) -> Option<&CameraPropertyDescriptor> {
-        self.contrast.as_ref()
-    }
-
-    pub fn hue(&self) -> Option<&CameraPropertyDescriptor> {
-        self.hue.as_ref()
-    }
-
-    pub fn saturation(&self) -> Option<&CameraPropertyDescriptor> {
-        self.saturation.as_ref()
-    }
-
-    pub fn sharpness(&self) -> Option<&CameraPropertyDescriptor> {
-        self.sharpness.as_ref()
-    }
-
-    pub fn gamma(&self) -> Option<&CameraPropertyDescriptor> {
-        self.gamma.as_ref()
-    }
-
-    pub fn white_balance(&self) -> Option<&CameraPropertyDescriptor> {
-        self.white_balance.as_ref()
-    }
-
-    pub fn backlight_compensation(&self) -> Option<&CameraPropertyDescriptor> {
-        self.backlight_compensation.as_ref()
-    }
-
-    pub fn gain(&self) -> Option<&CameraPropertyDescriptor> {
-        self.gain.as_ref()
-    }
-
-    pub fn pan(&self) -> Option<&CameraPropertyDescriptor> {
-        self.pan.as_ref()
-    }
-
-    pub fn tilt(&self) -> Option<&CameraPropertyDescriptor> {
-        self.tilt.as_ref()
-    }
-
-    pub fn zoom(&self) -> Option<&CameraPropertyDescriptor> {
-        self.zoom.as_ref()
-    }
-
-    pub fn exposure(&self) -> Option<&CameraPropertyDescriptor> {
-        self.exposure.as_ref()
-    }
-
-    pub fn iris(&self) -> Option<&CameraPropertyDescriptor> {
-        self.iris.as_ref()
-    }
-
-    pub fn focus(&self) -> Option<&CameraPropertyDescriptor> {
-        self.focus.as_ref()
-    }
-
-    pub fn facing(&self) -> Option<&CameraPropertyDescriptor> {
-        self.facing.as_ref()
-    }
-
-    pub fn other(&self, property: &str) -> Option<&CameraPropertyDescriptor> {
-        self.other.get(property)
-    }
-
-    pub fn set_other(&mut self, property: &str, value: CameraPropertyValue) -> Result<(), NokhwaError> {
-        if let Some(prop) = self.other.get_mut(property) {
-            prop.set_value(value)?;
-            return Ok(());
-        }
-
-        Err(
-            NokhwaError::SetPropertyError {
-                property: property.to_string(),
-                value: value.to_string(),
-                error: String::from("Is null."),
+macro_rules! def_camera_props {
+    ( $($property:ident, )* ) => {
+        impl CameraProperties {
+            $(
+            pub fn paste::paste! { [<$property:snake>] } (&self) -> Option<&CameraPropertyDescriptor> {
+                self.props.get(&CameraPropertyId::$property)
             }
-        )
-    }
-}
-
-macro_rules! generate_property_sets {
-    ( $( $name:ident, )* ) => {
-        {
-            impl CameraProperties {
-                paste::paste! {
-                $(
-                pub fn [<set_ $name>](&mut self, value: CameraPropertyValue) -> Result<(), NokhwaError> {
-                    if let Some(descriptor) = self.$name {
-                        descriptor.set_value(value)?;
-                        return Ok(())
-                    }
-                    return Err(
-                        NokhwaError::SetPropertyError {
-                            property: std::stringify!($name),
-                            value: value.to_string(),
-                            error: String::from("Is null."),
-                        }
-                    );
-                }
-                )*
+            
+            pub fn paste::paste! { [<set_ $property:snake>] } (&mut self, value: CameraPropertyValue) -> Result<(), NokhwaError> {
+                self.props.set_property(&CameraPropertyId::$property, value)
             }
-            }
+            )*
         }
     };
 }
 
-generate_property_sets!( brightness, contrast, hue, saturation, sharpness, gamma, white_balance,
-    backlight_compensation, gain, pan, tilt, zoom, exposure, iris, focus, facing, );
+def_camera_props!(
+    Brightness,
+    Contrast,
+    Hue,
+    Saturation,
+    Sharpness,
+    Gamma,
+    WhiteBalance,
+    BacklightCompensation,
+    Gain,
+    Pan,
+    Tilt,
+    Zoom,
+    Exposure,
+    Iris,
+    Focus,
+    Facing, 
+);
+
+impl CameraProperties { 
+    pub fn property(&self, property: &CameraPropertyId) -> Option<&CameraPropertyDescriptor> {
+        self.props.get(property)
+    }
+
+    pub fn set_property(&mut self, property: &CameraPropertyId, value: CameraPropertyValue) -> Result<(), NokhwaError> {
+        match self.props.get_mut(property) {
+            Some(prop) =>  {
+                prop.set_value(value)?;
+                Ok(())
+            }
+            None => {
+                Err(NokhwaError::SetPropertyError {
+                    property: property.to_string(),
+                    value: value.to_string(),
+                    error: String::from("Is null."),
+                })
+            }
+        }
+    }
+}
 
 /// Describes an individual property.
 #[derive(Clone, Debug)]
 pub struct CameraPropertyDescriptor {
     flags: HashSet<CameraPropertyFlag>,
-    platform_specific_id: Option<CameraCustomPropertyPlatformId>,
     range: CameraPropertyRange,
     value: CameraPropertyValue,
 }
 
 impl CameraPropertyDescriptor {
-    pub fn new(flags: &[CameraPropertyFlag], platform_id: Option<CameraCustomPropertyPlatformId>, range: CameraPropertyRange, value: CameraPropertyValue) -> Self {
+    pub fn new(flags: &[CameraPropertyFlag], range: CameraPropertyRange, value: CameraPropertyValue) -> Self {
         CameraPropertyDescriptor {
             flags: HashSet::from(flags),
-            platform_specific_id: platform_id,
             range,
             value,
         }
@@ -206,10 +152,6 @@ impl CameraPropertyDescriptor {
         self.is_disabled()?;
         Ok(&self.flags)
     }
-    
-    pub fn platform_specific(&self) -> Option<&CameraCustomPropertyPlatformId> {
-        self.platform_specific_id.as_ref()
-    }
 
     pub fn range(&self) -> &CameraPropertyRange {
         &self.range
@@ -220,7 +162,11 @@ impl CameraPropertyDescriptor {
     }
 
     pub fn set_value(&mut self, value: CameraPropertyValue) -> Result<(), NokhwaError> {
-        self.range.check_value(&value)?;
+        self.range.check_value(&value).map_err(|_| NokhwaError::SetPropertyError {
+            property: "CameraPropertyValue".to_string(),
+            value: value.to_string(),
+            error: "Bad Type".to_string(),
+        })?;
         self.value = value;
         Ok(())
     }

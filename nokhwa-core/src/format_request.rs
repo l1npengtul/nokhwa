@@ -75,36 +75,21 @@ impl FormatRequest {
                 let mut formats = list_of_formats.iter().filter(|x| {
                     frame_format.contains(&x.format()) && frame_rate.in_range(x.frame_rate())
                 }).collect::<Vec<_>>();
-                formats.sort_by(|a, b| {
-                    match a.frame_rate().partial_cmp(&b.frame_rate()) {
-                        None | Some(Ordering::Equal) => a.resolution().cmp(&b.resolution()),
-                        Some(ord) => ord,
-                    }
-                });
+                formats.sort();
                 formats.first().copied().copied()
             }
             FormatRequest::HighestResolution { resolution, frame_format } => {
                 let mut formats = list_of_formats.iter().filter(|x| {
                     frame_format.contains(&x.format()) && resolution.in_range(x.resolution())
                 }).collect::<Vec<_>>();
-                formats.sort_by(|a, b| {
-                    match a.resolution().partial_cmp(&b.resolution()) {
-                        None | Some(Ordering::Equal) => a.frame_rate().partial_cmp(&b.frame_rate()).unwrap_or(Ordering::Equal),
-                        Some(ord) => ord,
-                    }
-                });
+                formats.sort();
                 formats.first().copied().copied()
             }
             FormatRequest::Exact { resolution, frame_rate, frame_format } => {
                 let mut formats = list_of_formats.iter().filter(|x| {
                     frame_format.contains(&x.format()) && resolution == &x.resolution() && frame_rate == &x.frame_rate()
                 }).collect::<Vec<_>>();
-                formats.sort_by(|a, b| {
-                    match a.resolution().partial_cmp(&b.resolution()) {
-                        None | Some(Ordering::Equal) => a.frame_rate().partial_cmp(&b.frame_rate()).unwrap_or(Ordering::Equal),
-                        Some(ord) => ord,
-                    }
-                });
+                formats.sort();
                 formats.first().copied().copied()
             }
         }

@@ -5,15 +5,12 @@ use crate::{
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Borrow, cmp::Ordering, collections::HashSet, fmt::{
+    borrow::Borrow, cmp::Ordering, fmt::{
         Debug,
         Display,
         Formatter
     }, hash::{Hash, Hasher}, ops::{Add, Deref, DerefMut, Sub}
 };
-use std::collections::HashMap;
-use crate::controls::{CameraControl, CameraPropertyFlag, KnownCameraControl};
-use crate::ranges::Range;
 use crate::traits::Distance;
 
 

@@ -10,7 +10,7 @@ pub struct GeneralPurposeDecoder<D> where D: PixelWithColorType;
 impl<D> Decoder for GeneralPurposeDecoder<D> where D: PixelWithColorType {
     const ALLOWED_FORMATS: &'static [FrameFormat] = &[
         FrameFormat::MJpeg, FrameFormat::Luma8, FrameFormat::Luma16, FrameFormat::Rgb8, FrameFormat::RgbA8,
-        FrameFormat::Nv12, FrameFormat::Nv21, FrameFormat::Uyvy_422, FrameFormat::Yuy2_422, FrameFormat::Yv12,
+        FrameFormat::Nv12, FrameFormat::Nv21, FrameFormat::Uyvy422, FrameFormat::Yuy2_422, FrameFormat::Yv12,
         FrameFormat::Yuv444, FrameFormat::I420, FrameFormat::I422, FrameFormat::I444
     ];
 
@@ -40,7 +40,7 @@ impl<D> Decoder for GeneralPurposeDecoder<D> where D: PixelWithColorType {
         let source = match buffer.source_frame_format() {
             FrameFormat::MJpeg => PixelFormat::Rgb, // => JPEG decoder
             FrameFormat::Yuy2_422 => PixelFormat::I422,
-            FrameFormat::Uyvy_422 => PixelFormat::I422,
+            FrameFormat::Uyvy422 => PixelFormat::I422,
             FrameFormat::Yuv444 => PixelFormat::I444,
             FrameFormat::Nv12 => PixelFormat::Nv12,
             FrameFormat::Nv21 => PixelFormat::Nv12,

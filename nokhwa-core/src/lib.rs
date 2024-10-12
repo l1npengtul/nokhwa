@@ -32,3 +32,4 @@ pub mod decoders;
 pub mod utils;
 pub mod ranges;
 pub mod controls;
+mod capture;

@@ -594,7 +594,7 @@ mod internal {
     fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
         match fourcc.str().ok()? {
             "YUYV" => Some(FrameFormat::Yuy2_422),
-            "UYVY" => Some(FrameFormat::Uyvy_422),
+            "UYVY" => Some(FrameFormat::Uyvy422),
             "YV12" => Some(FrameFormat::Yv12),
             "MJPG" => Some(FrameFormat::MJpeg),
             "GRAY" => Some(FrameFormat::Luma8),

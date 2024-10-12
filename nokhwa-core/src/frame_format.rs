@@ -40,8 +40,8 @@ pub enum FrameFormat {
     Yuv444,
 
     // -> 422 16 BPP
-    Yuy2_422,
-    Uyvy_422,
+    Yuyv422,
+    Uyvy422,
 
     // 420
     Nv12,
@@ -77,8 +77,8 @@ impl FrameFormat {
         FrameFormat::XVid,
         FrameFormat::VP8,
         FrameFormat::VP9,
-        FrameFormat::Yuy2_422,
-        FrameFormat::Uyvy_422,
+        FrameFormat::Yuyv422,
+        FrameFormat::Uyvy422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
@@ -103,8 +103,8 @@ impl FrameFormat {
     ];
 
     pub const CHROMA: &'static [FrameFormat] = &[
-        FrameFormat::Yuy2_422,
-        FrameFormat::Uyvy_422,
+        FrameFormat::Yuyv422,
+        FrameFormat::Uyvy422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,
@@ -126,8 +126,8 @@ impl FrameFormat {
         FrameFormat::XVid,
         FrameFormat::VP8,
         FrameFormat::VP9,
-        FrameFormat::Yuy2_422,
-        FrameFormat::Uyvy_422,
+        FrameFormat::Yuyv422,
+        FrameFormat::Uyvy422,
         FrameFormat::Nv12,
         FrameFormat::Nv21,
         FrameFormat::Yv12,

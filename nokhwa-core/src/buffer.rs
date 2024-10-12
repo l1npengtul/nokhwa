@@ -53,7 +53,7 @@ impl Buffer {
         &self.buffer
     }
 
-    /// Get a owned version of this buffer.
+    /// Get an owned version of this buffer. Note: This is the equivalent 
     #[must_use]
     pub fn buffer_bytes(&self) -> Bytes {
         self.buffer.clone()
