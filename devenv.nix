@@ -1,14 +1,16 @@
-{ pkgs, lib, config, inputs, ... }:
+{ pkgs, lib, config, inputs, stdenv, ... }:
 
 {
   # https://devenv.sh/basics/
   env.GREET = "devenv";
   env.LIBCLANG_PATH = "${config.env.DEVENV_PROFILE}/lib/libclang.so";
+  env.CPATH = "${config.env.DEVENV_PROFILE}/include";
   # https://devenv.sh/packages/
-  packages = [ pkgs.git pkgs.v4l-utils pkgs.clangStdenv pkgs.mesa
+  packages = [ pkgs.git (pkgs.v4l-utils.override { withUtils = true; }) pkgs.clangStdenv pkgs.mesa
       pkgs.cmake pkgs.opencv4 pkgs.systemdLibs pkgs.libudev-zero
       pkgs.libudev0-shim pkgs.vcpkg pkgs.pkg-config pkgs.libclang
-      pkgs.fontconfig pkgs.clang-tools pkgs.linuxHeaders
+      pkgs.fontconfig pkgs.clang-tools pkgs.linuxHeaders pkgs.gccStdenv pkgs.libcxxStdenv
+      pkgs.glibc_multi
   ];
 
   # https://devenv.sh/languages/
@@ -28,6 +30,7 @@
     hello
     git --version
     echo ''${LIBCLANG_PATH}
+    echo ''${CPATH}
   '';
 
   # https://devenv.sh/tests/
