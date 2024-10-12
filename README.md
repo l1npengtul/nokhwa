@@ -93,7 +93,8 @@ Contributions are welcome!
 
 ## Sponsors
 - $5/mo sponsors:
-  - [remifluff](https://github.com/remifluff)
-  - [gennyble](https://github.com/gennyble)
+  - [yunho-c](https://github.com/yunho-c)
+  - [patte](https://github.com/patte)
+  - [mason-bially](https://github.com/mason-bially)
   
 Please consider [donating](https://github.com/sponsors/l1npengtul)! It helps me not look like a failure to my parents!
