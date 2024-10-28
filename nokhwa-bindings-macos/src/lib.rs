@@ -222,6 +222,7 @@ mod internal {
     use core_video_sys::{
         kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
         kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
     };
     use flume::{Receiver, Sender};
     use nokhwa_core::{
@@ -371,7 +372,7 @@ mod internal {
             kCMPixelFormat_8IndexedGray_WhiteIsZero => Some(FrameFormat::GRAY),
             kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
             | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
-            | 875704438 => Some(FrameFormat::NV12),
+            | kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange => Some(FrameFormat::YUYV),
             kCMPixelFormat_24RGB => Some(FrameFormat::RAWRGB),
             _ => None,
         }
