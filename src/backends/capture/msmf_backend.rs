@@ -57,10 +57,10 @@ impl MediaFoundationCaptureDevice {
             index.clone(),
         );
 
-        let availible = mf_device.compatible_format_list()?;
+        let available = mf_device.compatible_format_list()?;
 
         let desired = camera_fmt
-            .fulfill(&availible)
+            .fulfill(&available)
             .ok_or(NokhwaError::InitializeError {
                 backend: ApiBackend::MediaFoundation,
                 error: "Failed to fulfill requested format".to_string(),
