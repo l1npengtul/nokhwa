@@ -79,82 +79,50 @@ pub enum FrameFormat {
     Custom([u8; 8]),
 }
 
-// FIXME: Fix these frame format lists! Maybe move to using a macro..?
-impl FrameFormat {
-    pub const ALL: &'static [FrameFormat] = &[
-        FrameFormat::H263,
-        FrameFormat::H264,
-        FrameFormat::H265,
-        FrameFormat::Av1,
-        FrameFormat::Avc1,
-        FrameFormat::Mpeg1,
-        FrameFormat::Mpeg2,
-        FrameFormat::Mpeg4,
-        FrameFormat::MJpeg,
-        FrameFormat::XVid,
-        FrameFormat::VP8,
-        FrameFormat::VP9,
-        FrameFormat::Yuyv422,
-        FrameFormat::Uyvy422,
-        FrameFormat::Nv12,
-        FrameFormat::Nv21,
-        FrameFormat::Yv12,
-        FrameFormat::Luma8,
-        FrameFormat::Luma16,
-        FrameFormat::Rgb332,
-        FrameFormat::RgbA8888,
-    ];
+macro_rules! define_frame_format_groups {
+    (
+        $(
+            $group_name:ident => [
+                $($format:ident),* $(,)?
+            ]
+        ),* $(,)?
+    ) => {
+        impl FrameFormat {
+            $(
+                pub const $group_name: &'static [FrameFormat] = &[
+                    $(FrameFormat::$format),*
+                ];
+            )*
+        }
+    };
+}
 
-    pub const COMPRESSED: &'static [FrameFormat] = &[
-        FrameFormat::H263,
-        FrameFormat::H264,
-        FrameFormat::H265,
-        FrameFormat::Av1,
-        FrameFormat::Avc1,
-        FrameFormat::Mpeg1,
-        FrameFormat::Mpeg2,
-        FrameFormat::Mpeg4,
-        FrameFormat::MJpeg,
-        FrameFormat::XVid,
-        FrameFormat::VP8,
-        FrameFormat::VP9,
-    ];
-
-    pub const CHROMA: &'static [FrameFormat] = &[
-        FrameFormat::Yuyv422,
-        FrameFormat::Uyvy422,
-        FrameFormat::Nv12,
-        FrameFormat::Nv21,
-        FrameFormat::Yv12,
-    ];
-
-    pub const LUMA: &'static [FrameFormat] = &[FrameFormat::Luma8, FrameFormat::Luma16];
-
-    pub const RGB: &'static [FrameFormat] = &[FrameFormat::Rgb332, FrameFormat::RgbA8888];
-
-    pub const COLOR_FORMATS: &'static [FrameFormat] = &[
-        FrameFormat::H265,
-        FrameFormat::H264,
-        FrameFormat::H263,
-        FrameFormat::Av1,
-        FrameFormat::Avc1,
-        FrameFormat::Mpeg1,
-        FrameFormat::Mpeg2,
-        FrameFormat::Mpeg4,
-        FrameFormat::MJpeg,
-        FrameFormat::XVid,
-        FrameFormat::VP8,
-        FrameFormat::VP9,
-        FrameFormat::Yuyv422,
-        FrameFormat::Uyvy422,
-        FrameFormat::Nv12,
-        FrameFormat::Nv21,
-        FrameFormat::Yv12,
-        FrameFormat::Rgb332,
-        FrameFormat::RgbA8888,
-    ];
-
-    pub const GRAYSCALE: &'static [FrameFormat] = &[FrameFormat::Luma8, FrameFormat::Luma16];
+define_frame_format_groups! {
+    ALL => [
+        H263, H264, H265, Av1, Avc1, Mpeg1, Mpeg2, Mpeg4, MJpeg, XVid,
+        VP8, VP9, Yuyv422, Uyvy422, Nv12, Nv21, Yv12, Luma8, Luma16,
+        Rgb332, RgbA8888
+    ],
+    COMPRESSED => [
+        H263, H264, H265, Av1, Avc1, Mpeg1, Mpeg2, Mpeg4, MJpeg, XVid,
+        VP8, VP9
+    ],
+    CHROMA => [
+        Yuyv422, Uyvy422, Nv12, Nv21, Yv12
+    ],
+    LUMA => [
+        Luma8, Luma16
+    ],
+    RGB => [
+        Rgb332, RgbA8888
+    ],
+    COLOR_FORMATS => [
+        H265, H264, H263, Av1, Avc1, Mpeg1, Mpeg2, Mpeg4, MJpeg, XVid,
+        VP8, VP9, Yuyv422, Uyvy422, Nv12, Nv21, Yv12, Rgb332, RgbA8888
+    ],
+    GRAYSCALE => [
+        Luma8, Luma16
+    ]
 }
 
 impl Display for FrameFormat {
