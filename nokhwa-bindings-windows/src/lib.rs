@@ -972,7 +972,14 @@ pub mod wmf {
                     };
 
                     let frame_rate = match unsafe { media_type.GetUINT64(&MF_MT_FRAME_RATE) } {
-                        Ok(fps) => fps as u32,
+                        Ok(fps) => {
+                            let mut numerator = (fps >> 32) as u32;
+                            let denominator = fps as u32;
+                            if denominator != 1 {
+                                numerator = 0;
+                            }
+                            numerator
+                        },
                         Err(why) => {
                             return Err(NokhwaError::GetPropertyError {
                                 property: "MF_MT_FRAME_RATE".to_string(),
@@ -1033,8 +1040,8 @@ pub mod wmf {
             let fps = {
                 let frame_rate_u64 = 0_u64;
                 let mut bytes: [u8; 8] = frame_rate_u64.to_le_bytes();
-                bytes[7] = format.frame_rate() as u8;
-                bytes[3] = 0x01;
+                bytes[4] = format.frame_rate() as u8;
+                bytes[0] = 0x01;
                 u64::from_le_bytes(bytes)
             };
             let fourcc = frameformat_to_guid(format.format());
