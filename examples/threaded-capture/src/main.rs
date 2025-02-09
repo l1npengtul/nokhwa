@@ -32,7 +32,7 @@ fn main() {
 
     let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
-    let first_camera = cameras.get(1).unwrap();
+    let first_camera = cameras.first().unwrap();
 
     let mut threaded = CallbackCamera::new(first_camera.index().clone(), format, |buffer| {
         let image = buffer.decode_image::<RgbAFormat>().unwrap();
