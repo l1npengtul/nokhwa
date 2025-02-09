@@ -1838,7 +1838,7 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: "bad resolution".to_string(),
+            error: format!("bad resolution, expected even width and height, got {}x{}", width, height),
         });
     }
 
@@ -1849,7 +1849,7 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: "bad input buffer size".to_string(),
+            error: format!("bad input buffer size, expected {} but got {}", input_size, data.len()),
         });
     }
 
@@ -1857,21 +1857,20 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: "bad output buffer size".to_string(),
+            error: format!("bad output buffer size, expected {} but got {}", output_size, out.len()),
         });
     }
 
-    for (idx, chunk) in data.chunks_exact(4).enumerate() {
+    for (idx, bgra_pixel) in data.chunks_exact(4).enumerate() {
         // BGRA Format: [Blue, Green, Red, Alpha]
-        let b = chunk[0];
-        let g = chunk[1];
-        let r = chunk[2];
-        // let _a = chunk[3]; // Alpha is ignored for RGB
+        let b = bgra_pixel[0];
+        let g = bgra_pixel[1];
+        let r = bgra_pixel[2];
 
-        let out_idx = idx * 3; // 3 bytes per pixel in RGB
-        out[out_idx] = r; // Red
-        out[out_idx + 1] = g; // Green
-        out[out_idx + 2] = b; // Blue
+        let out_idx = idx * 3;
+        out[out_idx] = r;
+        out[out_idx + 1] = g;
+        out[out_idx + 2] = b;
     }
 
     Ok(())
