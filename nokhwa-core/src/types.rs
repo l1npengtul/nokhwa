@@ -1759,7 +1759,11 @@ pub fn buf_nv12_to_rgb(
         });
     }
 
-    let expected_len = ((resolution.width() * resolution.height() * 3) / 2) as usize;
+    let expected_len = if rgba {
+        ((resolution.width() * resolution.height() * 4) / 2) as usize
+    } else {
+        ((resolution.width() * resolution.height() * 3) / 2) as usize
+    };
 
     if data.len() != expected_len {
         return Err(NokhwaError::ProcessFrameError {

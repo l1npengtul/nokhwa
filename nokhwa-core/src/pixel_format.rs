@@ -19,6 +19,7 @@ use crate::types::{
     frame_formats, mjpeg_to_rgb, nv12_to_rgb, yuyv422_to_rgb, FrameFormat, Resolution,
 };
 use image::{Luma, LumaA, Pixel, Rgb, Rgba};
+use mozjpeg::Format;
 use std::fmt::Debug;
 
 /// Trait that has methods to convert raw data from the webcam to a proper raw image.
@@ -126,6 +127,94 @@ impl FormatDecoder for RgbFormat {
         }
     }
 }
+
+
+#[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub struct BgraFormat;
+
+impl FormatDecoder for BgraFormat {
+    /// TODO: Image has to be changed to support BGRA
+    type Output = Rgba<u8>;
+
+    const FORMATS: &'static [FrameFormat] = color_frame_formats();
+
+    #[inline]
+    fn write_output(
+            fcc: FrameFormat,
+            resolution: Resolution,
+            data: &[u8],
+        ) -> Result<Vec<u8>, NokhwaError> {
+            match fcc {
+                FrameFormat::MJPEG => mjpeg_to_rgb(data, true),
+                FrameFormat::YUYV => yuyv422_to_rgb(data, true),
+                FrameFormat::GRAY => Ok(data
+                    .iter()
+                    .flat_map(|x| {
+                        let pxv = *x;
+                        [pxv, pxv, pxv, 255]
+                    })
+                    .collect()),
+                FrameFormat::RAWRGB => Ok(data
+                    .chunks_exact(3)
+                    .flat_map(|x| [x[0], x[1], x[2], 255])
+                    .collect()),
+                FrameFormat::NV12 => nv12_to_rgb(resolution, data, true),
+                FrameFormat::BGRA => Ok(data.to_vec()),
+            }
+        }
+
+    #[inline]
+    fn write_output_buffer(
+        fcc: FrameFormat,
+        resolution: Resolution,
+        data: &[u8],
+        dest: &mut [u8],
+    ) -> Result<(), NokhwaError> {
+        match fcc {
+            FrameFormat::MJPEG => buf_mjpeg_to_rgb(data, dest, true),
+            FrameFormat::YUYV => buf_yuyv422_to_rgb(data, dest, true),
+            FrameFormat::GRAY => {
+                if dest.len() != data.len() * 4 {
+                    return Err(NokhwaError::ProcessFrameError {
+                        src: fcc,
+                        destination: "Luma => RGBA".to_string(),
+                        error: "Bad buffer length".to_string(),
+                    });
+                }
+
+                data.iter().enumerate().for_each(|(idx, pixel_value)| {
+                    let index = idx * 4;
+                    dest[index] = *pixel_value;
+                    dest[index + 1] = *pixel_value;
+                    dest[index + 2] = *pixel_value;
+                    dest[index + 3] = 255;
+                });
+                Ok(())
+            }
+            FrameFormat::RAWRGB => {
+                data.chunks_exact(3).enumerate().for_each(|(idx, px)| {
+                    let index = idx * 4;
+                    dest[index] = px[0];
+                    dest[index + 1] = px[1];
+                    dest[index + 2] = px[2];
+                    dest[index + 3] = 255;
+                });
+                Ok(())
+            }
+            FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, true),
+            FrameFormat::BGRA => {
+                // If dest < data, only copy what fits
+                if dest.len() < data.len() {
+                    dest.copy_from_slice(data.get(..dest.len()).unwrap());
+                } else {
+                    dest.copy_from_slice(data);
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 
 /// A Zero-Size-Type that contains the definition to convert a given image stream to an RGBA8888 in the [`Buffer`](crate::buffer::Buffer)'s [`.decode_image()`](crate::buffer::Buffer::decode_image)
 ///
@@ -482,9 +571,9 @@ impl FormatDecoder for LumaAFormat {
 /// let image: ImageBuffer<Rgb<u8>, Vec<u8>> = buffer.to_image::<YuyvFormat>();
 /// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct YuyvFormat;
+pub struct I420Format;
 
-impl FormatDecoder for YuyvFormat {
+impl FormatDecoder for I420Format {
     // YUV 4:2:0 planar colors. but we need to change the image crate to use this format
     type Output = Rgb<u8>;
     const FORMATS: &'static [FrameFormat] = color_frame_formats();
@@ -498,7 +587,7 @@ impl FormatDecoder for YuyvFormat {
         match fcc {
             FrameFormat::YUYV => {
                 let mut i420 =
-                    vec![0u8; resolution.width() as usize * resolution.height() as usize * 3 / 2];
+                    vec![0u8; resolution.width() as usize * resolution.height() as usize * 3 / 2];                
                 convert_yuyv_to_i420_direct(
                     data,
                     resolution.width() as usize,
@@ -506,6 +595,22 @@ impl FormatDecoder for YuyvFormat {
                     &mut i420,
                 )?;
                 Ok(i420)
+            }
+            FrameFormat::BGRA => {
+                // Transform to RGB first, 3 pixels per pixel
+                let mut rgb = vec![0u8; data.len() / 4 * 3];
+                data.chunks_exact(4).enumerate().for_each(|(idx, px)| {
+                    let index = idx * 3;
+                    rgb[index] = px[2];
+                    rgb[index + 1] = px[1];
+                    rgb[index + 2] = px[0];
+                });
+                let width = resolution.width() as usize;
+                let height = resolution.height() as usize;
+                let mut nv12_data = vec![0u8; width * height * 3 / 2];
+
+                rgb_to_i420(&rgb, width, height, &mut nv12_data);
+                Ok(nv12_data)
             }
             _ => Err(NokhwaError::GeneralError(format!(
                 "Invalid FrameFormat in write_output: {:?}",
@@ -523,6 +628,7 @@ impl FormatDecoder for YuyvFormat {
     ) -> Result<(), NokhwaError> {
         match fcc {
             FrameFormat::YUYV => {
+                println!("Converting YUYV to I420");
                 convert_yuyv_to_i420_direct(
                     data,
                     resolution.width() as usize,
@@ -533,6 +639,7 @@ impl FormatDecoder for YuyvFormat {
             }
 
             FrameFormat::NV12 => {
+                println!("Converting NV12 to I420");
                 nv12_to_i420(
                     data,
                     resolution.width() as usize,
@@ -559,6 +666,8 @@ impl FormatDecoder for YuyvFormat {
         }
     }
 }
+
+
 
 /// Converts an image in YUYV format to I420 (YUV 4:2:0) format.
 /// YUYV format is a packed format with two Y samples followed by one U and one V sample.
@@ -618,6 +727,7 @@ fn convert_yuyv_to_i420_direct(
 /// - `height`: Height of the image.
 /// - `i420`: Output buffer to store the I420 data.s
 fn nv12_to_i420(nv12: &[u8], width: usize, height: usize, i420: &mut [u8]) {
+    // assert that the nv12 has the expected size
     assert!(
         width % 2 == 0 && height % 2 == 0,
         "Width and height must be even numbers."
@@ -656,7 +766,7 @@ fn nv12_to_i420(nv12: &[u8], width: usize, height: usize, i420: &mut [u8]) {
 /// - `i420`: Output buffer to store the I420 data.
 ///            Must have at least `width * height * 3 / 2` bytes allocated.
 fn bgra_to_i420(bgra: &[u8], width: usize, height: usize, i420: &mut [u8]) {
-    assert_eq!(bgra.len(), width * height * 4, "Invalid BGRA buffer size");
+    // assert_eq!(bgra.len(), width * height * 4, "Invalid BGRA buffer size");
     assert!(
         i420.len() >= width * height * 3 / 2,
         "Insufficient I420 buffer size"
@@ -671,6 +781,39 @@ fn bgra_to_i420(bgra: &[u8], width: usize, height: usize, i420: &mut [u8]) {
             let b = bgra[bgra_index] as f32;
             let g = bgra[bgra_index + 1] as f32;
             let r = bgra[bgra_index + 2] as f32;
+
+            // Calculate Y, U, V components
+            let y_value = (0.257 * r + 0.504 * g + 0.098 * b + 16.0).round() as u8;
+            let u_value = (-0.148 * r - 0.291 * g + 0.439 * b + 128.0).round() as u8;
+            let v_value = (0.439 * r - 0.368 * g - 0.071 * b + 128.0).round() as u8;
+
+            y_plane[y * width + x] = y_value;
+
+            if y % 2 == 0 && x % 2 == 0 {
+                let uv_index = (y / 2) * (width / 2) + (x / 2);
+                u_plane[uv_index] = u_value;
+                v_plane[uv_index] = v_value;
+            }
+        }
+    }
+}
+
+pub fn rgb_to_i420(rgb: &[u8], width: usize, height: usize, i420: &mut [u8]) {
+    // assert_eq!(rgb.len(), width * height * 3, "Invalid RGB buffer size");
+    assert!(
+        i420.len() >= width * height * 3 / 2,
+        "Insufficient I420 buffer size"
+    );
+
+    let (y_plane, uv_planes) = i420.split_at_mut(width * height);
+    let (u_plane, v_plane) = uv_planes.split_at_mut(width * height / 4);
+
+    for y in 0..height {
+        for x in 0..width {
+            let rgb_index = (y * width + x) * 3;
+            let r = rgb[rgb_index] as f32;
+            let g = rgb[rgb_index + 1] as f32;
+            let b = rgb[rgb_index + 2] as f32;
 
             // Calculate Y, U, V components
             let y_value = (0.257 * r + 0.504 * g + 0.098 * b + 16.0).round() as u8;
@@ -749,7 +892,7 @@ mod tests {
         let expected_i420 = include_bytes!("../tests/assets/chichen_itza.yuyv_i420");
         let width = 1280;
         let height = 680;
-        let mut actual = vec![0u8; width * height * 3 / 2];
+        let mut actual: Vec<u8> = vec![0u8; width * height * 3 / 2];
         super::convert_yuyv_to_i420_direct(yuyv, width, height, &mut actual).unwrap();
         // I generated the expected I420 data using ffmpeg, so we allow some error in the conversion
         assert_i420_equal_with_epsilon(0, 5, 5, &actual, expected_i420, width, height);

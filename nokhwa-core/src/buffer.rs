@@ -78,6 +78,7 @@ impl Buffer {
         &self,
     ) -> Result<ImageBuffer<F::Output, Vec<u8>>, NokhwaError> {
         let new_data = F::write_output(self.source_frame_format, self.resolution, &self.buffer)?;
+        // assert_eq!(new_data.len(), 30);
         let image =
             ImageBuffer::from_raw(self.resolution.width_x, self.resolution.height_y, new_data)
                 .ok_or(NokhwaError::ProcessFrameError {
