@@ -597,6 +597,7 @@ impl FormatDecoder for I420Format {
                 Ok(i420)
             }
             FrameFormat::BGRA => {
+                println!("BGRA to I420 2");
                 // Transform to RGB first, 3 pixels per pixel
                 let mut rgb = vec![0u8; data.len() / 4 * 3];
                 data.chunks_exact(4).enumerate().for_each(|(idx, px)| {
@@ -626,9 +627,9 @@ impl FormatDecoder for I420Format {
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
+        println!("write_output_buffer I420 with {}", fcc);
         match fcc {
             FrameFormat::YUYV => {
-                println!("Converting YUYV to I420");
                 convert_yuyv_to_i420_direct(
                     data,
                     resolution.width() as usize,
@@ -639,17 +640,20 @@ impl FormatDecoder for I420Format {
             }
 
             FrameFormat::NV12 => {
-                println!("Converting NV12 to I420");
-                nv12_to_i420(
-                    data,
-                    resolution.width() as usize,
-                    resolution.height() as usize,
-                    dest,
-                );
+                // nv12_to_i420(
+                //     data,
+                //     resolution.width() as usize,
+                //     resolution.height() as usize,
+                //     dest,
+                // );
+                // nv12 == YUV 4:2:0 planar colors
+                // just send it
+                dest.copy_from_slice(data);
                 Ok(())
             }
 
             FrameFormat::BGRA => {
+                println!("BGRA to I420");
                 bgra_to_i420(
                     data,
                     resolution.width() as usize,
@@ -766,10 +770,9 @@ fn nv12_to_i420(nv12: &[u8], width: usize, height: usize, i420: &mut [u8]) {
 /// - `i420`: Output buffer to store the I420 data.
 ///            Must have at least `width * height * 3 / 2` bytes allocated.
 fn bgra_to_i420(bgra: &[u8], width: usize, height: usize, i420: &mut [u8]) {
-    // assert_eq!(bgra.len(), width * height * 4, "Invalid BGRA buffer size");
     assert!(
         i420.len() >= width * height * 3 / 2,
-        "Insufficient I420 buffer size"
+        "Insufficient I420 buffer size, got {} expected {}", i420.len(), width * height * 3 / 2
     );
 
     let (y_plane, uv_planes) = i420.split_at_mut(width * height);

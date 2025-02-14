@@ -1733,13 +1733,12 @@ pub fn nv12_to_rgb(
 ) -> Result<Vec<u8>, NokhwaError> {
     let pxsize = if rgba { 4 } else { 3 };
     let mut dest = vec![0; (pxsize * resolution.width() * resolution.height()) as usize];
+    println!("dest size: {}", dest.len());
     buf_nv12_to_rgb(resolution, data, &mut dest, rgba)?;
     Ok(dest)
 }
 
-// this depresses me
-// like, everytime i open this codebase all the life is sucked out of me
-// i hate it
+
 /// Converts a YUYV 4:2:0 bi-planar (NV12) datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
 /// This may error when the data stream size is wrong.
@@ -1751,82 +1750,43 @@ pub fn buf_nv12_to_rgb(
     out: &mut [u8],
     rgba: bool,
 ) -> Result<(), NokhwaError> {
-    if resolution.width() % 2 != 0 || resolution.height() % 2 != 0 {
-        return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::NV12,
-            destination: "RGB".to_string(),
-            error: "bad resolution".to_string(),
-        });
-    }
+    let width = resolution.width();
+    let height = resolution.height();
+    let y_size = (width * height) as usize;
+    let uv_size = y_size / 2; // NV12 has UV plane at half resolution
+    
+    // if data.len() < y_size + uv_size || out.len() < y_size * if rgba { 4 } else { 3 } {
+    //     return Err(NokhwaError::ProcessFrameError("Invalid buffer size".to_string()));
+    // }
 
-    let expected_len = if rgba {
-        ((resolution.width() * resolution.height() * 4) / 2) as usize
-    } else {
-        ((resolution.width() * resolution.height() * 3) / 2) as usize
-    };
+    let y_plane = &data[0..y_size];
+    let uv_plane = &data[y_size..];
 
-    if data.len() != expected_len {
-        return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::NV12,
-            destination: "RGB".to_string(),
-            error: format!("bad input buffer size, expected {} but got {}", expected_len, data.len()),
-        });
-    }
+    for j in 0..height {
+        for i in 0..width {
+            let y_index = (j * width + i) as usize;
+            let uv_index = ((j / 2) * width + (i & !1)) as usize;
 
-    let pxsize = if rgba { 4 } else { 3 };
+            let y = y_plane[y_index] as f32;
+            let u = uv_plane[uv_index] as f32 - 128.0;
+            let v = uv_plane[uv_index + 1] as f32 - 128.0;
 
-    if out.len() != (pxsize * resolution.width() * resolution.height()) as usize {
-        return Err(NokhwaError::ProcessFrameError {
-            src: FrameFormat::NV12,
-            destination: "RGB".to_string(),
-            error: "bad output buffer size".to_string(),
-        });
-    }
+            let r = (y + 1.402 * v).clamp(0.0, 255.0) as u8;
+            let g = (y - 0.344136 * u - 0.714136 * v).clamp(0.0, 255.0) as u8;
+            let b = (y + 1.772 * u).clamp(0.0, 255.0) as u8;
 
-    let rgba_size = if rgba { 4 } else { 3 };
-
-    let y_section = (resolution.width() * resolution.height()) as usize;
-
-    let width_usize = resolution.width() as usize;
-    // let height_usize = resolution.height() as usize;
-
-    for (hidx, horizontal_row) in data[0..y_section].chunks_exact(width_usize).enumerate() {
-        for (cidx, column) in horizontal_row.chunks_exact(2).enumerate() {
-            let u = data[(y_section) + ((hidx / 2) * width_usize) + (cidx * 2)];
-            let v = data[(y_section) + ((hidx / 2) * width_usize) + (cidx * 2) + 1];
-
-            let y0 = column[0];
-            let y1 = column[1];
-            let base_index = (hidx * width_usize * rgba_size) + cidx * rgba_size * 2;
-
+            let out_index = y_index * if rgba { 4 } else { 3 };
+            out[out_index] = r;
+            out[out_index + 1] = g;
+            out[out_index + 2] = b;
             if rgba {
-                let px0 = yuyv444_to_rgba(y0 as i32, u as i32, v as i32);
-                let px1 = yuyv444_to_rgba(y1 as i32, u as i32, v as i32);
-
-                out[base_index] = px0[0];
-                out[base_index + 1] = px0[1];
-                out[base_index + 2] = px0[2];
-                out[base_index + 3] = px0[3];
-                out[base_index + 4] = px1[0];
-                out[base_index + 5] = px1[1];
-                out[base_index + 6] = px1[2];
-                out[base_index + 7] = px1[3];
-            } else {
-                let px0 = yuyv444_to_rgb(y0 as i32, u as i32, v as i32);
-                let px1 = yuyv444_to_rgb(y1 as i32, u as i32, v as i32);
-
-                out[base_index] = px0[0];
-                out[base_index + 1] = px0[1];
-                out[base_index + 2] = px0[2];
-                out[base_index + 3] = px1[0];
-                out[base_index + 4] = px1[1];
-                out[base_index + 5] = px1[2];
+                out[out_index + 3] = 255;
             }
         }
     }
-
     Ok(())
 }
+
 
 #[allow(clippy::similar_names)]
 #[inline]
