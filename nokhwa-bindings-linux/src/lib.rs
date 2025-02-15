@@ -31,6 +31,12 @@ mod internal {
         collections::HashMap,
         io::{self, ErrorKind},
     };
+    use v4l::v4l_sys::{
+        V4L2_CID_BACKLIGHT_COMPENSATION, V4L2_CID_BRIGHTNESS, V4L2_CID_CONTRAST, V4L2_CID_EXPOSURE,
+        V4L2_CID_FOCUS_RELATIVE, V4L2_CID_GAIN, V4L2_CID_GAMMA, V4L2_CID_HUE,
+        V4L2_CID_IRIS_RELATIVE, V4L2_CID_PAN_RELATIVE, V4L2_CID_SATURATION, V4L2_CID_SHARPNESS,
+        V4L2_CID_TILT_RELATIVE, V4L2_CID_WHITE_BALANCE_TEMPERATURE, V4L2_CID_ZOOM_RELATIVE,
+    };
     use v4l::{
         control::{Control, Flags, Type, Value},
         frameinterval::FrameIntervalEnum,
@@ -39,12 +45,6 @@ mod internal {
         prelude::MmapStream,
         video::{capture::Parameters, Capture},
         Device, Format, FourCC,
-    };
-    use v4l::v4l_sys::{
-        V4L2_CID_BACKLIGHT_COMPENSATION, V4L2_CID_BRIGHTNESS, V4L2_CID_CONTRAST, V4L2_CID_EXPOSURE,
-        V4L2_CID_FOCUS_RELATIVE, V4L2_CID_GAIN, V4L2_CID_GAMMA, V4L2_CID_HUE,
-        V4L2_CID_IRIS_RELATIVE, V4L2_CID_PAN_RELATIVE, V4L2_CID_SATURATION, V4L2_CID_SHARPNESS,
-        V4L2_CID_TILT_RELATIVE, V4L2_CID_WHITE_BALANCE_TEMPERATURE, V4L2_CID_ZOOM_RELATIVE,
     };
 
     /// Attempts to convert a [`KnownCameraControl`] into a V4L2 Control ID.

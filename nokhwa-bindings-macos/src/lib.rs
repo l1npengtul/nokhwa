@@ -519,7 +519,7 @@ mod internal {
             AVCaptureDeviceType::TrueDepth,
             AVCaptureDeviceType::External,
         ])?
-        .devices();            
+        .devices();
         Ok(devices)
     }
 
@@ -573,9 +573,7 @@ mod internal {
                 AVCaptureDeviceType::TrueDepth => {
                     str_to_nsstr("AVCaptureDeviceTypeBuiltInTrueDepthCamera")
                 }
-                AVCaptureDeviceType::External => {
-                    str_to_nsstr("AVCaptureDeviceTypeExternal")
-                }
+                AVCaptureDeviceType::External => str_to_nsstr("AVCaptureDeviceTypeExternal"),
             }
         }
     }

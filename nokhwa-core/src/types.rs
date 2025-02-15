@@ -1733,11 +1733,40 @@ pub fn nv12_to_rgb(
 ) -> Result<Vec<u8>, NokhwaError> {
     let pxsize = if rgba { 4 } else { 3 };
     let mut dest = vec![0; (pxsize * resolution.width() * resolution.height()) as usize];
-    println!("dest size: {}", dest.len());
     buf_nv12_to_rgb(resolution, data, &mut dest, rgba)?;
     Ok(dest)
 }
 
+pub fn nv12_to_i420(nv12: &[u8], width: usize, height: usize, i420: &mut [u8]) {
+    // assert that the nv12 has the expected size
+    assert!(
+        width % 2 == 0 && height % 2 == 0,
+        "Width and height must be even numbers."
+    );
+
+    let y_plane_size = width * height;
+    let uv_plane_size = y_plane_size / 2; // Interleaved UV plane size
+    let u_plane_size = uv_plane_size / 2;
+
+    let (y_plane, uv_plane) = i420.split_at_mut(y_plane_size);
+    let (u_plane, v_plane) = uv_plane.split_at_mut(u_plane_size);
+
+    // Step 1: Copy Y plane
+    y_plane.copy_from_slice(&nv12[..y_plane_size]);
+
+    // Step 2: Process interleaved UV data
+    let nv12_uv = &nv12[y_plane_size..];
+
+    for row in 0..(height / 2) {
+        for col in 0..(width / 2) {
+            let nv12_index = row * width + col * 2; // Index in NV12 interleaved UV plane
+            let uv_index = row * (width / 2) + col; // Index in U and V planes
+
+            u_plane[uv_index] = nv12_uv[nv12_index]; // U value
+            v_plane[uv_index] = nv12_uv[nv12_index + 1]; // V value
+        }
+    }
+}
 
 /// Converts a YUYV 4:2:0 bi-planar (NV12) datastream to a RGB888 Stream and outputs it into a destination buffer. [For further reading](https://en.wikipedia.org/wiki/YUV#Converting_between_Y%E2%80%B2UV_and_RGB)
 /// # Errors
@@ -1754,7 +1783,7 @@ pub fn buf_nv12_to_rgb(
     let height = resolution.height();
     let y_size = (width * height) as usize;
     let uv_size = y_size / 2; // NV12 has UV plane at half resolution
-    
+
     // if data.len() < y_size + uv_size || out.len() < y_size * if rgba { 4 } else { 3 } {
     //     return Err(NokhwaError::ProcessFrameError("Invalid buffer size".to_string()));
     // }
@@ -1787,7 +1816,6 @@ pub fn buf_nv12_to_rgb(
     Ok(())
 }
 
-
 #[allow(clippy::similar_names)]
 #[inline]
 pub fn buf_bgra_to_rgb(
@@ -1802,7 +1830,10 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: format!("bad resolution, expected even width and height, got {}x{}", width, height),
+            error: format!(
+                "bad resolution, expected even width and height, got {}x{}",
+                width, height
+            ),
         });
     }
 
@@ -1813,7 +1844,11 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: format!("bad input buffer size, expected {} but got {}", input_size, data.len()),
+            error: format!(
+                "bad input buffer size, expected {} but got {}",
+                input_size,
+                data.len()
+            ),
         });
     }
 
@@ -1821,7 +1856,11 @@ pub fn buf_bgra_to_rgb(
         return Err(NokhwaError::ProcessFrameError {
             src: FrameFormat::BGRA,
             destination: "RGB".to_string(),
-            error: format!("bad output buffer size, expected {} but got {}", output_size, out.len()),
+            error: format!(
+                "bad output buffer size, expected {} but got {}",
+                output_size,
+                out.len()
+            ),
         });
     }
 
