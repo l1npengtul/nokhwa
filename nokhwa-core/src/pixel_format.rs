@@ -638,15 +638,13 @@ impl FormatDecoder for I420Format {
             }
 
             FrameFormat::NV12 => {
-                // nv12_to_i420(
-                //     data,
-                //     resolution.width() as usize,
-                //     resolution.height() as usize,
-                //     dest,
-                // );
-                // nv12 == YUV 4:2:0 planar colors
-                // just send it
-                dest.copy_from_slice(data);
+                println!("size of data: {}", data.len());
+                convert_yuyv_to_i420_direct(
+                    data,
+                    resolution.width() as usize,
+                    resolution.height() as usize,
+                    dest,
+                )?;
                 Ok(())
             }
 

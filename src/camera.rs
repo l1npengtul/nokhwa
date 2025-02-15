@@ -262,6 +262,7 @@ impl Camera {
     /// # Errors
     /// If you started the stream and the camera rejects the new frame format, this will return an error.
     pub fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+        println!("Setting frame format to {:?}", fourcc);
         self.device.set_frame_format(fourcc)
     }
 

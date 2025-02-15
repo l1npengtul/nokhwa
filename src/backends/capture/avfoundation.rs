@@ -205,6 +205,7 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn set_frame_format(&mut self, fourcc: FrameFormat) -> Result<(), NokhwaError> {
+        println!("av foundation set frame format {}", fourcc);
         let mut format = self.camera_format();
         format.set_format(fourcc);
         self.set_camera_format(format)
@@ -239,14 +240,14 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     }
 
     fn open_stream(&mut self) -> Result<(), NokhwaError> {
-        self.refresh_camera_format()?;
+        // self.refresh_camera_format()?;
 
         let input = AVCaptureDeviceInput::new(&self.device)?;
         let session = AVCaptureSession::new();
         session.begin_configuration();
         session.add_input(&input)?;
 
-        self.device.set_all(self.format)?; // hurr durr im an apple api and im fucking dumb hurr durr
+        // self.device.set_all(self.format)?; // hurr durr im an apple api and im fucking dumb hurr durr
 
         let bufname = &self.buffer_name;
         let videocallback = AVCaptureVideoCallback::new(bufname, &self.fbufsnd)?;

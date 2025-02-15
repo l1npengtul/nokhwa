@@ -973,6 +973,7 @@ mod internal {
         // thank you ffmpeg
         pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), NokhwaError> {
             self.lock()?;
+            println!("Spaceballs format: {:?}", descriptor);
             let format_list = try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
                 msg_send![self.inner, formats]
             })?;
@@ -2277,14 +2278,16 @@ mod internal {
         }
 
         pub fn set_frame_format(&self, format: FrameFormat) -> Result<(), NokhwaError> {
+            println!("setting format {}", format);
             let cmpixelfmt = match format {
                 FrameFormat::YUYV => kCMPixelFormat_422YpCbCr8_yuvs,
                 FrameFormat::MJPEG => kCMVideoCodecType_JPEG,
                 FrameFormat::GRAY => kCMPixelFormat_8IndexedGray_WhiteIsZero,
-                FrameFormat::NV12 => kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+                FrameFormat::NV12 => kCMPixelFormat_422YpCbCr8_yuvs,
                 FrameFormat::RAWRGB => kCMPixelFormat_24RGB,
                 FrameFormat::BGRA => kCMPixelFormat_32BGRA,
             };
+            
             let obj = CFNumber::from(cmpixelfmt as i32);
             let obj = obj.as_CFTypeRef() as *mut Object;
             let key = unsafe { kCVPixelBufferPixelFormatTypeKey } as *mut Object;
