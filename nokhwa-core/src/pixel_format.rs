@@ -625,7 +625,6 @@ impl FormatDecoder for I420Format {
         data: &[u8],
         dest: &mut [u8],
     ) -> Result<(), NokhwaError> {
-        println!("write_output_buffer I420 with {}", fcc);
         match fcc {
             FrameFormat::YUYV => {
                 convert_yuyv_to_i420_direct(
@@ -638,18 +637,16 @@ impl FormatDecoder for I420Format {
             }
 
             FrameFormat::NV12 => {
-                println!("size of data: {}", data.len());
-                convert_yuyv_to_i420_direct(
+                nv12_to_i420(
                     data,
                     resolution.width() as usize,
                     resolution.height() as usize,
                     dest,
-                )?;
+                );
                 Ok(())
             }
 
             FrameFormat::BGRA => {
-                println!("BGRA to I420");
                 bgra_to_i420(
                     data,
                     resolution.width() as usize,
