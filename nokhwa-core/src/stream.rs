@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::sync::Arc;
 use std::time::Duration;
 use flume::{Receiver, Sender, TryRecvError};
 use typed_builder::TypedBuilder;
@@ -77,6 +78,8 @@ pub enum Event {
     Terminating,
     /// The stream is closed.
     Closed,
+    /// An error from the driver
+    Error(Box<dyn std::error::Error>),
     /// Some other message sent by the driver. This can be ignored, although logging this is preferable.
     Other(String)
 }
@@ -96,14 +99,14 @@ pub enum Event {
 #[derive(Debug)]
 pub struct StreamHandle {
     frame: Receiver<Event>,
-    control: Sender<()>,
+    control: Arc<Sender<()>>,
     configuration: StreamConfiguration,
     format: Cell<CameraFormat>,
 }
 
 impl StreamHandle {
     /// You shouldn't be here.
-    pub fn new(recv: Receiver<Event>, control: Sender<()>, configuration: StreamConfiguration, format: CameraFormat) -> Self {
+    pub fn new(recv: Receiver<Event>, control: Arc<Sender<()>>, configuration: StreamConfiguration, format: CameraFormat) -> Self {
         Self {
             frame: recv,
             control,

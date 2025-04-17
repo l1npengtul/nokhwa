@@ -1,28 +1,28 @@
+use std::borrow::Cow;
 use nokhwa_core::camera::{Camera, Capture, Setting};
-use nokhwa_core::control::{ControlDescription, ControlFlags, ControlId, ControlValue, ControlValueDescriptor, Controls};
+use nokhwa_core::control::{ControlDescription, ControlFlags, ControlId, ControlValue, ControlValueDescriptor, Controls, Orientation};
 use nokhwa_core::error::{NokhwaError, NokhwaResult};
 use nokhwa_core::frame_format::FrameFormat;
 use nokhwa_core::platform::{Backends, PlatformTrait};
 use nokhwa_core::ranges::Range;
-use nokhwa_core::stream::{StreamHandle, StreamConfiguration, StreamInnerTrait};
+use nokhwa_core::stream::{Event, StreamBounds, StreamConfiguration, StreamHandle};
 use nokhwa_core::types::{CameraFormat, CameraIndex, CameraInformation, FrameRate, Resolution};
 use std::collections::hash_map::{Keys, Values};
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroI32;
 use std::sync::Arc;
-use std::thread::{sleep, JoinHandle};
-use std::time::Duration;
-use flume::{Sender, Receiver, unbounded, bounded};
+use std::thread::JoinHandle;
+use flume::{Sender, unbounded, bounded};
 use v4l::context::enum_devices;
 use v4l::control::{Description, Flags, MenuItem, Type, Value};
 use v4l::frameinterval::FrameIntervalEnum;
 use v4l::video::output::Parameters;
 use v4l::video::Output;
-use v4l::{Capabilities, Device, Format, FourCC, Fraction, FrameInterval};
-use v4l2_sys_mit::{V4L2_CID_AUTO_EXPOSURE_BIAS, V4L2_CID_AUTO_FOCUS_RANGE, V4L2_CID_AUTO_FOCUS_STATUS, V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE, V4L2_CID_AUTO_WHITE_BALANCE, V4L2_CID_CAMERA_ORIENTATION, V4L2_CID_EXPOSURE_ABSOLUTE, V4L2_CID_EXPOSURE_AUTO, V4L2_CID_EXPOSURE_METERING, V4L2_CID_FLASH_LED_MODE, V4L2_CID_FLASH_STROBE, V4L2_CID_FLASH_STROBE_STATUS, V4L2_CID_FLASH_STROBE_STOP, V4L2_CID_FOCUS_ABSOLUTE, V4L2_CID_FOCUS_AUTO, V4L2_CID_FOCUS_RELATIVE, V4L2_CID_IRIS_ABSOLUTE, V4L2_CID_IRIS_RELATIVE, V4L2_CID_ISO_SENSITIVITY, V4L2_CID_ISO_SENSITIVITY_AUTO, V4L2_CID_ZOOM_ABSOLUTE, V4L2_CID_ZOOM_CONTINUOUS, V4L2_CID_ZOOM_RELATIVE};
+use v4l::{Capabilities, Control, Device, Format, FourCC, Fraction, FrameInterval};
+use v4l2_sys_mit::{V4L2_CAMERA_ORIENTATION_BACK, V4L2_CAMERA_ORIENTATION_EXTERNAL, V4L2_CAMERA_ORIENTATION_FRONT, V4L2_CID_AUTO_EXPOSURE_BIAS, V4L2_CID_AUTO_FOCUS_RANGE, V4L2_CID_AUTO_FOCUS_STATUS, V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE, V4L2_CID_AUTO_WHITE_BALANCE, V4L2_CID_CAMERA_ORIENTATION, V4L2_CID_EXPOSURE_ABSOLUTE, V4L2_CID_EXPOSURE_AUTO, V4L2_CID_EXPOSURE_METERING, V4L2_CID_FLASH_LED_MODE, V4L2_CID_FLASH_STROBE, V4L2_CID_FLASH_STROBE_STATUS, V4L2_CID_FLASH_STROBE_STOP, V4L2_CID_FOCUS_ABSOLUTE, V4L2_CID_FOCUS_AUTO, V4L2_CID_FOCUS_RELATIVE, V4L2_CID_IRIS_ABSOLUTE, V4L2_CID_IRIS_RELATIVE, V4L2_CID_ISO_SENSITIVITY, V4L2_CID_ISO_SENSITIVITY_AUTO, V4L2_CID_ZOOM_ABSOLUTE, V4L2_CID_ZOOM_CONTINUOUS, V4L2_CID_ZOOM_RELATIVE};
 use v4l::io::traits::OutputStream;
 use v4l::prelude::MmapStream;
-use nokhwa_core::frame_buffer::FrameBuffer;
+use nokhwa_core::frame_buffer::{CompactString, FrameBuffer, Metadata};
 
 fn index_capabilities_to_camera_info(index: u32, capabilities: Capabilities) -> CameraInformation {
     let name = capabilities.card;
@@ -249,7 +249,7 @@ fn convert_description_to_ctrl_body(description: Description) -> Option<ControlD
         Type::Bitmask => {
             (
                 ControlValueDescriptor::BitMask,
-                Some(ControlValue::BitMask(description.default))
+                Some(ControlValue::BitMask(description.default as u64))
             )
         }
         Type::IntegerMenu | Type::Menu => {
@@ -292,6 +292,34 @@ fn convert_description_to_ctrl_body(description: Description) -> Option<ControlD
         descriptor,
         default
     )
+}
+
+fn conv_control_value_to_v4l_value(control: ControlValue) -> Result<Value, NokhwaError> {
+    let value = match control {
+        ControlValue::Null => Value::None,
+        ControlValue::Integer(i) | ControlValue::BitMask(i)  => Value::Integer(i),
+        ControlValue::String(s) => Value::String(s),
+        ControlValue::Boolean(t) => Value::Boolean(t),
+        ControlValue::Binary(b) => Value::CompoundU8(b),
+        ControlValue::EnumPick(e) => {
+            if let ControlValue::Integer(i) = &e {
+                Value::Integer(*i)
+            } else {
+                return Err(NokhwaError::ConversionError("could not convert non integer enum pick".to_string()))
+            }
+        }
+        ControlValue::Orientation(o) => Value::Integer(match o {
+            Orientation::User => V4L2_CAMERA_ORIENTATION_FRONT as i64,
+            Orientation::Environment => V4L2_CAMERA_ORIENTATION_BACK as i64,
+            Orientation::Custom(i) => i,
+            _ => V4L2_CAMERA_ORIENTATION_EXTERNAL as i64,
+        }),
+        _ => {
+            return Err(NokhwaError::ConversionError("Conversion not supported for this data type.".to_string()))
+        }
+    };
+
+    Ok(value)
 }
 
 
@@ -349,7 +377,7 @@ pub struct V4L2Camera {
     camera_format: Option<CameraFormat>,
     camera_index: CameraIndex,
     controls: Controls,
-    stream: Option<Arc<StreamHandle>>,
+    stream: Option<V4L2Stream>,
 }
 
 impl Setting for V4L2Camera {
@@ -419,7 +447,7 @@ impl Setting for V4L2Camera {
         }).flatten().collect::<HashMap<Resolution, Vec<FrameRate>>>())
     }
 
-    fn set_format(&self, camera_format: CameraFormat) -> Result<(), NokhwaError> {
+    fn set_format(&mut self, camera_format: CameraFormat) -> Result<(), NokhwaError> {
         let fourcc = frame_format_to_fourcc(*camera_format.format())?;
         self.device.set_format(
             &Format::new(camera_format.width(), camera_format.height(), fourcc)
@@ -435,6 +463,7 @@ impl Setting for V4L2Camera {
                 error: why.to_string(),
             }
         })?;
+        self.camera_format = Some(camera_format);
         Ok(())
     }
 
@@ -459,7 +488,24 @@ impl Setting for V4L2Camera {
     }
 
     fn set_control(&mut self, property: &ControlId, value: ControlValue) -> Result<(), NokhwaError> {
-        self.controls.set_control_value(property, value)
+        if !self.controls.validate(property, &value)? {
+            return Err(NokhwaError::SetPropertyError {
+                property: property.to_string(),
+                value: value.to_string(),
+                error: "failed to validate".to_string(),
+            })
+        }
+        let cid = control_id_to_cid(*property)?;
+        let v4l_value = conv_control_value_to_v4l_value(value.clone())?;
+        self.device.set_control(Control { id: cid, value: v4l_value }).map_err(|why| {
+            Err(NokhwaError::SetPropertyError {
+                property: cid.to_string(),
+                value: value.to_string(),
+                error: why.to_string(),
+            })
+        })?;
+        self.controls.set_control_value(property, value)?;
+        Ok(())
     }
 
     fn refresh_controls(&mut self) -> Result<(), NokhwaError> {
@@ -503,8 +549,7 @@ impl Setting for V4L2Camera {
 
 struct V4L2Stream {
     thread: JoinHandle<()>,
-    control: Sender<()>,
-    receiver: Arc<Receiver<NokhwaResult<FrameBuffer>>>,
+    control: Arc<Sender<()>>,
 }
 
 impl Drop for V4L2Stream {
@@ -513,90 +558,86 @@ impl Drop for V4L2Stream {
     }
 }
 
-impl StreamInnerTrait for V4L2Stream {
-    fn configuration(&self) -> &Option<StreamConfiguration> {
-        &None
-    }
-
-
-    fn receiver(&self) -> Arc<Receiver<NokhwaResult<FrameBuffer>>> {
-        self.receiver.clone()
-    }
-
-    fn stop(&mut self) -> NokhwaResult<()> {
-        self.control.send(()).map_err(|why| NokhwaError::StreamShutdownError(why.to_string()))?;
-        loop {
-            if self.thread.is_finished() {
-                break;
-            }
-            sleep(Duration::from_millis(1))
-        }
-        Ok(())
-    }
-}
-
 impl Capture for V4L2Camera {
-    fn open_stream(&mut self) -> Result<Arc<StreamHandle>, NokhwaError> {
-        if self.stream.is_some() {
-            return Err(NokhwaError::OpenStreamError("Stream Already Open".to_string()))
+    fn open_stream(&mut self, stream_configuration: Option<StreamConfiguration>) -> Result<StreamHandle, NokhwaError> {
+        if let Some(_) = self.stream {
+            return Err(NokhwaError::OpenStreamError("StreamAlreadyOpen".to_string()))
         }
 
+        let stream_config = stream_configuration.unwrap_or_default();
 
         let format = match self.camera_format {
             Some(fmt) => fmt,
             None => return Err(NokhwaError::OpenStreamError("No Format".to_string()))
         };
 
-        let (control, ctrl_recv) = bounded::<()>(1);
-        let (sender, receiver) = unbounded();
-        let receiver = Arc::new(receiver);
+        let (control, ctrl_recv) = bounded(1);
+        let (sender, receiver) = match stream_config.bound {
+            StreamBounds::Bounded(b) => bounded(b as usize),
+            StreamBounds::Unbounded => unbounded(),
+        };
 
-        self.set_format(format)?;
+        let control = Arc::new(control);
 
         let mut mmap_stream = MmapStream::new(&self.device, v4l::buffer::Type::VideoCapture).map_err(|why| {
             return NokhwaError::OpenStreamError(why.to_string())
         })?;
 
+        let stream_handle = StreamHandle::new(receiver, control.clone(), stream_config, format);
+
         let thread = std::thread::spawn(move || {
+
             loop {
                 if ctrl_recv.is_disconnected() || sender.is_disconnected() {
                     return;
                 }
                 if let Ok(_) = ctrl_recv.try_recv() {
+                    let _ = sender.send(Event::Closed);
                     return;
                 }
 
                 match mmap_stream.next() {
-                    Ok((data, _meta)) => { // TODO: Add metadata 
-                        if let Err(_why) = sender.send(Ok(FrameBuffer::new(data))) {
-                            return ();
-                        }
+                    Ok((data, meta)) => {
+                        let data = Cow::Owned(data.to_owned());
+                        let mut metadata = Metadata::new();
+
+                        metadata.insert(CompactString::from("flags"), ControlValue::BitMask(meta.flags.bits() as u64));
+                        metadata.insert(CompactString::from("time_secs"), ControlValue::Integer(meta.timestamp.sec));
+                        metadata.insert(CompactString::from("time_usecs"), ControlValue::Integer(meta.timestamp.usec));
+                        metadata.insert(CompactString::from("size"), ControlValue::Integer(meta.bytesused as i64));
+                        metadata.insert(CompactString::from("sequence"), ControlValue::Integer(meta.sequence as i64));
+                        metadata.insert(CompactString::from("field"), ControlValue::Integer(meta.field as i64));
+
+                        let _ = sender.send(Event::NewFrame(FrameBuffer::new(data, Some(metadata))));
                     }
                     Err(why) => {
-                        if let Err(_why) = sender.send(Err(NokhwaError::ReadFrameError(why.to_string()))) {
-                            return ();
-                        }
+                        let _ = sender.send(Event::Error(Box::new(why)));
                     }
                 }
             }
-            return ();
         });
-        
-        let stream = Arc::new(StreamHandle::new(Box::new(V4L2Stream {
-            thread,
-            control,
-            receiver,
-        })));
-        
-        self.stream = Some(stream.clone());
-        Ok(stream)
+
+        self.stream = Some(
+            V4L2Stream {
+                thread,
+                control,
+            }
+        );
+
+        Ok(stream_handle)
+
     }
 
     fn close_stream(&mut self) -> Result<(), NokhwaError> {
-        if let Some(stream) = self.stream.clone() {
-            stream.stop_stream()?;
-            
-        }
+        let mut stream = match std::mem::take(&mut self.stream) {
+            Some(s) => s,
+            None =>             return Err(NokhwaError::StreamShutdownError("No stream to shutdown".to_string())),
+        };
+
+        let _ = stream.control.send(());
+
+        stream.thread.join().map_err(|why| NokhwaError::StreamShutdownError(format!("{why:?}")))?;
+
         Ok(())
     }
 }

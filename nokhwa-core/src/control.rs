@@ -112,20 +112,30 @@ impl Controls {
         self.descriptions.keys()
     }
 
+    pub fn validate(&self, control_id: &ControlId, value: &ControlValue) -> Result<bool, NokhwaError> {
+        let description = match self.descriptions.get(control_id) {
+            Some(desc) => desc,
+            None => return Err(NokhwaError::GetPropertyError {
+                property: control_id.to_string(),
+                error: "ID Not Found".to_string(),
+            }),
+        };
+
+        if let None = self.values.get(control_id) {
+            return Err(NokhwaError::GetPropertyError {
+                property: control_id.to_string(),
+                error: "ID Not Found".to_string(),
+            });
+        }
+
+        Ok(description.validate(value))
+    }
+
     pub fn set_control_value(
         &mut self,
         control_id: &ControlId,
         value: ControlValue,
     ) -> NokhwaResult<()> {
-        // see if it exists
-        if let None = self.descriptions.get(control_id) {
-            return Err(NokhwaError::SetPropertyError {
-                property: control_id.to_string(),
-                value: value.to_string(),
-                error: "ID Not Found".to_string(),
-            });
-        }
-
         match self.values.get_mut(control_id) {
             Some(old) => {
                 *old = value;
@@ -135,8 +145,7 @@ impl Controls {
             None => Err(NokhwaError::SetPropertyError {
                 property: control_id.to_string(),
                 value: value.to_string(),
-                error: "If you got this, its probably a bug or your camera is _horribly_ bugged :>"
-                    .to_string(),
+                error: "ID Not Found".to_string(),
             }),
         }
     }
@@ -317,7 +326,7 @@ impl ControlValueDescriptor {
 pub enum ControlValue {
     Null,
     Integer(i64),
-    BitMask(i64),
+    BitMask(u64),
     Float(OrderedFloat<f64>),
     String(String),
     Boolean(bool),

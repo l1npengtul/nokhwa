@@ -20,3 +20,6 @@ devenv.local.nix
 
 # pre-commit
 .pre-commit-config.yaml
+
+# this is a library so its okgit
+Cargo.lock

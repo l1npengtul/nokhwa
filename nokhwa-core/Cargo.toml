@@ -25,7 +25,8 @@ thiserror = "2.0"
 flume = "0.11"
 num-traits = "0.2"
 ordered-float = "5"
-typed-builder = "0.20"
+typed-builder = "0.21"
+compact_str = "0.9"
 
 [dependencies.num-rational]
 version = "0.4"
@@ -47,7 +48,7 @@ features = ["derive"]
 optional = true
 
 [dependencies.wgpu]
-version = "24"
+version = "25"
 optional = true
 
 [dependencies.opencv]

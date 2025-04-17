@@ -63,3 +63,23 @@ pub enum NokhwaError {
     #[error("Permission denied by user.")]
     PermissionDenied,
 }
+//
+// pub enum InitializeError {}
+//
+// pub enum QueryBackendError {}
+//
+// pub enum OpenDeviceError {}
+//
+// pub enum QueryDeviceError {}
+//
+// pub enum GetPropertyError {}
+//
+// pub enum SetPropertyError {}
+//
+// pub enum OpenStreamError {}
+//
+// pub enum CloseStreamError {}
+//
+// pub enum FrameError {}
+//
+// pub enum DecoderError {}
