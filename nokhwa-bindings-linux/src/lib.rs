@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+pub mod pipewire;
 #[cfg(feature = "v4l2")]
 pub mod v4l2;
-pub mod pipewire;
 mod v4l2r;

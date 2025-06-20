@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::{frame_format::FrameFormat};
-use std::fmt::{Debug};
-use thiserror::Error;
+use crate::frame_format::FrameFormat;
 use crate::platform::Backends;
+use std::fmt::Debug;
+use thiserror::Error;
 
 pub type NokhwaResult<T> = Result<T, NokhwaError>;
 
@@ -62,6 +62,8 @@ pub enum NokhwaError {
     ConversionError(String),
     #[error("Permission denied by user.")]
     PermissionDenied,
+    #[error("Failed to decode: {0}")]
+    Decoder(String),
 }
 //
 // pub enum InitializeError {}

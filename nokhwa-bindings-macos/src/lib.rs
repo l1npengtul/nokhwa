@@ -222,11 +222,13 @@ mod internal {
         kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
     };
     use flume::{Receiver, Sender};
+    use nokhwa_core::control::{
+        CameraControl, ControlValue, ControlValueDescription, KnownCameraControl,
+    };
     use nokhwa_core::{
         error::NokhwaError,
         types::{
-            ApiBackend, CameraFormat, CameraIndex, CameraInformation,
-            FrameFormat,
+            ApiBackend, CameraFormat, CameraIndex, CameraInformation, FrameFormat,
             KnownCameraControlFlag, Resolution,
         },
     };
@@ -246,7 +248,6 @@ mod internal {
         ffi::{c_float, c_void, CStr},
         sync::Arc,
     };
-    use nokhwa_core::control::{CameraControl, ControlValueDescription, ControlValue, KnownCameraControl};
 
     const UTF8_ENCODING: usize = 4;
     type CGFloat = c_float;

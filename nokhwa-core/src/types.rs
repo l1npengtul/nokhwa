@@ -1,23 +1,23 @@
+use crate::ranges::RangeItem;
 use crate::utils::Distance;
 use crate::{error::NokhwaError, frame_format::FrameFormat};
+use num_rational::Rational32;
+use num_traits::FromPrimitive;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroI32;
+use std::ops::{Div, Rem};
 use std::{
     borrow::Borrow,
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
-    hash::{Hash},
-    ops::{Sub},
+    hash::Hash,
+    ops::Sub,
 };
-use std::num::NonZeroI32;
-use std::ops::{Div, Rem};
-use num_rational::{Ratio, Rational32};
-use crate::ranges::{RangeItem};
-use num_traits::FromPrimitive;
 
 /// Describes the index of the camera.
 /// - Index: A numbered index
-/// - String: A string, used for `IPCameras` or on the Browser as DeviceIDs.
+/// - String: A string, used for `IPCameras` or on the Browser as `DeviceIDs`.
 #[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum CameraIndex {
@@ -214,6 +214,8 @@ impl Rem for Resolution {
 
 impl RangeItem for Resolution {
     const ZERO: Self = Resolution::new(0, 0);
+    const MIN: Self = Resolution::new(u32::MIN, u32::MIN);
+    const MAX: Self = Resolution::new(u32::MAX, u32::MAX);
 }
 
 /// Framerate of a camera, backed by a num-rational Ratio type.
@@ -230,34 +232,34 @@ pub struct FrameRate {
 }
 
 impl FrameRate {
-    pub const fn new(numerator: i32, denominator: NonZeroI32) -> Self {
+    #[must_use] pub const fn new(numerator: i32, denominator: NonZeroI32) -> Self {
         Self {
             rational: Rational32::new_raw(numerator, denominator.get()),
         }
     }
 
-    pub const fn frame_rate(fps: i32) -> Self {
+    #[must_use] pub const fn from_fps(fps: i32) -> Self {
         Self {
             rational: Rational32::new_raw(fps, 1),
         }
     }
 
-    pub fn numerator(&self) -> &i32 {
-        self.rational.numer()
+    #[must_use] pub fn numerator(&self) -> i32 {
+        *self.rational.numer()
     }
 
-    pub fn denominator(&self) -> &i32 {
-        self.rational.denom()
+    #[must_use] pub fn denominator(&self) -> i32 {
+        *self.rational.denom()
     }
 
-    pub fn as_raw(&self) -> &Rational32 {
+    #[must_use] pub fn as_raw(&self) -> &Rational32 {
         &self.rational
     }
 
-    pub fn approximate_float(&self) -> Option<f32> {
-        let numerator_float = f32::from_i32(*self.numerator())?;
-        let denominator_float = f32::from_i32(*self.denominator())?;
-        
+    #[must_use] pub fn approximate_float(&self) -> Option<f32> {
+        let numerator_float = f32::from_i32(self.numerator())?;
+        let denominator_float = f32::from_i32(self.denominator())?;
+
         Some(numerator_float / denominator_float)
     }
 }
@@ -307,20 +309,20 @@ impl Rem for FrameRate {
 }
 
 impl RangeItem for FrameRate {
-    const ZERO: Self = FrameRate::frame_rate(0);
+    const ZERO: Self = FrameRate::from_fps(0);
+    const MIN: Self = FrameRate::from_fps(0);
+    const MAX: Self = FrameRate::from_fps(i32::MAX);
 }
 
 impl From<Rational32> for FrameRate {
     fn from(value: Rational32) -> Self {
-        FrameRate {
-            rational: value,
-        }
+        FrameRate { rational: value }
     }
 }
 
 /// This is a convenience struct that holds all information about the format of a webcam stream.
 /// It consists of a [`Resolution`], [`FrameFormat`], and a [`FrameRate`].
-#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraFormat {
     resolution: Resolution,
@@ -402,7 +404,7 @@ impl Default for CameraFormat {
     fn default() -> Self {
         CameraFormat {
             resolution: Resolution::new(640, 480),
-            format: FrameFormat::MJpeg,
+            format: FrameFormat::MJPEG,
             frame_rate: FrameRate::default(),
         }
     }
@@ -432,8 +434,6 @@ pub struct CameraInformation {
 
 impl CameraInformation {
     /// Create a new [`CameraInformation`].
-    /// # JS-WASM
-    /// This is exported as a constructor for [`CameraInformation`].
     #[must_use]
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
@@ -448,8 +448,6 @@ impl CameraInformation {
     }
 
     /// Get a reference to the device info's human readable name.
-    /// # JS-WASM
-    /// This is exported as a `get_HumanReadableName`.
     #[must_use]
     // yes, i know, unnecessary alloc this, unnecessary alloc that
     // but wasm bindgen

@@ -1,5 +1,6 @@
 use crate::error::{NokhwaError, NokhwaResult};
 use crate::ranges::{Range, ValidatableRange};
+use compact_str::CompactString;
 use ordered_float::OrderedFloat;
 use std::collections::hash_map::{Keys, Values};
 use std::collections::{HashMap, HashSet};
@@ -60,11 +61,11 @@ pub struct Controls {
 
 impl Controls {
     /// INVARIANTS: All `ControlId` in `device_values` MUST exist in `device_controls`
-    pub fn new(
+    #[must_use] pub fn new(
         device_controls: HashMap<ControlId, ControlDescription>,
         device_values: HashMap<ControlId, ControlValue>,
     ) -> Option<Self> {
-        for (id, value) in device_values.iter() {
+        for (id, value) in &device_values {
             if let Some(description) = device_controls.get(id) {
                 if !description.validate(value) {
                     return None;
@@ -78,11 +79,11 @@ impl Controls {
         })
     }
 
-    pub fn empty() -> Self {
+    #[must_use] pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn unchecked_new(
+    #[must_use] pub fn unchecked_new(
         device_controls: HashMap<ControlId, ControlDescription>,
         device_values: HashMap<ControlId, ControlValue>,
     ) -> Self {
@@ -92,36 +93,39 @@ impl Controls {
         }
     }
 
-    pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
+    #[must_use] pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
         self.descriptions.get(control_id)
     }
 
-    pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
+    #[must_use] pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
         self.values.get(control_id)
     }
 
-    pub fn descriptions(&self) -> Values<ControlId, ControlDescription> {
+    #[must_use] pub fn descriptions(&self) -> Values<ControlId, ControlDescription> {
         self.descriptions.values()
     }
 
-    pub fn values(&self) -> Values<ControlId, ControlValue> {
+    #[must_use] pub fn values(&self) -> Values<ControlId, ControlValue> {
         self.values.values()
     }
 
-    pub fn ids(&self) -> Keys<ControlId, ControlDescription> {
+    #[must_use] pub fn ids(&self) -> Keys<ControlId, ControlDescription> {
         self.descriptions.keys()
     }
 
-    pub fn validate(&self, control_id: &ControlId, value: &ControlValue) -> Result<bool, NokhwaError> {
-        let description = match self.descriptions.get(control_id) {
-            Some(desc) => desc,
-            None => return Err(NokhwaError::GetPropertyError {
-                property: control_id.to_string(),
-                error: "ID Not Found".to_string(),
-            }),
-        };
+    pub fn validate(
+        &self,
+        control_id: &ControlId,
+        value: &ControlValue,
+    ) -> Result<bool, NokhwaError> {
+        let Some(description) = self.descriptions.get(control_id) else {
+                return Err(NokhwaError::GetPropertyError {
+                    property: control_id.to_string(),
+                    error: "ID Not Found".to_string(),
+                });
+            };
 
-        if let None = self.values.get(control_id) {
+        if !self.values.contains_key(control_id) {
             return Err(NokhwaError::GetPropertyError {
                 property: control_id.to_string(),
                 error: "ID Not Found".to_string(),
@@ -159,7 +163,7 @@ pub struct ControlDescription {
 }
 
 impl ControlDescription {
-    pub fn new(
+    #[must_use] pub fn new(
         control_flags: HashSet<ControlFlags>,
         control_value_descriptor: ControlValueDescriptor,
         default_value: Option<ControlValue>,
@@ -177,7 +181,7 @@ impl ControlDescription {
         })
     }
 
-    pub fn new_unchecked(
+    #[must_use] pub fn new_unchecked(
         control_flags: HashSet<ControlFlags>,
         control_value_descriptor: ControlValueDescriptor,
         default_value: Option<ControlValue>,
@@ -189,15 +193,15 @@ impl ControlDescription {
         }
     }
 
-    pub fn flags(&self) -> &HashSet<ControlFlags> {
+    #[must_use] pub fn flags(&self) -> &HashSet<ControlFlags> {
         &self.flags
     }
 
-    pub fn descriptor(&self) -> &ControlValueDescriptor {
+    #[must_use] pub fn descriptor(&self) -> &ControlValueDescriptor {
         &self.descriptor
     }
 
-    pub fn default_value(&self) -> &Option<ControlValue> {
+    #[must_use] pub fn default_value(&self) -> &Option<ControlValue> {
         &self.default_value
     }
 
@@ -209,7 +213,7 @@ impl ControlDescription {
         self.flags.remove(&flag)
     }
 
-    pub fn validate(&self, value: &ControlValue) -> bool {
+    #[must_use] pub fn validate(&self, value: &ControlValue) -> bool {
         self.descriptor.validate(value)
     }
 }
@@ -233,11 +237,11 @@ pub enum ControlValueDescriptor {
     Null,
     Integer(Range<i64>),
     BitMask,
-    Float(Range<f64>),
+    Float(Range<OrderedFloat<f64>>),
     String,
     Boolean,
     // Array of any values of singular type
-    Array(ControlValueDescriptor),
+    Array(Box<ControlValueDescriptor>),
     // Menu(Enum) of valid choices
     // The keys are valid choices,
     // the values represent what the choice is (usually a string or int).
@@ -257,7 +261,7 @@ pub enum ControlValueDescriptor {
 }
 
 impl ControlValueDescriptor {
-    pub fn validate(&self, value: &ControlValue) -> bool {
+    #[must_use] pub fn validate(&self, value: &ControlValue) -> bool {
         match self {
             ControlValueDescriptor::Null => {
                 if let &ControlValue::Null = value {
@@ -291,12 +295,12 @@ impl ControlValueDescriptor {
             }
             ControlValueDescriptor::Array(arr) => {
                 if let &ControlValue::Array(_) = value {
-                    return arr.is_valid_value(value);
+                    return arr.validate(value);
                 }
             }
             ControlValueDescriptor::Binary(size_limits) => {
                 if let ControlValue::Binary(bin) = value {
-                    return size_limits.validate(bin.len() as u64);
+                    return size_limits.validate(&(bin.len() as u64));
                 }
             }
             ControlValueDescriptor::Menu(choices) => {
@@ -328,7 +332,7 @@ pub enum ControlValue {
     Integer(i64),
     BitMask(u64),
     Float(OrderedFloat<f64>),
-    String(String),
+    String(CompactString),
     Boolean(bool),
     Array(Vec<ControlValue>),
     Binary(Vec<u8>),
@@ -338,9 +342,8 @@ pub enum ControlValue {
 }
 
 impl ControlValue {
-    pub fn is_primitive(&self) -> bool {
-        match self {
-            ControlValue::Null
+    #[must_use] pub fn is_primitive(&self) -> bool {
+        matches!(self, ControlValue::Null
             | ControlValue::Integer(_)
             | ControlValue::BitMask(_)
             | ControlValue::Float(_)
@@ -348,9 +351,7 @@ impl ControlValue {
             | ControlValue::Boolean(_)
             | ControlValue::Binary(_)
             | ControlValue::Area { .. }
-            | ControlValue::Orientation(_) => true,
-            _ => false,
-        }
+            | ControlValue::Orientation(_))
     }
 
     // pub fn primitive_same_type(&self, other: &ControlValuePrimitive) -> bool {
@@ -369,7 +370,7 @@ impl ControlValue {
     //     false
     // }
 
-    pub fn same_type(&self, other: &ControlValue) -> bool {
+    #[must_use] pub fn same_type(&self, other: &ControlValue) -> bool {
         match self {
             ControlValue::Null => {
                 if let ControlValue::Null = other {
@@ -426,7 +427,6 @@ impl ControlValue {
                     return true;
                 }
             }
-            _ => return false,
         }
 
         false

@@ -1,9 +1,10 @@
 #![deny(clippy::pedantic)]
 #![warn(clippy::all)]
-#![cfg_attr(feature = "test-fail-warning", deny(warnings))]
+#![allow(clippy::missing_errors_doc)]
+#![cfg_attr(feature = "test-fail-warnings", deny(warnings))]
 #![cfg_attr(feature = "docs-features", feature(doc_cfg))]
 /*
- * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
+ * Copyright 2025 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +21,17 @@
 
 //! Core type definitions for `nokhwa`
 pub mod camera;
+pub mod codec;
+pub mod control;
 pub mod decoder;
 pub mod error;
 pub mod format_request;
 pub mod frame_buffer;
 pub mod frame_format;
-pub mod control;
+pub mod image;
+pub mod platform;
 pub mod ranges;
+pub mod stream;
 pub mod traits;
 pub mod types;
 pub mod utils;
-pub mod stream;
-pub mod platform;

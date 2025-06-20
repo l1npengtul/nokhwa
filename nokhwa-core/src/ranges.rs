@@ -1,7 +1,7 @@
 use core::fmt::{Debug, Display, Formatter};
+use ordered_float::OrderedFloat;
 use std::hash::Hash;
 use std::ops::{Div, Rem, Sub};
-use ordered_float::OrderedFloat;
 
 /// A range type that can be validated.
 pub trait ValidatableRange {
@@ -16,7 +16,9 @@ pub trait ValidatableRange {
 ///
 /// Inclusive by default.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Range<T> where T: RangeItem
+pub struct Range<T>
+where
+    T: RangeItem,
 {
     minimum: T,
     lower_inclusive: bool,
@@ -25,7 +27,10 @@ pub struct Range<T> where T: RangeItem
     step: Option<T>,
 }
 
-impl<T> Range<T> where T: Copy {
+impl<T> Range<T>
+where
+    T: Copy + RangeItem,
+{
     /// Create an upper and lower inclusive [`Range`]
     pub fn new(min: T, max: T, step: Option<T>) -> Self {
         Self {
@@ -42,7 +47,7 @@ impl<T> Range<T> where T: Copy {
         lower_inclusive: bool,
         max: T,
         upper_inclusive: bool,
-        step: Option<T>
+        step: Option<T>,
     ) -> Self {
         Self {
             minimum: min,
@@ -53,13 +58,13 @@ impl<T> Range<T> where T: Copy {
         }
     }
 
-    pub fn set_minimum(&mut self, minimum: Option<T>) {
+    pub fn set_minimum(&mut self, minimum: T) {
         self.minimum = minimum;
     }
     pub fn set_lower_inclusive(&mut self, lower_inclusive: bool) {
         self.lower_inclusive = lower_inclusive;
     }
-    pub fn set_maximum(&mut self, maximum: Option<T>) {
+    pub fn set_maximum(&mut self, maximum: T) {
         self.maximum = maximum;
     }
     pub fn set_upper_inclusive(&mut self, upper_inclusive: bool) {
@@ -92,33 +97,27 @@ where
     type Validation = T;
 
     fn validate(&self, value: &T) -> bool {
-        let l_comparison_fn = match self.lower_inclusive {
-            true => T::ge,
-            false => T::gt,
-        };
-        let u_comparison_fn = match self.upper_inclusive {
-            true => T::le,
-            false => T::lt,
-        };
+        let l_comparison_fn = if self.lower_inclusive { T::ge } else { T::gt };
+        let u_comparison_fn = if self.upper_inclusive { T::le } else { T::lt };
 
         if !(l_comparison_fn(&self.minimum, value) && u_comparison_fn(&self.maximum, value)) {
-            return false
+            return false;
         }
 
         // check step
 
         if let Some(step) = self.step {
             let step_chk_value = *value - self.minimum;
-            return step_chk_value % step == 0;
+            return step_chk_value % step == T::ZERO;
         }
 
-        return true
+        true
     }
 }
 
 impl<T> Default for Range<T>
 where
-    T: Default,
+    T: Default + RangeItem,
 {
     fn default() -> Self {
         Range {
@@ -133,7 +132,7 @@ where
 
 impl<T> Display for Range<T>
 where
-    T: Debug,
+    T: Debug + RangeItem,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let lower_inclusive_char = bool_to_inclusive_char(self.lower_inclusive, false);
@@ -148,44 +147,46 @@ where
 }
 
 fn bool_to_inclusive_char(inclusive: bool, upper: bool) -> char {
-    match inclusive {
-        true => {
-            if upper {
-                ']'
-            } else {
-                '['
-            }
+    if inclusive {
+        if upper {
+            ']'
+        } else {
+            '['
         }
-        false => {
-            if upper {
-                ')'
-            } else {
-                '('
-            }
-        }
+    } else if upper {
+            ')'
+        } else {
+            '('
+        
     }
 }
 
-fn default_to_string<T>(default: &Option<T>) -> String
-where
-    T: Debug,
+pub trait RangeItem:
+    Copy
+    + Clone
+    + Debug
+    + Div<Output = Self>
+    + Sub<Output = Self>
+    + Rem<Output = Self>
+    + Hash
+    + Ord
+    + PartialOrd
+    + Eq
+    + PartialEq
 {
-    match default {
-        Some(v) => {
-            format!("{v:?}")
-        }
-        None => String::from("None"),
-    }
-}
-
-pub trait RangeItem: Copy + Clone + Debug + Div<Output = Self> + Sub<Output = Self> + Rem<Output = Self> + Hash + Ord + PartialOrd + Eq + PartialEq {
     const ZERO: Self;
+    const MIN: Self;
+    const MAX: Self;
 }
 
 macro_rules! impl_num {
     ($($n:ty)*) => ($(
         impl RangeItem for $n {
             const ZERO: $n = 0;
+            
+            const MIN: $n = <$n>::MIN;
+            
+            const MAX: $n = <$n>::MAX;
         }
     )*)
 }
@@ -194,8 +195,13 @@ impl_num! { i8 u8 i16 u16 i32 u32 i64 u64 i128 u128 }
 
 impl RangeItem for OrderedFloat<f32> {
     const ZERO: Self = OrderedFloat(0_f32);
+    const MIN: Self = OrderedFloat(f32::MIN);
+    const MAX: Self = OrderedFloat(f32::MAX);
 }
 
 impl RangeItem for OrderedFloat<f64> {
     const ZERO: Self = OrderedFloat(0_f64);
+
+    const MIN: Self = OrderedFloat(f64::MIN);
+    const MAX: Self = OrderedFloat(f64::MAX);
 }

@@ -20,7 +20,7 @@
         };
         rustbin = pkgs.rust-bin.selectLatestNightlyWith (toolchain:
           toolchain.default.override {
-            extensions = ["rust-src"];
+            extensions = ["rust-src" "clippy" "rustfmt" "miri"];
           });
       in {
         formatter = pkgs.alejandra;
@@ -46,6 +46,8 @@
               libv4l
               pipewire
               rustup
+              ffmpeg-full
+              nasm
           ]);
 
           env.RUST_SRC_PATH = "${rustbin}/lib/rustlib/src/rust/library";

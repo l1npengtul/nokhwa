@@ -1,11 +1,11 @@
-use std::cell::Cell;
-use std::sync::Arc;
-use std::time::Duration;
-use flume::{Receiver, Sender, TryRecvError};
-use typed_builder::TypedBuilder;
 use crate::error::NokhwaError;
 use crate::frame_buffer::FrameBuffer;
 use crate::types::CameraFormat;
+use flume::{Receiver, Sender, TryRecvError};
+use std::cell::Cell;
+use std::sync::Arc;
+use std::time::Duration;
+use typed_builder::TypedBuilder;
 
 /// What receiving behaviour the stream should observe.
 ///
@@ -79,23 +79,23 @@ pub enum Event {
     /// The stream is closed.
     Closed,
     /// An error from the driver
-    Error(Box<dyn std::error::Error>),
+    Error(String),
     /// Some other message sent by the driver. This can be ignored, although logging this is preferable.
-    Other(String)
+    Other(String),
 }
 
 /// Represents a handle to a currently open stream.
-/// 
+///
 /// Streams are only valid as long as the camera is live. Any Stream that is living past a camera
-/// is invalid to use. (This doesn't cause UB, it will just kindly tell you that the stream has 
+/// is invalid to use. (This doesn't cause UB, it will just kindly tell you that the stream has
 /// already closed.)
-/// 
-/// Streams may unexpectedly close due to unforeseen consequences e.g. webcam undergoes spontaneous 
+///
+/// Streams may unexpectedly close due to unforeseen consequences e.g. webcam undergoes spontaneous
 /// deconstruction.
-/// 
+///
 /// The async methods [`StreamHandle::poll_event`] and [`StreamHandle::poll_frame`] **do not** respect the [`StreamReceiverBehaviour`] setting.
-/// 
-/// You may also close the stream from the handle side using 
+///
+/// You may also close the stream from the handle side using
 #[derive(Debug)]
 pub struct StreamHandle {
     frame: Receiver<Event>,
@@ -106,7 +106,12 @@ pub struct StreamHandle {
 
 impl StreamHandle {
     /// You shouldn't be here.
-    pub fn new(recv: Receiver<Event>, control: Arc<Sender<()>>, configuration: StreamConfiguration, format: CameraFormat) -> Self {
+    #[must_use] pub fn new(
+        recv: Receiver<Event>,
+        control: Arc<Sender<()>>,
+        configuration: StreamConfiguration,
+        format: CameraFormat,
+    ) -> Self {
         Self {
             frame: recv,
             control,
@@ -114,38 +119,35 @@ impl StreamHandle {
             format: Cell::new(format),
         }
     }
-    
+
     pub fn configuration(&self) -> &StreamConfiguration {
         &self.configuration
     }
-    
+
     pub fn format(&self) -> CameraFormat {
         self.format.get()
     }
-    
+
     pub fn next_event(&self) -> Result<Event, NokhwaError> {
         let event = match self.configuration.receiver {
             StreamReceiverBehaviour::Blocking => {
-                self.frame.recv().map_or_else(|_| { Event::Closed }, |e| { e })
+                self.frame.recv().unwrap_or_else(|_| Event::Closed)
             }
-            StreamReceiverBehaviour::Timeout(time) => {
-                self.frame.recv_timeout(time).map_or_else(|_| { Event::NotReady }, |e| { e })
-            }
-            StreamReceiverBehaviour::Try => {
-                self.frame.try_recv().map_or_else(|why| {
-                    match why {
-                        TryRecvError::Empty => Event::NotReady,
-                        TryRecvError::Disconnected => Event::Closed,
-                    }
-                }, |e| { e })
-            }
+            StreamReceiverBehaviour::Timeout(time) => self
+                .frame
+                .recv_timeout(time).unwrap_or_else(|_| Event::NotReady),
+            StreamReceiverBehaviour::Try => self.frame.try_recv().unwrap_or_else(
+                |why| match why {
+                    TryRecvError::Empty => Event::NotReady,
+                    TryRecvError::Disconnected => Event::Closed,
+                }),
         };
-        
+
         if let Event::FormatChange(fmt) = event {
             self.format.set(fmt);
         }
-        
-        return Ok(event)
+
+        Ok(event)
     }
 
     pub fn next_frame(&self) -> Result<FrameBuffer, NokhwaError> {
@@ -153,30 +155,30 @@ impl StreamHandle {
             let event = self.next_event()?;
             match event {
                 Event::NewFrame(f) => return Ok(f),
-                Event::FormatChange(_) | Event::NotReady => continue,
                 Event::Terminating | Event::Closed => {
                     let _ = self.control.try_send(());
-                    return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()))
+                    return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()));
                 }
-                Event::Other(why) => {
-                    match self.configuration.on_other {
-                        ControlFlowOnOther::Continue => continue,
-                        ControlFlowOnOther::Break => return Err(NokhwaError::ReadFrameError(why))
-                    }
-                }
+                Event::Other(why) => if self.configuration.on_other == ControlFlowOnOther::Break { return Err(NokhwaError::ReadFrameError(why)) },
+                Event::Error(e) => return Err(NokhwaError::ReadFrameError(e.to_string())),
+                _ => {}
             }
         }
     }
 
     #[cfg(feature = "async")]
     pub async fn poll_event(&self) -> Result<Event, NokhwaError> {
-        Ok(self.frame.recv_async().await.map_or_else(|_| { Event::Closed }, |e| { if let Event::FormatChange(fmt) = e {
-            self.format.set(fmt);
-        }
-        e
-        }))
+        Ok(self.frame.recv_async().await.map_or_else(
+            |_| Event::Closed,
+            |e| {
+                if let Event::FormatChange(fmt) = e {
+                    self.format.set(fmt);
+                }
+                e
+            },
+        ))
     }
-    
+
     // TODO: a smarter implementation? maybe?
     #[cfg(feature = "async")]
     pub async fn poll_next_frame(&self) -> Result<FrameBuffer, NokhwaError> {
@@ -184,17 +186,15 @@ impl StreamHandle {
             let event = self.poll_event().await?;
             match event {
                 Event::NewFrame(f) => return Ok(f),
-                Event::FormatChange(_) | Event::NotReady => continue,
                 Event::Terminating | Event::Closed => {
                     let _ = self.control.try_send(());
-                    return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()))
+                    return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()));
                 }
-                Event::Other(why) => {
-                    match self.configuration.on_other {
-                        ControlFlowOnOther::Continue => continue,
-                        ControlFlowOnOther::Break => return Err(NokhwaError::ReadFrameError(why))
-                    }
-                }
+                Event::Other(why) => match self.configuration.on_other {
+                    ControlFlowOnOther::Continue => continue,
+                    ControlFlowOnOther::Break => return Err(NokhwaError::ReadFrameError(why)),
+                },
+                _ => {}
             }
         }
     }
@@ -205,4 +205,3 @@ impl Drop for StreamHandle {
         let _ = self.control.try_send(());
     }
 }
-

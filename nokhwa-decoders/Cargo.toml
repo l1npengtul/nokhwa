@@ -1,0 +1,41 @@
+[package]
+name = "nokhwa-decoders"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+ffmpeg = ["ffmpeg-the-third"]
+av1 = ["rav1e"]
+yuyv = ["dcv-color-primitives", "yuv"]
+mjpeg = ["zune-jpeg"]
+wasm = []
+mega = ["ffmpeg", "av1", "yuyv", "mjpeg"]
+static = ["ffmpeg-the-third/static"]
+async = []
+
+[dependencies]
+bytemuck = "1.23"
+
+[dependencies.nokhwa-core]
+version = "0.2"
+path = "../nokhwa-core"
+
+[dependencies.ffmpeg-the-third]
+version = "3.0"
+optional = true
+
+[dependencies.rav1e]
+version = "0.8"
+optional = true
+
+[dependencies.yuv]
+version = "0.8"
+optional = true
+
+[dependencies.dcv-color-primitives]
+version = "0.7"
+optional = true
+
+[dependencies.zune-jpeg]
+version = "0.5.0-rc2"
+optional = true

@@ -13,53 +13,56 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::control::ControlValue;
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
-use crate::frame_format::FrameFormat;
-use small_map::{FxSmallMap, Iter};
-use crate::control::ControlValue;
-
+use std::ops::Deref;
 pub use compact_str::CompactString;
+pub use smallmap::Map;
 
 pub type PlatformSpecificFlag = u32;
 
 #[derive(Clone, Debug, Default)]
 pub struct Metadata {
-    flags: FxSmallMap<8, CompactString, ControlValue>,
+    flags: Map<CompactString, ControlValue>,
 }
 
 impl Metadata {
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
-            flags: Default::default(),
+            flags: Map::default(),
         }
     }
 
-    pub fn get(&self, key: CompactString) -> Option<&ControlValue> {
-        self.flags.get(&key)
+    #[must_use] pub fn get(&self, key: &str) -> Option<&ControlValue> {
+        self.flags.get(key)
     }
 
     pub fn insert(&mut self, key: CompactString, value: ControlValue) {
         self.flags.insert(key, value);
     }
-
-    pub fn iter(&self) -> Iter<'_, 8, CompactString, ControlValue> {
-        self.flags.iter()
-    }
 }
 
 impl Hash for Metadata {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for (key, value) in self.flags {
+        for (key, value) in self.flags.iter() {
             state.write(key.as_bytes());
             value.hash(state);
         }
     }
 }
 
+impl Deref for Metadata {
+    type Target = Map<CompactString, ControlValue>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.flags
+    }
+}
+
 impl PartialEq for Metadata {
     fn eq(&self, other: &Self) -> bool {
-        for (this_key, this_value) in &self.flags {
+        for (this_key, this_value) in self.flags.iter() {
             if let Some(other_value) = other.flags.get(this_key) {
                 if this_value != other_value {
                     return false;
@@ -87,10 +90,7 @@ impl FrameBuffer {
     #[must_use]
     #[inline]
     pub fn new(buffer: Cow<'static, [u8]>, metadata: Option<Metadata>) -> Self {
-        Self {
-            buffer,
-            metadata,
-        }
+        Self { buffer, metadata }
     }
 
     /// Get the data of this buffer.
@@ -99,8 +99,8 @@ impl FrameBuffer {
         &self.buffer
     }
 
-    pub fn consume(self) -> (Cow<'static, [u8]>, Option<Metadata>) {
-        return (self.buffer, self.metadata)
+    #[must_use] pub fn consume(self) -> (Cow<'static, [u8]>, Option<Metadata>) {
+        (self.buffer, self.metadata)
     }
 
     #[must_use]

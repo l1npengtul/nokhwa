@@ -1,4 +1,4 @@
-use crate::camera::{AsyncCamera, Camera};
+use crate::camera::Camera;
 use crate::error::NokhwaResult;
 use crate::types::{CameraIndex, CameraInformation};
 use std::fmt::{Display, Formatter};
@@ -15,7 +15,7 @@ pub enum Backends {
 
 impl Display for Backends {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -31,15 +31,15 @@ pub trait PlatformTrait {
 
     fn open(&mut self, index: CameraIndex) -> NokhwaResult<Self::Camera>;
 
-    fn open_dynamic(&mut self, index: CameraIndex) -> NokhwaResult<Box<dyn Camera>> {
-        self.open(index).map(|cam| Box::new(cam))
+    fn open_dynamic(&mut self, index: CameraIndex) -> NokhwaResult<Box<dyn Camera>> where <Self as PlatformTrait>::Camera: 'static {
+        self.open(index).map(|cam| Box::new(cam) as Box<dyn Camera>)
     }
 }
 
 #[cfg(feature = "async")]
-pub trait AsyncPlatformTrait {
+pub trait AsyncPlatformTrait: PlatformTrait {
     const PLATFORM: Backends;
-    type AsyncCamera: AsyncCamera;
+    type AsyncCamera: crate::camera::AsyncCamera;
 
     async fn await_permission(&mut self) -> NokhwaResult<()>;
 
@@ -47,7 +47,7 @@ pub trait AsyncPlatformTrait {
 
     async fn open_async(&mut self, index: &CameraIndex) -> NokhwaResult<Self::AsyncCamera>;
 
-    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>> {
-        self.open_async(index).await.map(|cam| Box::new(cam))
+    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>> where <Self as AsyncPlatformTrait>::AsyncCamera: 'static {
+        self.open_async(index).await.map(|cam| Box::new(cam) as Box<dyn Camera>)
     }
 }
