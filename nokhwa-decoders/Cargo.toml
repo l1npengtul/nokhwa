@@ -8,8 +8,6 @@ ffmpeg = ["ffmpeg-the-third"]
 av1 = ["rav1e"]
 yuyv = ["dcv-color-primitives", "yuv"]
 mjpeg = ["zune-jpeg", "zune-core"]
-browser = []
-general = ["ffmpeg", "av1", "yuyv", "mjpeg"]
 static = ["ffmpeg-the-third/static"]
 async = []
 

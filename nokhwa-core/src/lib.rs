@@ -35,4 +35,3 @@ pub mod stream;
 pub mod traits;
 pub mod types;
 pub mod utils;
-mod metadata;

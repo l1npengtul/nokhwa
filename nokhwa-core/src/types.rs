@@ -23,6 +23,7 @@ use std::{
 pub enum CameraIndex {
     Index(u32),
     String(String),
+    Stable(String)
 }
 
 impl CameraIndex {
@@ -32,7 +33,7 @@ impl CameraIndex {
     pub fn as_index(&self) -> Result<u32, NokhwaError> {
         match self {
             CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) => s
+            CameraIndex::String(s) | CameraIndex::Stable(s) => s
                 .parse::<u32>()
                 .map_err(|why| NokhwaError::GeneralError(why.to_string())),
         }
@@ -44,6 +45,7 @@ impl CameraIndex {
         match self {
             CameraIndex::Index(i) => i.to_string(),
             CameraIndex::String(s) => s.to_string(),
+            CameraIndex::Stable(s) => s.to_string(),
         }
     }
 
@@ -52,7 +54,7 @@ impl CameraIndex {
     pub fn is_index(&self) -> bool {
         match self {
             CameraIndex::Index(_) => true,
-            CameraIndex::String(_) => false,
+            CameraIndex::String(_) | CameraIndex::Stable(_) => false,
         }
     }
 
