@@ -99,18 +99,18 @@ impl TryFrom<CameraIndex> for usize {
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct Resolution {
-    width_x: u32,
-    height_y: u32,
+    width: u32,
+    height: u32,
 }
 
 impl Resolution {
     /// Create a new resolution from 2 image size coordinates.
     #[must_use]
     // TODO: make this height and width.
-    pub const fn new(x: u32, y: u32) -> Self {
+    pub const fn new(width: u32, height: u32) -> Self {
         Resolution {
-            width_x: x,
-            height_y: y,
+            width,
+            height,
         }
     }
 
@@ -118,33 +118,33 @@ impl Resolution {
     #[must_use]
     #[inline]
     pub fn width(self) -> u32 {
-        self.width_x
+        self.width
     }
 
     /// Get the height of Resolution
     #[must_use]
     #[inline]
     pub fn height(self) -> u32 {
-        self.height_y
+        self.height
     }
 
     /// Get the x (width) of Resolution
     #[must_use]
     #[inline]
     pub fn x(self) -> u32 {
-        self.width_x
+        self.width
     }
 
     /// Get the y (height) of Resolution
     #[must_use]
     #[inline]
     pub fn y(self) -> u32 {
-        self.height_y
+        self.height
     }
 
     #[must_use]
     pub fn aspect_ratio(&self) -> f64 {
-        f64::from(self.width_x) / f64::from(self.height_y)
+        f64::from(self.width) / f64::from(self.height)
     }
 }
 
@@ -232,31 +232,37 @@ pub struct FrameRate {
 }
 
 impl FrameRate {
-    #[must_use] pub const fn new(numerator: i32, denominator: NonZeroI32) -> Self {
+    #[must_use]
+    pub const fn new(numerator: i32, denominator: NonZeroI32) -> Self {
         Self {
             rational: Rational32::new_raw(numerator, denominator.get()),
         }
     }
 
-    #[must_use] pub const fn from_fps(fps: i32) -> Self {
+    #[must_use]
+    pub const fn from_fps(fps: i32) -> Self {
         Self {
             rational: Rational32::new_raw(fps, 1),
         }
     }
 
-    #[must_use] pub fn numerator(&self) -> i32 {
+    #[must_use]
+    pub fn numerator(&self) -> i32 {
         *self.rational.numer()
     }
 
-    #[must_use] pub fn denominator(&self) -> i32 {
+    #[must_use]
+    pub fn denominator(&self) -> i32 {
         *self.rational.denom()
     }
 
-    #[must_use] pub fn as_raw(&self) -> &Rational32 {
+    #[must_use]
+    pub fn as_raw(&self) -> &Rational32 {
         &self.rational
     }
 
-    #[must_use] pub fn approximate_float(&self) -> Option<f32> {
+    #[must_use]
+    pub fn approximate_float(&self) -> Option<f32> {
         let numerator_float = f32::from_i32(self.numerator())?;
         let denominator_float = f32::from_i32(self.denominator())?;
 
@@ -346,8 +352,8 @@ impl CameraFormat {
     pub const fn new_from(res_x: u32, res_y: u32, format: FrameFormat, fps: FrameRate) -> Self {
         CameraFormat {
             resolution: Resolution {
-                width_x: res_x,
-                height_y: res_y,
+                width: res_x,
+                height: res_y,
             },
             format,
             frame_rate: fps,
@@ -356,8 +362,8 @@ impl CameraFormat {
 
     /// Get the resolution of the current [`CameraFormat`]
     #[must_use]
-    pub fn resolution(&self) -> &Resolution {
-        &self.resolution
+    pub fn resolution(&self) -> Resolution {
+        self.resolution
     }
 
     /// Get the width of the resolution of the current [`CameraFormat`]
@@ -379,8 +385,8 @@ impl CameraFormat {
 
     /// Get the frame rate of the current [`CameraFormat`]
     #[must_use]
-    pub fn frame_rate(&self) -> &FrameRate {
-        &self.frame_rate
+    pub fn frame_rate(&self) -> FrameRate {
+        self.frame_rate
     }
 
     /// Set the [`CameraFormat`]'s frame rate.
@@ -390,8 +396,8 @@ impl CameraFormat {
 
     /// Get the [`CameraFormat`]'s format.
     #[must_use]
-    pub fn format(&self) -> &FrameFormat {
-        &self.format
+    pub fn format(&self) -> FrameFormat {
+        self.format
     }
 
     /// Set the [`CameraFormat`]'s format.

@@ -7,9 +7,9 @@ edition = "2024"
 ffmpeg = ["ffmpeg-the-third"]
 av1 = ["rav1e"]
 yuyv = ["dcv-color-primitives", "yuv"]
-mjpeg = ["zune-jpeg"]
-wasm = []
-mega = ["ffmpeg", "av1", "yuyv", "mjpeg"]
+mjpeg = ["zune-jpeg", "zune-core"]
+browser = []
+general = ["ffmpeg", "av1", "yuyv", "mjpeg"]
 static = ["ffmpeg-the-third/static"]
 async = []
 
@@ -37,5 +37,9 @@ version = "0.7"
 optional = true
 
 [dependencies.zune-jpeg]
+version = "0.5.0-rc7"
+optional = true
+
+[dependencies.zune-core]
 version = "0.5.0-rc2"
 optional = true

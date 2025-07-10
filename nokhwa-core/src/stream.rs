@@ -59,9 +59,9 @@ pub struct StreamConfiguration {
 
 /// Possible events to receive from an active stream.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Event {
+pub enum Event<'a> {
     /// A new frame.
-    NewFrame(FrameBuffer),
+    NewFrame(FrameBuffer<'a>),
     /// Camera Format Changed.
     ///
     /// This will usually require the reset of a buffer, or be followed by a [`Event::Terminated`],
@@ -97,17 +97,18 @@ pub enum Event {
 ///
 /// You may also close the stream from the handle side using
 #[derive(Debug)]
-pub struct StreamHandle {
-    frame: Receiver<Event>,
+pub struct StreamHandle<'a> {
+    frame: Receiver<Event<'a>>,
     control: Arc<Sender<()>>,
     configuration: StreamConfiguration,
     format: Cell<CameraFormat>,
 }
 
-impl StreamHandle {
+impl<'a> StreamHandle<'a> {
     /// You shouldn't be here.
-    #[must_use] pub fn new(
-        recv: Receiver<Event>,
+    #[must_use]
+    pub fn new(
+        recv: Receiver<Event<'a>>,
         control: Arc<Sender<()>>,
         configuration: StreamConfiguration,
         format: CameraFormat,
@@ -128,19 +129,19 @@ impl StreamHandle {
         self.format.get()
     }
 
-    pub fn next_event(&self) -> Result<Event, NokhwaError> {
+    pub fn next_event(&self) -> Result<Event<'_>, NokhwaError> {
         let event = match self.configuration.receiver {
             StreamReceiverBehaviour::Blocking => {
                 self.frame.recv().unwrap_or_else(|_| Event::Closed)
             }
             StreamReceiverBehaviour::Timeout(time) => self
                 .frame
-                .recv_timeout(time).unwrap_or_else(|_| Event::NotReady),
-            StreamReceiverBehaviour::Try => self.frame.try_recv().unwrap_or_else(
-                |why| match why {
-                    TryRecvError::Empty => Event::NotReady,
-                    TryRecvError::Disconnected => Event::Closed,
-                }),
+                .recv_timeout(time)
+                .unwrap_or_else(|_| Event::NotReady),
+            StreamReceiverBehaviour::Try => self.frame.try_recv().unwrap_or_else(|why| match why {
+                TryRecvError::Empty => Event::NotReady,
+                TryRecvError::Disconnected => Event::Closed,
+            }),
         };
 
         if let Event::FormatChange(fmt) = event {
@@ -150,7 +151,7 @@ impl StreamHandle {
         Ok(event)
     }
 
-    pub fn next_frame(&self) -> Result<FrameBuffer, NokhwaError> {
+    pub fn next_frame(&self) -> Result<FrameBuffer<'_>, NokhwaError> {
         loop {
             let event = self.next_event()?;
             match event {
@@ -159,7 +160,11 @@ impl StreamHandle {
                     let _ = self.control.try_send(());
                     return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()));
                 }
-                Event::Other(why) => if self.configuration.on_other == ControlFlowOnOther::Break { return Err(NokhwaError::ReadFrameError(why)) },
+                Event::Other(why) => {
+                    if self.configuration.on_other == ControlFlowOnOther::Break {
+                        return Err(NokhwaError::ReadFrameError(why));
+                    }
+                }
                 Event::Error(e) => return Err(NokhwaError::ReadFrameError(e.to_string())),
                 _ => {}
             }
@@ -167,7 +172,7 @@ impl StreamHandle {
     }
 
     #[cfg(feature = "async")]
-    pub async fn poll_event(&self) -> Result<Event, NokhwaError> {
+    pub async fn poll_event(&self) -> Result<Event<'_>, NokhwaError> {
         Ok(self.frame.recv_async().await.map_or_else(
             |_| Event::Closed,
             |e| {
@@ -181,7 +186,7 @@ impl StreamHandle {
 
     // TODO: a smarter implementation? maybe?
     #[cfg(feature = "async")]
-    pub async fn poll_next_frame(&self) -> Result<FrameBuffer, NokhwaError> {
+    pub async fn poll_next_frame(&self) -> Result<FrameBuffer<'_>, NokhwaError> {
         loop {
             let event = self.poll_event().await?;
             match event {
@@ -190,17 +195,18 @@ impl StreamHandle {
                     let _ = self.control.try_send(());
                     return Err(NokhwaError::ReadFrameError("Stream Closed.".to_string()));
                 }
-                Event::Other(why) => match self.configuration.on_other {
-                    ControlFlowOnOther::Continue => continue,
-                    ControlFlowOnOther::Break => return Err(NokhwaError::ReadFrameError(why)),
-                },
+                Event::Other(why) => {
+                    if let ControlFlowOnOther::Break = self.configuration.on_other {
+                        return Err(NokhwaError::ReadFrameError(why));
+                    }
+                }
                 _ => {}
             }
         }
     }
 }
 
-impl Drop for StreamHandle {
+impl Drop for StreamHandle<'_> {
     fn drop(&mut self) {
         let _ = self.control.try_send(());
     }

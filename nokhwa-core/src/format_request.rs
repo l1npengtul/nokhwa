@@ -39,7 +39,8 @@ pub struct FormatRequest {
 }
 
 impl FormatRequest {
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         format_request_type: FormatRequestType,
         allowed_frame_formats: Vec<FrameFormat>,
     ) -> Self {
@@ -49,11 +50,13 @@ impl FormatRequest {
         }
     }
 
-    #[must_use] pub fn best<'a>(&self, camera_formats: &'a [CameraFormat]) -> Option<&'a CameraFormat> {
+    #[must_use]
+    pub fn best<'a>(&self, camera_formats: &'a [CameraFormat]) -> Option<&'a CameraFormat> {
         camera_formats.first()
     }
 
-    #[must_use] pub fn sort_foramts(&self, mut camera_formats: Vec<CameraFormat>) -> Vec<CameraFormat> {
+    #[must_use]
+    pub fn sort_foramts(&self, mut camera_formats: Vec<CameraFormat>) -> Vec<CameraFormat> {
         if camera_formats.is_empty() {
             return camera_formats;
         }
@@ -77,35 +80,35 @@ impl FormatRequest {
 
                 camera_formats
                     .into_iter()
-                    .filter(|fmt| self.allowed_frame_formats.contains(fmt.format()))
+                    .filter(|fmt| self.allowed_frame_formats.contains(&fmt.format()))
                     .filter(|cam_fmt| {
                         if let Some(res_range) = resolution {
-                            return res_range.validate(cam_fmt.resolution());
+                            return res_range.validate(&cam_fmt.resolution());
                         }
 
                         if let Some(frame_rate_range) = frame_rate {
-                            return frame_rate_range.validate(cam_fmt.frame_rate());
+                            return frame_rate_range.validate(&cam_fmt.frame_rate());
                         }
                         true
                     })
                     .collect()
             }
             FormatRequestType::HighestFrameRate { frame_rate } => {
-                camera_formats.sort_by(|a, b| a.frame_rate().cmp(b.frame_rate()));
+                camera_formats.sort_by_key(CameraFormat::frame_rate);
 
                 camera_formats
                     .into_iter()
-                    .filter(|fmt| self.allowed_frame_formats.contains(fmt.format()))
-                    .filter(|a| frame_rate.validate(a.frame_rate()))
+                    .filter(|fmt| self.allowed_frame_formats.contains(&fmt.format()))
+                    .filter(|a| frame_rate.validate(&a.frame_rate()))
                     .collect()
             }
             FormatRequestType::HighestResolution { resolution } => {
-                camera_formats.sort_by(|a, b| a.resolution().cmp(b.resolution()));
+                camera_formats.sort_by_key(CameraFormat::frame_rate);
 
                 camera_formats
                     .into_iter()
-                    .filter(|fmt| self.allowed_frame_formats.contains(fmt.format()))
-                    .filter(|a| resolution.validate(a.resolution()))
+                    .filter(|fmt| self.allowed_frame_formats.contains(&fmt.format()))
+                    .filter(|a| resolution.validate(&a.resolution()))
                     .collect()
             }
             FormatRequestType::Exact {
@@ -113,8 +116,8 @@ impl FormatRequest {
                 frame_rate,
             } => camera_formats
                 .into_iter()
-                .filter(|fmt| self.allowed_frame_formats.contains(fmt.format()))
-                .filter(|a| resolution.eq(a.resolution()) && frame_rate.eq(a.frame_rate()))
+                .filter(|fmt| self.allowed_frame_formats.contains(&fmt.format()))
+                .filter(|a| resolution.eq(&a.resolution()) && frame_rate.eq(&a.frame_rate()))
                 .collect(),
             FormatRequestType::Any => {
                 // return as-is
@@ -124,7 +127,7 @@ impl FormatRequest {
     }
 }
 
-#[must_use] 
+#[must_use]
 #[allow(clippy::cast_precision_loss)]
 pub fn format_distance_to_point(
     resolution: &Option<Resolution>,
@@ -132,13 +135,13 @@ pub fn format_distance_to_point(
     format: &CameraFormat,
 ) -> f32 {
     let frame_rate_distance = match frame_rate {
-        Some(f_point) => (format.frame_rate() - f_point)
+        Some(f_point) => (&format.frame_rate() - f_point)
             .approximate_float()
             .unwrap_or(f32::INFINITY)
             .abs(),
         None => 0_f32,
     };
-    
+
     let resolution_point_distance = match resolution {
         Some(res_pt) => format.resolution().distance_from(res_pt) as f32,
         None => 0_f32,

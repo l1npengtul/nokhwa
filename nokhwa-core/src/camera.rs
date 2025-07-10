@@ -9,41 +9,42 @@ use std::sync::Arc;
 
 pub trait Setting {
     /// # Errors
-    /// Will error on 
+    /// Will error on
     fn enumerate_formats(&self) -> Result<Vec<CameraFormat>, NokhwaError>;
 
     /// # Errors
-    /// Will error on 
+    /// Will error on
     fn enumerate_resolution_and_frame_rates(
         &self,
         frame_format: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
 
     /// # Errors
-    /// Will error on 
+    /// Will error on
     fn set_format(&mut self, camera_format: CameraFormat) -> Result<(), NokhwaError>;
 
-    fn control_ids(&self) -> Keys<ControlId, ControlDescription>;
+    fn control_ids(&self) -> Keys<'_, ControlId, ControlDescription>;
 
-    fn control_descriptions(&self) -> Values<ControlId, ControlDescription>;
+    fn control_descriptions(&self) -> Values<'_, ControlId, ControlDescription>;
 
-    fn control_values(&self) -> Values<ControlId, ControlValue>;
+    fn control_values(&self) -> Values<'_, ControlId, ControlValue>;
 
     fn control_value(&self, id: &ControlId) -> Option<&ControlValue>;
 
     fn control_description(&self, id: &ControlId) -> Option<&ControlDescription>;
 
     /// # Errors
-    /// Will error on 
+    /// Will error on
     fn set_control(&mut self, property: &ControlId, value: ControlValue)
     -> Result<(), NokhwaError>;
 
     /// # Errors
-    /// Will error on 
+    /// Will error on
     fn refresh_controls(&mut self) -> Result<(), NokhwaError>;
 }
 
 #[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait AsyncSetting {
     async fn enumerate_formats_async(&self) -> Result<Vec<CameraFormat>, NokhwaError>;
 
@@ -53,7 +54,7 @@ pub trait AsyncSetting {
     ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
 
     async fn set_format_async(&self, camera_format: CameraFormat) -> Result<(), NokhwaError>;
-    
+
     async fn set_property_async(
         &mut self,
         property: &ControlId,
@@ -68,7 +69,7 @@ pub trait Capture {
     fn open_stream(
         &mut self,
         stream_configuration: Option<StreamConfiguration>,
-    ) -> Result<Arc<StreamHandle>, NokhwaError>;
+    ) -> Result<Arc<StreamHandle<'_>>, NokhwaError>;
 
     // Implementations MUST be multi-close tolerant.
     /// # Errors
@@ -77,11 +78,12 @@ pub trait Capture {
 }
 
 #[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait AsyncStream {
-    async fn open_stream_async(
+    async fn open_stream_async<'a>(
         &mut self,
         stream_configuration: Option<StreamConfiguration>,
-    ) -> Result<StreamHandle, NokhwaError>;
+    ) -> Result<StreamHandle<'a>, NokhwaError>;
 
     async fn close_stream_async(&mut self) -> Result<(), NokhwaError>;
 }

@@ -31,12 +31,16 @@ pub trait PlatformTrait {
 
     fn open(&mut self, index: CameraIndex) -> NokhwaResult<Self::Camera>;
 
-    fn open_dynamic(&mut self, index: CameraIndex) -> NokhwaResult<Box<dyn Camera>> where <Self as PlatformTrait>::Camera: 'static {
+    fn open_dynamic(&mut self, index: CameraIndex) -> NokhwaResult<Box<dyn Camera>>
+    where
+        <Self as PlatformTrait>::Camera: 'static,
+    {
         self.open(index).map(|cam| Box::new(cam) as Box<dyn Camera>)
     }
 }
 
 #[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait AsyncPlatformTrait: PlatformTrait {
     const PLATFORM: Backends;
     type AsyncCamera: crate::camera::AsyncCamera;
@@ -47,7 +51,12 @@ pub trait AsyncPlatformTrait: PlatformTrait {
 
     async fn open_async(&mut self, index: &CameraIndex) -> NokhwaResult<Self::AsyncCamera>;
 
-    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>> where <Self as AsyncPlatformTrait>::AsyncCamera: 'static {
-        self.open_async(index).await.map(|cam| Box::new(cam) as Box<dyn Camera>)
+    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>>
+    where
+        <Self as AsyncPlatformTrait>::AsyncCamera: 'static,
+    {
+        self.open_async(index)
+            .await
+            .map(|cam| Box::new(cam) as Box<dyn Camera>)
     }
 }

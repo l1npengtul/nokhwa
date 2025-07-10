@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 use crate::control::ControlValue;
+pub use compact_str::CompactString;
+pub use smallmap::Map;
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-pub use compact_str::CompactString;
-pub use smallmap::Map;
 
 pub type PlatformSpecificFlag = u32;
 
@@ -28,13 +28,15 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             flags: Map::default(),
         }
     }
 
-    #[must_use] pub fn get(&self, key: &str) -> Option<&ControlValue> {
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&ControlValue> {
         self.flags.get(key)
     }
 
@@ -80,26 +82,48 @@ impl PartialEq for Metadata {
 ///
 /// Note that decoding on the main thread **will** decrease your performance and lead to dropped frames.
 #[derive(Clone, Debug, Hash, PartialEq)]
-pub struct FrameBuffer {
-    buffer: Cow<'static, [u8]>,
+pub struct FrameBuffer<'a> {
+    buffer: Cow<'a, [u8]>,
     metadata: Option<Metadata>,
 }
 
-impl FrameBuffer {
+impl<'a> FrameBuffer<'a> {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
     #[inline]
-    pub fn new(buffer: Cow<'static, [u8]>, metadata: Option<Metadata>) -> Self {
+    pub fn new(buffer: Cow<'a, [u8]>, metadata: Option<Metadata>) -> Self {
         Self { buffer, metadata }
     }
 
     /// Get the data of this buffer.
     #[must_use]
-    pub fn buffer(&self) -> &[u8] {
+    pub fn buffer(&'a self) -> &'a [u8] {
         &self.buffer
     }
 
-    #[must_use] pub fn consume(self) -> (Cow<'static, [u8]>, Option<Metadata>) {
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
+    #[must_use]
+    pub fn deep_copy(&self) -> Self {
+        Self {
+            buffer: match &self.buffer {
+                Cow::Borrowed(b) => Cow::Owned(b.to_vec()),
+                Cow::Owned(o) => Cow::Owned(o.clone()),
+            },
+            metadata: self.metadata.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn consume(self) -> (Cow<'a, [u8]>, Option<Metadata>) {
         (self.buffer, self.metadata)
     }
 
@@ -107,5 +131,18 @@ impl FrameBuffer {
     pub fn metadata(&self) -> Option<&Metadata> {
         self.metadata.as_ref()
     }
+}
 
+impl AsRef<[u8]> for FrameBuffer<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.buffer.as_ref()
+    }
+}
+
+impl Deref for FrameBuffer<'_> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.buffer.as_ref()
+    }
 }

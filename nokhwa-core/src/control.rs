@@ -61,15 +61,16 @@ pub struct Controls {
 
 impl Controls {
     /// INVARIANTS: All `ControlId` in `device_values` MUST exist in `device_controls`
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         device_controls: HashMap<ControlId, ControlDescription>,
         device_values: HashMap<ControlId, ControlValue>,
     ) -> Option<Self> {
         for (id, value) in &device_values {
-            if let Some(description) = device_controls.get(id) {
-                if !description.validate(value) {
-                    return None;
-                }
+            if let Some(description) = device_controls.get(id)
+                && !description.validate(value)
+            {
+                return None;
             }
         }
 
@@ -79,11 +80,13 @@ impl Controls {
         })
     }
 
-    #[must_use] pub fn empty() -> Self {
+    #[must_use]
+    pub fn empty() -> Self {
         Self::default()
     }
 
-    #[must_use] pub fn unchecked_new(
+    #[must_use]
+    pub fn unchecked_new(
         device_controls: HashMap<ControlId, ControlDescription>,
         device_values: HashMap<ControlId, ControlValue>,
     ) -> Self {
@@ -93,23 +96,28 @@ impl Controls {
         }
     }
 
-    #[must_use] pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
+    #[must_use]
+    pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
         self.descriptions.get(control_id)
     }
 
-    #[must_use] pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
+    #[must_use]
+    pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
         self.values.get(control_id)
     }
 
-    #[must_use] pub fn descriptions(&self) -> Values<ControlId, ControlDescription> {
+    #[must_use]
+    pub fn descriptions(&self) -> Values<'_, ControlId, ControlDescription> {
         self.descriptions.values()
     }
 
-    #[must_use] pub fn values(&self) -> Values<ControlId, ControlValue> {
+    #[must_use]
+    pub fn values(&self) -> Values<'_, ControlId, ControlValue> {
         self.values.values()
     }
 
-    #[must_use] pub fn ids(&self) -> Keys<ControlId, ControlDescription> {
+    #[must_use]
+    pub fn ids(&self) -> Keys<'_, ControlId, ControlDescription> {
         self.descriptions.keys()
     }
 
@@ -119,11 +127,11 @@ impl Controls {
         value: &ControlValue,
     ) -> Result<bool, NokhwaError> {
         let Some(description) = self.descriptions.get(control_id) else {
-                return Err(NokhwaError::GetPropertyError {
-                    property: control_id.to_string(),
-                    error: "ID Not Found".to_string(),
-                });
-            };
+            return Err(NokhwaError::GetPropertyError {
+                property: control_id.to_string(),
+                error: "ID Not Found".to_string(),
+            });
+        };
 
         if !self.values.contains_key(control_id) {
             return Err(NokhwaError::GetPropertyError {
@@ -163,15 +171,16 @@ pub struct ControlDescription {
 }
 
 impl ControlDescription {
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         control_flags: HashSet<ControlFlags>,
         control_value_descriptor: ControlValueDescriptor,
         default_value: Option<ControlValue>,
     ) -> Option<Self> {
-        if let Some(default) = &default_value {
-            if !control_value_descriptor.validate(default) {
-                return None;
-            }
+        if let Some(default) = &default_value
+            && !control_value_descriptor.validate(default)
+        {
+            return None;
         }
 
         Some(Self {
@@ -181,7 +190,8 @@ impl ControlDescription {
         })
     }
 
-    #[must_use] pub fn new_unchecked(
+    #[must_use]
+    pub fn new_unchecked(
         control_flags: HashSet<ControlFlags>,
         control_value_descriptor: ControlValueDescriptor,
         default_value: Option<ControlValue>,
@@ -193,15 +203,18 @@ impl ControlDescription {
         }
     }
 
-    #[must_use] pub fn flags(&self) -> &HashSet<ControlFlags> {
+    #[must_use]
+    pub fn flags(&self) -> &HashSet<ControlFlags> {
         &self.flags
     }
 
-    #[must_use] pub fn descriptor(&self) -> &ControlValueDescriptor {
+    #[must_use]
+    pub fn descriptor(&self) -> &ControlValueDescriptor {
         &self.descriptor
     }
 
-    #[must_use] pub fn default_value(&self) -> &Option<ControlValue> {
+    #[must_use]
+    pub fn default_value(&self) -> &Option<ControlValue> {
         &self.default_value
     }
 
@@ -213,7 +226,8 @@ impl ControlDescription {
         self.flags.remove(&flag)
     }
 
-    #[must_use] pub fn validate(&self, value: &ControlValue) -> bool {
+    #[must_use]
+    pub fn validate(&self, value: &ControlValue) -> bool {
         self.descriptor.validate(value)
     }
 }
@@ -261,7 +275,8 @@ pub enum ControlValueDescriptor {
 }
 
 impl ControlValueDescriptor {
-    #[must_use] pub fn validate(&self, value: &ControlValue) -> bool {
+    #[must_use]
+    pub fn validate(&self, value: &ControlValue) -> bool {
         match self {
             ControlValueDescriptor::Null => {
                 if let &ControlValue::Null = value {
@@ -342,16 +357,20 @@ pub enum ControlValue {
 }
 
 impl ControlValue {
-    #[must_use] pub fn is_primitive(&self) -> bool {
-        matches!(self, ControlValue::Null
-            | ControlValue::Integer(_)
-            | ControlValue::BitMask(_)
-            | ControlValue::Float(_)
-            | ControlValue::String(_)
-            | ControlValue::Boolean(_)
-            | ControlValue::Binary(_)
-            | ControlValue::Area { .. }
-            | ControlValue::Orientation(_))
+    #[must_use]
+    pub fn is_primitive(&self) -> bool {
+        matches!(
+            self,
+            ControlValue::Null
+                | ControlValue::Integer(_)
+                | ControlValue::BitMask(_)
+                | ControlValue::Float(_)
+                | ControlValue::String(_)
+                | ControlValue::Boolean(_)
+                | ControlValue::Binary(_)
+                | ControlValue::Area { .. }
+                | ControlValue::Orientation(_)
+        )
     }
 
     // pub fn primitive_same_type(&self, other: &ControlValuePrimitive) -> bool {
@@ -370,7 +389,8 @@ impl ControlValue {
     //     false
     // }
 
-    #[must_use] pub fn same_type(&self, other: &ControlValue) -> bool {
+    #[must_use]
+    pub fn same_type(&self, other: &ControlValue) -> bool {
         match self {
             ControlValue::Null => {
                 if let ControlValue::Null = other {

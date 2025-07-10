@@ -148,16 +148,11 @@ where
 
 fn bool_to_inclusive_char(inclusive: bool, upper: bool) -> char {
     if inclusive {
-        if upper {
-            ']'
-        } else {
-            '['
-        }
+        if upper { ']' } else { '[' }
     } else if upper {
-            ')'
-        } else {
-            '('
-        
+        ')'
+    } else {
+        '('
     }
 }
 
@@ -183,9 +178,9 @@ macro_rules! impl_num {
     ($($n:ty)*) => ($(
         impl RangeItem for $n {
             const ZERO: $n = 0;
-            
+
             const MIN: $n = <$n>::MIN;
-            
+
             const MAX: $n = <$n>::MAX;
         }
     )*)

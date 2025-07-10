@@ -8,27 +8,27 @@ pub trait Codec {
 
     type Input<'a>;
 
-    type Output;
+    type Output<'a>;
 
     type WrittenMeta: Clone + Debug;
 
     /// # Errors
-    /// Errors are decoder specific. 
+    /// Errors are decoder specific.
     fn allowed_formats(&self) -> Result<&[FrameFormat], NokhwaError>;
 
     fn config(&self) -> &Self::Config;
 
     /// # Errors
-    /// Errors are decoder specific. 
+    /// Errors are decoder specific.
     fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError>;
 
     /// # Errors
-    /// Errors are decoder specific. 
+    /// Errors are decoder specific.
     fn send_item(&mut self, input: Self::Input<'_>) -> Result<(), NokhwaError>;
 
     fn receive_decoded_item(
         &mut self,
-        writing_output: &mut Self::Output,
+        writing_output: &mut Self::Output<'_>,
     ) -> Result<Self::WrittenMeta, NokhwaError>;
 
     fn preferred_buffer_min_size(
@@ -40,15 +40,15 @@ pub trait Codec {
 }
 
 #[cfg(feature = "async")]
+#[cfg_attr(feature = "async", async_trait::async_trait)]
 pub trait CodecAsync: Codec {
-
-    async fn allowed_formats_async(&self) -> Result<&[FrameFormat], NokhwaError> {
+    async fn allowed_formats_async<'a>(&'a self) -> Result<&'a [FrameFormat], NokhwaError> {
         self.allowed_formats()
     }
 
     async fn set_format_async(&self, format: CameraFormat) -> Result<(), NokhwaError>;
 
-    async fn config_async(&self) -> &Self::Config {
+    async fn config_async<'a>(&'a self) -> &'a Self::Config {
         self.config()
     }
 
@@ -56,11 +56,11 @@ pub trait CodecAsync: Codec {
         self.set_config(config)
     }
 
-    fn send_item_async(&mut self, input: &Self::Input) -> Result<(), NokhwaError>;
+    fn send_item_async(&mut self, input: Self::Input<'_>) -> Result<(), NokhwaError>;
 
     fn receive_decoded_item_async(
         &mut self,
-        writing_output: &mut Self::Output,
+        writing_output: &mut Self::Output<'_>,
     ) -> Result<Option<usize>, NokhwaError>;
 
     async fn deinitialize_async(&mut self) -> Result<(), NokhwaError> {

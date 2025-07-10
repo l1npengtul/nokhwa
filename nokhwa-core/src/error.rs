@@ -64,6 +64,22 @@ pub enum NokhwaError {
     PermissionDenied,
     #[error("Failed to decode: {0}")]
     Decoder(String),
+    #[error("Unsupported FrameFormat: {0}")]
+    DecoderUnsupportedFrameFormat(FrameFormat),
+    #[error("Unsupported pixel configuration {0} with width {1}b.")]
+    DecoderUnsupportedDestinationPixelFormat(&'static str, u32),
+    #[error("Bad decoder configuration: {0}")]
+    DecoderInvalidConfiguration(String),
+    #[error("Failed to initialize decoder: {0}")]
+    DecoderInitializationError(String),
+    #[error("Bad frame sent to the decoder: {0}")]
+    DecoderInvalidFrameData(String),
+    #[error("Bad buffer sent to decoder, did not write: {0}")]
+    DecoderInvalidBuffer(String),
+    #[error("You need to pass in a destination hint, it is not optional for this decoder.")]
+    DecoderDestinationHintRequired,
+    #[error("Decoder already deinitialized. Unusable, please make a new decoder.")]
+    DecoderAlreadyDeinitialized
 }
 //
 // pub enum InitializeError {}
