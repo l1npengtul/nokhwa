@@ -29,7 +29,6 @@ typed-builder = "0.21"
 compact_str = "0.9"
 bytemuck = "1.23"
 smallmap = "1.4"
-constcat = "0.6"
 paste = "1.0"
 
 [dependencies.num-rational]
@@ -38,21 +37,18 @@ default-features = false
 features = ["serde", "std"]
 
 [dependencies.image]
-version = "0.25"
-default-features = false
+workspace = true
 
 [dependencies.serde]
-version = "1.0"
-features = ["derive"]
+workspace = true
 optional = true
 
 [dependencies.wgpu-types]
-version = "25"
+workspace = true
 optional = true
 
 [dependencies.opencv]
-version = "0.94"
-default-features = false
+workspace = true
 optional = true
 
 [dependencies.async-trait]

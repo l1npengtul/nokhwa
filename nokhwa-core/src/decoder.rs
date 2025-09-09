@@ -1,7 +1,7 @@
 use crate::error::NokhwaError;
 use crate::frame_buffer::FrameBuffer;
 use crate::image::{DecodedImage, NonFloatScalarWidth};
-use crate::types::{CameraFormat, Resolution};
+use crate::types::{Resolution};
 pub use image::{ImageBuffer, Pixel, Primitive};
 use std::fmt::Debug;
 

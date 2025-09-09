@@ -1,3 +1,5 @@
+extern crate core;
+
 #[cfg(feature = "ffmpeg")]
 pub mod ffmpeg;
 #[cfg(feature = "mjpeg")]

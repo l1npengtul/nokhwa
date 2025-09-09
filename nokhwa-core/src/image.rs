@@ -1,5 +1,5 @@
 use bytemuck::Pod;
-use image::{ImageBuffer, Pixel, Primitive};
+pub use image::{ImageBuffer, Pixel, Primitive};
 use num_traits::{NumCast, PrimInt};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};

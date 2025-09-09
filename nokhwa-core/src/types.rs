@@ -44,9 +44,8 @@ impl CameraIndex {
     pub fn as_string(&self) -> String {
         match self {
             CameraIndex::Index(i) => i.to_string(),
-            CameraIndex::String(s) => s.to_string(),
-            CameraIndex::Stable(s) => s.to_string(),
-        }
+            CameraIndex::String(s) | CameraIndex::Stable(s) => s.to_string(),
+            }
     }
 
     /// Returns true if this [`CameraIndex`] contains an [`CameraIndex::Index`]
@@ -133,6 +132,7 @@ impl Resolution {
     /// Get the x (width) of Resolution
     #[must_use]
     #[inline]
+    #[deprecated]
     pub fn x(self) -> u32 {
         self.width
     }
@@ -140,6 +140,7 @@ impl Resolution {
     /// Get the y (height) of Resolution
     #[must_use]
     #[inline]
+    #[deprecated]
     pub fn y(self) -> u32 {
         self.height
     }
@@ -152,7 +153,7 @@ impl Resolution {
 
 impl Display for Resolution {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}x{}", self.x(), self.y())
+        write!(f, "{}x{}", self.width(), self.height())
     }
 }
 
@@ -164,9 +165,9 @@ impl PartialOrd for Resolution {
 
 impl Ord for Resolution {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.x().cmp(&other.x()) {
+        match self.width().cmp(&other.width()) {
             Ordering::Less => Ordering::Less,
-            Ordering::Equal => self.y().cmp(&other.y()),
+            Ordering::Equal => self.height().cmp(&other.height()),
             Ordering::Greater => Ordering::Greater,
         }
     }
@@ -174,11 +175,11 @@ impl Ord for Resolution {
 
 impl Distance<u32> for Resolution {
     fn distance_from(&self, other: &Self) -> u32 {
-        let x1 = self.x();
-        let x2 = other.x();
+        let x1 = self.width();
+        let x2 = other.width();
 
-        let y1 = self.y();
-        let y2 = other.y();
+        let y1 = self.height();
+        let y2 = other.height();
 
         (x2 - x1).pow(2) + (y2 - y1).pow(2)
     }
@@ -188,8 +189,8 @@ impl Div for Resolution {
     type Output = Resolution;
 
     fn div(self, rhs: Self) -> Self::Output {
-        let x_div = self.x().div(rhs.x());
-        let y_div = self.y().div(rhs.y());
+        let x_div = self.width().div(rhs.width());
+        let y_div = self.height().div(rhs.height());
         Resolution::new(x_div, y_div)
     }
 }
@@ -198,8 +199,8 @@ impl Sub for Resolution {
     type Output = Resolution;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let x_sub = self.x().sub(rhs.x());
-        let y_sub = self.y().sub(rhs.y());
+        let x_sub = self.width().sub(rhs.width());
+        let y_sub = self.height().sub(rhs.height());
         Resolution::new(x_sub, y_sub)
     }
 }
@@ -208,8 +209,8 @@ impl Rem for Resolution {
     type Output = Resolution;
 
     fn rem(self, rhs: Self) -> Self::Output {
-        let x_rem = self.x().rem(rhs.x());
-        let y_rem = self.y().rem(rhs.y());
+        let x_rem = self.width().rem(rhs.width());
+        let y_rem = self.height().rem(rhs.height());
         Resolution::new(x_rem, y_rem)
     }
 }
@@ -429,15 +430,15 @@ impl Display for CameraFormat {
 }
 
 /// Information about a Camera e.g. its name.
-/// `description` amd `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
-/// `index` is a camera's index given to it by (usually) the OS usually in the order it is known to the system.
+/// `description` and `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
+/// `stable_id` contains the stable ID that may be used to reopen the same device. 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraInformation {
     human_name: String,
     description: String,
     misc: String,
-    index: CameraIndex,
+    stable_id: Option<String>,
 }
 
 impl CameraInformation {
@@ -446,12 +447,12 @@ impl CameraInformation {
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
     // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
-    pub fn new(human_name: String, description: String, misc: String, index: CameraIndex) -> Self {
+    pub fn new(human_name: String, description: String, misc: String, stable_id: Option<String>) -> Self {
         CameraInformation {
             human_name,
             description,
             misc,
-            index,
+            stable_id,
         }
     }
 
@@ -459,146 +460,55 @@ impl CameraInformation {
     #[must_use]
     // yes, i know, unnecessary alloc this, unnecessary alloc that
     // but wasm bindgen
-    pub fn human_name(&self) -> String {
-        self.human_name.clone()
-    }
-
-    /// Set the device info's human name.
-    /// # JS-WASM
-    /// This is exported as a `set_HumanReadableName`.
-    pub fn set_human_name(&mut self, human_name: &str) {
-        self.human_name = human_name.to_string();
+    pub fn human_name(&self) -> &str {
+        &self.human_name
     }
 
     /// Get a reference to the device info's description.
-    /// # JS-WASM
-    /// This is exported as a `get_Description`.
     #[must_use]
     pub fn description(&self) -> &str {
-        self.description.borrow()
-    }
-
-    /// Set the device info's description.
-    /// # JS-WASM
-    /// This is exported as a `set_Description`.
-    pub fn set_description(&mut self, description: &str) {
-        self.description = description.to_string();
+        &self.description
     }
 
     /// Get a reference to the device info's misc.
-    /// # JS-WASM
-    /// This is exported as a `get_MiscString`.
     #[must_use]
-    pub fn misc(&self) -> String {
-        self.misc.clone()
+    pub fn misc(&self) -> &str {
+        &self.misc
     }
 
-    /// Set the device info's misc.
-    /// # JS-WASM
-    /// This is exported as a `set_MiscString`.
-    pub fn set_misc(&mut self, misc: &str) {
-        self.misc = misc.to_string();
+    #[must_use] pub fn stable_id(&self) -> Option<&str> {
+        self.stable_id.as_deref()
     }
-
-    /// Get a reference to the device info's index.
-    /// # JS-WASM
-    /// This is exported as a `get_Index`.
-    #[must_use]
-    pub fn index(&self) -> &CameraIndex {
-        &self.index
-    }
-
-    /// Set the device info's index.
-    /// # JS-WASM
-    /// This is exported as a `set_Index`.
-    pub fn set_index(&mut self, index: CameraIndex) {
-        self.index = index;
-    }
-
-    // /// Gets the device info's index as an `u32`.
-    // /// # Errors
-    // /// If the index is not parsable as a `u32`, this will error.
-    // /// # JS-WASM
-    // /// This is exported as `get_Index_Int`
-    // #[cfg_attr(feature = "output-wasm", wasm_bindgen(getter = Index_Int))]
-    // pub fn index_num(&self) -> Result<u32, NokhwaError> {
-    //     match &self.index {
-    //         CameraIndex::Index(i) => Ok(*i),
-    //         CameraIndex::String(s) => match s.parse::<u32>() {
-    //             Ok(p) => Ok(p),
-    //             Err(why) => Err(NokhwaError::GetPropertyError {
-    //                 property: "index-int".to_string(),
-    //                 error: why.to_string(),
-    //             }),
-    //         },
-    //     }
-    // }
 }
 
 impl Display for CameraInformation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Name: {}, Description: {}, Extra: {}, Index: {}",
-            self.human_name, self.description, self.misc, self.index
+            "Name: {}, Description: {}, Extra: {}, Stable Index: {:?}",
+            self.human_name, self.description, self.misc, self.stable_id
         )
     }
 }
 
-// fn step_chk(val: i64, default: i64, step: i64) -> Result<(), NokhwaError> {
-//     if (val - default) % step != 0 {
-//         return Err(NokhwaError::StructureError {
-//             structure: "Value".to_string(),
-//             error: "Doesnt fit step".to_string(),
-//         });
-//     }
-//     Ok(())
-// }
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum Backends {
+    Video4Linux2,
+    WebWASM,
+    AVFoundation,
+    MicrosoftMediaFoundation,
+    OpenCV,
+    Custom(&'static str),
+}
 
-// /// The list of known capture backends to the library. <br>
-// /// - `Auto` - Use automatic selection.
-// /// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
-// /// - `Video4Linux` - `Video4Linux2`, a linux specific backend.
-// /// - `UniversalVideoClass` -  ***DEPRECATED*** Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
-// /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
-// /// - `OpenCv` - Uses `OpenCV` to capture. Platform agnostic.
-// /// - `GStreamer` - ***DEPRECATED*** Uses `GStreamer` RTP to capture. Platform agnostic.
-// /// - `Browser` - Uses browser APIs to capture from a webcam.
-// pub enum SelectableBackend {
-//     Auto,
-//     Custom(&'static str),
-//     AVFoundation,
-//     Video4Linux,
-//     UniversalVideoClass,
-//     MediaFoundation,
-//     OpenCv,
-//     GStreamer,
-//     Browser,
-// }
-//
-// /// The list of known capture backends to the library. <br>
-// /// - `AVFoundation` - Uses `AVFoundation` on `MacOSX`
-// /// - `Video4Linux` - `Video4Linux2`, a linux specific backend.
-// /// - `UniversalVideoClass` -  ***DEPRECATED*** Universal Video Class (please check [libuvc](https://github.com/libuvc/libuvc)). Platform agnostic, although on linux it needs `sudo` permissions or similar to use.
-// /// - `MediaFoundation` - Microsoft Media Foundation, Windows only,
-// /// - `OpenCv` - Uses `OpenCV` to capture. Platform agnostic.
-// /// - `GStreamer` - ***DEPRECATED*** Uses `GStreamer` RTP to capture. Platform agnostic.
-// /// - `Browser` - Uses browser APIs to capture from a webcam.
-// #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-// #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
-// pub enum ApiBackend {
-//     Custom(&'static str),
-//     AVFoundation,
-//     Video4Linux,
-//     UniversalVideoClass,
-//     MediaFoundation,
-//     OpenCv,
-//     GStreamer,
-//     Browser,
-// }
-//
-// impl Display for ApiBackend {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{self:?}")
-//     }
-// }
+impl Display for Backends {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
+pub struct QueriedCamera {
+    pub index: CameraIndex,
+    pub information: CameraInformation
+}

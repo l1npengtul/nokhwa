@@ -5,10 +5,9 @@ edition = "2024"
 
 [features]
 ffmpeg = ["ffmpeg-the-third"]
-av1 = ["rav1e"]
 yuyv = ["dcv-color-primitives", "yuv"]
 mjpeg = ["zune-jpeg", "zune-core"]
-static = ["ffmpeg-the-third/static"]
+#static = ["ffmpeg-the-third/static"]
 async = []
 
 [dependencies]
@@ -20,10 +19,6 @@ path = "../nokhwa-core"
 
 [dependencies.ffmpeg-the-third]
 version = "3.0"
-optional = true
-
-[dependencies.rav1e]
-version = "0.8"
 optional = true
 
 [dependencies.yuv]
@@ -41,3 +36,7 @@ optional = true
 [dependencies.zune-core]
 version = "0.5.0-rc2"
 optional = true
+
+[dev-dependencies.image]
+workspace = true
+features = ["png", "jpeg", "avif"]

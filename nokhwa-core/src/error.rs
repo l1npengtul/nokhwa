@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 use crate::frame_format::FrameFormat;
-use crate::platform::Backends;
 use std::fmt::Debug;
 use thiserror::Error;
+use crate::types::Backends;
 
 pub type NokhwaResult<T> = Result<T, NokhwaError>;
 

@@ -1,23 +1,8 @@
 use crate::camera::Camera;
 use crate::error::NokhwaResult;
-use crate::types::{CameraIndex, CameraInformation};
+use crate::types::{Backends, CameraIndex, CameraInformation, QueriedCamera};
 use std::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-pub enum Backends {
-    Video4Linux2,
-    WebWASM,
-    AVFoundation,
-    MicrosoftMediaFoundation,
-    OpenCV,
-    Custom(&'static str),
-}
-
-impl Display for Backends {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
 
 pub trait PlatformTrait {
     const PLATFORM: Backends;
@@ -27,7 +12,7 @@ pub trait PlatformTrait {
 
     fn check_permission_given(&mut self) -> bool;
 
-    fn query(&mut self) -> NokhwaResult<Vec<CameraInformation>>;
+    fn query(&mut self) -> NokhwaResult<Vec<QueriedCamera>>;
 
     fn open(&mut self, index: CameraIndex) -> NokhwaResult<Self::Camera>;
 
@@ -47,7 +32,7 @@ pub trait AsyncPlatformTrait: PlatformTrait {
 
     async fn await_permission(&mut self) -> NokhwaResult<()>;
 
-    async fn query_async(&mut self) -> NokhwaResult<Vec<CameraInformation>>;
+    async fn query_async(&mut self) -> NokhwaResult<Vec<QueriedCamera>>;
 
     async fn open_async(&mut self, index: &CameraIndex) -> NokhwaResult<Self::AsyncCamera>;
 

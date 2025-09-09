@@ -1,0 +1,7 @@
+
+ffmpeg -i crimeandsekai.png -pix_fmt nv12 -f rawvideo crimeandsekai.yuv
+
+ffmpeg -s 1024x1520 -pix_fmt nv12 -i crimeandsekai.yuv -f image2 -pix_fmt rgb24 crimeandsekai.nv12.png
+
+
+AYUV will fail on BE machines :D

@@ -5,57 +5,97 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    rust-overlay,
-    flake-utils,
-    ...
-  }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+      flake-utils,
+      ...
+    }:
     flake-utils.lib.eachDefaultSystem (
-      system: let
+      system:
+      let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [rust-overlay.overlays.default];
+          overlays = [ rust-overlay.overlays.default ];
+          config.allowUnfree = true;
         };
-        rustbin = pkgs.rust-bin.selectLatestNightlyWith (toolchain:
+        rustshell = pkgs.mkShell.override {
+        	stdenv = pkgs.gccStdenv;
+        };
+        rustbin = pkgs.rust-bin.selectLatestNightlyWith (
+          toolchain:
           toolchain.default.override {
-            extensions = ["rust-src" "clippy" "rustfmt" "miri"];
-          });
-      in {
+            extensions = [
+              "rust-src"
+              "clippy"
+              "rustfmt"
+              "miri"
+              "rust-analyzer"
+            ];
+          }
+        );
+      in
+      {
         formatter = pkgs.alejandra;
 
-        devShells.default = pkgs.mkShell {
+        devShells.default = rustshell {
           packages = [
             rustbin
-          ] ++ (with pkgs; [
-              llvmPackages.libclang.lib
-              llvmPackages.clang
-              pkg-config
-              cmake
-              vcpkg
-              rustPlatform.bindgenHook
-              xmlstarlet
-              opencv
-              alsa-lib
-              systemdLibs
-              cmake
-              fontconfig
-              linuxHeaders
-              v4l-utils
-              libv4l
-              pipewire
-              rustup
-              ffmpeg-full
-              nasm
+          ]
+          ++ (with pkgs; [
+            llvmPackages_21.clangWithLibcAndBasicRtAndLibcxx
+            pkg-config
+            cmake
+            vcpkg
+            lldb
+            rustPlatform.bindgenHook
+            xmlstarlet
+            opencv
+            alsa-lib
+            systemdLibs
+            cmake
+            fontconfig
+            linuxHeaders
+            v4l-utils
+            libv4l
+            pipewire
+            rustup
+            gcc
+            ffmpeg-full
+            nasm
+            libGL
+            flite
+            quirc
+            lcevcdec
+            xz
+            celt
+            opencore-amr
+            snappy
+            codec2
+            gsm
+            ilbc
+            lame
+            libtheora
+            libogg
+            twolame
+            vo-amrwbenc
+            vvenc
+            xavs
+            xvidcore
+            soxr
+            libvdpau
+            jetbrains.rust-rover
           ]);
 
           env.RUST_SRC_PATH = "${rustbin}/lib/rustlib/src/rust/library";
           env.LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
 
-          shellHook = let
-            pathToRustProject = "/project/component[@name='RustProjectSettings']";
-          in
+          shellHook =
+            let
+              pathToRustProject = "/project/component[@name='RustProjectSettings']";
+            in
             ''
               echo "WONDERHOOOOOY!!!!"
               xmlstarlet edit --inplace --update "${pathToRustProject}/option[@name='explicitPathToStdlib']/@value" --value "${rustbin}/lib/rustlib/src/rust/library" .idea/workspace.xml

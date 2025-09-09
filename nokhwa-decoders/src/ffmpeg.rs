@@ -4,11 +4,10 @@ use ffmpeg_the_third::codec::{Context, Id, Parameters};
 use ffmpeg_the_third::decoder::Video;
 use ffmpeg_the_third::ffi::{
     AVChromaLocation, AVCodecID, AVCodecParameters, AVColorPrimaries, AVColorRange, AVColorSpace,
-    AVColorTransferCharacteristic, AVFieldOrder, AVMediaType, AVPacket,
-    AVPixelFormat, AVRational, SwsContext, av_frame_alloc, av_frame_move_ref,
-    av_image_copy_to_buffer, av_image_fill_arrays, av_image_get_buffer_size, avcodec_free_context,
-    avcodec_parameters_alloc, avcodec_parameters_free, sws_freeContext, sws_getContext,
-    sws_scale_frame,
+    AVColorTransferCharacteristic, AVFieldOrder, AVMediaType, AVPacket, AVPixelFormat, AVRational,
+    SwsContext, av_frame_alloc, av_frame_move_ref, av_image_copy_to_buffer, av_image_fill_arrays,
+    av_image_get_buffer_size, avcodec_free_context, avcodec_parameters_alloc,
+    avcodec_parameters_free, sws_freeContext, sws_getContext, sws_scale_frame,
 };
 use ffmpeg_the_third::packet::{Borrow, Ref};
 use ffmpeg_the_third::{Frame, decoder, packet::Packet};
@@ -72,7 +71,7 @@ impl Decoder for FfmpegDecoder {
         &mut self,
         to_decode: FrameBuffer,
         mut buffer: impl AsMut<[u8]>,
-        _destination_format: Option<Self::DestinationFormatHint>
+        _destination_format: Option<Self::DestinationFormatHint>,
     ) -> Result<Self::OutputMeta, NokhwaError> {
         // TODO: add an extra zippy happy path for rgb/bgr/luma
         let (frame, metadata) = self.receive_decoded_frame(to_decode)?;
@@ -108,19 +107,20 @@ impl Decoder for FfmpegDecoder {
     where
         <P as Pixel>::Subpixel: NonFloatScalarWidth,
     {
-        let destination_format =
-            pixel_to_destination_px_fmt::<P>()
-                .ok_or(NokhwaError::DecoderInvalidBuffer("Unsupported Pixel Type".to_string()))?;
+        let destination_format = pixel_to_destination_px_fmt::<P>().ok_or(
+            NokhwaError::DecoderInvalidBuffer("Unsupported Pixel Type".to_string()),
+        )?;
 
         let buffer = buffer.as_mut();
-        let estimated_size =
-            self.codec
-                .preferred_buffer_min_size(&None)?
-                .ok_or(NokhwaError::DecoderInvalidBuffer(
-                    "failed to estimate decoder buffer.length".to_string(),
-                ))?;
+        let estimated_size = self.codec.preferred_buffer_min_size(&None)?.ok_or(
+            NokhwaError::DecoderInvalidBuffer(
+                "failed to estimate decoder buffer.length".to_string(),
+            ),
+        )?;
         if buffer.len() < estimated_size {
-            return Err(NokhwaError::DecoderInvalidBuffer("buffer too small!".to_string()));
+            return Err(NokhwaError::DecoderInvalidBuffer(
+                "buffer too small!".to_string(),
+            ));
         }
 
         let (mut frame, decoded_meta) = self.receive_decoded_frame(to_decode)?;
@@ -198,7 +198,12 @@ impl Decoder for FfmpegDecoder {
     {
         let min_size = self.output_decoder_min_size_pixel::<P>(self.config().resolution);
         let mut buffer: Vec<P::Subpixel> = vec![<P::Subpixel>::DEFAULT_MIN_VALUE; min_size];
-        let meta = self.decode_to_buffer(to_decode, try_cast_slice_mut(&mut buffer).map_err(|why| NokhwaError::DecoderInvalidBuffer(why.to_string()))?, None)?;
+        let meta = self.decode_to_buffer(
+            to_decode,
+            try_cast_slice_mut(&mut buffer)
+                .map_err(|why| NokhwaError::DecoderInvalidBuffer(why.to_string()))?,
+            None,
+        )?;
         Ok(DecodedImage::new(
             ImageBuffer::from_vec(
                 self.codec.config.resolution.width(),
@@ -212,9 +217,19 @@ impl Decoder for FfmpegDecoder {
         ))
     }
 
-    fn output_decoder_min_size(&self, resolution: Resolution, destination_format: Self::DestinationFormatHint) -> usize {
-        let size =
-            unsafe { av_image_get_buffer_size(destination_format, resolution.width() as i32, resolution.height() as i32, 1) };
+    fn output_decoder_min_size(
+        &self,
+        resolution: Resolution,
+        destination_format: Self::DestinationFormatHint,
+    ) -> usize {
+        let size = unsafe {
+            av_image_get_buffer_size(
+                destination_format,
+                resolution.width() as i32,
+                resolution.height() as i32,
+                1,
+            )
+        };
         size as usize
     }
 
@@ -353,11 +368,13 @@ pub struct FfmpegCodec {
 
 impl FfmpegCodec {
     fn new(config: <FfmpegCodec as Codec>::Config) -> Result<Self, NokhwaError> {
-        let id = convert_format_to_codec_id(&config.frame_format)
-            .ok_or(NokhwaError::DecoderUnsupportedFrameFormat(config.frame_format))?;
+        let id = convert_format_to_codec_id(&config.frame_format).ok_or(
+            NokhwaError::DecoderUnsupportedFrameFormat(config.frame_format),
+        )?;
 
-        let codec =
-            decoder::find(id).ok_or(NokhwaError::DecoderInitializationError("Failed to find codec".to_string()))?;
+        let codec = decoder::find(id).ok_or(NokhwaError::DecoderInitializationError(
+            "Failed to find codec".to_string(),
+        ))?;
 
         let context = unsafe {
             let ptr = ffmpeg_the_third::ffi::avcodec_alloc_context3(codec.as_ptr());
@@ -375,9 +392,11 @@ impl FfmpegCodec {
             .map_err(|why| NokhwaError::Decoder(why.to_string()))?;
         video
             .set_parameters(unsafe {
-                Parameters::from_raw(config.as_ptr()?).ok_or(NokhwaError::DecoderInitializationError(
-                    "Failed to convert parameters".to_string(),
-                ))?
+                Parameters::from_raw(config.as_ptr()?).ok_or(
+                    NokhwaError::DecoderInitializationError(
+                        "Failed to convert parameters".to_string(),
+                    ),
+                )?
             })
             .map_err(|why| NokhwaError::Decoder(why.to_string()))?;
 
@@ -416,9 +435,11 @@ impl Codec for FfmpegCodec {
         let mut temp_config = config.as_avcodec_params()?;
         self.decoder
             .set_parameters(unsafe {
-                Parameters::from_raw(&mut temp_config).ok_or(NokhwaError::DecoderInvalidConfiguration(
-                    "Failed to convert parameters".to_string(),
-                ))?
+                Parameters::from_raw(&mut temp_config).ok_or(
+                    NokhwaError::DecoderInvalidConfiguration(
+                        "Failed to convert parameters".to_string(),
+                    ),
+                )?
             })
             .map_err(|why| NokhwaError::DecoderInvalidConfiguration(why.to_string()))?;
         self.config = config;
