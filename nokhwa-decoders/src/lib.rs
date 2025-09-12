@@ -6,3 +6,5 @@ pub mod ffmpeg;
 pub mod mjpeg;
 #[cfg(feature = "yuyv")]
 pub mod yuv;
+#[cfg(feature = "luma")]
+pub mod luma;

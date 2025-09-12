@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::frame_format::FrameFormat;
+use crate::frame_format::{CustomFrameFormat, FrameFormat};
 use std::fmt::Debug;
 use thiserror::Error;
 use crate::types::Backends;
@@ -66,6 +66,8 @@ pub enum NokhwaError {
     Decoder(String),
     #[error("Unsupported FrameFormat: {0}")]
     DecoderUnsupportedFrameFormat(FrameFormat),
+    #[error("The destination frame format from {0} to {1} is not supported.")]
+    DecoderUnsupportedCustomFrameFormatDestination(CustomFrameFormat, FrameFormat),
     #[error("Unsupported pixel configuration {0} with width {1}b.")]
     DecoderUnsupportedDestinationPixelFormat(&'static str, u32),
     #[error("Bad decoder configuration: {0}")]
@@ -79,7 +81,7 @@ pub enum NokhwaError {
     #[error("You need to pass in a destination hint, it is not optional for this decoder.")]
     DecoderDestinationHintRequired,
     #[error("Decoder already deinitialized. Unusable, please make a new decoder.")]
-    DecoderAlreadyDeinitialized
+    DecoderAlreadyDeinitialized,
 }
 //
 // pub enum InitializeError {}

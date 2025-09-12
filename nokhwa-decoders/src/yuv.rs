@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use bytemuck::{cast_slice, cast_slice_mut, try_cast_slice_mut};
 
 use nokhwa_core::decoder::{Decoder, ImageBuffer, Pixel, Primitive};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_buffer::FrameBuffer;
-use nokhwa_core::frame_format::FrameFormat;
+use nokhwa_core::frame_format::{CustomFrameFormat, FrameFormat};
 use nokhwa_core::image::{DecodedImage, NonFloatScalarWidth};
 use nokhwa_core::types::{CameraFormat, Resolution};
 use yuv::{
@@ -45,6 +46,15 @@ impl Decoder for YUVDecoder {
         if !FrameFormat::YCBCR.contains(&config.yuv_type) {
             return Err(NokhwaError::DecoderUnsupportedFrameFormat(config.yuv_type));
         }
+
+        if let Some(custom_map) = &config.custom_frame_format_map {
+            if let Some((src, dest)) = custom_map.iter().find(|(_, value)| {
+                FrameFormat::YCBCR.contains(value)
+            }) {
+                return Err(NokhwaError::DecoderUnsupportedCustomFrameFormatDestination(*src, *dest))
+            }
+        }
+
         self.config = config;
         Ok(())
     }
@@ -60,13 +70,24 @@ impl Decoder for YUVDecoder {
             None => return Err(NokhwaError::DecoderDestinationHintRequired),
         };
 
+
+        let yuv_format = self.config().custom_frame_format_map.as_ref().map(|m| {
+            match self.config.yuv_type {
+                FrameFormat::Custom(cfmt) => {
+                    m.get(&cfmt).copied()
+                }
+                _ => None,
+            }
+        }).flatten().unwrap_or(self.config.yuv_type);
+
+
         let buffer = buffer.as_mut();
         if buffer.len() < self.output_decoder_min_size(self.config.resolution, destination_format) {
             return Err(NokhwaError::DecoderInvalidBuffer("Too small!".to_string()));
         }
 
-        let stride = figure_out_stride(self.config.yuv_type).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(self.config.yuv_type))?;
-        let byte_width = figure_out_byte_width(self.config.yuv_type).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(self.config.yuv_type))?;
+        let stride = figure_out_stride(yuv_format).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(yuv_format))?;
+        let byte_width = figure_out_byte_width(yuv_format).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(yuv_format))?;
 
 
         let stride_3px = 3 *
@@ -79,7 +100,7 @@ impl Decoder for YUVDecoder {
          let decode_status = match stride {
             Stride::Packed(stride) => {
                 let image = prepare_to_packed_image(&to_decode, self.config.resolution, byte_width, stride);
-                match self.config.yuv_type {
+                match yuv_format {
                     FrameFormat::Ayuv_32 => {
                         match destination_format {
                             YUVDestination::Rgb8 => Some(ayuv_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.premultiply_alpha)),
@@ -129,16 +150,16 @@ impl Decoder for YUVDecoder {
                     }
                     _ => {
                         if FrameFormat::YCBCR_PACKED.contains(&self.config.yuv_type) {
-                            return Err(NokhwaError::NotImplementedError("etto blehhh!".to_string()))
+                            return Err(NokhwaError::NotImplementedError("etto blehhh! ()".to_string()))
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(self.config.yuv_type))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(yuv_format))
                     }
                 }
             }
             Stride::Semi(y_stride, uv_stride) => {
                 let image = prepare_to_semi_planar_image(&to_decode, self.config.resolution, byte_width, y_stride, uv_stride);
-                match self.config.yuv_type {
+                match yuv_format {
                     FrameFormat::NV24 => {
                         match destination_format {
                             YUVDestination::Rgb8 => Some(yuv_nv24_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
@@ -213,17 +234,17 @@ impl Decoder for YUVDecoder {
                         }
                     }
                     _ => {
-                        if FrameFormat::YCBCR_SEMI.contains(&self.config.yuv_type) {
+                        if FrameFormat::YCBCR_SEMI.contains(&yuv_format) {
                             return Err(NokhwaError::NotImplementedError("etto blehhh!".to_string()))
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(self.config.yuv_type))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(yuv_format))
                     }
                 }
             }
             Stride::Planar(y_stride, u_stride, v_stride, line_ratio) => {
                 let image = prepare_to_planar_image(&to_decode, self.config.resolution, byte_width, y_stride, u_stride, v_stride, line_ratio);
-                match self.config.yuv_type {
+                match yuv_format {
                     FrameFormat::Yuv_4_2_0 => {
                         match destination_format {
                             YUVDestination::Rgb8 => Some(yuv420_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
@@ -234,11 +255,11 @@ impl Decoder for YUVDecoder {
                         }
                     }
                     _ => {
-                        if FrameFormat::YCBCR_PLANAR.contains(&self.config.yuv_type) {
+                        if FrameFormat::YCBCR_PLANAR.contains(&yuv_format) {
                             return Err(NokhwaError::NotImplementedError("etto blehhh!".to_string()))
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(self.config.yuv_type))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(yuv_format))
                     }
                 }
             }
@@ -247,7 +268,7 @@ impl Decoder for YUVDecoder {
             Some(Ok(_)) => Ok(()),
             Some(Err(why)) => Err(NokhwaError::Decoder(why.to_string())),
             None => Err(NokhwaError::DecoderUnsupportedFrameFormat(
-                self.config.yuv_type,
+                yuv_format,
             )),
         }
     }
@@ -362,7 +383,7 @@ impl YUVDestination {
     }
 }
 
-#[derive(Clone, Debug, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct YUVConfig {
     pub resolution: Resolution,
     pub yuv_type: FrameFormat,
@@ -370,6 +391,7 @@ pub struct YUVConfig {
     pub matrix: YuvStandardMatrix,
     pub mode: YuvConversionMode,
     pub premultiply_alpha: bool,
+    pub custom_frame_format_map: Option<HashMap<CustomFrameFormat, FrameFormat>>,
 }
 
 impl TryFrom<CameraFormat> for YUVConfig {
@@ -386,6 +408,7 @@ impl TryFrom<CameraFormat> for YUVConfig {
             matrix: YuvStandardMatrix::Bt601,
             mode: YuvConversionMode::Balanced,
             premultiply_alpha: false,
+            custom_frame_format_map: None,
         })
     }
 }
@@ -559,7 +582,7 @@ fn convert_bi_planar_image_to_u16(
 #[cfg(test)]
 mod test {
     use crate::yuv::{YUVConfig, YUVDecoder};
-    use image::{DynamicImage, EncodableLayout, ImageBuffer, ImageFormat, ImageReader, Pixel, PixelWithColorType, Rgb, Rgba};
+    use image::{DynamicImage, EncodableLayout, ImageBuffer, ImageFormat, Pixel, PixelWithColorType, Rgb, Rgba};
     use nokhwa_core::decoder::Decoder;
     use nokhwa_core::frame_buffer::FrameBuffer;
     use nokhwa_core::frame_format::FrameFormat;
@@ -567,7 +590,7 @@ mod test {
     use nokhwa_core::types::Resolution;
     use std::borrow::Cow;
     use std::fs::File;
-    use std::io::{BufReader, BufWriter, Read};
+    use std::io::{BufReader, Read};
     use yuv::{YuvConversionMode, YuvRange, YuvStandardMatrix};
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -593,6 +616,7 @@ where
                 matrix: YuvStandardMatrix::Bt601,
                 mode: YuvConversionMode::Balanced,
                 premultiply_alpha: false,
+                custom_frame_format_map: None,
             }
         );
 

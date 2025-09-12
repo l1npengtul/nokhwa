@@ -1,0 +1,12 @@
+[package]
+name = "nokhwa-iter-extensions"
+version = "0.1.0"
+authors = ["l1npengtul <l1npengtul@protonmail.com>"]
+edition = "2024"
+description = "Core type definitions for nokhwa"
+keywords = ["iter", "iterator", "interweave", "duplicate"]
+categories = ["algorithms", "rust-patterns", "no-std", "no-std::no-alloc"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/l1npengtul/nokhwa"
+
+[dependencies]

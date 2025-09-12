@@ -205,13 +205,22 @@ define_frame_format_with_groups! {
     ]
 }
 
+impl FrameFormat {
+    pub fn is_custom(&self) -> bool {
+        if let FrameFormat::Custom(_) = self {
+            return true
+        }
+        false
+    }
+}
+
 impl Display for FrameFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialOrd, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum CustomFrameFormat {
     UUID(u128),
@@ -220,6 +229,12 @@ pub enum CustomFrameFormat {
     U64(u64),
     F32(OrderedFloat<f32>),
     F64(OrderedFloat<f64>),
+}
+
+impl Display for CustomFrameFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
 }
 
 #[macro_export]

@@ -12,7 +12,7 @@ repository = "https://github.com/l1npengtul/nokhwa"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "nokhwa-bindings-linux", "nokhwa-core", "nokhwa-decoders"]
+members = ["nokhwa-bindings-macos", "nokhwa-bindings-windows", "nokhwa-bindings-linux", "nokhwa-core", "nokhwa-decoders", "nokhwa-iter-extensions"]
 
 [lib]
 crate-type = ["rlib"]
