@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroI32;
 use std::ops::{Div, Rem};
 use std::{
-    borrow::Borrow,
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
     hash::Hash,

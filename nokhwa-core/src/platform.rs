@@ -1,7 +1,6 @@
 use crate::camera::Camera;
 use crate::error::NokhwaResult;
-use crate::types::{Backends, CameraIndex, CameraInformation, QueriedCamera};
-use std::fmt::{Display, Formatter};
+use crate::types::{Backends, CameraIndex, QueriedCamera};
 
 
 pub trait PlatformTrait {

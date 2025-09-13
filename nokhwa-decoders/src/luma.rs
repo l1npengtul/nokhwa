@@ -1,6 +1,8 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::mem::swap;
+use bytemuck::{cast_mut, cast_slice, cast_slice_mut, try_cast_slice_mut};
 use image::Pixel;
 use itertools::Itertools;
 use nokhwa_core::decoder::Decoder;
@@ -9,6 +11,10 @@ use nokhwa_core::frame_buffer::FrameBuffer;
 use nokhwa_core::frame_format::{CustomFrameFormat, FrameFormat};
 use nokhwa_core::image::{DecodedImage, NonFloatScalarWidth};
 use nokhwa_core::types::{CameraFormat, Resolution};
+use nokhwa_iter_extensions::duplicate::IterDuplicateConst;
+use nokhwa_iter_extensions::interweave::IterInterweave;
+use itermore::{IterArrayChunks};
+use nokhwa_core::pixel_destination::PixelDestination;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LumaDecoder {
@@ -18,7 +24,16 @@ pub struct LumaDecoder {
 impl Decoder for LumaDecoder {
     type Config = LumaConfig;
     type OutputMeta = ();
-    type DestinationFormatHint = LumaDestination;
+    const SUPPORTED_DESTINATIONS: &'static [PixelDestination] = &[
+        PixelDestination::Luma8,
+        PixelDestination::LumaA8,
+        PixelDestination::Luma16,
+        PixelDestination::LumaA16,
+        PixelDestination::Rgb8,
+        PixelDestination::Rgba8,
+        PixelDestination::Rgb16,
+        PixelDestination::Rgba16,
+    ];
 
     fn config(&self) -> &Self::Config {
         &self.luma_config
@@ -29,8 +44,8 @@ impl Decoder for LumaDecoder {
         Ok(())
     }
 
-    fn decode_to_buffer(&mut self, mut to_decode: FrameBuffer, mut buffer: impl AsMut<[u8]>, destination_format_hint: Option<Self::DestinationFormatHint>) -> Result<Self::OutputMeta, NokhwaError> {
-        let destination_hint = match destination_format_hint {
+    fn decode_to_buffer(&mut self, mut to_decode: FrameBuffer, mut buffer: impl AsMut<[u8]>, destination_format: PixelDestination) -> Result<Self::OutputMeta, NokhwaError> {
+        let destination_hint = match destination_format {
             Some(h) => h,
             None => return Err(NokhwaError::DecoderDestinationHintRequired)
         };
@@ -63,38 +78,178 @@ impl Decoder for LumaDecoder {
         let b_u16 = filter_to_u16(self.config().channel_filters.blue);
         let a_u16 = filter_to_u16(self.config().channel_filters.alpha);
 
+        let buffer = buffer.as_mut();
+
         match format {
             FrameFormat::Luma_8 => {
                 match destination_hint {
-                    LumaDestination::Luma8 => {
-                        swap(to_decode.as_mut(), buffer.as_mut())
+                    PixelDestination::Luma8 => {
+                        if to_decode.len() != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        match to_decode.consume().0 {
+                            Cow::Borrowed(data) => {
+                                buffer.copy_from_slice(data)
+                            }
+                            Cow::Owned(mut owned) => {
+                                buffer.swap_with_slice(owned.as_mut_slice())
+                            }
+                        }
                     }
-                    LumaDestination::LumaA8 => {
+                    PixelDestination::LumaA8 => {
                         let default_alpha = u8::MAX * a;
 
-                        to_decode.buffer().into_iter().intersperse(default_alpha).co
+                        if (to_decode.len() * 2) != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        to_decode.buffer().into_iter().interweave(&default_alpha, false).enumerate()
+                            .for_each(|(len, data)| {
+                                unsafe {
+                                    *buffer.get_unchecked_mut(len) = *data;
+                                }
+                            });
                     }
-                    LumaDestination::Rgb8 => {}
-                    LumaDestination::Rgba8 => {}
-                    LumaDestination::Rgb16 => {}
-                    LumaDestination::Rgba16 => {}
+                    PixelDestination::Rgb8 => {
+                        if (to_decode.len() * 3) != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        to_decode.buffer().into_iter().duplicate_const::<3>().arrays::<3>().map(|pixel| {
+                            let px_r = &pixel[0_usize] * r;
+                            let px_g = &pixel[1_usize] * g;
+                            let px_b = &pixel[2_usize] * b;
+                            [px_r, px_g, px_b]
+                        }).flatten().enumerate().for_each(|(len, data)| {
+                            unsafe {
+                                *buffer.get_unchecked_mut(len) = *data;
+                            }
+                        });
+                    }
+                    PixelDestination::Rgba8 => {
+                        if (to_decode.len() * 4) != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        to_decode.buffer().into_iter().duplicate_const::<3>().arrays::<3>().map(|pixel| {
+                            let px_r = &pixel[0_usize] * r;
+                            let px_g = &pixel[1_usize] * g;
+                            let px_b = &pixel[2_usize] * b;
+                            let px_a = 255 * b;
+                            [px_r, px_g, px_b, px_a]
+                        }).flatten().enumerate().for_each(|(len, data)| {
+                            unsafe {
+                                *buffer.get_unchecked_mut(len) = *data;
+                            }
+                        });
+                    }
+                    PixelDestination::Rgb16 => {
+                        if (to_decode.len() * 6) != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        let temp_buffer = cast_slice_mut::<u8, u16>(buffer);
+                        let factor = match self.config().mode {
+                            ConvertMode::Scaled => {
+                                u16::MAX / (u8::MAX as u16)
+                            }
+                            ConvertMode::Clipped => {
+                                1_u16
+                            }
+                        };
+
+                        to_decode.buffer().into_iter().duplicate_const::<3>().arrays::<3>().map(|pixel| {
+                            let px_r = (&pixel[0_usize] as u16) * r_u16 * factor;
+                            let px_g = (&pixel[1_usize] as u16) * g_u16 * factor;
+                            let px_b = (&pixel[2_usize] as u16) * b_u16 * factor;
+                            [px_r, px_g, px_b]
+                        }).flatten().enumerate().for_each(|(len, data)| {
+                            unsafe {
+                                *temp_buffer.get_unchecked_mut(len) = *data;
+                            }
+                        });
+                    }
+                    PixelDestination::Rgba16 => {
+                        if (to_decode.len() * 8) != buffer.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        let temp_buffer = cast_slice_mut::<u8, u16>(buffer);
+                        let factor = match self.config().mode {
+                            ConvertMode::Scaled => {
+                                u16::MAX / (u8::MAX as u16)
+                            }
+                            ConvertMode::Clipped => {
+                                1_u16
+                            }
+                        };
+
+                        to_decode.buffer().into_iter().duplicate_const::<3>().arrays::<3>().map(|pixel| {
+                            let px_r = (&pixel[0_usize] as u16) * r_u16 * factor;
+                            let px_g = (&pixel[1_usize] as u16) * g_u16 * factor;
+                            let px_b = (&pixel[2_usize] as u16) * b_u16 * factor;
+                            let px_a = u16::MAX * a_u16;
+                            [px_r, px_g, px_b, px_a]
+                        }).flatten().enumerate().for_each(|(len, data)| {
+                            unsafe {
+                                *temp_buffer.get_unchecked_mut(len) = *data;
+                            }
+                        });
+                    }
+                    PixelDestination::Luma16 => {
+                        let buffer_u16 = cast_slice_mut::<u8, u16>(buffer);
+
+                        if to_decode.len() != buffer_u16.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        let factor = match self.config().mode {
+                            ConvertMode::Scaled => 8,
+                            ConvertMode::Clipped => 0,
+                        };
+
+                        to_decode.buffer().into_iter().map(|px| {
+                            (*px as u16) << factor
+                        }).enumerate()
+                            .for_each(|(len, data)| {
+                                unsafe {
+                                    *buffer_u16.get_unchecked_mut(len) = *data;
+                                }
+                            });
+                    }
+                    PixelDestination::LumaA16 => {
+                        let default_alpha = u16::MAX * a_u16;
+                        let buffer_u16 = cast_slice_mut::<u8, u16>(buffer);
+
+                        if (to_decode.len() * 2) != buffer_u16.len() {
+                            return Err(NokhwaError::DecoderInvalidBuffer("Lengths differ!"))
+                        }
+
+                        let factor = match self.config().mode {
+                            ConvertMode::Scaled => 8,
+                            ConvertMode::Clipped => 0,
+                        };
+
+                        to_decode.buffer().into_iter().map(|px| {
+                            (*px as u16) << factor
+                        }).interweave(&default_alpha, false).enumerate()
+                            .for_each(|(len, data)| {
+                                unsafe {
+                                    *buffer_u16.get_unchecked_mut(len) = *data;
+                                }
+                            });
+                    }
                 }
             }
-            FrameFormat::Luma_10 => {}
-            FrameFormat::Luma_12 => {}
-            FrameFormat::Luma_14 => {}
-            FrameFormat::Luma_16 | FrameFormat::Depth_16 => {}
+            FrameFormat::Luma_10 => convert_u16_type_buffers(to_decode, buffer, destination_hint, self.config().mode, self.config().channel_filters, 10),
+            FrameFormat::Luma_12 => convert_u16_type_buffers(to_decode, buffer, destination_hint, self.config().mode, self.config().channel_filters, 12),
+            FrameFormat::Luma_14 => convert_u16_type_buffers(to_decode, buffer, destination_hint, self.config().mode, self.config().channel_filters, 14),
+            FrameFormat::Luma_16 | FrameFormat::Depth_16 => convert_u16_type_buffers(to_decode, buffer, destination_hint, self.config().mode, self.config().channel_filters, 16),
             fmt => {
                 return Err(NokhwaError::DecoderUnsupportedFrameFormat(fmt))
             }
         }
-    }
-
-    fn decode_to_pixel_buffer<P: Pixel>(&mut self, to_decode: FrameBuffer, buffer: impl AsMut<[P::Subpixel]>) -> Result<Self::OutputMeta, NokhwaError>
-    where
-        <P as Pixel>::Subpixel: NonFloatScalarWidth
-    {
-        todo!()
     }
 
     fn decode<P: Pixel>(&mut self, to_decode: FrameBuffer) -> Result<DecodedImage<P, Self::OutputMeta>, NokhwaError>
@@ -104,13 +259,10 @@ impl Decoder for LumaDecoder {
         todo!()
     }
 
-    fn output_decoder_min_size(&self, resolution: Resolution, destination_format: Self::DestinationFormatHint) -> usize {
+    fn output_decoder_min_size(&self, resolution: Resolution, destination_format: PixelDestination) -> usize {
         todo!()
     }
 
-    fn buffer_takes_destination_hint(&self) -> bool {
-        todo!()
-    }
 }
 
 fn filter_to_u8(filter: bool) -> u8 {
@@ -130,12 +282,213 @@ fn filter_to_u16(filter: bool) -> u16 {
     }
 }
 
+fn convert_u16_type_buffers(to_decode: FrameBuffer, destination: &mut [u8], hint: PixelDestination, mode: ConvertMode, channel_filters: ChannelFilters, original_bit_num: u32) -> Result<(), NokhwaError> {
+    let r_u16 = filter_to_u16(channel_filters.red);
+    let g_u16 = filter_to_u16(channel_filters.green);
+    let b_u16 = filter_to_u16(channel_filters.blue);
+    let a_u16 = filter_to_u16(channel_filters.alpha);
 
+    let r = filter_to_u8(channel_filters.red);
+    let g = filter_to_u8(channel_filters.green);
+    let b = filter_to_u8(channel_filters.blue);
+    let a = filter_to_u8(channel_filters.alpha);
+
+    match hint {
+        PixelDestination::Luma8 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+
+            if to_decode_u16.len() != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().map(|px| {
+                (*px >> factor) as u8
+            }).enumerate()
+                .for_each(|(len, data)| {
+                    unsafe {
+                        *destination.get_unchecked_mut(len) = *data;
+                    }
+                });
+            Ok(())
+        }
+        PixelDestination::LumaA8 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+
+            if (to_decode_u16.len() * 2) != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().map(|px| {
+                (*px >> factor) as u8
+            }).interweave(255 * a, false).enumerate()
+                .for_each(|(len, data)| {
+                    unsafe {
+                        *destination.get_unchecked_mut(len) = *data;
+                    }
+                });
+            Ok(())
+        }
+        PixelDestination::Rgb8 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+
+            if (to_decode_u16.len() * 3) != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().duplicate_const::<3>().array_chunks::<3>().map(|px| {
+                let px_r = (&px[0_usize] >> factor) * r;
+                let px_g = (&px[1_usize] >> factor) * g;
+                let px_b = (&px[2_usize] >> factor)* b;
+                [px_r as u8, px_g as u8, px_b as u8]
+            }).flatten().for_each(|(len, data)| {
+                unsafe {
+                    *destination.get_unchecked_mut(len) = *data;
+                }
+            });
+            Ok(())
+        }
+        PixelDestination::Rgba8 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+
+            if (to_decode_u16.len() * 4) != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().duplicate_const::<3>().array_chunks::<3>().map(|px| {
+                let px_r = (&px[0_usize] >> factor) * r_u16 ;
+                let px_g = (&px[1_usize] >> factor) * g_u16 ;
+                let px_b = (&px[2_usize] >> factor) * b_u16 ;
+                let px_a = u8::MAX * a;
+                [px_r as u8, px_g as u8, px_b as u8, px_a]
+            }).flatten().for_each(|(len, data)| {
+                unsafe {
+                    *destination.get_unchecked_mut(len) = *data;
+                }
+            });
+            Ok(())
+        }
+        PixelDestination::Rgb16 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+            let destination_buffer_u16 = cast_slice_mut::<u8, u16>(destination);
+
+            if (to_decode_u16.len() * 3) != destination_buffer_u16.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().duplicate_const::<3>().array_chunks::<3>().map(|px| {
+                let px_r = (&px[0_usize] >> factor) * r_u16;
+                let px_g = (&px[1_usize] >> factor) * g_u16;
+                let px_b = (&px[2_usize] >> factor) * b_u16;
+                [px_r, px_g, px_b]
+            }).flatten().for_each(|(len, data)| {
+                unsafe {
+                    *destination_buffer_u16.get_unchecked_mut(len) = *data;
+                }
+            });
+            Ok(())
+        }
+        PixelDestination::Rgba16 => {
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+            let destination_buffer_u16 = cast_slice_mut::<u8, u16>(destination);
+
+            if (to_decode_u16.len() * 3) != destination_buffer_u16.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let factor = match mode {
+                ConvertMode::Scaled => {
+                    original_bit_num - 8_u32
+                }
+                ConvertMode::Clipped => 0,
+            };
+
+            to_decode_u16.into_iter().duplicate_const::<3>().array_chunks::<3>().map(|px| {
+                let px_r = (&px[0_usize] >> factor) * r_u16;
+                let px_g = (&px[1_usize] >> factor) * g_u16;
+                let px_b = (&px[2_usize] >> factor) * b_u16;
+                let px_a = u16::MAX * a_u16;
+                [px_r, px_g, px_b, px_a]
+            }).flatten().for_each(|(len, data)| {
+                unsafe {
+                    *destination_buffer_u16.get_unchecked_mut(len) = *data;
+                }
+            });
+            Ok(())
+        }
+        PixelDestination::Luma16 => {
+            if to_decode.len() != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            match to_decode.consume().0 {
+                Cow::Borrowed(data) => {
+                    destination.copy_from_slice(data)
+                }
+                Cow::Owned(mut owned) => {
+                    destination.swap_with_slice(owned.as_mut_slice())
+                }
+            }
+            Ok(())
+        }
+        PixelDestination::LumaA16 => {
+            if (to_decode.len() * 2) != destination.len() {
+                return Err(NokhwaError::DecoderInvalidBuffer("sizes differ!".to_string()))
+            }
+
+            let to_decode_u16 = cast_slice::<u8, u16>(to_decode.buffer());
+            let destination_buffer_u16 = cast_slice_mut::<u8, u16>(destination);
+
+            to_decode_u16.into_iter().interweave(&(u16::MAX * a_u16), false).enumerate().for_each(|(len, data)| {
+                unsafe {
+                    *destination.get_unchecked_mut(len) = *data;
+                }
+            });
+
+            Ok(())
+        }
+        _ => Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(hint))
+    }
+
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LumaConfig {
     pub mode: ConvertMode,
-    pub scaling_functions: ScalingFunctions,
     pub channel_filters: ChannelFilters,
     pub format: FrameFormat,
     pub custom_frame_format_map: Option<HashMap<CustomFrameFormat, FrameFormat>>
@@ -151,7 +504,6 @@ impl TryFrom<FrameFormat> for LumaConfig {
 
         Ok(LumaConfig {
             mode: ConvertMode::default(),
-            scaling_functions: ScalingFunctions::default(),
             channel_filters: ChannelFilters::default(),
             format: value,
             custom_frame_format_map: None,
@@ -159,7 +511,7 @@ impl TryFrom<FrameFormat> for LumaConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum ConvertMode {
     Scaled,
     Clipped
@@ -169,12 +521,6 @@ impl Default for ConvertMode {
     fn default() -> Self {
         ConvertMode::Scaled
     }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ScalingFunctions {
-    pub scale_up_u8_to_u16: Box<dyn FnMut(u8, u32) -> u16>,
-    pub scale_down_u8_to_u16: Box<dyn FnMut(u16, u32) -> u8>,
 }
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -193,36 +539,5 @@ impl Default for ChannelFilters {
             blue: true,
             alpha: true,
         }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub enum LumaDestination {
-    Luma8,
-    LumaA8,
-    Rgb8,
-    Rgba8,
-    Rgb16,
-    Rgba16,
-}
-
-struct ConstIter<T> where T: Copy + Clone + Debug + Default + Eq + Ord + PartialEq + PartialOrd {
-    pub val: T
-}
-
-impl<T> Iterator for ConstIter<T> where T: Copy + Clone + Debug + Default + Eq + Ord + PartialEq + PartialOrd {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.val)
-    }
-}
-
-impl<T> IntoIterator for ConstIter<T> where  T: Copy + Clone + Debug + Default + Eq + Ord + PartialEq + PartialOrd {
-    type Item = T;
-    type IntoIter = ConstIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self
     }
 }

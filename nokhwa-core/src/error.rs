@@ -16,6 +16,7 @@
 use crate::frame_format::{CustomFrameFormat, FrameFormat};
 use std::fmt::Debug;
 use thiserror::Error;
+use crate::pixel_destination::PixelDestination;
 use crate::types::Backends;
 
 pub type NokhwaResult<T> = Result<T, NokhwaError>;
@@ -68,8 +69,10 @@ pub enum NokhwaError {
     DecoderUnsupportedFrameFormat(FrameFormat),
     #[error("The destination frame format from {0} to {1} is not supported.")]
     DecoderUnsupportedCustomFrameFormatDestination(CustomFrameFormat, FrameFormat),
-    #[error("Unsupported pixel configuration {0} with width {1}b.")]
-    DecoderUnsupportedDestinationPixelFormat(&'static str, u32),
+    #[error("Unknown pixel configuration {0} with width {1}b.")]
+    DecoderUnknownDestinationPixelFormat(&'static str, u32),
+    #[error("Unsupported pixel configuration {0}.")]
+    DecoderUnsupportedDestinationPixelFormat(PixelDestination),
     #[error("Bad decoder configuration: {0}")]
     DecoderInvalidConfiguration(String),
     #[error("Failed to initialize decoder: {0}")]

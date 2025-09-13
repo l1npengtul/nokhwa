@@ -7,7 +7,7 @@ edition = "2024"
 ffmpeg = ["ffmpeg-the-third"]
 yuyv = ["dcv-color-primitives", "yuv"]
 mjpeg = ["zune-jpeg", "zune-core"]
-luma = ["itertools"]
+luma = ["itertools", "nokhwa-iter-extensions", "itermore"]
 #static = ["ffmpeg-the-third/static"]
 #async = []
 
@@ -19,7 +19,7 @@ version = "0.2"
 path = "../nokhwa-core"
 
 [dependencies.ffmpeg-the-third]
-version = "3.0"
+version = "4.0.0+ffmpeg-8.0"
 optional = true
 
 [dependencies.yuv]
@@ -31,7 +31,7 @@ version = "0.7"
 optional = true
 
 [dependencies.zune-jpeg]
-version = "0.5.0-rc7"
+version = "0.5.0-rc9"
 optional = true
 
 [dependencies.zune-core]
@@ -39,7 +39,17 @@ version = "0.5.0-rc2"
 optional = true
 
 [dependencies.itertools]
-version = "0.14.0"
+version = "0.14"
+optional = true
+
+[dependencies.itermore]
+version = "0.8"
+features = ["array_chunks"]
+optional = true
+
+[dependencies.nokhwa-iter-extensions]
+version = "0.1"
+path = "../nokhwa-iter-extensions"
 optional = true
 
 [dev-dependencies.image]

@@ -35,3 +35,4 @@ pub mod stream;
 pub mod traits;
 pub mod types;
 pub mod utils;
+pub mod pixel_destination;
