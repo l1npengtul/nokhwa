@@ -1,4 +1,4 @@
-use nokhwa_core::decoder::{Decoder, ImageBuffer, Pixel};
+use nokhwa_core::decoder::{ConfigHasResolution, Decoder, ImageBuffer, Pixel};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_buffer::FrameBuffer;
 use nokhwa_core::image::Primitive;
@@ -51,7 +51,7 @@ impl Decoder for MJpegDecoder {
 
         let colorspace = convert_destination_to_colorspace(destination_format).ok_or(NokhwaError::DecoderUnsupportedDestinationPixelFormat(destination_format))?;
 
-        let mut config = self.config.decoder_options.jpeg_set_out_colorspace(colorspace);
+        let config = self.config.decoder_options.jpeg_set_out_colorspace(colorspace);
 
         decoder.set_options(config);
         decoder.decode_into(buffer).map_err(err_to_err)?;
@@ -89,23 +89,6 @@ impl Decoder for MJpegDecoder {
         ))?;
         Ok(DecodedImage::new(image_buffer, output_metadata))
     }
-
-    fn output_decoder_min_size(
-        &self,
-        resolution: Resolution,
-        destination_format: PixelDestination,
-    ) -> Result<usize, NokhwaError> {
-        let stride = match destination_format {
-            PixelDestination::Rgb8 => 3,
-            PixelDestination::Rgba8 => 4,
-            PixelDestination::Bgr8 => 3,
-            PixelDestination::Bgra8 => 4,
-            PixelDestination::Luma8 => 1,
-            PixelDestination::LumaA8 => 2,
-            fmt => return Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(fmt))
-        };
-        Ok((resolution.width() * resolution.height() * stride) as usize)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -135,6 +118,12 @@ impl From<ImageInfo> for ImageMeta {
 pub struct MJpegOptions {
     pub resolution: Resolution,
     pub decoder_options: DecoderOptions,
+}
+
+impl ConfigHasResolution for MJpegOptions {
+    fn resolution(&self) -> Resolution {
+        self.resolution
+    }
 }
 
 fn err_to_err(decode_errors: DecodeErrors) -> NokhwaError {

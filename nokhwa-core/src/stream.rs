@@ -165,7 +165,7 @@ impl<'a> StreamHandle<'a> {
                         return Err(NokhwaError::ReadFrameError(why));
                     }
                 }
-                Event::Error(e) => return Err(NokhwaError::ReadFrameError(e.to_string())),
+                Event::Error(e) => return Err(NokhwaError::ReadFrameError(e.clone())),
                 _ => {}
             }
         }

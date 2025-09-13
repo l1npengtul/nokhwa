@@ -58,23 +58,20 @@ impl<I, const PER: usize> Iterator for Interweave<I, PER> where I: Iterator, <I 
             }
             InterweaveState::EmitReal => {
                 self.count = self.count.saturating_sub(1);
-                match self.iter.next() {
-                    Some(i) => {
-                        if self.count <= 0 {
-                            self.state = InterweaveState::EmitFake;
-                        } else {
-                            self.state = InterweaveState::EmitReal;
-                        }
-                        self.prev_state = InterweaveState::EmitReal;
-                        Some(i)
+                if let Some(i) = self.iter.next() {
+                    if self.count == 0 {
+                        self.state = InterweaveState::EmitFake;
+                    } else {
+                        self.state = InterweaveState::EmitReal;
                     }
-                    None => {
-                        self.state = InterweaveState::Finished;
-                        if self.emit_last && self.prev_state != InterweaveState::EmitFake {
-                            Some(self.element.clone())
-                        } else {
-                            None
-                        }
+                    self.prev_state = InterweaveState::EmitReal;
+                    Some(i)
+                } else {
+                    self.state = InterweaveState::Finished;
+                    if self.emit_last && self.prev_state != InterweaveState::EmitFake {
+                        Some(self.element.clone())
+                    } else {
+                        None
                     }
                 }
             }
@@ -91,7 +88,7 @@ impl<I, const PER: usize> Iterator for Interweave<I, PER> where I: Iterator, <I 
             return (lower * 2, upper.map(|u| u * 2))
         }
 
-        let last = if self.emit_last { 1 } else { 0 };
+        let last = usize::from(self.emit_last);
         let new_lower = lower + (lower / PER) + last;
         let new_upper = upper.map(|u| { u + (u / PER) + last });
         (new_lower, new_upper)

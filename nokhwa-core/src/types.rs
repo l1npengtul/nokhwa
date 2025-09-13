@@ -43,7 +43,7 @@ impl CameraIndex {
     pub fn as_string(&self) -> String {
         match self {
             CameraIndex::Index(i) => i.to_string(),
-            CameraIndex::String(s) | CameraIndex::Stable(s) => s.to_string(),
+            CameraIndex::String(s) | CameraIndex::Stable(s) => s.clone(),
             }
     }
 

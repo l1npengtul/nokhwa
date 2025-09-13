@@ -44,45 +44,39 @@ impl<I, const MULTIPLIER: usize> Iterator for DuplicateConst<I, MULTIPLIER> wher
     fn next(&mut self) -> Option<Self::Item> {
         match self.state {
             DuplicateConstState::Started => {
-                match self.iter.next() {
-                    Some(i) => {
-                        if MULTIPLIER <= 1 {
-                            self.state = DuplicateConstState::EmitReal;
-                        } else {
-                            self.state = DuplicateConstState::EmitDupe;
-                        }
-                        self.last_iter_item = Some(i.clone());
-                        Some(i)
+                if let Some(i) = self.iter.next() {
+                    if MULTIPLIER <= 1 {
+                        self.state = DuplicateConstState::EmitReal;
+                    } else {
+                        self.state = DuplicateConstState::EmitDupe;
                     }
-                    None => {
-                        self.state = DuplicateConstState::Finished;
-                        None
-                    }
+                    self.last_iter_item = Some(i.clone());
+                    Some(i)
+                } else {
+                    self.state = DuplicateConstState::Finished;
+                    None
                 }
             }
             DuplicateConstState::EmitDupe => {
                 self.running_count = self.running_count.saturating_sub(1);
-                if self.running_count <= 0 {
+                if self.running_count == 0 {
                     self.state = DuplicateConstState::EmitReal;
                 }
                 self.last_iter_item.clone()
             }
             DuplicateConstState::EmitReal => {
-                match self.iter.next() {
-                    Some(i) => {
-                        self.last_iter_item = Some(i.clone());
-                        self.running_count = MULTIPLIER.saturating_sub(1);
-                        if MULTIPLIER <= 1 {
-                            self.state = DuplicateConstState::EmitReal;
-                        } else {
-                            self.state = DuplicateConstState::EmitDupe;
-                        }
-                        Some(i)
+                if let Some(i) = self.iter.next() {
+                    self.last_iter_item = Some(i.clone());
+                    self.running_count = MULTIPLIER.saturating_sub(1);
+                    if MULTIPLIER <= 1 {
+                        self.state = DuplicateConstState::EmitReal;
+                    } else {
+                        self.state = DuplicateConstState::EmitDupe;
                     }
-                    None => {
-                        self.state = DuplicateConstState::Finished;
-                        None
-                    }
+                    Some(i)
+                } else {
+                    self.state = DuplicateConstState::Finished;
+                    None
                 }
             }
             DuplicateConstState::Finished => {

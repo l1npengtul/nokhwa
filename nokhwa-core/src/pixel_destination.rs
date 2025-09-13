@@ -19,6 +19,7 @@ pub enum PixelDestination {
 }
 
 impl PixelDestination {
+    #[must_use]
     pub fn get_by_pixel<P>() -> Option<Self>
     where
         P: Pixel,

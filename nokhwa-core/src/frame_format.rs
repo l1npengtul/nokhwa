@@ -206,6 +206,7 @@ define_frame_format_with_groups! {
 }
 
 impl FrameFormat {
+    #[must_use]
     pub fn is_custom(&self) -> bool {
         if let FrameFormat::Custom(_) = self {
             return true

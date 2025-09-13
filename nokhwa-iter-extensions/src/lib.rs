@@ -1,5 +1,5 @@
 #![cfg_attr(not(test), no_std)]
-#[warn(clippy::pedantic)]
+#![warn(clippy::pedantic)]
 
 pub mod interweave;
 pub mod duplicate;

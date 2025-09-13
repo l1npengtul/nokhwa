@@ -12,11 +12,12 @@ use ffmpeg_the_third::ffi::{
 use ffmpeg_the_third::packet::{Borrow, Ref};
 use ffmpeg_the_third::{Frame, decoder, packet::Packet};
 use nokhwa_core::codec::Codec;
-use nokhwa_core::decoder::{Decoder, ImageBuffer, Pixel, Primitive};
+use nokhwa_core::decoder::{ConfigHasResolution, Decoder, Pixel};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_buffer::FrameBuffer;
 use nokhwa_core::frame_format::{CustomFrameFormat, FrameFormat};
-use nokhwa_core::image::{DecodedImage, NonFloatScalarWidth};
+use nokhwa_core::image::{NonFloatScalarWidth};
+use nokhwa_core::pixel_destination::PixelDestination;
 use nokhwa_core::types::{CameraFormat, FrameRate, Resolution};
 
 pub struct FfmpegDecoder {
@@ -56,7 +57,8 @@ impl FfmpegDecoder {
 impl Decoder for FfmpegDecoder {
     type Config = <FfmpegCodec as Codec>::Config;
     type OutputMeta = <FfmpegCodec as Codec>::WrittenMeta;
-    type DestinationFormatHint = AVPixelFormat;
+    const SUPPORTED_DESTINATIONS: &'static [PixelDestination] = &[];
+
 
     fn config(&self) -> &Self::Config {
         self.codec.config()
@@ -71,7 +73,7 @@ impl Decoder for FfmpegDecoder {
         &mut self,
         to_decode: FrameBuffer,
         mut buffer: impl AsMut<[u8]>,
-        _destination_format: Option<Self::DestinationFormatHint>,
+        _destination_format: PixelDestination,
     ) -> Result<Self::OutputMeta, NokhwaError> {
         // TODO: add an extra zippy happy path for rgb/bgr/luma
         let (frame, metadata) = self.receive_decoded_frame(to_decode)?;
@@ -188,54 +190,6 @@ impl Decoder for FfmpegDecoder {
             Ok(decoded_meta)
         }
     }
-
-    fn decode<P: Pixel>(
-        &mut self,
-        to_decode: FrameBuffer,
-    ) -> Result<DecodedImage<P, Self::OutputMeta>, NokhwaError>
-    where
-        <P as Pixel>::Subpixel: NonFloatScalarWidth,
-    {
-        let min_size = self.output_decoder_min_size_pixel::<P>(self.config().resolution);
-        let mut buffer: Vec<P::Subpixel> = vec![<P::Subpixel>::DEFAULT_MIN_VALUE; min_size];
-        let meta = self.decode_to_buffer(
-            to_decode,
-            try_cast_slice_mut(&mut buffer)
-                .map_err(|why| NokhwaError::DecoderInvalidBuffer(why.to_string()))?,
-            None,
-        )?;
-        Ok(DecodedImage::new(
-            ImageBuffer::from_vec(
-                self.codec.config.resolution.width(),
-                self.codec.config.resolution.height(),
-                buffer,
-            )
-            .ok_or(NokhwaError::Decoder(
-                "Failed to create Image Buffer".to_string(),
-            ))?,
-            meta,
-        ))
-    }
-
-    fn output_decoder_min_size(
-        &self,
-        resolution: Resolution,
-        destination_format: Self::DestinationFormatHint,
-    ) -> usize {
-        let size = unsafe {
-            av_image_get_buffer_size(
-                destination_format,
-                resolution.width() as i32,
-                resolution.height() as i32,
-                1,
-            )
-        };
-        size as usize
-    }
-
-    fn buffer_takes_destination_hint(&self) -> bool {
-        false
-    }
 }
 
 fn create_sws_context(
@@ -259,53 +213,6 @@ fn create_sws_context(
         )
     };
     Ok(new_sws)
-}
-
-fn pixel_to_destination_px_fmt<P: Pixel>() -> Option<AVPixelFormat>
-where
-    <P as Pixel>::Subpixel: NonFloatScalarWidth,
-{
-    match P::COLOR_MODEL {
-        "RGB" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_RGB24),
-            _ => None,
-        },
-
-        "RGBA" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_RGBA),
-            2 => Some(switch_endian(
-                AVPixelFormat::AV_PIX_FMT_RGBA64LE,
-                AVPixelFormat::AV_PIX_FMT_RGBA64BE,
-            )),
-            _ => None,
-        },
-        "BGR" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_BGR24),
-            _ => None,
-        },
-
-        "BGRA" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_BGRA),
-            2 => Some(switch_endian(
-                AVPixelFormat::AV_PIX_FMT_BGRA64LE,
-                AVPixelFormat::AV_PIX_FMT_BGRA64BE,
-            )),
-            _ => None,
-        },
-        "Y" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_GRAY8),
-            2 => Some(switch_endian(
-                AVPixelFormat::AV_PIX_FMT_GRAY16LE,
-                AVPixelFormat::AV_PIX_FMT_GRAY16BE,
-            )),
-            _ => None,
-        },
-        "YA" => match <<P as Pixel>::Subpixel>::WIDTH_BYTES {
-            1 => Some(AVPixelFormat::AV_PIX_FMT_GRAY8A),
-            _ => None,
-        },
-        _ => None,
-    }
 }
 
 pub struct Sws {
@@ -684,6 +591,12 @@ pub struct FfmpegDecoderConfig {
     pub chroma_location: AVChromaLocation,
     #[doc = " Video only. Number of delayed frames."]
     pub video_delay: i32,
+}
+
+impl ConfigHasResolution for FfmpegDecoderConfig {
+    fn resolution(&self) -> Resolution {
+        self.resolution
+    }
 }
 
 impl FfmpegDecoderConfig {
