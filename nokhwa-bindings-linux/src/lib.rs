@@ -190,11 +190,9 @@ mod internal {
         // Last check to be sure that every devices have a unique index
         // and that the data isn't corrupted
         if devices.len() > 1 {
+            let indices: std::collections::HashSet<_> = devices.iter().map(|d| d.index).collect();
             assert_eq!(
-                devices
-                    .windows(2)
-                    .filter(|window| window[0].index == window[1].index)
-                    .count(),
+                indices.len(),
                 devices.len(),
                 "Device list should not contain duplicate indexes"
             );
