@@ -16,8 +16,6 @@ pub trait Codec {
     /// Errors are decoder specific.
     fn allowed_formats(&self) -> Result<&[FrameFormat], NokhwaError>;
 
-    fn config(&self) -> &Self::Config;
-
     /// # Errors
     /// Errors are decoder specific.
     fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError>;
@@ -47,10 +45,6 @@ pub trait CodecAsync: Codec {
     }
 
     async fn set_format_async(&self, format: CameraFormat) -> Result<(), NokhwaError>;
-
-    async fn config_async<'a>(&'a self) -> &'a Self::Config {
-        self.config()
-    }
 
     fn set_config_async(&mut self, config: Self::Config) -> Result<(), NokhwaError> {
         self.set_config(config)

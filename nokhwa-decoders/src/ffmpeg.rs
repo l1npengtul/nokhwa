@@ -1,6 +1,7 @@
 use bytemuck::try_cast_slice_mut;
 use core::mem::transmute;
-use ffmpeg_the_third::codec::{Context, Id, Parameters};
+use std::collections::HashMap;
+use ffmpeg_the_third::codec::{Context, Id, Parameters, ParametersMut};
 use ffmpeg_the_third::decoder::Video;
 use ffmpeg_the_third::ffi::{
     AVChromaLocation, AVCodecID, AVCodecParameters, AVColorPrimaries, AVColorRange, AVColorSpace,
@@ -10,7 +11,7 @@ use ffmpeg_the_third::ffi::{
     avcodec_parameters_free, sws_freeContext, sws_getContext, sws_scale_frame,
 };
 use ffmpeg_the_third::packet::{Borrow, Ref};
-use ffmpeg_the_third::{Frame, decoder, packet::Packet};
+use ffmpeg_the_third::{Frame, decoder, packet::Packet, AsMutPtr};
 use nokhwa_core::codec::Codec;
 use nokhwa_core::decoder::{ConfigHasResolution, Decoder, Pixel};
 use nokhwa_core::error::NokhwaError;
@@ -22,6 +23,7 @@ use nokhwa_core::types::{CameraFormat, FrameRate, Resolution};
 
 pub struct FfmpegDecoder {
     codec: FfmpegCodec,
+    settings: FfmpegConfig,
     sws: Option<Sws>,
 }
 
@@ -29,14 +31,14 @@ impl FfmpegDecoder {
     pub fn new(
         config: <FfmpegDecoder as nokhwa_core::decoder::Decoder>::Config,
     ) -> Result<Self, NokhwaError> {
-        let codec = FfmpegCodec::new(config)?;
-        Ok(Self { codec, sws: None })
+        let codec = FfmpegCodec::new(config.ffmpeg_settings.clone())?;
+        Ok(Self { codec, settings: config, sws: None })
     }
 
     pub fn with_format(format: &CameraFormat) -> Result<Self, NokhwaError> {
-        let config = FfmpegDecoderConfig::with_camera_format(format);
-        let codec = FfmpegCodec::new(config)?;
-        Ok(Self { codec, sws: None })
+        let config = FfmpegCodecConfig::with_camera_format(format);
+        let codec = FfmpegCodec::new(config.clone())?;
+        Ok(Self { codec, settings: , sws: None })
     }
 
     pub fn receive_decoded_frame(
@@ -55,17 +57,18 @@ impl FfmpegDecoder {
 }
 
 impl Decoder for FfmpegDecoder {
-    type Config = <FfmpegCodec as Codec>::Config;
+    type Config = FfmpegConfig;
     type OutputMeta = <FfmpegCodec as Codec>::WrittenMeta;
     const SUPPORTED_DESTINATIONS: &'static [PixelDestination] = &[];
 
 
     fn config(&self) -> &Self::Config {
-        self.codec.config()
+        &self.settings
     }
 
     fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError> {
-        self.codec.set_config(config)?;
+        self.codec.set_config(config.ffmpeg_settings.clone())?;
+        self.settings = config;
         Ok(())
     }
 
@@ -268,8 +271,6 @@ impl From<Packet> for PacketOrRef<'_> {
 
 pub struct FfmpegCodec {
     decoder: Video,
-    config: FfmpegDecoderConfig,
-    temp_cfg: Option<*mut AVCodecParameters>,
     deinitialized: bool,
 }
 
@@ -309,15 +310,13 @@ impl FfmpegCodec {
 
         Ok(Self {
             decoder: video,
-            config,
-            temp_cfg: None,
             deinitialized: false,
         })
     }
 }
 
 impl Codec for FfmpegCodec {
-    type Config = FfmpegDecoderConfig;
+    type Config = FfmpegCodecConfig;
     type Input<'a> = PacketOrRef<'a>;
     type Output<'a> = Frame;
     type WrittenMeta = FfmpegFrameMetadata;
@@ -330,27 +329,26 @@ impl Codec for FfmpegCodec {
         Ok(FrameFormat::ALL)
     }
 
-    fn config(&self) -> &Self::Config {
-        &self.config
-    }
-
     fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError> {
-        if self.deinitialized {
-            return Err(NokhwaError::DecoderAlreadyDeinitialized);
+        unsafe {
+            avcodec_free_context(&mut self.decoder.as_mut_ptr())
         }
-        dealloc_av_params(&mut self.temp_cfg);
-        let mut temp_config = config.as_avcodec_params()?;
-        self.decoder
-            .set_parameters(unsafe {
-                Parameters::from_raw(&mut temp_config).ok_or(
-                    NokhwaError::DecoderInvalidConfiguration(
-                        "Failed to convert parameters".to_string(),
-                    ),
-                )?
-            })
-            .map_err(|why| NokhwaError::DecoderInvalidConfiguration(why.to_string()))?;
-        self.config = config;
-        self.temp_cfg = Some(&mut temp_config);
+
+        self.deinitialized = true;
+
+        let params = config.as_parameters()?;
+
+        let codec = Context::from_parameters(params).map_err(|why| {
+            NokhwaError::DecoderInitializationError(why.to_string())
+        })?;
+
+        let video = codec.decoder().video().map_err(|why| {
+            NokhwaError::DecoderInitializationError(why.to_string())
+        })?;
+
+        self.decoder = video;
+        self.deinitialized = false;
+
         Ok(())
     }
 
@@ -397,12 +395,12 @@ impl Codec for FfmpegCodec {
             Some(fmt) => (
                 fmt.width(),
                 fmt.height(),
-                convert_frame_format_to_pixfmt(&fmt.format()),
+                convert_frame_format_to_pixfmt(&fmt.format()).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(fmt.format()))?,
             ),
             None => (
-                self.config().resolution.width(),
-                self.config.resolution.height(),
-                convert_frame_format_to_pixfmt(&self.config().frame_format),
+                self.decoder.width(),
+                self.decoder.height(),
+                unsafe { self.decoder.as_ptr() }.pix_fmt
             ),
         };
 
@@ -410,15 +408,13 @@ impl Codec for FfmpegCodec {
             unsafe { av_image_get_buffer_size(pixel_format, width as i32, height as i32, 1) };
         Ok(Some(size as usize))
     }
+}
 
-    fn deinitialize(&mut self) -> Result<(), NokhwaError> {
-        dealloc_av_params(&mut self.temp_cfg);
-        if self.deinitialized {
-            return Ok(());
+impl Drop for FfmpegCodec {
+    fn drop(&mut self) {
+        unsafe {
+            avcodec_free_context(&mut self.decoder.as_mut_ptr())
         }
-
-        self.deinitialized = true;
-        Ok(())
     }
 }
 
@@ -472,107 +468,117 @@ fn convert_format_to_codec_id(frame_format: &FrameFormat) -> Option<Id> {
     }
 }
 
-fn convert_frame_format_to_pixfmt(frame_format: &FrameFormat) -> AVPixelFormat {
+fn convert_frame_format_to_pixfmt(frame_format: &FrameFormat) -> Option<AVPixelFormat> {
     match frame_format {
         // does FFMPEG not support 32bpp 4:4:4 packed AYUV?
-        FrameFormat::NV24 => AVPixelFormat::AV_PIX_FMT_NV24,
-        FrameFormat::NV42 => AVPixelFormat::AV_PIX_FMT_NV42,
-        FrameFormat::Yuyv_4_2_2 => AVPixelFormat::AV_PIX_FMT_YUYV422,
-        FrameFormat::Uyvy_4_2_2 => AVPixelFormat::AV_PIX_FMT_UYVY422,
-        FrameFormat::Yvyu_4_2_2 => AVPixelFormat::AV_PIX_FMT_YVYU422,
-        FrameFormat::NV16 => AVPixelFormat::AV_PIX_FMT_NV16,
-        FrameFormat::Yuv_4_2_0 => AVPixelFormat::AV_PIX_FMT_YUV420P,
-        FrameFormat::NV12 => AVPixelFormat::AV_PIX_FMT_NV12,
-        FrameFormat::NV21 => AVPixelFormat::AV_PIX_FMT_NV21,
+        FrameFormat::NV24 => Some(AVPixelFormat::AV_PIX_FMT_NV24),
+        FrameFormat::NV42 => Some(AVPixelFormat::AV_PIX_FMT_NV42),
+        FrameFormat::Yuyv_4_2_2 => Some(AVPixelFormat::AV_PIX_FMT_YUYV422),
+        FrameFormat::Uyvy_4_2_2 => Some(AVPixelFormat::AV_PIX_FMT_UYVY422),
+        FrameFormat::Yvyu_4_2_2 => Some(AVPixelFormat::AV_PIX_FMT_YVYU422),
+        FrameFormat::NV16 => Some(AVPixelFormat::AV_PIX_FMT_NV16),
+        FrameFormat::Yuv_4_2_0 => Some(AVPixelFormat::AV_PIX_FMT_YUV420P),
+        FrameFormat::NV12 => Some(AVPixelFormat::AV_PIX_FMT_NV12),
+        FrameFormat::NV21 => Some(AVPixelFormat::AV_PIX_FMT_NV21),
         FrameFormat::P010 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_P010LE
+                Some(AVPixelFormat::AV_PIX_FMT_P010LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_P010BE
+                Some(AVPixelFormat::AV_PIX_FMT_P010BE)
             }
         }
         FrameFormat::P012 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_P012LE
+                Some(AVPixelFormat::AV_PIX_FMT_P012LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_P012BE
+                Some(AVPixelFormat::AV_PIX_FMT_P012BE)
             }
         }
-        FrameFormat::Luma_8 => AVPixelFormat::AV_PIX_FMT_GRAY8,
+        FrameFormat::Luma_8 => Some(AVPixelFormat::AV_PIX_FMT_GRAY8),
         FrameFormat::Luma_10 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_GRAY10LE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY10LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_GRAY10BE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY10BE)
             }
         }
         FrameFormat::Luma_12 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_GRAY12LE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY12LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_GRAY12BE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY12BE)
             }
         }
         FrameFormat::Luma_14 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_GRAY14LE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY14LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_GRAY14BE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY14BE)
             }
         }
         FrameFormat::Luma_16 | FrameFormat::Depth_16 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_GRAY16LE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY16LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_GRAY16BE
+                Some(AVPixelFormat::AV_PIX_FMT_GRAY16BE)
             }
         }
-        FrameFormat::Rgb_3_3_2 => AVPixelFormat::AV_PIX_FMT_RGB8,
+        FrameFormat::Rgb_3_3_2 => Some(AVPixelFormat::AV_PIX_FMT_RGB8),
         FrameFormat::Rgb_5_6_5 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_RGB565LE
+                Some(AVPixelFormat::AV_PIX_FMT_RGB565LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_RGB565BE
+                Some(AVPixelFormat::AV_PIX_FMT_RGB565BE)
             }
         }
         FrameFormat::Rgb_5_5_5 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_RGB555LE
+                Some(AVPixelFormat::AV_PIX_FMT_RGB555LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_RGB565BE
+                Some(AVPixelFormat::AV_PIX_FMT_RGB565BE)
             }
         }
-        FrameFormat::Rgb_8_8_8 => AVPixelFormat::AV_PIX_FMT_RGB24,
-        FrameFormat::Argb_8_8_8_8 => AVPixelFormat::AV_PIX_FMT_ARGB,
-        FrameFormat::Rgba_8_8_8_8 => AVPixelFormat::AV_PIX_FMT_RGBA,
-        FrameFormat::Bgr_3_3_2 => AVPixelFormat::AV_PIX_FMT_BGR8,
+        FrameFormat::Rgb_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_RGB24),
+        FrameFormat::Argb_8_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_ARGB),
+        FrameFormat::Rgba_8_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_RGBA),
+        FrameFormat::Bgr_3_3_2 => Some(AVPixelFormat::AV_PIX_FMT_BGR8),
         FrameFormat::Bgr_5_6_5 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_BGR565LE
+                Some(AVPixelFormat::AV_PIX_FMT_BGR565LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_BGR565BE
+                Some(AVPixelFormat::AV_PIX_FMT_BGR565BE)
             }
         }
         FrameFormat::Bgr_5_5_5 => {
             if is_little_endian() {
-                AVPixelFormat::AV_PIX_FMT_BGR555LE
+                Some(AVPixelFormat::AV_PIX_FMT_BGR555LE)
             } else {
-                AVPixelFormat::AV_PIX_FMT_BGR555BE
+                Some(AVPixelFormat::AV_PIX_FMT_BGR555BE)
             }
         }
-        FrameFormat::Bgr_8_8_8 => AVPixelFormat::AV_PIX_FMT_BGR24,
-        FrameFormat::Abgr_8_8_8_8 => AVPixelFormat::AV_PIX_FMT_ABGR,
-        FrameFormat::Bgra_8_8_8_8 => AVPixelFormat::AV_PIX_FMT_BGRA,
-        _ => AVPixelFormat::AV_PIX_FMT_RGB24,
+        FrameFormat::Bgr_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_BGR24),
+        FrameFormat::Abgr_8_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_ABGR),
+        FrameFormat::Bgra_8_8_8_8 => Some(AVPixelFormat::AV_PIX_FMT_BGRA),
+        _ => None,
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct FfmpegDecoderConfig {
+pub struct FfmpegConfig {
+    pub custom_frame_format_map: Option<HashMap<CustomFrameFormat, FrameFormat>>,
+    pub ffmpeg_settings: FfmpegCodecConfig,
+}
+
+impl ConfigHasResolution for FfmpegConfig {
+    fn resolution(&self) -> Resolution {
+        self.ffmpeg_settings.resolution
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FfmpegCodecConfig {
     pub frame_format: FrameFormat,
     pub codec_tag: u32,
-    #[doc = " - video: the pixel format, the value corresponds to enum AVPixelFormat.\n - audio: the sample format, the value corresponds to enum AVSampleFormat."]
-    pub pix_fmt: Option<AVPixelFormat>,
     #[doc = " Codec-specific bitstream restrictions that the stream conforms to."]
     pub profile: i32,
     pub level: i32,
@@ -593,18 +599,17 @@ pub struct FfmpegDecoderConfig {
     pub video_delay: i32,
 }
 
-impl ConfigHasResolution for FfmpegDecoderConfig {
+impl ConfigHasResolution for FfmpegCodecConfig {
     fn resolution(&self) -> Resolution {
         self.resolution
     }
 }
 
-impl FfmpegDecoderConfig {
+impl FfmpegCodecConfig {
     pub fn with_camera_format(camera_format: &CameraFormat) -> Self {
-        FfmpegDecoderConfig::from(*camera_format)
+        FfmpegCodecConfig::from(*camera_format)
     }
-
-    pub fn as_avcodec_params(&self) -> Result<AVCodecParameters, NokhwaError> {
+    pub fn as_parameters(&self) -> Result<Parameters, NokhwaError> {
         let mut av_codec_params = unsafe { avcodec_parameters_alloc().read() };
         av_codec_params.codec_type = AVMediaType::AVMEDIA_TYPE_VIDEO;
         // if let Some(extra_data) = self.extra_data {
@@ -625,11 +630,8 @@ impl FfmpegDecoderConfig {
         if let Some(id) = convert_format_to_codec_id(&self.frame_format) {
             av_codec_params.codec_id = id.into();
 
-            if let Some(pixfmt) = self.pix_fmt {
+            if let Some(pixfmt) = convert_frame_format_to_pixfmt(&self.frame_format) {
                 av_codec_params.format = pixfmt as i32;
-            } else {
-                let pixel_format = convert_frame_format_to_pixfmt(&self.frame_format);
-                av_codec_params.format = pixel_format as i32;
             }
         } else {
             return Err(NokhwaError::DecoderInvalidConfiguration(
@@ -664,16 +666,14 @@ impl FfmpegDecoderConfig {
 
         av_codec_params.video_delay = self.video_delay;
 
-        Ok(av_codec_params)
-    }
-
-    /// SAFETY: the user is responsible for freeing this return value
-    pub fn as_ptr(&self) -> Result<*mut AVCodecParameters, NokhwaError> {
-        Ok(&mut self.as_avcodec_params()?)
+        match unsafe {Parameters::from_raw(&mut av_codec_params)} {
+            Some(p) => Ok(p),
+            None => Err(NokhwaError::Decoder("Failed to convert into parameters".to_string()))
+        }
     }
 }
 
-impl From<CameraFormat> for FfmpegDecoderConfig {
+impl From<CameraFormat> for FfmpegCodecConfig {
     fn from(value: CameraFormat) -> Self {
         Self {
             frame_format: value.format(),
@@ -682,7 +682,6 @@ impl From<CameraFormat> for FfmpegDecoderConfig {
             // extra_data_size: 0,
             // coded_side_data: None,
             // coded_side_data_size: 0,
-            pix_fmt: None,
             profile: 0,
             level: 0,
             resolution: value.resolution(),
@@ -736,6 +735,23 @@ fn switch_endian<T>(little: T, not: T) -> T {
     match is_little_endian() {
         true => little,
         false => not,
+    }
+}
+
+fn convert_destination_pixel_format_to_av_pxfmt(pixel_destination: PixelDestination) -> AVPixelFormat {
+    match pixel_destination {
+        PixelDestination::Rgb8 => AVPixelFormat::AV_PIX_FMT_RGB24,
+        PixelDestination::Rgba8 => AVPixelFormat::AV_PIX_FMT_RGBA,
+        PixelDestination::Rgb16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_RGB48LE }  else { AVPixelFormat::AV_PIX_FMT_RGB48BE },
+        PixelDestination::Rgba16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_RGBA64LE }  else { AVPixelFormat::AV_PIX_FMT_RGBA64LE },
+        PixelDestination::Bgr8 => AVPixelFormat::AV_PIX_FMT_BGR24,
+        PixelDestination::Bgra8 => AVPixelFormat::AV_PIX_FMT_BGRA,
+        PixelDestination::Bgr16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_BGR48LE }  else { AVPixelFormat::AV_PIX_FMT_BGR48BE },
+        PixelDestination::Bgra16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_BGRA64LE }  else { AVPixelFormat::AV_PIX_FMT_BGRA64BE },
+        PixelDestination::Luma8 => AVPixelFormat::AV_PIX_FMT_GRAY8,
+        PixelDestination::LumaA8 => AVPixelFormat::AV_PIX_FMT_YA8,
+        PixelDestination::Luma16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_GRAY16LE }  else { AVPixelFormat::AV_PIX_FMT_GRAY16BE },
+        PixelDestination::LumaA16 => if is_little_endian() { AVPixelFormat::AV_PIX_FMT_YA16LE }  else { AVPixelFormat::AV_PIX_FMT_YA16BE },
     }
 }
 
