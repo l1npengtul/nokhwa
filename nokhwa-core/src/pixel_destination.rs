@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use image::Pixel;
 use crate::image::NonFloatScalarWidth;
+use image::Pixel;
+use std::fmt::{Display, Formatter};
 
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
 pub enum PixelDestination {
@@ -19,6 +19,21 @@ pub enum PixelDestination {
 }
 
 impl PixelDestination {
+    pub const ALL: &'static [PixelDestination] = &[
+        PixelDestination::Rgb8,
+        PixelDestination::Rgba8,
+        PixelDestination::Rgb16,
+        PixelDestination::Rgba16,
+        PixelDestination::Bgr8,
+        PixelDestination::Bgra8,
+        PixelDestination::Bgr16,
+        PixelDestination::Bgra16,
+        PixelDestination::Luma8,
+        PixelDestination::LumaA8,
+        PixelDestination::Luma16,
+        PixelDestination::LumaA16,
+    ];
+
     #[must_use]
     pub fn get_by_pixel<P>() -> Option<Self>
     where
@@ -55,7 +70,7 @@ impl PixelDestination {
                 1 => Some(PixelDestination::LumaA8),
                 2 => Some(PixelDestination::LumaA16),
                 _ => None,
-            }
+            },
             _ => None,
         }
     }

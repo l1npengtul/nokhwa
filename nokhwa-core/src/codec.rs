@@ -18,7 +18,7 @@ pub trait Codec {
 
     /// # Errors
     /// Errors are decoder specific.
-    fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError>;
+    fn set_config(&mut self, config: &Self::Config) -> Result<(), NokhwaError>;
 
     /// # Errors
     /// Errors are decoder specific.
