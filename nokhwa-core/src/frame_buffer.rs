@@ -146,3 +146,24 @@ impl Deref for FrameBuffer<'_> {
         self.buffer.as_ref()
     }
 }
+
+impl From<Vec<u8>> for FrameBuffer<'_> {
+    fn from(value: Vec<u8>) -> Self {
+        let buffer = Cow::Owned(value);
+
+        FrameBuffer {
+            buffer,
+            metadata: None,
+        }
+    }
+}
+
+impl<'a> From<&'a [u8]> for FrameBuffer<'a> {
+    fn from(value: &'a [u8]) -> Self {
+        let buffer = Cow::Borrowed(value);
+        FrameBuffer {
+            buffer,
+            metadata: None,
+        }
+    }
+}

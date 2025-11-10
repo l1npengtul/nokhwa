@@ -1,10 +1,11 @@
-use std::collections::HashMap;
 use bytemuck::{cast_slice, cast_slice_mut};
+use std::collections::HashMap;
 
 use nokhwa_core::decoder::{ConfigHasResolution, Decoder};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_buffer::FrameBuffer;
 use nokhwa_core::frame_format::{CustomFrameFormat, FrameFormat};
+use nokhwa_core::pixel_destination::PixelDestination;
 use nokhwa_core::types::{CameraFormat, Resolution};
 use yuv::{
     YuvBiPlanarImage, YuvConversionMode, YuvPackedImage, YuvPlanarImage, YuvRange,
@@ -21,7 +22,6 @@ use yuv::{
     yuyv422_to_rgb, yuyv422_to_rgb_p16, yuyv422_to_rgba, yuyv422_to_rgba_p16, yvyu422_to_bgr,
     yvyu422_to_bgra, yvyu422_to_rgb, yvyu422_to_rgb_p16, yvyu422_to_rgba, yvyu422_to_rgba_p16,
 };
-use nokhwa_core::pixel_destination::PixelDestination;
 
 pub struct YUVDecoder {
     config: YUVConfig,
@@ -53,11 +53,14 @@ impl Decoder for YUVDecoder {
         }
 
         if let Some(custom_map) = &config.custom_frame_format_map
-            && let Some((src, dest)) = custom_map.iter().find(|(_, value)| {
-                FrameFormat::YCBCR.contains(value)
-            }) {
-                return Err(NokhwaError::DecoderUnsupportedCustomFrameFormatDestination(*src, *dest))
-            }
+            && let Some((src, dest)) = custom_map
+                .iter()
+                .find(|(_, value)| FrameFormat::YCBCR.contains(value))
+        {
+            return Err(NokhwaError::DecoderUnsupportedCustomFrameFormatDestination(
+                *src, *dest,
+            ));
+        }
 
         self.config = config;
         Ok(())
@@ -69,27 +72,29 @@ impl Decoder for YUVDecoder {
         mut buffer: impl AsMut<[u8]>,
         destination_format: PixelDestination,
     ) -> Result<Self::OutputMeta, NokhwaError> {
-        let format = self.config().custom_frame_format_map.as_ref().and_then(|m| {
-            match self.config().yuv_type {
-                FrameFormat::Custom(cfmt) => {
-                    m.get(&cfmt).copied()
-                }
+        let format = self
+            .config()
+            .custom_frame_format_map
+            .as_ref()
+            .and_then(|m| match self.config().yuv_type {
+                FrameFormat::Custom(cfmt) => m.get(&cfmt).copied(),
                 _ => None,
-            }
-        }).unwrap_or(self.config().yuv_type);
-
+            })
+            .unwrap_or(self.config().yuv_type);
 
         let buffer = buffer.as_mut();
-        if buffer.len() < self.output_decoder_min_size(self.config.resolution, destination_format)? {
+        if buffer.len()
+            < self.output_decoder_min_size(self.config.resolution, destination_format)?
+        {
             return Err(NokhwaError::DecoderInvalidBuffer("Too small!".to_string()));
         }
 
-        let stride = figure_out_stride(format).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(format))?;
-        let byte_width = figure_out_byte_width(format).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(format))?;
+        let stride =
+            figure_out_stride(format).ok_or(NokhwaError::DecoderUnsupportedFrameFormat(format))?;
+        let byte_width = figure_out_byte_width(format)
+            .ok_or(NokhwaError::DecoderUnsupportedFrameFormat(format))?;
 
-
-        let stride_3px = 3 *
-            self.config.resolution.width();
+        let stride_3px = 3 * self.config.resolution.width();
         let stride_4px = 4 * self.config.resolution.width();
         let stride_3px_2w = 6 * self.config.resolution.width();
         let stride_4px_2w = 8 * self.config.resolution.width();
@@ -99,169 +104,573 @@ impl Decoder for YUVDecoder {
             Stride::Packed(stride) => {
                 let image = prepare_to_packed_image(&to_decode, self.config.resolution, stride);
                 match format {
-                    FrameFormat::Ayuv_32 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(ayuv_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.premultiply_alpha)),
-                            PixelDestination::Rgba8 => Some(ayuv_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.premultiply_alpha)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::Yuyv_4_2_2 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuyv422_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba8 => Some(yuyv422_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgb16 => Some(yuyv422_to_rgb_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(yuyv422_to_rgba_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgr8 => Some(yuyv422_to_bgr(&image, buffer, stride_4px_2w, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgra8 => Some(yuyv422_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::Uyvy_4_2_2 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(uyvy422_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba8 => Some(uyvy422_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgb16 => Some(uyvy422_to_rgb_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(uyvy422_to_rgba_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgr8 => Some(uyvy422_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgra8 => Some(uyvy422_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::Vyuy_4_2_2 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(vyuy422_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba8 => Some(vyuy422_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgb16 => Some(vyuy422_to_rgb_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(vyuy422_to_rgba_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgr8 => Some(vyuy422_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgra8 => Some(vyuy422_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::Yvyu_4_2_2 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yvyu422_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba8 => Some(yvyu422_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgb16 => Some(yvyu422_to_rgb_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(yvyu422_to_rgba_p16(&convert_packed_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, 16, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgr8 => Some(yvyu422_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgra8 => Some(yvyu422_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
+                    FrameFormat::Ayuv_32 => match destination_format {
+                        PixelDestination::Rgb8 => Some(ayuv_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.premultiply_alpha,
+                        )),
+                        PixelDestination::Rgba8 => Some(ayuv_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.premultiply_alpha,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::Yuyv_4_2_2 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuyv422_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuyv422_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgb16 => Some(yuyv422_to_rgb_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba16 => Some(yuyv422_to_rgba_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuyv422_to_bgr(
+                            &image,
+                            buffer,
+                            stride_4px_2w,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuyv422_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::Uyvy_4_2_2 => match destination_format {
+                        PixelDestination::Rgb8 => Some(uyvy422_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba8 => Some(uyvy422_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgb16 => Some(uyvy422_to_rgb_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba16 => Some(uyvy422_to_rgba_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgr8 => Some(uyvy422_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgra8 => Some(uyvy422_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::Vyuy_4_2_2 => match destination_format {
+                        PixelDestination::Rgb8 => Some(vyuy422_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba8 => Some(vyuy422_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgb16 => Some(vyuy422_to_rgb_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba16 => Some(vyuy422_to_rgba_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgr8 => Some(vyuy422_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgra8 => Some(vyuy422_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::Yvyu_4_2_2 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yvyu422_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba8 => Some(yvyu422_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgb16 => Some(yvyu422_to_rgb_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba16 => Some(yvyu422_to_rgba_p16(
+                            &convert_packed_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            16,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgr8 => Some(yvyu422_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgra8 => Some(yvyu422_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
                     _ => {
                         if FrameFormat::YCBCR_PACKED.contains(&self.config.yuv_type) {
-                            return Err(NokhwaError::NotImplementedError("etto blehhh! ()".to_string()))
+                            return Err(NokhwaError::NotImplementedError(
+                                "etto blehhh! ()".to_string(),
+                            ));
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format));
                     }
                 }
             }
             Stride::Semi(y_stride, uv_stride) => {
-                let image = prepare_to_semi_planar_image(&to_decode, self.config.resolution, byte_width, y_stride, uv_stride);
+                let image = prepare_to_semi_planar_image(
+                    &to_decode,
+                    self.config.resolution,
+                    byte_width,
+                    y_stride,
+                    uv_stride,
+                );
                 match format {
-                    FrameFormat::NV24 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv24_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv24_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv24_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv24_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::NV42 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv42_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv42_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv42_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv42_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::NV16 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv16_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv16_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv16_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv16_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::NV61 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv61_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv61_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv61_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv61_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::NV12 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv12_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv12_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv12_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv12_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
-                    FrameFormat::NV21 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv_nv21_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(yuv_nv21_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(yuv_nv21_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(yuv_nv21_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            _ => None,
-                        }
-                    }
+                    FrameFormat::NV24 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv24_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv24_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv24_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv24_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::NV42 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv42_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv42_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv42_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv42_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::NV16 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv16_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv16_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv16_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv16_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::NV61 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv61_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv61_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv61_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv61_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::NV12 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv12_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv12_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv12_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv12_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
+                    FrameFormat::NV21 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv_nv21_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv_nv21_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv_nv21_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv_nv21_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                            self.config.mode,
+                        )),
+                        _ => None,
+                    },
                     FrameFormat::P010 => {
                         let a = convert_bi_planar_image_to_u16(image);
                         match destination_format {
-                            PixelDestination::Rgb8 => Some(p010_to_rgb(&a, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgba8 => Some(p010_to_rgba(&a, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgr8 => Some(p010_to_bgr(&a, buffer, stride_3px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Bgra8 => Some(p010_to_bgra(&a, buffer, stride_4px, self.config.range, self.config.matrix, self.config.mode)),
-                            PixelDestination::Rgb16 => Some(p010_to_rgb10(&a, cast_slice_mut(buffer), stride_3px_2w, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(p010_to_rgba10(&a, cast_slice_mut(buffer), stride_4px, self.config.range, self.config.matrix)),
+                            PixelDestination::Rgb8 => Some(p010_to_rgb(
+                                &a,
+                                buffer,
+                                stride_3px,
+                                self.config.range,
+                                self.config.matrix,
+                                self.config.mode,
+                            )),
+                            PixelDestination::Rgba8 => Some(p010_to_rgba(
+                                &a,
+                                buffer,
+                                stride_4px,
+                                self.config.range,
+                                self.config.matrix,
+                                self.config.mode,
+                            )),
+                            PixelDestination::Bgr8 => Some(p010_to_bgr(
+                                &a,
+                                buffer,
+                                stride_3px,
+                                self.config.range,
+                                self.config.matrix,
+                                self.config.mode,
+                            )),
+                            PixelDestination::Bgra8 => Some(p010_to_bgra(
+                                &a,
+                                buffer,
+                                stride_4px,
+                                self.config.range,
+                                self.config.matrix,
+                                self.config.mode,
+                            )),
+                            PixelDestination::Rgb16 => Some(p010_to_rgb10(
+                                &a,
+                                cast_slice_mut(buffer),
+                                stride_3px_2w,
+                                self.config.range,
+                                self.config.matrix,
+                            )),
+                            PixelDestination::Rgba16 => Some(p010_to_rgba10(
+                                &a,
+                                cast_slice_mut(buffer),
+                                stride_4px,
+                                self.config.range,
+                                self.config.matrix,
+                            )),
                             _ => None,
                         }
                     }
-                    FrameFormat::P012 => {
-                        match destination_format {
-                            PixelDestination::Rgb16 => Some(p012_to_rgb12(&convert_bi_planar_image_to_u16(image), cast_slice_mut(buffer), stride_3px_2w, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba16 => Some(p012_to_rgba12(&convert_bi_planar_image_to_u16(image), cast_slice_mut(buffer), stride_4px_2w, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
+                    FrameFormat::P012 => match destination_format {
+                        PixelDestination::Rgb16 => Some(p012_to_rgb12(
+                            &convert_bi_planar_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_3px_2w,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba16 => Some(p012_to_rgba12(
+                            &convert_bi_planar_image_to_u16(image),
+                            cast_slice_mut(buffer),
+                            stride_4px_2w,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
                     _ => {
                         if FrameFormat::YCBCR_SEMI.contains(&format) {
-                            return Err(NokhwaError::NotImplementedError("etto blehhh!".to_string()))
+                            return Err(NokhwaError::NotImplementedError(
+                                "etto blehhh!".to_string(),
+                            ));
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format));
                     }
                 }
             }
             Stride::Planar(y_stride, u_stride, v_stride, line_ratio) => {
-                let image = prepare_to_planar_image(&to_decode, self.config.resolution, byte_width, y_stride, u_stride, v_stride, line_ratio);
+                let image = prepare_to_planar_image(
+                    &to_decode,
+                    self.config.resolution,
+                    byte_width,
+                    y_stride,
+                    u_stride,
+                    v_stride,
+                    line_ratio,
+                );
                 match format {
-                    FrameFormat::Yuv_4_2_0 => {
-                        match destination_format {
-                            PixelDestination::Rgb8 => Some(yuv420_to_rgb(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Rgba8 => Some(yuv420_to_rgba(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgr8 => Some(yuv420_to_bgr(&image, buffer, stride_3px, self.config.range, self.config.matrix)),
-                            PixelDestination::Bgra8 => Some(yuv420_to_bgra(&image, buffer, stride_4px, self.config.range, self.config.matrix)),
-                            _ => None,
-                        }
-                    }
+                    FrameFormat::Yuv_4_2_0 => match destination_format {
+                        PixelDestination::Rgb8 => Some(yuv420_to_rgb(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Rgba8 => Some(yuv420_to_rgba(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgr8 => Some(yuv420_to_bgr(
+                            &image,
+                            buffer,
+                            stride_3px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        PixelDestination::Bgra8 => Some(yuv420_to_bgra(
+                            &image,
+                            buffer,
+                            stride_4px,
+                            self.config.range,
+                            self.config.matrix,
+                        )),
+                        _ => None,
+                    },
                     _ => {
                         if FrameFormat::YCBCR_PLANAR.contains(&format) {
-                            return Err(NokhwaError::NotImplementedError("etto blehhh!".to_string()))
+                            return Err(NokhwaError::NotImplementedError(
+                                "etto blehhh!".to_string(),
+                            ));
                         }
                         // shouldnt happen
-                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format))
+                        return Err(NokhwaError::DecoderUnsupportedFrameFormat(format));
                     }
                 }
             }
@@ -269,9 +678,7 @@ impl Decoder for YUVDecoder {
         match decode_status {
             Some(Ok(_)) => Ok(()),
             Some(Err(why)) => Err(NokhwaError::Decoder(why.to_string())),
-            None => Err(NokhwaError::DecoderUnsupportedFrameFormat(
-                format,
-            )),
+            None => Err(NokhwaError::DecoderUnsupportedFrameFormat(format)),
         }
     }
 }
@@ -337,11 +744,17 @@ fn figure_out_stride(frame_format: FrameFormat) -> Option<Stride> {
 
 fn figure_out_byte_width(format: FrameFormat) -> Option<u32> {
     match format {
-        FrameFormat::Ayuv_32 | FrameFormat::Yuyv_4_2_2
+        FrameFormat::Ayuv_32
+        | FrameFormat::Yuyv_4_2_2
         | FrameFormat::Uyvy_4_2_2
         | FrameFormat::Vyuy_4_2_2
         | FrameFormat::Yvyu_4_2_2 => Some(1),
-        FrameFormat::NV24 | FrameFormat::NV42 | FrameFormat::NV16 | FrameFormat::NV61 | FrameFormat::NV12 | FrameFormat::NV21  => Some(1),
+        FrameFormat::NV24
+        | FrameFormat::NV42
+        | FrameFormat::NV16
+        | FrameFormat::NV61
+        | FrameFormat::NV12
+        | FrameFormat::NV21 => Some(1),
         FrameFormat::P010 | FrameFormat::P012 => Some(2),
         FrameFormat::Yuv_4_2_0 => Some(1),
         _ => None,
@@ -427,7 +840,6 @@ fn prepare_to_planar_image<'a>(
     v_stride_ratio: u32,
     line_ratio: u32,
 ) -> YuvPlanarImage<'a, u8> {
-
     let y_stride = resolution.width() * y_stride_base;
     let u_stride = y_stride / u_stride_ratio;
     let v_stride = y_stride / v_stride_ratio;
@@ -435,7 +847,7 @@ fn prepare_to_planar_image<'a>(
 
     // size of y area
     let u_start = resolution.height() * resolution.width() * byte_width;
-    let v_start =  u_start + u_stride * chroma_lines * byte_width;
+    let v_start = u_start + u_stride * chroma_lines * byte_width;
 
     let us = u_start as usize;
     let vs = v_start as usize;
@@ -480,7 +892,10 @@ fn convert_bi_planar_image_to_u16(
 #[cfg(test)]
 mod test {
     use crate::yuv::{YUVConfig, YUVDecoder};
-    use image::{DynamicImage, EncodableLayout, ImageBuffer, ImageFormat, Pixel, PixelWithColorType, Rgb, Rgba};
+    use image::{
+        DynamicImage, EncodableLayout, ImageBuffer, ImageFormat, Pixel, PixelWithColorType, Rgb,
+        Rgba,
+    };
     use nokhwa_core::decoder::Decoder;
     use nokhwa_core::frame_buffer::FrameBuffer;
     use nokhwa_core::frame_format::FrameFormat;
@@ -491,39 +906,38 @@ mod test {
     use std::io::{BufReader, Read};
     use yuv::{YuvConversionMode, YuvRange, YuvStandardMatrix};
 
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    enum PixelFormat {
-        Rgb8,
-        RgbA8,
-        Rgb16,
-        RgbA16,
-    }
-
-    fn base_test<P: Pixel>(filename: String, resolution: Resolution, format: FrameFormat) -> ImageBuffer<P, Vec<P::Subpixel>>
-where
-        <P as Pixel>::Subpixel: NonFloatScalarWidth {
+    fn base_test<P: Pixel>(
+        filename: String,
+        resolution: Resolution,
+        format: FrameFormat,
+    ) -> ImageBuffer<P, Vec<P::Subpixel>>
+    where
+        <P as Pixel>::Subpixel: NonFloatScalarWidth,
+    {
         let mut file = File::open(filename).unwrap();
         let mut nv12_data = Vec::new();
         file.read_to_end(&mut nv12_data).unwrap();
 
-        let mut decoder = YUVDecoder::new(
-            YUVConfig {
-                resolution,
-                yuv_type: format,
-                range: YuvRange::Full,
-                matrix: YuvStandardMatrix::Bt601,
-                mode: YuvConversionMode::Balanced,
-                premultiply_alpha: false,
-                custom_frame_format_map: None,
-            }
-        );
+        let mut decoder = YUVDecoder::new(YUVConfig {
+            resolution,
+            yuv_type: format,
+            range: YuvRange::Full,
+            matrix: YuvStandardMatrix::Bt601,
+            mode: YuvConversionMode::Balanced,
+            premultiply_alpha: false,
+            custom_frame_format_map: None,
+        });
 
         let frame_buffer = FrameBuffer::new(Cow::Owned(nv12_data), None);
         decoder.decode::<P>(frame_buffer).unwrap().buffer
     }
 
-    fn write_image<P: Pixel + PixelWithColorType>(image: ImageBuffer<P, Vec<P::Subpixel>>, filename: String) where
-    [<P as Pixel>::Subpixel]: EncodableLayout
+    #[allow(dead_code)]
+    fn write_image<P: Pixel + PixelWithColorType>(
+        image: ImageBuffer<P, Vec<P::Subpixel>>,
+        filename: String,
+    ) where
+        [<P as Pixel>::Subpixel]: EncodableLayout,
     {
         image.save_with_format(filename, ImageFormat::Png).unwrap();
     }
@@ -533,7 +947,7 @@ where
         let image = image::load(BufReader::new(file), format).unwrap();
         image
     }
-    
+
     #[test]
     fn test_nv12() {
         let base_filename = "test_images/yuv/nv12/crimeandsekai";
@@ -550,7 +964,8 @@ where
         }
         // test nv12 rgba8
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
 
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
 
@@ -595,11 +1010,11 @@ where
         }
 
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
             assert_eq!(image_rgba8.as_raw(), out.as_raw());
             // write_image(out, format!("{base_filename}.rgba8.png"));
-
         }
     }
 
@@ -618,7 +1033,8 @@ where
         }
 
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
             assert_eq!(image_rgba8.as_raw(), out.as_raw());
             // write_image(out, format!("{base_filename}.rgba8.png"));
@@ -640,7 +1056,8 @@ where
         }
 
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
             assert_eq!(image_rgba8.as_raw(), out.as_raw());
             // write_image(out, format!("{base_filename}.rgba8.png"));
@@ -669,7 +1086,8 @@ where
         }
 
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
             // write_image(out, format!("{base_filename}.rgba8.png"));
             assert_eq!(image_rgba8.as_raw(), out.as_raw());
@@ -690,11 +1108,10 @@ where
         }
 
         {
-            let image_rgba8 = load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
+            let image_rgba8 =
+                load_image(format!("{base_filename}.rgba8.png"), img_format).to_rgba8();
             let out = base_test::<Rgba<u8>>(format!("{base_filename}.yuv"), resolution, format);
             assert_eq!(image_rgba8.as_raw(), out.as_raw());
         }
     }
-
-
 }

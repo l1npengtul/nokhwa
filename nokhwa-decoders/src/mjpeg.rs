@@ -1,24 +1,44 @@
-use nokhwa_core::decoder::{ConfigHasResolution, Decoder, ImageBuffer, Pixel};
+use nokhwa_core::decoder::{ConfigHasResolution, Decoder};
 use nokhwa_core::error::NokhwaError;
 use nokhwa_core::frame_buffer::FrameBuffer;
-use nokhwa_core::image::Primitive;
-use nokhwa_core::image::{DecodedImage, NonFloatScalarWidth};
-use nokhwa_core::types::Resolution;
+use nokhwa_core::frame_format::FrameFormat;
+use nokhwa_core::pixel_destination::PixelDestination;
+use nokhwa_core::types::{CameraFormat, Resolution};
 use zune_core::bytestream::ZCursor;
 use zune_core::colorspace::ColorSpace;
 pub use zune_core::options::DecoderOptions;
 pub use zune_jpeg::ImageInfo;
 use zune_jpeg::JpegDecoder;
 use zune_jpeg::errors::DecodeErrors;
-use nokhwa_core::pixel_destination::PixelDestination;
 
 #[derive(Clone, Debug)]
 pub struct MJpegDecoder {
-    config: MJpegOptions,
+    config: MJpegConfig,
+}
+
+impl MJpegDecoder {
+    pub fn new(config: MJpegConfig) -> Self {
+        MJpegDecoder { config }
+    }
+
+    pub fn from_camera_format(camera_format: CameraFormat) -> Result<Self, NokhwaError> {
+        let resolution = camera_format.resolution();
+        if camera_format.format() != FrameFormat::MJPEG {
+            return Err(NokhwaError::DecoderInvalidFrameData(
+                "Not MJPEG!".to_string(),
+            ));
+        }
+        let decoder_options = DecoderOptions::new_safe();
+        let config = MJpegConfig {
+            resolution,
+            decoder_options,
+        };
+        Ok(MJpegDecoder { config })
+    }
 }
 
 impl Decoder for MJpegDecoder {
-    type Config = MJpegOptions;
+    type Config = MJpegConfig;
     type OutputMeta = ImageMeta;
     const SUPPORTED_DESTINATIONS: &'static [PixelDestination] = &[
         PixelDestination::Rgb8,
@@ -49,9 +69,14 @@ impl Decoder for MJpegDecoder {
 
         let mut decoder = JpegDecoder::new(cursor);
 
-        let colorspace = convert_destination_to_colorspace(destination_format).ok_or(NokhwaError::DecoderUnsupportedDestinationPixelFormat(destination_format))?;
+        let colorspace = convert_destination_to_colorspace(destination_format).ok_or(
+            NokhwaError::DecoderUnsupportedDestinationPixelFormat(destination_format),
+        )?;
 
-        let config = self.config.decoder_options.jpeg_set_out_colorspace(colorspace);
+        let config = self
+            .config
+            .decoder_options
+            .jpeg_set_out_colorspace(colorspace);
 
         decoder.set_options(config);
         decoder.decode_into(buffer).map_err(err_to_err)?;
@@ -66,28 +91,6 @@ impl Decoder for MJpegDecoder {
         };
 
         Ok(info.into())
-    }
-
-    fn decode<P: Pixel>(
-        &mut self,
-        to_decode: FrameBuffer,
-    ) -> Result<DecodedImage<P, Self::OutputMeta>, NokhwaError>
-    where
-        <P as Pixel>::Subpixel: NonFloatScalarWidth,
-    {
-        let min_size = self.output_decoder_min_size_pixel::<P>(self.config.resolution)?;
-        let mut out_buffer: Vec<P::Subpixel> = vec![P::Subpixel::DEFAULT_MAX_VALUE; min_size];
-        let output_metadata =
-            self.decode_to_pixel_buffer::<P>(to_decode, out_buffer.as_mut_slice())?;
-        let image_buffer = ImageBuffer::from_raw(
-            output_metadata.resolution.width(),
-            output_metadata.resolution.height(),
-            out_buffer,
-        )
-        .ok_or(NokhwaError::Decoder(
-            "Failed to make imagebuffer".to_string(),
-        ))?;
-        Ok(DecodedImage::new(image_buffer, output_metadata))
     }
 }
 
@@ -115,12 +118,12 @@ impl From<ImageInfo> for ImageMeta {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct MJpegOptions {
+pub struct MJpegConfig {
     pub resolution: Resolution,
     pub decoder_options: DecoderOptions,
 }
 
-impl ConfigHasResolution for MJpegOptions {
+impl ConfigHasResolution for MJpegConfig {
     fn resolution(&self) -> Resolution {
         self.resolution
     }
@@ -168,5 +171,51 @@ fn convert_destination_to_colorspace(pixel_destination: PixelDestination) -> Opt
         PixelDestination::Luma8 => Some(ColorSpace::Luma),
         PixelDestination::LumaA8 => Some(ColorSpace::LumaA),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{
+        fs::File,
+        io::{BufReader, Read},
+    };
+
+    use image::{DynamicImage, ImageFormat, Rgb};
+    use nokhwa_core::{decoder::Decoder, frame_buffer::FrameBuffer, types::Resolution};
+    use zune_core::options::DecoderOptions;
+
+    use crate::mjpeg::{MJpegConfig, MJpegDecoder};
+
+    fn load_image(filename: String, format: ImageFormat) -> DynamicImage {
+        let file = File::open(filename).unwrap();
+        let image = image::load(BufReader::new(file), format).unwrap();
+        image
+    }
+
+    #[test]
+    pub fn decode_mjpeg_rgb8() {
+        let mut source_file = File::open("test_images/mjpeg/iwillquit.mjpeg").unwrap();
+        let mut data = Vec::new();
+
+        let test_image = load_image(
+            "test_images/mjpeg/iwillquit.rgb8.png".to_string(),
+            ImageFormat::Png,
+        )
+        .to_rgb8();
+        source_file.read_to_end(&mut data).unwrap();
+        let resolution = Resolution::new(1044, 409);
+        let decoder_options = DecoderOptions::new_fast();
+        let config = MJpegConfig {
+            resolution,
+            decoder_options,
+        };
+
+        let decode_buffer = FrameBuffer::from(data);
+
+        let mut decoder = MJpegDecoder::new(config);
+        let out = decoder.decode::<Rgb<u8>>(decode_buffer).unwrap();
+
+        assert_eq!(out.as_raw(), test_image.as_raw());
     }
 }

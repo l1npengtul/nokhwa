@@ -1,11 +1,11 @@
 use crate::error::NokhwaError;
 use crate::frame_buffer::FrameBuffer;
 use crate::image::{DecodedImage, NonFloatScalarWidth};
-use crate::types::{Resolution};
+use crate::pixel_destination::PixelDestination;
+use crate::types::Resolution;
+use bytemuck::try_cast_slice_mut;
 pub use image::{ImageBuffer, Pixel, Primitive};
 use std::fmt::Debug;
-use bytemuck::try_cast_slice_mut;
-use crate::pixel_destination::PixelDestination;
 
 pub trait Decoder {
     type Config: Clone + Debug + ConfigHasResolution;
@@ -23,14 +23,25 @@ pub trait Decoder {
         destination_format: PixelDestination,
     ) -> Result<Self::OutputMeta, NokhwaError>;
 
-    fn decode_to_pixel_buffer<P: Pixel>(&mut self, to_decode: FrameBuffer, mut buffer: impl AsMut<[P::Subpixel]>) -> Result<Self::OutputMeta, NokhwaError>
+    fn decode_to_pixel_buffer<P: Pixel>(
+        &mut self,
+        to_decode: FrameBuffer,
+        mut buffer: impl AsMut<[P::Subpixel]>,
+    ) -> Result<Self::OutputMeta, NokhwaError>
     where
-        <P as Pixel>::Subpixel: NonFloatScalarWidth
+        <P as Pixel>::Subpixel: NonFloatScalarWidth,
     {
-        let Some(destination) = PixelDestination::get_by_pixel::<P>() else { return Err(NokhwaError::DecoderUnknownDestinationPixelFormat(P::COLOR_MODEL, P::Subpixel::WIDTH_BYTES)) };
+        let Some(destination) = PixelDestination::get_by_pixel::<P>() else {
+            return Err(NokhwaError::DecoderUnknownDestinationPixelFormat(
+                P::COLOR_MODEL,
+                P::Subpixel::WIDTH_BYTES,
+            ));
+        };
 
         if !Self::supports_destination(destination) {
-            return Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(destination))
+            return Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(
+                destination,
+            ));
         }
 
         let buffer = buffer.as_mut();
@@ -52,28 +63,35 @@ pub trait Decoder {
         let mut out_buffer: Vec<P::Subpixel> = vec![P::Subpixel::DEFAULT_MIN_VALUE; min_size_alloc];
         let meta = self.decode_to_pixel_buffer::<P>(to_decode, &mut out_buffer)?;
         Ok(DecodedImage::new(
-            ImageBuffer::from_vec(
-                resolution.width(),
-                resolution.height(),
-                out_buffer,
-            )
-                .ok_or(NokhwaError::Decoder(
-                    "failed to convert into an image buffer".to_string(),
-                ))?,
+            ImageBuffer::from_vec(resolution.width(), resolution.height(), out_buffer).ok_or(
+                NokhwaError::Decoder("failed to convert into an image buffer".to_string()),
+            )?,
             meta,
         ))
     }
-    
-    fn output_decoder_min_size_pixel<P>(&self, resolution: Resolution) -> Result<usize, NokhwaError> where
-        P: Pixel,
-        <P as Pixel>::Subpixel: NonFloatScalarWidth {
-        PixelDestination::get_by_pixel::<P>().map(|dest| self.output_decoder_min_size(resolution, dest)).ok_or(NokhwaError::DecoderUnknownDestinationPixelFormat(P::COLOR_MODEL, P::Subpixel::WIDTH_BYTES))?
 
+    fn output_decoder_min_size_pixel<P>(&self, resolution: Resolution) -> Result<usize, NokhwaError>
+    where
+        P: Pixel,
+        <P as Pixel>::Subpixel: NonFloatScalarWidth,
+    {
+        PixelDestination::get_by_pixel::<P>()
+            .map(|dest| self.output_decoder_min_size(resolution, dest))
+            .ok_or(NokhwaError::DecoderUnknownDestinationPixelFormat(
+                P::COLOR_MODEL,
+                P::Subpixel::WIDTH_BYTES,
+            ))?
     }
-    
-    fn output_decoder_min_size(&self, resolution: Resolution, destination_format: PixelDestination) -> Result<usize, NokhwaError> {
+
+    fn output_decoder_min_size(
+        &self,
+        resolution: Resolution,
+        destination_format: PixelDestination,
+    ) -> Result<usize, NokhwaError> {
         if !Self::supports_destination(destination_format) {
-            return Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(destination_format))
+            return Err(NokhwaError::DecoderUnsupportedDestinationPixelFormat(
+                destination_format,
+            ));
         }
 
         let px_size = match destination_format {
@@ -83,7 +101,7 @@ pub trait Decoder {
             PixelDestination::Rgba16 | PixelDestination::Bgra16 => 4_u32 * 2_u32,
             PixelDestination::Luma8 => 1_u32,
             PixelDestination::LumaA8 | PixelDestination::Luma16 => 2_u32,
-            };
+        };
         let reso = resolution.width() * resolution.height();
         Ok((reso as usize) * (px_size as usize))
     }
