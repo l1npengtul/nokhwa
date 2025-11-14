@@ -5,3 +5,13 @@ ffmpeg -s 1024x1520 -pix_fmt nv12 -i crimeandsekai.yuv -f image2 -pix_fmt rgb24 
 
 
 AYUV will fail on BE machines :D
+
+ffmpeg -i input.mp4 -c:v libx265 -vtag hvc1 output.mp4
+
+
+ffmpeg -i in.mkv -c:v copy -bsf hevc_mp4toannexb out.h265
+ffmpeg -i in.mkv -c:v copy -bsf h264_mp4toannexb out.h264
+
+
+ffmpeg -i input.mkv -pix_fmt yuv420p10le -f yuv4mpegpipe -strict -1 - | SvtAv1EncApp -i stdin --preset 2 --keyint 240
+--input-depth 10 --crf 30 --film-grain 20 --output test.ivf

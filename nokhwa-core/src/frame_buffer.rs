@@ -90,9 +90,29 @@ pub struct FrameBuffer<'a> {
 impl<'a> FrameBuffer<'a> {
     /// Creates a new buffer with a [`&[u8]`].
     #[must_use]
-    #[inline]
     pub fn new(buffer: Cow<'a, [u8]>, metadata: Option<Metadata>) -> Self {
         Self { buffer, metadata }
+    }
+
+    #[must_use]
+    pub fn from_buffer(buffer: &'a [u8], metadata: Option<Metadata>) -> Self {
+        FrameBuffer {
+            buffer: Cow::Borrowed(buffer),
+            metadata,
+        }
+    }
+
+    #[must_use]
+    pub fn from_cow(buffer: Cow<'a, [u8]>, metadata: Option<Metadata>) -> Self {
+        FrameBuffer { buffer, metadata }
+    }
+
+    #[must_use]
+    pub fn from_vec(buffer: Vec<u8>, metadata: Option<Metadata>) -> Self {
+        FrameBuffer {
+            buffer: Cow::Owned(buffer),
+            metadata,
+        }
     }
 
     /// Get the data of this buffer.
@@ -147,22 +167,28 @@ impl Deref for FrameBuffer<'_> {
     }
 }
 
-impl From<Vec<u8>> for FrameBuffer<'_> {
-    fn from(value: Vec<u8>) -> Self {
-        let buffer = Cow::Owned(value);
-
+impl<'a> From<&'a [u8]> for FrameBuffer<'a> {
+    fn from(value: &'a [u8]) -> Self {
         FrameBuffer {
-            buffer,
+            buffer: Cow::Borrowed(value),
             metadata: None,
         }
     }
 }
 
-impl<'a> From<&'a [u8]> for FrameBuffer<'a> {
-    fn from(value: &'a [u8]) -> Self {
-        let buffer = Cow::Borrowed(value);
+impl From<Vec<u8>> for FrameBuffer<'static> {
+    fn from(value: Vec<u8>) -> Self {
         FrameBuffer {
-            buffer,
+            buffer: Cow::Owned(value),
+            metadata: None,
+        }
+    }
+}
+
+impl<'a> From<Cow<'a, [u8]>> for FrameBuffer<'a> {
+    fn from(value: Cow<'a, [u8]>) -> Self {
+        FrameBuffer {
+            buffer: value,
             metadata: None,
         }
     }

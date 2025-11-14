@@ -3,8 +3,8 @@ use ffmpeg_the_third::codec::{Context, Id};
 use ffmpeg_the_third::color::{Range, Space};
 use ffmpeg_the_third::decoder::{Video, find};
 use ffmpeg_the_third::ffi::{
-    AVCodecID, AVCodecParameters, AVPacketSideData, AVPixelFormat, av_frame_alloc,
-    av_image_fill_arrays, av_packet_side_data_free, avcodec_parameters_alloc,
+    AVCodecID, AVCodecParameters, AVMediaType, AVPacketSideData, AVPixelFormat, AVRational,
+    av_frame_alloc, av_image_fill_arrays, av_packet_side_data_free, avcodec_parameters_alloc,
     avcodec_parameters_free,
 };
 use ffmpeg_the_third::format::Pixel as FfmpegPixel;
@@ -53,8 +53,20 @@ fn create_video(config: &FfmpegConfig) -> Result<Video, NokhwaError> {
             ))
         })?;
 
+    let frame_rate = AVRational {
+        num: config.frame_rate.numerator(),
+        den: config.frame_rate.denominator(),
+    };
+    let codec_i32 = unsafe { transmute::<AVCodecID, i32>(AVCodecID::from(id)) };
+    let intermediate_config = IntermediateDecoderConfig {
+        config: config.ffmpeg_codec_low_level.clone(),
+        resolution: config.resolution,
+        frame_rate,
+        format: codec_i32,
+    };
+
     video
-        .set_parameters(config.ffmpeg_codec_low_level.clone())
+        .set_parameters(intermediate_config)
         .map_err(|why| NokhwaError::DecoderInvalidConfiguration(why.to_string()))?;
 
     let threading_kind = config.parallelism.behavior;
@@ -120,12 +132,8 @@ pub struct FfmpegOutputMeta<'a> {
     pub timestamp: Option<i64>,
     pub pts: Option<i64>,
 
-    pub is_key: bool,
     pub is_corrupt: bool,
     pub is_empty: bool,
-    pub is_top_first: bool,
-    pub is_interlaced: bool,
-    pub has_palatte_changed: bool,
 
     pub color_space: Space,
     pub color_range: Range,
@@ -144,19 +152,25 @@ pub struct FfmpegDecoder {
     decoder: Video,
     sws: ScalerContext,
     config: FfmpegConfig,
-    last_used_format: FfmpegPixel,
+    last_used_out_format: FfmpegPixel,
+    last_used_in_format: FfmpegPixel,
 }
 
 impl FfmpegDecoder {
     pub fn new(config: FfmpegConfig) -> Result<Self, NokhwaError> {
         let decoder = create_video(&config)?;
-        let sws = create_sws(&config, decoder.format(), decoder.format())?;
-        let last_used_format = decoder.format();
+        let last_used_in_format = match decoder.format() {
+            FfmpegPixel::None => FfmpegPixel::RGB24,
+            px => px,
+        };
+        let last_used_out_format = FfmpegPixel::RGB24;
+        let sws = create_sws(&config, last_used_in_format, last_used_out_format)?;
         Ok(FfmpegDecoder {
             decoder,
             sws,
             config,
-            last_used_format,
+            last_used_out_format,
+            last_used_in_format,
         })
     }
 
@@ -187,8 +201,12 @@ impl Decoder for FfmpegDecoder {
 
     fn set_config(&mut self, config: Self::Config) -> Result<(), NokhwaError> {
         self.decoder = create_video(&config)?;
-        self.sws = create_sws(&config, self.decoder.format(), self.last_used_format)?;
-
+        let last_used_in_format = match self.decoder.format() {
+            FfmpegPixel::None => FfmpegPixel::RGB24,
+            px => px,
+        };
+        self.sws = create_sws(&config, last_used_in_format, self.last_used_out_format)?;
+        self.last_used_in_format = last_used_in_format;
         self.config = config;
         Ok(())
     }
@@ -202,9 +220,6 @@ impl Decoder for FfmpegDecoder {
         let buffer = buffer.as_mut();
 
         let dest_as_ffmpeg = convert_destination_pixel_format_to_av_pxfmt(destination_format);
-        if self.last_used_format != dest_as_ffmpeg {
-            self.sws = create_sws(&self.config, self.decoder.format(), self.last_used_format)?;
-        }
 
         let packet = Packet::borrow(to_decode.buffer());
         self.decoder
@@ -216,9 +231,14 @@ impl Decoder for FfmpegDecoder {
             self.decoder.width(),
             self.decoder.width(),
         );
-        self.decoder
-            .receive_frame(&mut frame)
-            .map_err(|why| NokhwaError::Decoder(why.to_string()))?;
+
+        if let Err(why) = self.decoder.receive_frame(&mut frame) {
+            if let ffmpeg_the_third::util::error::Error::Other { errno: 11 } = why {
+                return Err(NokhwaError::DecoderNeedsMoreData(why.to_string()));
+            } else {
+                return Err(NokhwaError::Decoder(why.to_string()));
+            }
+        }
 
         let receiver_avframe = unsafe { av_frame_alloc() };
         let dest_resolution = self
@@ -226,10 +246,10 @@ impl Decoder for FfmpegDecoder {
             .ffmpeg_scaler_low_level
             .destionation_resolution
             .unwrap_or(self.config.resolution);
+        let av_pixel_format: AVPixelFormat = dest_as_ffmpeg.into();
         unsafe {
             (*receiver_avframe).width = dest_resolution.width() as i32;
             (*receiver_avframe).height = dest_resolution.height() as i32;
-            let av_pixel_format: AVPixelFormat = dest_as_ffmpeg.into();
             (*receiver_avframe).format = av_pixel_format as i32;
         }
         let imgbuf = unsafe {
@@ -237,7 +257,7 @@ impl Decoder for FfmpegDecoder {
                 (&mut (*receiver_avframe).data) as *mut *mut u8,
                 (&mut (*receiver_avframe).linesize) as *mut i32,
                 buffer.as_ptr(),
-                self.decoder.format().into(),
+                av_pixel_format,
                 dest_resolution.width() as i32,
                 dest_resolution.height() as i32,
                 1,
@@ -250,19 +270,31 @@ impl Decoder for FfmpegDecoder {
         }
         let mut receiver_frame = unsafe { frame::Video::wrap(receiver_avframe) };
 
+        // remake swscontext in case we are being gooned
+        let new_in_format = match frame.format() {
+            FfmpegPixel::None => {
+                return Err(NokhwaError::Decoder(
+                    "Received None format from ffmpeg buffer. Invalid - cannot use sws".to_string(),
+                ));
+            }
+            fmt => fmt,
+        };
+
+        if new_in_format != self.last_used_in_format
+            || receiver_frame.format() != self.last_used_out_format
+        {
+            self.sws = create_sws(&self.config, new_in_format, receiver_frame.format())?;
+            self.last_used_in_format = new_in_format;
+            self.last_used_out_format = receiver_frame.format();
+        }
         self.sws
             .run(&frame, &mut receiver_frame)
             .map_err(|why| NokhwaError::Decoder(why.to_string()))?;
-
         let metadata = receiver_frame.metadata().to_owned();
         let timestamp = receiver_frame.timestamp();
         let pts = receiver_frame.pts();
-        let is_key = receiver_frame.is_key();
         let is_corrupt = receiver_frame.is_corrupt();
         let is_empty = unsafe { receiver_frame.is_empty() };
-        let is_top_first = receiver_frame.is_top_first();
-        let is_interlaced = receiver_frame.is_interlaced();
-        let has_palatte_changed = receiver_frame.has_palette_changed();
         let color_space = receiver_frame.color_space();
         let color_range = receiver_frame.color_range();
         let color_primaries = receiver_frame.color_primaries();
@@ -278,12 +310,8 @@ impl Decoder for FfmpegDecoder {
             metadata,
             timestamp,
             pts,
-            is_key,
             is_corrupt,
             is_empty,
-            is_top_first,
-            is_interlaced,
-            has_palatte_changed,
             color_space,
             color_range,
             color_primaries,
@@ -408,6 +436,7 @@ where
 
 #[derive(Clone, Debug, Default)]
 pub struct FfmpegDecoderConfig {
+    pub codec_tag: Option<u32>,
     pub bit_rate: Option<i64>,
     pub profile: Option<i32>,
     pub level: Option<i32>,
@@ -425,53 +454,71 @@ pub struct FfmpegDecoderConfig {
     pub extra_data: Option<SideData<u8>>,
 }
 
-impl AsPtr<AVCodecParameters> for FfmpegDecoderConfig {
+#[derive(Clone, Debug)]
+struct IntermediateDecoderConfig {
+    pub(crate) config: FfmpegDecoderConfig,
+    pub(crate) resolution: Resolution,
+    pub(crate) frame_rate: AVRational,
+    pub(crate) format: i32,
+}
+
+impl AsPtr<AVCodecParameters> for IntermediateDecoderConfig {
     fn as_ptr(&self) -> *const AVCodecParameters {
         let parameters = unsafe { avcodec_parameters_alloc() };
 
         unsafe {
-            if let Some(bit_rate) = self.bit_rate {
+            (*parameters).width = self.resolution.width() as i32;
+            (*parameters).height = self.resolution.height() as i32;
+            (*parameters).format = self.format;
+            (*parameters).codec_type = AVMediaType::AVMEDIA_TYPE_VIDEO;
+            (*parameters).framerate = self.frame_rate;
+
+            if let Some(codec_tag) = self.config.codec_tag {
+                (*parameters).codec_tag = codec_tag;
+            }
+
+            if let Some(bit_rate) = self.config.bit_rate {
                 (*parameters).bit_rate = bit_rate;
             }
 
-            if let Some(profile) = self.profile {
+            if let Some(profile) = self.config.profile {
                 (*parameters).profile = profile;
             }
 
-            if let Some(level) = self.level {
+            if let Some(level) = self.config.level {
                 (*parameters).level = level;
             }
 
-            if let Some(aspect_ratio) = self.aspect_ratio {
+            if let Some(aspect_ratio) = self.config.aspect_ratio {
                 (*parameters).sample_aspect_ratio = aspect_ratio.into();
             }
 
-            if let Some(field_order) = self.field_order {
+            if let Some(field_order) = self.config.field_order {
                 (*parameters).field_order = field_order.into();
             }
 
-            if let Some(color_range) = self.color_range {
+            if let Some(color_range) = self.config.color_range {
                 (*parameters).color_range = color_range.into();
             }
 
-            if let Some(color_primaries) = self.color_primaries {
+            if let Some(color_primaries) = self.config.color_primaries {
                 (*parameters).color_primaries = color_primaries.into();
             }
 
-            if let Some(color_transfer) = self.color_transfer_characteristics {
+            if let Some(color_transfer) = self.config.color_transfer_characteristics {
                 (*parameters).color_trc = color_transfer.into();
             }
 
-            if let Some(chroma_location) = self.chroma_location {
+            if let Some(chroma_location) = self.config.chroma_location {
                 (*parameters).chroma_location = chroma_location.into();
             }
 
-            if let Some(coded_side_data) = self.coded_side_data {
+            if let Some(coded_side_data) = self.config.coded_side_data {
                 (*parameters).coded_side_data = coded_side_data.pointer.as_ptr();
                 (*parameters).nb_coded_side_data = coded_side_data.length as i32;
             }
 
-            if let Some(extra_data) = self.extra_data {
+            if let Some(extra_data) = self.config.extra_data {
                 (*parameters).extradata = extra_data.pointer.as_ptr();
                 (*parameters).extradata_size = extra_data.length as i32;
             }
@@ -604,4 +651,146 @@ const fn is_little_endian() -> bool {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use ffmpeg_the_third::{codec::Context, format::input, media::Type, threading::Config};
+    use image::{ImageFormat, Rgb};
+    use nokhwa_core::{
+        decoder::Decoder,
+        frame_buffer::FrameBuffer,
+        frame_format::FrameFormat,
+        types::{FrameRate, Resolution},
+    };
+
+    use crate::ffmpeg::{
+        FfmpegConfig, FfmpegDecoder, FfmpegDecoderConfig, FfmpegScalerConfig, Parallelism,
+    };
+
+    #[test]
+    pub fn test_h264() {
+        ffmpeg_the_third::init().unwrap();
+
+        let file = "test_images/ffmpeg/h264/test.h264";
+        let output_dir = "test_images/ffmpeg/h264/out";
+
+        let decoder_cfg = FfmpegConfig {
+            custom_frame_format_map: None,
+            frame_format: FrameFormat::AVC1,
+            resolution: Resolution::new(498, 348),
+            frame_rate: FrameRate::from_fps(30),
+            parallelism: Parallelism::default(),
+            ffmpeg_codec_low_level: FfmpegDecoderConfig::default(),
+            ffmpeg_scaler_low_level: FfmpegScalerConfig::default(),
+            side_data_check_list: Vec::default(),
+        };
+
+        let mut decoder = FfmpegDecoder::new(decoder_cfg).unwrap();
+
+        let mut ictx = input(file).unwrap();
+        for maybe_frame in ictx.packets() {
+            let (_stream, packet) = maybe_frame.unwrap();
+            let decoded =
+                decoder.decode::<Rgb<u8>>(FrameBuffer::from_buffer(packet.data().unwrap(), None));
+            match decoded {
+                Ok(decoded) => {
+                    let index = packet.position();
+                    decoded
+                        .save_with_format(format!("{output_dir}/{index}.png"), ImageFormat::Png)
+                        .unwrap();
+                }
+                Err(why) => {
+                    if why.is_needs_more() {
+                        continue;
+                    } else {
+                        panic!("aaa {why}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_h265() {
+        ffmpeg_the_third::init().unwrap();
+
+        let file = "test_images/ffmpeg/h265/out.h265";
+        let output_dir = "test_images/ffmpeg/h265/out";
+
+        let decoder_cfg = FfmpegConfig {
+            custom_frame_format_map: None,
+            frame_format: FrameFormat::H265,
+            resolution: Resolution::new(498, 348),
+            frame_rate: FrameRate::from_fps(30),
+            parallelism: Parallelism::default(),
+            ffmpeg_codec_low_level: FfmpegDecoderConfig::default(),
+            ffmpeg_scaler_low_level: FfmpegScalerConfig::default(),
+            side_data_check_list: Vec::default(),
+        };
+
+        let mut decoder = FfmpegDecoder::new(decoder_cfg).unwrap();
+
+        let mut ictx = input(file).unwrap();
+        for maybe_frame in ictx.packets() {
+            let (_stream, packet) = maybe_frame.unwrap();
+            let decoded =
+                decoder.decode::<Rgb<u8>>(FrameBuffer::from_buffer(packet.data().unwrap(), None));
+            match decoded {
+                Ok(decoded) => {
+                    let index = packet.position();
+                    decoded
+                        .save_with_format(format!("{output_dir}/{index}.png"), ImageFormat::Png)
+                        .unwrap();
+                }
+                Err(why) => {
+                    if why.is_needs_more() {
+                        continue;
+                    } else {
+                        panic!("aaa {why}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_av1() {
+        ffmpeg_the_third::init().unwrap();
+
+        let file = "test_images/ffmpeg/av1/test.ivf";
+        let output_dir = "test_images/ffmpeg/av1/out";
+
+        let decoder_cfg = FfmpegConfig {
+            custom_frame_format_map: None,
+            frame_format: FrameFormat::AV1,
+            resolution: Resolution::new(320, 320),
+            frame_rate: FrameRate::from_fps(10),
+            parallelism: Parallelism::default(),
+            ffmpeg_codec_low_level: FfmpegDecoderConfig::default(),
+            ffmpeg_scaler_low_level: FfmpegScalerConfig::default(),
+            side_data_check_list: Vec::default(),
+        };
+
+        let mut decoder = FfmpegDecoder::new(decoder_cfg).unwrap();
+
+        let mut ictx = input(file).unwrap();
+        for maybe_frame in ictx.packets() {
+            let (_stream, packet) = maybe_frame.unwrap();
+            let decoded =
+                decoder.decode::<Rgb<u8>>(FrameBuffer::from_buffer(packet.data().unwrap(), None));
+            match decoded {
+                Ok(decoded) => {
+                    let index = packet.position();
+                    decoded
+                        .save_with_format(format!("{output_dir}/{index}.png"), ImageFormat::Png)
+                        .unwrap();
+                }
+                Err(why) => {
+                    if why.is_needs_more() {
+                        continue;
+                    } else {
+                        panic!("aaa {why}");
+                    }
+                }
+            }
+        }
+    }
+}

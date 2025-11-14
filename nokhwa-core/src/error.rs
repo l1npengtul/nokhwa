@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 use crate::frame_format::{CustomFrameFormat, FrameFormat};
-use std::fmt::Debug;
-use thiserror::Error;
 use crate::pixel_destination::PixelDestination;
 use crate::types::Backends;
+use std::fmt::Debug;
+use thiserror::Error;
 
 pub type NokhwaResult<T> = Result<T, NokhwaError>;
 
@@ -85,7 +85,19 @@ pub enum NokhwaError {
     DecoderDestinationHintRequired,
     #[error("Decoder already deinitialized. Unusable, please make a new decoder.")]
     DecoderAlreadyDeinitialized,
+    #[error(
+        "Decoder requires more data to process - not actual error - please send more data to decode: {0}"
+    )]
+    DecoderNeedsMoreData(String),
 }
+
+impl NokhwaError {
+    #[must_use]
+    pub fn is_needs_more(&self) -> bool {
+        matches!(self, NokhwaError::DecoderNeedsMoreData(_))
+    }
+}
+
 //
 // pub enum InitializeError {}
 //

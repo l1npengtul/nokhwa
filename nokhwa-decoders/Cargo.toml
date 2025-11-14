@@ -1,14 +1,14 @@
 [package]
-name    = "nokhwa-decoders"
+name = "nokhwa-decoders"
 version = "0.1.0"
 edition = "2024"
 
 [features]
-ffmpeg = [ "ffmpeg-the-third" ]
-yuyv   = [ "dcv-color-primitives", "yuv" ]
-mjpeg  = [ "zune-jpeg", "zune-core" ]
-luma   = [ "nokhwa-iter-extensions", "itermore" ]
-# static = ["ffmpeg-the-third/static"]
+ffmpeg = ["ffmpeg-the-third"]
+yuyv = ["dcv-color-primitives", "yuv"]
+mjpeg = ["zune-jpeg", "zune-core"]
+luma = ["nokhwa-iter-extensions", "itermore"]
+static = ["ffmpeg-the-third/static"]
 #async = []
 
 [dependencies]
@@ -16,38 +16,38 @@ bytemuck = "1.23"
 
 [dependencies.nokhwa-core]
 version = "0.2"
-path    = "../nokhwa-core"
+path = "../nokhwa-core"
 
 [dependencies.ffmpeg-the-third]
-version  = "4.0.0"
+version = "4.0.0"
 optional = true
 
 [dependencies.yuv]
-version  = "0.8"
+version = "0.8"
 optional = true
 
 [dependencies.dcv-color-primitives]
-version  = "0.7"
+version = "0.7"
 optional = true
 
 [dependencies.zune-jpeg]
-version  = "0.5.0-rc9"
+version = "0.5.0-rc9"
 optional = true
 
 [dependencies.zune-core]
-version  = "0.5.0-rc2"
+version = "0.5.0-rc2"
 optional = true
 
 [dependencies.itermore]
-version  = "0.8"
-features = [ "array_chunks" ]
+version = "0.8"
+features = ["array_chunks"]
 optional = true
 
 [dependencies.nokhwa-iter-extensions]
-version  = "0.1"
-path     = "../nokhwa-iter-extensions"
+version = "0.1"
+path = "../nokhwa-iter-extensions"
 optional = true
 
 [dev-dependencies.image]
 workspace = true
-features  = [ "png", "jpeg", "avif" ]
+features = ["png", "jpeg", "avif"]

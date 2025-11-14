@@ -47,7 +47,7 @@ pub trait CodecAsync: Codec {
     async fn set_format_async(&self, format: CameraFormat) -> Result<(), NokhwaError>;
 
     fn set_config_async(&mut self, config: Self::Config) -> Result<(), NokhwaError> {
-        self.set_config(config)
+        self.set_config(&config)
     }
 
     fn send_item_async(&mut self, input: Self::Input<'_>) -> Result<(), NokhwaError>;
