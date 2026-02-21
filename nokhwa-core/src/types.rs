@@ -300,6 +300,7 @@ pub enum FrameFormat {
     GRAY,
     RAWRGB,
     RAWBGR,
+    H264,
 }
 
 impl Display for FrameFormat {
@@ -323,6 +324,9 @@ impl Display for FrameFormat {
             FrameFormat::NV12 => {
                 write!(f, "NV12")
             }
+            FrameFormat::H264 => {
+                write!(f, "H264")
+            }
         }
     }
 }
@@ -337,6 +341,7 @@ impl FromStr for FrameFormat {
             "RAWRGB" => Ok(FrameFormat::RAWRGB),
             "RAWBGR" => Ok(FrameFormat::RAWBGR),
             "NV12" => Ok(FrameFormat::NV12),
+            "H264" => Ok(FrameFormat::H264),
             _ => Err(NokhwaError::StructureError {
                 structure: "FrameFormat".to_string(),
                 error: format!("No match for {s}"),
@@ -362,8 +367,8 @@ pub const fn frame_formats() -> &'static [FrameFormat] {
 #[must_use]
 pub const fn color_frame_formats() -> &'static [FrameFormat] {
     &[
-        FrameFormat::MJPEG,
         FrameFormat::YUYV,
+        FrameFormat::MJPEG,
         FrameFormat::NV12,
         FrameFormat::RAWRGB,
         FrameFormat::RAWBGR,
@@ -1700,13 +1705,39 @@ pub fn buf_yuyv422_to_rgb(data: &[u8], dest: &mut [u8], rgba: bool) -> Result<()
 #[allow(clippy::cast_sign_loss)]
 #[must_use]
 #[inline]
+// Older nokhwa code before their partial fix:
+//
+// pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
+//     let c298 = (y - 16) * 298;
+//     let d = u - 128;
+//     let e = v - 128;
+//     let r = ((c298 + 409 * e + 128) >> 8) as u8;
+//     let g = ((c298 - 100 * d - 208 * e + 128) >> 8) as u8;
+//     let b = ((c298 + 516 * d + 128) >> 8) as u8;
+//     [r, g, b]
+// }
+// pub fn yuyv444_to_rgb1(y: i32, u: i32, v: i32) -> [u8; 3] {
+//     let y = f64::from(y);
+//     let u = f64::from(u - 128);
+//     let v = f64::from(v - 128);
+//     let r = (y + 1.402 * v).clamp(0.0, 255.0) as u8;
+//     let g = (y - 0.344_136 * u - 0.714_136 * v).clamp(0.0, 255.0) as u8;
+//     let b = (y + 1.772 * u).clamp(0.0, 255.0) as u8;
+//     // let c298 = (y - 16) * 298;
+//     // let d = u - 128;--
+//     // let e = v - 128;
+//     // let r = ((c298 + 409 * e + 128) >> 8) as u8;
+//     // let g = ((c298 - 100 * d - 208 * e + 128) >> 8) as u8;
+//     // let b = ((c298 + 516 * d + 128) >> 8) as u8;
+//     [r, g, b]
+// }
 pub fn yuyv444_to_rgb(y: i32, u: i32, v: i32) -> [u8; 3] {
-    let c298 = (y - 16) * 298;
-    let d = u - 128;
-    let e = v - 128;
-    let r = ((c298 + 409 * e + 128) >> 8).clamp(0, 255) as u8;
-    let g = ((c298 - 100 * d - 208 * e + 128) >> 8).clamp(0, 255) as u8;
-    let b = ((c298 + 516 * d + 128) >> 8).clamp(0, 255) as u8;
+    let y = y * 256;
+    let u = u - 128;
+    let v = v - 128;
+    let r = ((y + 359 * v) >> 8).clamp(0, 255) as u8;
+    let g = ((y - 88 * u - 183 * v) >> 8).clamp(0, 255) as u8;
+    let b = ((y + 454 * u) >> 8).clamp(0, 255) as u8;
     [r, g, b]
 }
 
@@ -1872,4 +1903,31 @@ pub fn buf_bgr_to_rgb(
     }
 
     Ok(())
+}
+
+/// Converts H264 to RGBA8888 Stream
+/// # Errors
+/// This may error when the data stream size is wrong.
+#[inline]
+pub fn h264_to_rgb(
+    resolution: Resolution,
+    data: &[u8],
+    rgba: bool,
+) -> Result<Vec<u8>, NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "H264 support is not available yet".to_string(),
+    ))
+}
+
+#[allow(clippy::similar_names)]
+#[inline]
+pub fn buf_h264_to_rgb(
+    resolution: Resolution,
+    data: &[u8],
+    out: &mut [u8],
+    rgba: bool,
+) -> Result<(), NokhwaError> {
+    Err(NokhwaError::NotImplementedError(
+        "H264 support is not available yet".to_string(),
+    ))
 }

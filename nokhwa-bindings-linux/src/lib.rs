@@ -195,7 +195,7 @@ mod internal {
                     .windows(2)
                     .filter(|window| window[0].index == window[1].index)
                     .count(),
-                devices.len(),
+                0,
                 "Device list should not contain duplicate indexes"
             );
         }
@@ -299,6 +299,8 @@ mod internal {
                 }),
             }?;
 
+            log::debug!("frame_formats = {frame_formats:?}");
+
             for ff in frame_formats {
                 let framefmt = match fourcc_to_frameformat(ff) {
                     Some(s) => s,
@@ -362,6 +364,8 @@ mod internal {
                     .collect::<Vec<CameraFormat>>();
                 camera_formats.append(&mut formats);
             }
+
+            log::debug!("camera_formats = {camera_formats:?}");
 
             let format = cam_fmt
                 .fulfill(&camera_formats)
@@ -542,6 +546,7 @@ mod internal {
                 FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
                 FrameFormat::RAWBGR => FourCC::new(b"BGR3"),
                 FrameFormat::NV12 => FourCC::new(b"NV12"),
+                FrameFormat::H264 => FourCC::new(b"H264"),
             };
 
             let format = Format::new(new_fmt.width(), new_fmt.height(), v4l_fcc);
@@ -915,7 +920,11 @@ mod internal {
             "RGB3" => Some(FrameFormat::RAWRGB),
             "BGR3" => Some(FrameFormat::RAWBGR),
             "NV12" => Some(FrameFormat::NV12),
-            _ => None,
+            "H264" => Some(FrameFormat::H264),
+            x => {
+                log::debug!("fourcc_to_frameformat unrecoginized: {x}");
+                None
+            }
         }
     }
 
@@ -927,6 +936,7 @@ mod internal {
             FrameFormat::RAWRGB => FourCC::new(b"RGB3"),
             FrameFormat::RAWBGR => FourCC::new(b"BGR3"),
             FrameFormat::NV12 => FourCC::new(b"NV12"),
+            FrameFormat::H264 => FourCC::new(b"H264"),
         }
     }
 }

@@ -15,8 +15,9 @@
  */
 use crate::error::NokhwaError;
 use crate::types::{
-    buf_bgr_to_rgb, buf_mjpeg_to_rgb, buf_nv12_to_rgb, buf_yuyv422_to_rgb, color_frame_formats,
-    frame_formats, mjpeg_to_rgb, nv12_to_rgb, yuyv422_to_rgb, FrameFormat, Resolution,
+    buf_bgr_to_rgb, buf_h264_to_rgb, buf_mjpeg_to_rgb, buf_nv12_to_rgb, buf_yuyv422_to_rgb,
+    color_frame_formats, frame_formats, h264_to_rgb, mjpeg_to_rgb, nv12_to_rgb, yuyv422_to_rgb,
+    FrameFormat, Resolution,
 };
 use image::{Luma, LumaA, Pixel, Rgb, Rgba};
 use std::fmt::Debug;
@@ -87,6 +88,7 @@ impl FormatDecoder for RgbFormat {
                 Ok(rgb)
             }
             FrameFormat::NV12 => nv12_to_rgb(resolution, data, false),
+            FrameFormat::H264 => h264_to_rgb(resolution, data, false),
         }
     }
 
@@ -123,6 +125,7 @@ impl FormatDecoder for RgbFormat {
             }
             FrameFormat::RAWBGR => buf_bgr_to_rgb(resolution, data, dest),
             FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, false),
+            FrameFormat::H264 => buf_h264_to_rgb(resolution, data, dest, false),
         }
     }
 }
@@ -166,6 +169,9 @@ impl FormatDecoder for RgbAFormat {
                 .flat_map(|x| [x[2], x[1], x[0], 255])
                 .collect()),
             FrameFormat::NV12 => nv12_to_rgb(resolution, data, true),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 
@@ -219,6 +225,9 @@ impl FormatDecoder for RgbAFormat {
                 Ok(())
             }
             FrameFormat::NV12 => buf_nv12_to_rgb(resolution, data, dest, true),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 }
@@ -282,6 +291,9 @@ impl FormatDecoder for LumaFormat {
                 .chunks(3)
                 .map(|px| ((i32::from(px[2]) + i32::from(px[1]) + i32::from(px[0])) / 3) as u8)
                 .collect()),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 
@@ -317,6 +329,9 @@ impl FormatDecoder for LumaFormat {
                 destination: "BGR => Luma".to_string(),
                 error: "Conversion Error".to_string(),
             }),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 }
@@ -381,6 +396,9 @@ impl FormatDecoder for LumaAFormat {
                 destination: "BGR => LumaA".to_string(),
                 error: "Conversion Error".to_string(),
             }),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 
@@ -439,6 +457,9 @@ impl FormatDecoder for LumaAFormat {
                 destination: "BGR => LumaA".to_string(),
                 error: "Conversion Error".to_string(),
             }),
+            FrameFormat::H264 => Err(NokhwaError::NotImplementedError(
+                "H264 support is not available yet".to_string(),
+            )),
         }
     }
 }

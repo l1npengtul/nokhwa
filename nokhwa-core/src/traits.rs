@@ -178,6 +178,7 @@ pub trait CaptureBackendTrait {
             | FrameFormat::RAWBGR
             | FrameFormat::NV12 => 3,
             FrameFormat::GRAY => 1,
+            FrameFormat::H264 => todo!(),
         };
         if alpha {
             return (resolution.width() * resolution.height() * (pxwidth + 1)) as usize;
