@@ -877,12 +877,27 @@ mod internal {
 
         fn frame(&mut self) -> Result<Buffer, NokhwaError> {
             let cam_fmt = self.camera_format;
-            let raw_frame = self.frame_raw()?;
-            Ok(Buffer::new(
-                cam_fmt.resolution(),
-                &raw_frame,
-                cam_fmt.format(),
-            ))
+            match &mut self.stream_handle {
+                Some(sh) => match sh.next() {
+                    Ok((data, _meta)) => {
+                        // V4L2 meta.timestamp is CLOCK_MONOTONIC (not wallclock).
+                        // Sample wallclock at frame-receive time instead.
+                        let wall_ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .ok();
+                        Ok(Buffer::with_timestamp(
+                            cam_fmt.resolution(),
+                            data,
+                            cam_fmt.format(),
+                            wall_ts,
+                        ))
+                    }
+                    Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
+                },
+                None => Err(NokhwaError::ReadFrameError(
+                    "Stream Not Started".to_string(),
+                )),
+            }
         }
 
         fn frame_raw(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {

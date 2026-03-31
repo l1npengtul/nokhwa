@@ -32,7 +32,7 @@ use nokhwa_core::{
 #[cfg(target_os = "macos")]
 use nokhwa_core::{pixel_format::RgbFormat, types::RequestedFormatType};
 #[cfg(target_os = "macos")]
-use std::{ffi::CString, sync::Arc};
+use std::{ffi::CString, sync::Arc, time::Duration};
 
 use std::{borrow::Cow, collections::HashMap};
 
@@ -55,8 +55,8 @@ pub struct AVFoundationCaptureDevice {
     info: CameraInfo,
     buffer_name: CString,
     format: CameraFormat,
-    frame_buffer_receiver: Arc<Receiver<(Vec<u8>, FrameFormat)>>,
-    fbufsnd: Arc<Sender<(Vec<u8>, FrameFormat)>>,
+    frame_buffer_receiver: Arc<Receiver<(Vec<u8>, FrameFormat, Option<Duration>)>>,
+    fbufsnd: Arc<Sender<(Vec<u8>, FrameFormat, Option<Duration>)>>,
 }
 
 #[cfg(target_os = "macos")]
@@ -282,8 +282,11 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
     fn frame(&mut self) -> Result<Buffer, NokhwaError> {
         self.refresh_camera_format()?;
         let cfmt = self.camera_format();
-        let b = self.frame_raw()?;
-        let buffer = Buffer::new(cfmt.resolution(), b.as_ref(), cfmt.format());
+        let (bytes, _fmt, capture_ts) = self
+            .frame_buffer_receiver
+            .recv()
+            .map_err(|why| NokhwaError::ReadFrameError(why.to_string()))?;
+        let buffer = Buffer::with_timestamp(cfmt.resolution(), &bytes, cfmt.format(), capture_ts);
         let _ = self.frame_buffer_receiver.drain();
         Ok(buffer)
     }

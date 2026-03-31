@@ -244,15 +244,18 @@ impl CaptureBackendTrait for MediaFoundationCaptureDevice {
     fn frame(&mut self) -> Result<Buffer, NokhwaError> {
         self.refresh_camera_format()?;
         let self_ctrl = self.camera_format();
-        Ok(Buffer::new(
+        let (bytes, capture_ts) = self.inner.raw_bytes()?;
+        Ok(Buffer::with_timestamp(
             self_ctrl.resolution(),
-            &self.inner.raw_bytes()?,
+            &bytes,
             self_ctrl.format(),
+            capture_ts,
         ))
     }
 
     fn frame_raw(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
-        self.inner.raw_bytes()
+        let (bytes, _capture_ts) = self.inner.raw_bytes()?;
+        Ok(bytes)
     }
 
     fn stop_stream(&mut self) -> Result<(), NokhwaError> {

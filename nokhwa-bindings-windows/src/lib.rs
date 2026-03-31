@@ -45,6 +45,7 @@ pub mod wmf {
             atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
+        time::Duration,
     };
     use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
     use windows::Win32::Media::MediaFoundation::{
@@ -1129,7 +1130,7 @@ pub mod wmf {
             Ok(())
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
+        pub fn raw_bytes(&mut self) -> Result<(Cow<'_, [u8]>, Option<Duration>), NokhwaError> {
             let mut imf_sample: Option<IMFSample> = match unsafe { MFCreateSample() } {
                 Ok(sample) => Some(sample),
                 Err(why) => {
@@ -1166,6 +1167,12 @@ pub mod wmf {
                 }
             };
 
+            // MF sample time is relative to stream start (not wallclock).
+            // Sample wallclock at frame-receive time instead.
+            let capture_ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok();
+
             let buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
                 Ok(buf) => buf,
                 Err(why) => return Err(NokhwaError::ReadFrameError(why.to_string())),
@@ -1200,7 +1207,7 @@ pub mod wmf {
                 ) as &[u8]);
             }
 
-            Ok(Cow::from(data_slice))
+            Ok((Cow::from(data_slice), capture_ts))
         }
 
         pub fn stop_stream(&mut self) {
@@ -1242,7 +1249,7 @@ pub mod wmf {
         CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
         KnownCameraControl,
     };
-    use std::borrow::Cow;
+    use std::{borrow::Cow, time::Duration};
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(
@@ -1333,7 +1340,7 @@ pub mod wmf {
             ))
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
+        pub fn raw_bytes(&mut self) -> Result<(Cow<'_, [u8]>, Option<Duration>), NokhwaError> {
             Err(NokhwaError::NotImplementedError(
                 "Only on Windows".to_string(),
             ))
