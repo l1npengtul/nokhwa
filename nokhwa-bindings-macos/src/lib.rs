@@ -481,9 +481,7 @@ mod internal {
                             .ok()
                             .and_then(|wall_dur| wall_dur.checked_sub(age))
                     } else {
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .ok()
+                        None
                     }
                 };
 
