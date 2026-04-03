@@ -21,3 +21,4 @@ path    = "../nokhwa-core"
 
 [target.'cfg(target_os="linux")'.dependencies]
 v4l = { version = "0.14", features = [ "v4l2-sys" ] }
+libc = "0.2"

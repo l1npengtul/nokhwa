@@ -879,12 +879,8 @@ mod internal {
             let cam_fmt = self.camera_format;
             match &mut self.stream_handle {
                 Some(sh) => match sh.next() {
-                    Ok((data, _meta)) => {
-                        // V4L2 meta.timestamp is CLOCK_MONOTONIC (not wallclock).
-                        // Sample wallclock at frame-receive time instead.
-                        let wall_ts = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .ok();
+                    Ok((data, meta)) => {
+                        let wall_ts = monotonic_to_wallclock(meta.timestamp);
                         Ok(Buffer::with_timestamp(
                             cam_fmt.resolution(),
                             data,
@@ -941,6 +937,33 @@ mod internal {
             FrameFormat::RAWBGR => FourCC::new(b"BGR3"),
             FrameFormat::NV12 => FourCC::new(b"NV12"),
         }
+    }
+
+    /// Convert a V4L2 CLOCK_MONOTONIC timestamp to a wallclock Duration since UNIX_EPOCH.
+    fn monotonic_to_wallclock(ts: v4l::Timestamp) -> Option<std::time::Duration> {
+        let frame_mono = std::time::Duration::from(ts);
+
+        let mut mono_now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        let mut wall_now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        // SAFETY: passing valid pointers to kernel clock_gettime
+        unsafe {
+            libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut mono_now);
+            libc::clock_gettime(libc::CLOCK_REALTIME, &mut wall_now);
+        }
+        let mono_now =
+            std::time::Duration::new(mono_now.tv_sec as u64, mono_now.tv_nsec as u32);
+        let wall_now =
+            std::time::Duration::new(wall_now.tv_sec as u64, wall_now.tv_nsec as u32);
+
+        // frame_age = how long ago the frame was captured (monotonic delta)
+        let frame_age = mono_now.checked_sub(frame_mono)?;
+        wall_now.checked_sub(frame_age)
     }
 }
 
