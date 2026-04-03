@@ -942,6 +942,9 @@ mod internal {
     /// Convert a V4L2 CLOCK_MONOTONIC timestamp to a wallclock Duration since UNIX_EPOCH.
     fn monotonic_to_wallclock(ts: v4l::Timestamp) -> Option<std::time::Duration> {
         let frame_mono = std::time::Duration::from(ts);
+        if frame_mono.is_zero() {
+            return None;
+        }
 
         let mut mono_now = libc::timespec {
             tv_sec: 0,
