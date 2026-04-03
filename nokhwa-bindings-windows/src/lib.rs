@@ -411,6 +411,10 @@ pub mod wmf {
         device_specifier: CameraInfo,
         device_format: CameraFormat,
         source_reader: IMFSourceReader,
+        /// Wallclock instant captured when the stream was started.
+        /// MF sample timestamps are relative to stream start, so
+        /// `stream_epoch + sample_time` gives us an absolute wallclock.
+        stream_epoch: Option<Duration>,
     }
 
     impl MediaFoundationDevice {
@@ -495,6 +499,7 @@ pub mod wmf {
                         device_specifier: device_descriptor,
                         device_format: CameraFormat::default(),
                         source_reader,
+                        stream_epoch: None,
                     })
                 }
                 CameraIndex::String(s) => {
@@ -1126,6 +1131,9 @@ pub mod wmf {
                 return Err(NokhwaError::OpenStreamError(why.to_string()));
             }
 
+            self.stream_epoch = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok();
             self.is_open.set(true);
             Ok(())
         }
@@ -1138,6 +1146,7 @@ pub mod wmf {
                 }
             };
             let mut stream_flags = 0;
+            let mut sample_time_100ns: i64 = 0;
             {
                 loop {
                     if let Err(why) = unsafe {
@@ -1146,7 +1155,7 @@ pub mod wmf {
                             0,
                             None,
                             Some(&mut stream_flags),
-                            None,
+                            Some(&mut sample_time_100ns),
                             Some(&mut imf_sample),
                         )
                     } {
@@ -1167,11 +1176,14 @@ pub mod wmf {
                 }
             };
 
-            // MF sample time is relative to stream start (not wallclock).
-            // Sample wallclock at frame-receive time instead.
-            let capture_ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .ok();
+            // Calculate absolute capture timestamp.
+            let capture_ts = if sample_time_100ns > 0 {
+                let sample_offset = Duration::from_nanos(sample_time_100ns as u64 * 100);
+                self.stream_epoch
+                    .and_then(|epoch| epoch.checked_add(sample_offset))
+            } else {
+                None
+            };
 
             let buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
                 Ok(buf) => buf,
@@ -1211,6 +1223,7 @@ pub mod wmf {
         }
 
         pub fn stop_stream(&mut self) {
+            self.stream_epoch = None;
             self.is_open.set(false);
         }
     }
