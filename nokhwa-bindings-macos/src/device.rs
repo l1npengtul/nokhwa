@@ -1,4 +1,4 @@
-// AVCaptureDevice and related types
+//! AVCaptureDevice and related types.
 
 use block::ConcreteBlock;
 use cocoa_foundation::base::Nil;
@@ -36,51 +36,6 @@ use crate::CGFloat;
 
 pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
 pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
-
-macro_rules! create_boilerplate_impl {
-    {
-        $( [$class_vis:vis $class_name:ident : $( {$field_vis:vis $field_name:ident : $field_type:ty} ),*] ),+
-    } => {
-        $(
-            $class_vis struct $class_name {
-                inner: *mut Object,
-                $(
-                    $field_vis $field_name : $field_type
-                )*
-            }
-
-            impl $class_name {
-                pub fn inner(&self) -> *mut Object {
-                    self.inner
-                }
-            }
-        )+
-    };
-
-    {
-        $( [$class_vis:vis $class_name:ident ] ),+
-    } => {
-        $(
-            $class_vis struct $class_name {
-                inner: *mut Object,
-            }
-
-            impl $class_name {
-                pub fn inner(&self) -> *mut Object {
-                    self.inner
-                }
-            }
-
-            impl From<*mut Object> for $class_name {
-                fn from(obj: *mut Object) -> Self {
-                    $class_name {
-                        inner: obj,
-                    }
-                }
-            }
-        )+
-    };
-}
 
 pub fn request_permission_with_callback(callback: impl Fn(bool) + Send + Sync + 'static) {
     let cls = class!(AVCaptureDevice);

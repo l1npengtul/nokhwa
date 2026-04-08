@@ -1,4 +1,4 @@
-// Format conversion helpers
+//! Format conversion helpers.
 
 use cocoa_foundation::foundation::{NSArray, NSString};
 use core_media_sys::{

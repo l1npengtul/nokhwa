@@ -1,4 +1,4 @@
-// Callback implementation (CALLBACK_CLASS, capture_out_callback, ObjC class registration)
+//! Callback implementation: CALLBACK_CLASS, capture_out_callback, and ObjC class registration.
 
 use core_media_sys::CMSampleBufferRef;
 use flume::Sender;

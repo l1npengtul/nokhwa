@@ -1,4 +1,4 @@
-// FFI declarations (extern C blocks, framework links, type aliases, constants)
+//! FFI declarations: extern C blocks, framework links, type aliases, and constants.
 
 use core_media_sys::{
     CMBlockBufferRef, CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,

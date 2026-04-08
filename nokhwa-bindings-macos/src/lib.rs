@@ -35,15 +35,66 @@ const UTF8_ENCODING: usize = 4;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 type CGFloat = c_float;
 
+/// Shared boilerplate macro for ObjC wrapper structs.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+macro_rules! create_boilerplate_impl {
+    {
+        $( [$class_vis:vis $class_name:ident : $( {$field_vis:vis $field_name:ident : $field_type:ty} ),*] ),+
+    } => {
+        $(
+            $class_vis struct $class_name {
+                inner: *mut objc::runtime::Object,
+                $(
+                    $field_vis $field_name : $field_type
+                )*
+            }
+
+            impl $class_name {
+                pub fn inner(&self) -> *mut objc::runtime::Object {
+                    self.inner
+                }
+            }
+        )+
+    };
+
+    {
+        $( [$class_vis:vis $class_name:ident ] ),+
+    } => {
+        $(
+            $class_vis struct $class_name {
+                pub(crate) inner: *mut objc::runtime::Object,
+            }
+
+            impl $class_name {
+                pub fn inner(&self) -> *mut objc::runtime::Object {
+                    self.inner
+                }
+            }
+
+            impl From<*mut objc::runtime::Object> for $class_name {
+                fn from(obj: *mut objc::runtime::Object) -> Self {
+                    $class_name {
+                        inner: obj,
+                    }
+                }
+            }
+        )+
+    };
+}
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[allow(non_snake_case)]
 pub mod ffi;
 
+/// Backward-compatible alias for the `ffi` module (previously named `core_media`).
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-pub mod format;
+pub use ffi as core_media;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-pub mod callback;
+pub(crate) mod format;
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) mod callback;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub mod device;

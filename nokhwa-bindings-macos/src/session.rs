@@ -1,4 +1,4 @@
-// AVCaptureDeviceInput, AVCaptureVideoDataOutput, AVCaptureSession
+//! AVCaptureDeviceInput, AVCaptureVideoDataOutput, and AVCaptureSession.
 
 use cocoa_foundation::{
     base::nil,
@@ -22,32 +22,6 @@ use std::ffi::c_void;
 
 use crate::callback::AVCaptureVideoCallback;
 use crate::device::AVCaptureDevice;
-
-macro_rules! create_boilerplate_impl {
-    {
-        $( [$class_vis:vis $class_name:ident ] ),+
-    } => {
-        $(
-            $class_vis struct $class_name {
-                pub(crate) inner: *mut Object,
-            }
-
-            impl $class_name {
-                pub fn inner(&self) -> *mut Object {
-                    self.inner
-                }
-            }
-
-            impl From<*mut Object> for $class_name {
-                fn from(obj: *mut Object) -> Self {
-                    $class_name {
-                        inner: obj,
-                    }
-                }
-            }
-        )+
-    };
-}
 
 create_boilerplate_impl! {
     [pub AVCaptureDeviceInput],
