@@ -45,6 +45,7 @@ pub mod wmf {
             atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
+        time::Duration,
     };
     use windows::Win32::Media::DirectShow::{CameraControl_Flags_Auto, CameraControl_Flags_Manual};
     use windows::Win32::Media::MediaFoundation::{
@@ -410,6 +411,10 @@ pub mod wmf {
         device_specifier: CameraInfo,
         device_format: CameraFormat,
         source_reader: IMFSourceReader,
+        /// Wallclock instant captured when the stream was started.
+        /// MF sample timestamps are relative to stream start, so
+        /// `stream_epoch + sample_time` gives us an absolute wallclock.
+        stream_epoch: Option<Duration>,
     }
 
     impl MediaFoundationDevice {
@@ -494,6 +499,7 @@ pub mod wmf {
                         device_specifier: device_descriptor,
                         device_format: CameraFormat::default(),
                         source_reader,
+                        stream_epoch: None,
                     })
                 }
                 CameraIndex::String(s) => {
@@ -1125,11 +1131,14 @@ pub mod wmf {
                 return Err(NokhwaError::OpenStreamError(why.to_string()));
             }
 
+            self.stream_epoch = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok();
             self.is_open.set(true);
             Ok(())
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
+        pub fn raw_bytes(&mut self) -> Result<(Cow<'_, [u8]>, Option<Duration>), NokhwaError> {
             let mut imf_sample: Option<IMFSample> = match unsafe { MFCreateSample() } {
                 Ok(sample) => Some(sample),
                 Err(why) => {
@@ -1137,6 +1146,7 @@ pub mod wmf {
                 }
             };
             let mut stream_flags = 0;
+            let mut sample_time_100ns: i64 = 0;
             {
                 loop {
                     if let Err(why) = unsafe {
@@ -1145,7 +1155,7 @@ pub mod wmf {
                             0,
                             None,
                             Some(&mut stream_flags),
-                            None,
+                            Some(&mut sample_time_100ns),
                             Some(&mut imf_sample),
                         )
                     } {
@@ -1164,6 +1174,15 @@ pub mod wmf {
                     // shouldn't happen
                     return Err(NokhwaError::ReadFrameError("No sample".to_string()));
                 }
+            };
+
+            // Calculate absolute capture timestamp.
+            let capture_ts = if sample_time_100ns > 0 {
+                let sample_offset = Duration::from_nanos(sample_time_100ns as u64 * 100);
+                self.stream_epoch
+                    .and_then(|epoch| epoch.checked_add(sample_offset))
+            } else {
+                None
             };
 
             let buffer = match unsafe { imf_sample.ConvertToContiguousBuffer() } {
@@ -1200,10 +1219,11 @@ pub mod wmf {
                 ) as &[u8]);
             }
 
-            Ok(Cow::from(data_slice))
+            Ok((Cow::from(data_slice), capture_ts))
         }
 
         pub fn stop_stream(&mut self) {
+            self.stream_epoch = None;
             self.is_open.set(false);
         }
     }
@@ -1242,7 +1262,7 @@ pub mod wmf {
         CameraControl, CameraFormat, CameraIndex, CameraInfo, ControlValueSetter,
         KnownCameraControl,
     };
-    use std::borrow::Cow;
+    use std::{borrow::Cow, time::Duration};
 
     pub fn initialize_mf() -> Result<(), NokhwaError> {
         Err(NokhwaError::NotImplementedError(
@@ -1333,7 +1353,7 @@ pub mod wmf {
             ))
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
+        pub fn raw_bytes(&mut self) -> Result<(Cow<'_, [u8]>, Option<Duration>), NokhwaError> {
             Err(NokhwaError::NotImplementedError(
                 "Only on Windows".to_string(),
             ))

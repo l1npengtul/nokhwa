@@ -97,6 +97,8 @@ mod internal {
 
             pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
 
+            pub fn CMSampleBufferGetPresentationTimeStamp(sbuf: CMSampleBufferRef) -> CMTime;
+
             pub fn dispatch_queue_create(
                 label: *const std::os::raw::c_char,
                 attr: NSObject,
@@ -248,10 +250,36 @@ mod internal {
         error::Error,
         ffi::{c_float, c_void, CStr},
         sync::Arc,
+        time::Duration,
     };
 
     const UTF8_ENCODING: usize = 4;
     type CGFloat = c_float;
+
+    extern "C" {
+        fn mach_absolute_time() -> u64;
+    }
+
+    #[repr(C)]
+    struct MachTimebaseInfo {
+        numer: u32,
+        denom: u32,
+    }
+
+    extern "C" {
+        fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
+    }
+
+    fn mach_absolute_time_nanos() -> u64 {
+        static TIMEBASE: once_cell::sync::Lazy<(u32, u32)> = once_cell::sync::Lazy::new(|| {
+            let mut info = MachTimebaseInfo { numer: 0, denom: 0 };
+            unsafe { mach_timebase_info(&mut info) };
+            (info.numer, info.denom)
+        });
+        let ticks = unsafe { mach_absolute_time() };
+        let (numer, denom) = *TIMEBASE;
+        ticks.wrapping_mul(numer as u64) / (denom as u64)
+    }
 
     macro_rules! create_boilerplate_impl {
         {
@@ -378,7 +406,7 @@ mod internal {
         }
     }
 
-    pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat);
+    pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat, Option<Duration>);
     pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
     static CALLBACK_CLASS: Lazy<&'static Class> = Lazy::new(|| {
@@ -427,15 +455,45 @@ mod internal {
                 };
 
                 unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
+
+                // CMSampleBufferGetPresentationTimeStamp returns the sensor
+                // capture instant on a monotonic clock (mach_absolute_time
+                // timebase).  Convert to Unix wallclock:
+                //   wall = SystemTime::now() - (mach_now - pts)
+                let capture_ts = {
+                    let pts = unsafe {
+                        core_media::CMSampleBufferGetPresentationTimeStamp(
+                            didOutputSampleBuffer,
+                        )
+                    };
+                    if pts.timescale > 0 {
+                        let pts_nanos = (pts.value as u128)
+                            .saturating_mul(1_000_000_000)
+                            / (pts.timescale as u128);
+                        let mono_now_nanos = mach_absolute_time_nanos() as u128;
+                        let wall_now = std::time::SystemTime::now();
+
+                        let age = Duration::from_nanos(
+                            mono_now_nanos.saturating_sub(pts_nanos) as u64,
+                        );
+                        wall_now
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .ok()
+                            .and_then(|wall_dur| wall_dur.checked_sub(age))
+                    } else {
+                        None
+                    }
+                };
+
                 // oooooh scarey unsafe
                 // AAAAAAAAAAAAAAAAAAAAAAAAA
                 // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
                 let bufferlck_cv: *const c_void = unsafe { msg_send![this, bufferPtr] };
                 let buffer_sndr = unsafe {
-                    let ptr = bufferlck_cv.cast::<Sender<(Vec<u8>, FrameFormat)>>();
+                    let ptr = bufferlck_cv.cast::<Sender<(Vec<u8>, FrameFormat, Option<Duration>)>>();
                     Arc::from_raw(ptr)
                 };
-                if let Err(_) = buffer_sndr.send((buffer_as_vec, FrameFormat::GRAY)) {
+                if let Err(_) = buffer_sndr.send((buffer_as_vec, FrameFormat::GRAY, capture_ts)) {
                     // FIXME: dont, what the fuck???
                     return;
                 }
@@ -681,7 +739,7 @@ mod internal {
     impl AVCaptureVideoCallback {
         pub fn new(
             device_spec: &CStr,
-            buffer: &Arc<Sender<(Vec<u8>, FrameFormat)>>,
+            buffer: &Arc<Sender<(Vec<u8>, FrameFormat, Option<Duration>)>>,
         ) -> Result<Self, NokhwaError> {
             let cls = &CALLBACK_CLASS as &Class;
             let delegate: *mut Object = unsafe { msg_send![cls, alloc] };

@@ -877,12 +877,23 @@ mod internal {
 
         fn frame(&mut self) -> Result<Buffer, NokhwaError> {
             let cam_fmt = self.camera_format;
-            let raw_frame = self.frame_raw()?;
-            Ok(Buffer::new(
-                cam_fmt.resolution(),
-                &raw_frame,
-                cam_fmt.format(),
-            ))
+            match &mut self.stream_handle {
+                Some(sh) => match sh.next() {
+                    Ok((data, meta)) => {
+                        let wall_ts = monotonic_to_wallclock(meta.timestamp);
+                        Ok(Buffer::with_timestamp(
+                            cam_fmt.resolution(),
+                            data,
+                            cam_fmt.format(),
+                            wall_ts,
+                        ))
+                    }
+                    Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
+                },
+                None => Err(NokhwaError::ReadFrameError(
+                    "Stream Not Started".to_string(),
+                )),
+            }
         }
 
         fn frame_raw(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
@@ -926,6 +937,36 @@ mod internal {
             FrameFormat::RAWBGR => FourCC::new(b"BGR3"),
             FrameFormat::NV12 => FourCC::new(b"NV12"),
         }
+    }
+
+    /// Convert a V4L2 CLOCK_MONOTONIC timestamp to a wallclock Duration since UNIX_EPOCH.
+    fn monotonic_to_wallclock(ts: v4l::Timestamp) -> Option<std::time::Duration> {
+        let frame_mono = std::time::Duration::from(ts);
+        if frame_mono.is_zero() {
+            return None;
+        }
+
+        let mut mono_now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        let mut wall_now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        // SAFETY: passing valid pointers to kernel clock_gettime
+        unsafe {
+            libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut mono_now);
+            libc::clock_gettime(libc::CLOCK_REALTIME, &mut wall_now);
+        }
+        let mono_now =
+            std::time::Duration::new(mono_now.tv_sec as u64, mono_now.tv_nsec as u32);
+        let wall_now =
+            std::time::Duration::new(wall_now.tv_sec as u64, wall_now.tv_nsec as u32);
+
+        // frame_age = how long ago the frame was captured (monotonic delta)
+        let frame_age = mono_now.checked_sub(frame_mono)?;
+        wall_now.checked_sub(frame_age)
     }
 }
 
