@@ -1,94 +1,70 @@
-use crate::control::{ControlDescription, ControlId, ControlValue};
+use crate::control::{Control, ControlId, ControlValue};
 use crate::error::NokhwaError;
-use crate::frame_format::FrameFormat;
-use crate::stream::{StreamConfiguration, StreamHandle};
-use crate::types::{CameraFormat, FrameRate, Resolution};
-use std::collections::HashMap;
-use std::collections::hash_map::{Keys, Values};
-use std::sync::Arc;
+use crate::frame_buffer::FrameBuffer;
+use crate::stream::StreamTrait;
+use crate::types::CameraFormat;
 
-pub trait Setting {
-    /// # Errors
-    /// Will error on
+pub trait CameraTrait {
+    type Stream: StreamTrait;
+
     fn enumerate_formats(&self) -> Result<Vec<CameraFormat>, NokhwaError>;
 
-    /// # Errors
-    /// Will error on
-    fn enumerate_resolution_and_frame_rates(
-        &self,
-        frame_format: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
+    fn controls(&self) -> Result<Vec<Control>, NokhwaError>;
 
-    /// # Errors
-    /// Will error on
-    fn set_format(&mut self, camera_format: CameraFormat) -> Result<(), NokhwaError>;
+    fn control_value(&self, id: ControlId) -> Result<ControlValue, NokhwaError>;
 
-    fn control_ids(&self) -> Keys<'_, ControlId, ControlDescription>;
+    fn set_control(&self, id: ControlId, value: ControlValue) -> Result<(), NokhwaError>;
 
-    fn control_descriptions(&self) -> Values<'_, ControlId, ControlDescription>;
+    // fn open_stream<FrameCallback, ErrorCallback>(
+    //     &mut self,
+    //     camera_format: CameraFormat,
+    //     frame_callback: FrameCallback,
+    //     error_callback: ErrorCallback,
+    // ) -> Result<Self::Stream, NokhwaError>
+    // where
+    //     FrameCallback: FnMut(FrameBuffer<'_>) + Send + 'static,
+    //     ErrorCallback: FnMut(StreamEvent) + Send + 'static;
 
-    fn control_values(&self) -> Values<'_, ControlId, ControlValue>;
-
-    fn control_value(&self, id: &ControlId) -> Option<&ControlValue>;
-
-    fn control_description(&self, id: &ControlId) -> Option<&ControlDescription>;
-
-    /// # Errors
-    /// Will error on
-    fn set_control(&mut self, property: &ControlId, value: ControlValue)
-    -> Result<(), NokhwaError>;
-
-    /// # Errors
-    /// Will error on
-    fn refresh_controls(&mut self) -> Result<(), NokhwaError>;
-}
-
-#[cfg(feature = "async")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-pub trait AsyncSetting {
-    async fn enumerate_formats_async(&self) -> Result<Vec<CameraFormat>, NokhwaError>;
-
-    async fn enumerate_resolution_and_frame_rates_async(
-        &self,
-        frame_format: FrameFormat,
-    ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
-
-    async fn set_format_async(&self, camera_format: CameraFormat) -> Result<(), NokhwaError>;
-
-    async fn set_property_async(
+    fn open_stream<FrameCallback, ErrorCallback>(
         &mut self,
-        property: &ControlId,
-        value: ControlValue,
-    ) -> Result<(), NokhwaError>;
+        camera_format: CameraFormat,
+        frame_callback: FrameCallback,
+        error_callback: ErrorCallback,
+    ) -> Result<Self::Stream, NokhwaError>
+    where
+        FrameCallback: FnMut(FrameBuffer<'_>) + Send + 'static,
+        ErrorCallback: FnMut(NokhwaError) + Send + 'static;
 }
 
-pub trait Capture {
-    /// Implementations MUST guarantee that there can only ever be one stream open at once.
-    /// # Errors
-    /// Errors are driver specific
-    fn open_stream(
-        &mut self,
-        stream_configuration: Option<StreamConfiguration>,
-    ) -> Result<Arc<StreamHandle<'_>>, NokhwaError>;
+// #[cfg(feature = "async")]
+// #[cfg_attr(feature = "async", async_trait::async_trait)]
+// pub trait AsyncSetting {
+//     async fn enumerate_formats_async(&self) -> Result<Vec<CameraFormat>, NokhwaError>;
 
-    // Implementations MUST be multi-close tolerant.
-    /// # Errors
-    /// Errors are driver specific
-    fn close_stream(&mut self) -> Result<(), NokhwaError>;
-}
+//     async fn enumerate_resolution_and_frame_rates_async(
+//         &self,
+//         frame_format: FrameFormat,
+//     ) -> Result<HashMap<Resolution, Vec<FrameRate>>, NokhwaError>;
 
-#[cfg(feature = "async")]
-#[cfg_attr(feature = "async", async_trait::async_trait)]
-pub trait AsyncStream {
-    async fn open_stream_async<'a>(
-        &mut self,
-        stream_configuration: Option<StreamConfiguration>,
-    ) -> Result<StreamHandle<'a>, NokhwaError>;
+//     async fn set_format_async(&self, camera_format: CameraFormat) -> Result<(), NokhwaError>;
 
-    async fn close_stream_async(&mut self) -> Result<(), NokhwaError>;
-}
+//     async fn set_property_async(
+//         &mut self,
+//         property: &ControlId,
+//         value: ControlValue,
+//     ) -> Result<(), NokhwaError>;
+// }
 
-pub trait Camera: Setting + Capture {}
+// #[cfg(feature = "async")]
+// #[cfg_attr(feature = "async", async_trait::async_trait)]
+// pub trait AsyncStream {
+//     async fn open_stream_async<'a>(
+//         &mut self,
+//         stream_configuration: Option<StreamConfiguration>,
+//     ) -> Result<StreamHandle<'a>, NokhwaError>;
 
-#[cfg(feature = "async")]
-pub trait AsyncCamera: Camera + AsyncSetting + AsyncStream {}
+//     async fn close_stream_async(&mut self) -> Result<(), NokhwaError>;
+// }
+
+// // #[cfg(feature = "async")]
+// // pub trait AsyncCamera: Camera + AsyncSetting + AsyncStream {}

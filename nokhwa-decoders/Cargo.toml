@@ -8,8 +8,7 @@ ffmpeg = ["ffmpeg-the-third"]
 yuyv = ["dcv-color-primitives", "yuv"]
 mjpeg = ["zune-jpeg", "zune-core"]
 luma = ["nokhwa-iter-extensions", "itermore"]
-static = ["ffmpeg-the-third/static"]
-#async = []
+#ffmpeg-static = ["ffmpeg-the-third/static"]
 
 [dependencies]
 bytemuck = "1.23"
@@ -50,4 +49,4 @@ optional = true
 
 [dev-dependencies.image]
 workspace = true
-features = ["png", "jpeg", "avif"]
+features = ["png", "jpeg"]

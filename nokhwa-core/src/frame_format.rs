@@ -16,6 +16,7 @@
 
 use ordered_float::OrderedFloat;
 use std::fmt::{Display, Formatter};
+pub use uuid::Uuid;
 
 macro_rules! define_frame_format_with_groups {
     (
@@ -209,7 +210,7 @@ impl FrameFormat {
     #[must_use]
     pub fn is_custom(&self) -> bool {
         if let FrameFormat::Custom(_) = self {
-            return true
+            return true;
         }
         false
     }
@@ -224,8 +225,8 @@ impl Display for FrameFormat {
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum CustomFrameFormat {
-    UUID(u128),
-    FourCC([char; 4]),
+    UUID(Uuid),
+    FourCC([u8; 4]),
     U32(u32),
     U64(u64),
     F32(OrderedFloat<f32>),

@@ -54,8 +54,8 @@ fn create_video(config: &FfmpegConfig) -> Result<Video, NokhwaError> {
         })?;
 
     let frame_rate = AVRational {
-        num: config.frame_rate.numerator(),
-        den: config.frame_rate.denominator(),
+        num: config.frame_rate.numerator() as i32,
+        den: config.frame_rate.denominator() as i32,
     };
     let codec_i32 = unsafe { transmute::<AVCodecID, i32>(AVCodecID::from(id)) };
     let intermediate_config = IntermediateDecoderConfig {
@@ -335,7 +335,7 @@ fn convert_format_to_codec_id(frame_format: &FrameFormat) -> Option<Id> {
     }
 
     match frame_format {
-        FrameFormat::H265 => Some(Id::H265),
+        FrameFormat::H265 => Some(Id::HEVC),
         FrameFormat::H264 => Some(Id::H264),
         FrameFormat::AVC1 => Some(Id::H264),
         FrameFormat::H263 => Some(Id::H263),
@@ -652,7 +652,7 @@ const fn is_little_endian() -> bool {
 
 #[cfg(test)]
 mod test {
-    use ffmpeg_the_third::{codec::Context, format::input, media::Type, threading::Config};
+    use ffmpeg_the_third::format::input;
     use image::{ImageFormat, Rgb};
     use nokhwa_core::{
         decoder::Decoder,
@@ -712,13 +712,13 @@ mod test {
     pub fn test_h265() {
         ffmpeg_the_third::init().unwrap();
 
-        let file = "test_images/ffmpeg/h265/out.h265";
+        let file = "test_images/ffmpeg/h265/bitstream.265";
         let output_dir = "test_images/ffmpeg/h265/out";
 
         let decoder_cfg = FfmpegConfig {
             custom_frame_format_map: None,
             frame_format: FrameFormat::H265,
-            resolution: Resolution::new(498, 348),
+            resolution: Resolution::new(480, 270),
             frame_rate: FrameRate::from_fps(30),
             parallelism: Parallelism::default(),
             ffmpeg_codec_low_level: FfmpegDecoderConfig::default(),

@@ -87,6 +87,7 @@
               gmp
               openapv
               svt-av1
+              mkvtoolnix-cli
             ]);
 
           env.RUST_SRC_PATH = "${rustbin}/lib/rustlib/src/rust/library";

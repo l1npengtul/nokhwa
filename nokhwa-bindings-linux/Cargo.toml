@@ -9,18 +9,10 @@ keywords = ["v4l", "v4l2", "linux", "nokhwa", "webcam"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-v4l2 = ["v4l", "v4l2-sys-mit"]
-pw = ["pipewire"]
-async = ["flume/async", "nokhwa-core/async"]
 
 [dependencies]
 v4l = { version = "0.14", features = ["v4l2"], optional = true }
 v4l2-sys-mit = { version = "0.3", optional = true }
-flume = "0.11.1"
-
-[dependencies.pipewire]
-version = "0.8"
-optional = true
 
 [dependencies.nokhwa-core]
 version = "0.2"

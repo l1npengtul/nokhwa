@@ -1,3 +1,4 @@
+use crate::control::{ControlId, ControlValue};
 /*
  * Copyright 2022 l1npengtul <l1npengtul@protonmail.com> / The Nokhwa Contributors
  *
@@ -15,8 +16,9 @@
  */
 use crate::frame_format::{CustomFrameFormat, FrameFormat};
 use crate::pixel_destination::PixelDestination;
-use crate::types::Backends;
-use std::fmt::Debug;
+use crate::types::{Backends, CameraIndex};
+use std::fmt::{Debug, Display};
+use std::num::ParseIntError;
 use thiserror::Error;
 
 pub type NokhwaResult<T> = Result<T, NokhwaError>;
@@ -25,44 +27,59 @@ pub type NokhwaResult<T> = Result<T, NokhwaError>;
 #[allow(clippy::module_name_repetitions)]
 #[derive(Error, Debug, Clone)]
 pub enum NokhwaError {
+    // NokhwaCore Errors
+    #[error("Failed to parse string index to u32: {0}")]
+    IndexParsingFailed(ParseIntError),
+
+    // Platform Errors
     #[error("Could not initialize {backend}: {error}")]
     InitializeError { backend: Backends, error: String },
-    #[error("Could not shutdown {backend}: {error}")]
-    ShutdownError { backend: Backends, error: String },
-    #[error("Error: {0}")]
-    GeneralError(String),
-    #[error("Could not generate required structure {structure}: {error}")]
-    StructureError { structure: String, error: String },
     #[error("Could not open device {0}: {1}")]
-    OpenDeviceError(String, String),
-    #[error("Could not get device property {property}: {error}")]
-    GetPropertyError { property: String, error: String },
-    #[error("Could not set device property {property} with value {value}: {error}")]
-    SetPropertyError {
-        property: String,
-        value: String,
+    OpenDeviceError(CameraIndex, String),
+    #[error("Failed to query for cameras: {0}")]
+    QueryError(String),
+
+    // Camera Errors
+    #[error("Failed to list FrameFormats: {0}")]
+    ListFourCCError(String),
+    #[error("Failed to list Resolutions: {0}")]
+    ListResolutionError(String),
+    #[error("Failed to list FrameRates: {0}")]
+    ListFrameRatesError(String),
+    #[error("Failed to list Controls: {0}")]
+    ListControlError(String),
+    #[error("{0:?} is an invalid control id: {1}")]
+    InvalidControlId(ControlId, String),
+    #[error("{0:?} is an invalid control value.")]
+    InvalidControlValue(ControlValue),
+    #[error("{0:?} is an invalid frame format: {1}")]
+    InvalidFrameFormat(FrameFormat, String),
+    #[error("Failed to get control descriptor for {0}: {1}")]
+    FailedToGetControlDescriptor(ControlId, String),
+    #[error("Could not shutdown {backend} device {device}: {error}")]
+    ShutdownError {
+        backend: Backends,
+        device: CameraIndex,
         error: String,
     },
+
+    // Stream Related Errors
     #[error("Could not open device stream: {0}")]
     OpenStreamError(String),
-    #[error("Could not capture frame: {0}")]
-    ReadFrameError(String),
-    #[error("Could not process frame {src} to {destination}: {error}")]
-    ProcessFrameError {
-        src: FrameFormat,
-        destination: String,
-        error: String,
-    },
+    #[error("Error occured during stream: {0:?}")]
+    StreamError(StreamError),
     #[error("Could not stop stream: {0}")]
     StreamShutdownError(String),
+    #[error("Device no longer exists: {0}")]
+    DeviceNoLongerExists(CameraIndex),
+
+    // Not-Implemented Errors
     #[error("This operation is not supported by backend {0}.")]
     UnsupportedOperationError(Backends),
     #[error("This operation is not implemented yet: {0}")]
     NotImplementedError(String),
-    #[error("Failed To Convert: {0}")]
-    ConversionError(String),
-    #[error("Permission denied by user.")]
-    PermissionDenied,
+
+    // Decoders
     #[error("Failed to decode: {0}")]
     Decoder(String),
     #[error("Unsupported FrameFormat: {0}")]
@@ -98,23 +115,17 @@ impl NokhwaError {
     }
 }
 
-//
-// pub enum InitializeError {}
-//
-// pub enum QueryBackendError {}
-//
-// pub enum OpenDeviceError {}
-//
-// pub enum QueryDeviceError {}
-//
-// pub enum GetPropertyError {}
-//
-// pub enum SetPropertyError {}
-//
-// pub enum OpenStreamError {}
-//
-// pub enum CloseStreamError {}
-//
-// pub enum FrameError {}
-//
-// pub enum DecoderError {}
+/// Errors that may occur during a stream
+#[derive(Error, Debug, Clone)]
+pub enum StreamError {
+    NotReady,
+    NoLongerExists,
+    StreamInvalidated,
+    Other(String),
+}
+
+impl Display for StreamError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}

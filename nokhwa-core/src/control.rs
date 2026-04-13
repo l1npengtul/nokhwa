@@ -1,13 +1,34 @@
-use crate::error::{NokhwaError, NokhwaResult};
 use crate::ranges::{Range, ValidatableRange};
-use compact_str::CompactString;
 use ordered_float::OrderedFloat;
-use std::collections::hash_map::{Keys, Values};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+pub use uuid::Uuid;
 
-pub type PlatformSpecificControlId = u64;
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum CustomControlId {
+    U32(u32),
+    U64(u64),
+    Uuid(Uuid),
+}
+
+impl From<u32> for CustomControlId {
+    fn from(value: u32) -> Self {
+        CustomControlId::U32(value)
+    }
+}
+
+impl From<u64> for CustomControlId {
+    fn from(value: u64) -> Self {
+        CustomControlId::U64(value)
+    }
+}
+
+impl From<Uuid> for CustomControlId {
+    fn from(value: Uuid) -> Self {
+        CustomControlId::Uuid(value)
+    }
+}
 
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum ControlId {
@@ -44,7 +65,7 @@ pub enum ControlId {
 
     Orientation,
 
-    PlatformSpecific(PlatformSpecificControlId),
+    Custom(CustomControlId),
 }
 
 impl Display for ControlId {
@@ -53,115 +74,115 @@ impl Display for ControlId {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Controls {
-    descriptions: HashMap<ControlId, ControlDescription>,
-    values: HashMap<ControlId, ControlValue>,
-}
+// #[derive(Clone, Debug, Default, PartialEq)]
+// pub struct Controls {
+//     descriptions: HashMap<ControlId, ControlDescription>,
+//     values: HashMap<ControlId, ControlValue>,
+// }
 
-impl Controls {
-    /// INVARIANTS: All `ControlId` in `device_values` MUST exist in `device_controls`
-    #[must_use]
-    pub fn new(
-        device_controls: HashMap<ControlId, ControlDescription>,
-        device_values: HashMap<ControlId, ControlValue>,
-    ) -> Option<Self> {
-        for (id, value) in &device_values {
-            if let Some(description) = device_controls.get(id)
-                && !description.validate(value)
-            {
-                return None;
-            }
-        }
+// impl Controls {
+//     /// INVARIANTS: All `ControlId` in `device_values` MUST exist in `device_controls`
+//     #[must_use]
+//     pub fn new(
+//         device_controls: HashMap<ControlId, ControlDescription>,
+//         device_values: HashMap<ControlId, ControlValue>,
+//     ) -> Option<Self> {
+//         for (id, value) in &device_values {
+//             if let Some(description) = device_controls.get(id)
+//                 && !description.validate(value)
+//             {
+//                 return None;
+//             }
+//         }
 
-        Some(Self {
-            descriptions: device_controls,
-            values: device_values,
-        })
-    }
+//         Some(Self {
+//             descriptions: device_controls,
+//             values: device_values,
+//         })
+//     }
 
-    #[must_use]
-    pub fn empty() -> Self {
-        Self::default()
-    }
+//     #[must_use]
+//     pub fn empty() -> Self {
+//         Self::default()
+//     }
 
-    #[must_use]
-    pub fn unchecked_new(
-        device_controls: HashMap<ControlId, ControlDescription>,
-        device_values: HashMap<ControlId, ControlValue>,
-    ) -> Self {
-        Self {
-            descriptions: device_controls,
-            values: device_values,
-        }
-    }
+//     #[must_use]
+//     pub fn unchecked_new(
+//         device_controls: HashMap<ControlId, ControlDescription>,
+//         device_values: HashMap<ControlId, ControlValue>,
+//     ) -> Self {
+//         Self {
+//             descriptions: device_controls,
+//             values: device_values,
+//         }
+//     }
 
-    #[must_use]
-    pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
-        self.descriptions.get(control_id)
-    }
+//     #[must_use]
+//     pub fn description(&self, control_id: &ControlId) -> Option<&ControlDescription> {
+//         self.descriptions.get(control_id)
+//     }
 
-    #[must_use]
-    pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
-        self.values.get(control_id)
-    }
+//     #[must_use]
+//     pub fn value(&self, control_id: &ControlId) -> Option<&ControlValue> {
+//         self.values.get(control_id)
+//     }
 
-    #[must_use]
-    pub fn descriptions(&self) -> Values<'_, ControlId, ControlDescription> {
-        self.descriptions.values()
-    }
+//     #[must_use]
+//     pub fn descriptions(&self) -> Values<'_, ControlId, ControlDescription> {
+//         self.descriptions.values()
+//     }
 
-    #[must_use]
-    pub fn values(&self) -> Values<'_, ControlId, ControlValue> {
-        self.values.values()
-    }
+//     #[must_use]
+//     pub fn values(&self) -> Values<'_, ControlId, ControlValue> {
+//         self.values.values()
+//     }
 
-    #[must_use]
-    pub fn ids(&self) -> Keys<'_, ControlId, ControlDescription> {
-        self.descriptions.keys()
-    }
+//     #[must_use]
+//     pub fn ids(&self) -> Keys<'_, ControlId, ControlDescription> {
+//         self.descriptions.keys()
+//     }
 
-    pub fn validate(
-        &self,
-        control_id: &ControlId,
-        value: &ControlValue,
-    ) -> Result<bool, NokhwaError> {
-        let Some(description) = self.descriptions.get(control_id) else {
-            return Err(NokhwaError::GetPropertyError {
-                property: control_id.to_string(),
-                error: "ID Not Found".to_string(),
-            });
-        };
+//     pub fn validate(
+//         &self,
+//         control_id: &ControlId,
+//         value: &ControlValue,
+//     ) -> Result<bool, NokhwaError> {
+//         let Some(description) = self.descriptions.get(control_id) else {
+//             return Err(NokhwaError::GetPropertyError {
+//                 property: control_id.to_string(),
+//                 error: "ID Not Found".to_string(),
+//             });
+//         };
 
-        if !self.values.contains_key(control_id) {
-            return Err(NokhwaError::GetPropertyError {
-                property: control_id.to_string(),
-                error: "ID Not Found".to_string(),
-            });
-        }
+//         if !self.values.contains_key(control_id) {
+//             return Err(NokhwaError::GetPropertyError {
+//                 property: control_id.to_string(),
+//                 error: "ID Not Found".to_string(),
+//             });
+//         }
 
-        Ok(description.validate(value))
-    }
+//         Ok(description.validate(value))
+//     }
 
-    pub fn set_control_value(
-        &mut self,
-        control_id: &ControlId,
-        value: ControlValue,
-    ) -> NokhwaResult<()> {
-        match self.values.get_mut(control_id) {
-            Some(old) => {
-                *old = value;
-                Ok(())
-            }
-            // this should not happen,
-            None => Err(NokhwaError::SetPropertyError {
-                property: control_id.to_string(),
-                value: value.to_string(),
-                error: "ID Not Found".to_string(),
-            }),
-        }
-    }
-}
+//     pub fn set_control_value(
+//         &mut self,
+//         control_id: &ControlId,
+//         value: ControlValue,
+//     ) -> NokhwaResult<()> {
+//         match self.values.get_mut(control_id) {
+//             Some(old) => {
+//                 *old = value;
+//                 Ok(())
+//             }
+//             // this should not happen,
+//             None => Err(NokhwaError::SetPropertyError {
+//                 property: control_id.to_string(),
+//                 value: value.to_string(),
+//                 error: "ID Not Found".to_string(),
+//             }),
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ControlDescription {
@@ -347,7 +368,7 @@ pub enum ControlValue {
     Integer(i64),
     BitMask(u64),
     Float(OrderedFloat<f64>),
-    String(CompactString),
+    String(String),
     Boolean(bool),
     Array(Vec<ControlValue>),
     Binary(Vec<u8>),
@@ -479,4 +500,10 @@ impl Display for Orientation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Orientation {self:?}")
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Control {
+    pub id: ControlId,
+    pub description: ControlDescription,
 }

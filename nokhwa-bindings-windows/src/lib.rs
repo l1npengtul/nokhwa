@@ -1245,110 +1245,143 @@ pub mod wmf {
 #[allow(clippy::needless_pass_by_value)]
 #[allow(clippy::must_use_candidate)]
 pub mod wmf {
-    use nokhwa_core::control::{CameraControl, ControlValue, KnownCameraControl};
-    use nokhwa_core::error::NokhwaError;
-    use nokhwa_core::types::{CameraFormat, CameraIndex, CameraInformation};
-    use std::borrow::Cow;
+    use nokhwa_core::{
+        camera::{Camera, Capture, Setting},
+        platform::PlatformTrait,
+        types::Backends,
+    };
 
-    pub fn initialize_mf() -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not on windows".to_string(),
-        ))
-    }
+    pub struct MSMFCamera {}
 
-    pub fn de_initialize_mf() -> Result<(), NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not on windows".to_string(),
-        ))
-    }
-
-    pub fn query_msmf() -> Result<Vec<CameraInformation>, NokhwaError> {
-        Err(NokhwaError::NotImplementedError(
-            "Not on windows".to_string(),
-        ))
-    }
-
-    pub struct MediaFoundationDevice {
-        camera: CameraIndex,
-    }
-
-    impl MediaFoundationDevice {
-        pub fn new(_index: CameraIndex) -> Result<Self, NokhwaError> {
-            Ok(MediaFoundationDevice {
-                camera: CameraIndex::Index(0),
-            })
+    impl Setting for MSMFCamera {
+        fn enumerate_formats(
+            &self,
+        ) -> Result<Vec<nokhwa_core::types::CameraFormat>, nokhwa_core::error::NokhwaError>
+        {
+            todo!()
         }
 
-        pub fn index(&self) -> &CameraIndex {
-            &self.camera
+        fn enumerate_resolution_and_frame_rates(
+            &self,
+            frame_format: nokhwa_core::frame_format::FrameFormat,
+        ) -> Result<
+            std::collections::HashMap<
+                nokhwa_core::types::Resolution,
+                Vec<nokhwa_core::types::FrameRate>,
+            >,
+            nokhwa_core::error::NokhwaError,
+        > {
+            todo!()
         }
 
-        pub fn name(&self) -> String {
-            String::new()
-        }
-
-        pub fn symlink(&self) -> String {
-            String::new()
-        }
-
-        pub fn compatible_format_list(&mut self) -> Result<Vec<CameraFormat>, NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
-        }
-
-        pub fn control(&self, _control: KnownCameraControl) -> Result<CameraControl, NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
-        }
-
-        pub fn set_control(
+        fn set_format(
             &mut self,
-            _control: KnownCameraControl,
-            _value: ControlValue,
-        ) -> Result<(), NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
+            camera_format: nokhwa_core::types::CameraFormat,
+        ) -> Result<(), nokhwa_core::error::NokhwaError> {
+            todo!()
         }
 
-        pub fn format_refreshed(&mut self) -> Result<CameraFormat, NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
+        fn control_ids(
+            &self,
+        ) -> std::collections::hash_map::Keys<
+            '_,
+            nokhwa_core::control::ControlId,
+            nokhwa_core::control::ControlDescription,
+        > {
+            todo!()
         }
 
-        pub fn format(&self) -> CameraFormat {
-            CameraFormat::default()
+        fn control_descriptions(
+            &self,
+        ) -> std::collections::hash_map::Values<
+            '_,
+            nokhwa_core::control::ControlId,
+            nokhwa_core::control::ControlDescription,
+        > {
+            todo!()
         }
 
-        pub fn set_format(&mut self, _format: CameraFormat) -> Result<(), NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
+        fn control_values(
+            &self,
+        ) -> std::collections::hash_map::Values<
+            '_,
+            nokhwa_core::control::ControlId,
+            nokhwa_core::control::ControlValue,
+        > {
+            todo!()
         }
 
-        pub fn is_stream_open(&self) -> bool {
-            false
+        fn control_value(
+            &self,
+            id: &nokhwa_core::control::ControlId,
+        ) -> Option<&nokhwa_core::control::ControlValue> {
+            todo!()
         }
 
-        pub fn start_stream(&mut self) -> Result<(), NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
+        fn control_description(
+            &self,
+            id: &nokhwa_core::control::ControlId,
+        ) -> Option<&nokhwa_core::control::ControlDescription> {
+            todo!()
         }
 
-        pub fn raw_bytes(&mut self) -> Result<Cow<[u8]>, NokhwaError> {
-            Err(NokhwaError::NotImplementedError(
-                "Only on Windows".to_string(),
-            ))
+        fn set_control(
+            &mut self,
+            property: &nokhwa_core::control::ControlId,
+            value: nokhwa_core::control::ControlValue,
+        ) -> Result<(), nokhwa_core::error::NokhwaError> {
+            todo!()
         }
 
-        pub fn stop_stream(&mut self) {}
+        fn refresh_controls(&mut self) -> Result<(), nokhwa_core::error::NokhwaError> {
+            todo!()
+        }
     }
 
-    impl Drop for MediaFoundationDevice {
-        fn drop(&mut self) {}
+    impl Capture for MSMFCamera {
+        fn open_stream(
+            &mut self,
+            stream_configuration: Option<nokhwa_core::stream::StreamConfiguration>,
+        ) -> Result<
+            std::sync::Arc<nokhwa_core::stream::StreamHandle<'_>>,
+            nokhwa_core::error::NokhwaError,
+        > {
+            todo!()
+        }
+
+        fn close_stream(&mut self) -> Result<(), nokhwa_core::error::NokhwaError> {
+            todo!()
+        }
+    }
+
+    impl Camera for MSMFCamera {}
+
+    pub struct MSMFPlatform {}
+
+    impl PlatformTrait for MSMFPlatform {
+        const PLATFORM: nokhwa_core::types::Backends = Backends::MicrosoftMediaFoundation;
+
+        type Camera = MSMFCamera;
+
+        fn block_on_permission(&mut self) -> nokhwa_core::error::NokhwaResult<()> {
+            todo!()
+        }
+
+        fn check_permission_given(&mut self) -> bool {
+            todo!()
+        }
+
+        fn query(
+            &mut self,
+        ) -> nokhwa_core::error::NokhwaResult<Vec<nokhwa_core::types::QueriedCamera>> {
+            todo!()
+        }
+
+        fn open(
+            &mut self,
+            index: nokhwa_core::types::CameraIndex,
+        ) -> nokhwa_core::error::NokhwaResult<Self::Camera> {
+            todo!()
+        }
     }
 }

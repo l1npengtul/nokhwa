@@ -13,75 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::control::ControlValue;
-pub use compact_str::CompactString;
-pub use smallmap::Map;
+use crate::metadata::Metadata;
 use std::borrow::Cow;
-use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-
-pub type PlatformSpecificFlag = u32;
-
-#[derive(Clone, Debug, Default)]
-pub struct Metadata {
-    flags: Map<CompactString, ControlValue>,
-}
-
-impl Metadata {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            flags: Map::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn get(&self, key: &str) -> Option<&ControlValue> {
-        self.flags.get(key)
-    }
-
-    pub fn insert(&mut self, key: CompactString, value: ControlValue) {
-        self.flags.insert(key, value);
-    }
-}
-
-impl Hash for Metadata {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for (key, value) in self.flags.iter() {
-            state.write(key.as_bytes());
-            value.hash(state);
-        }
-    }
-}
-
-impl Deref for Metadata {
-    type Target = Map<CompactString, ControlValue>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.flags
-    }
-}
-
-impl PartialEq for Metadata {
-    fn eq(&self, other: &Self) -> bool {
-        for (this_key, this_value) in self.flags.iter() {
-            if let Some(other_value) = other.flags.get(this_key) {
-                if this_value != other_value {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        true
-    }
-}
 
 /// A buffer returned by a camera to accommodate custom decoding.
 /// Contains information of Resolution, the buffer's [`FrameFormat`], and the buffer.
 ///
 /// Note that decoding on the main thread **will** decrease your performance and lead to dropped frames.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FrameBuffer<'a> {
     buffer: Cow<'a, [u8]>,
     metadata: Option<Metadata>,

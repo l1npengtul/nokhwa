@@ -1,11 +1,10 @@
 use crate::ranges::RangeItem;
 use crate::utils::Distance;
 use crate::{error::NokhwaError, frame_format::FrameFormat};
-use num_rational::Rational32;
+use num_rational::Ratio;
 use num_traits::FromPrimitive;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
-use std::num::NonZeroI32;
 use std::ops::{Div, Rem};
 use std::{
     cmp::Ordering,
@@ -22,7 +21,7 @@ use std::{
 pub enum CameraIndex {
     Index(u32),
     String(String),
-    Stable(String)
+    Stable(String),
 }
 
 impl CameraIndex {
@@ -32,9 +31,9 @@ impl CameraIndex {
     pub fn as_index(&self) -> Result<u32, NokhwaError> {
         match self {
             CameraIndex::Index(i) => Ok(*i),
-            CameraIndex::String(s) | CameraIndex::Stable(s) => s
-                .parse::<u32>()
-                .map_err(|why| NokhwaError::GeneralError(why.to_string())),
+            CameraIndex::String(s) | CameraIndex::Stable(s) => {
+                s.parse::<u32>().map_err(NokhwaError::IndexParsingFailed)
+            }
         }
     }
 
@@ -44,7 +43,7 @@ impl CameraIndex {
         match self {
             CameraIndex::Index(i) => i.to_string(),
             CameraIndex::String(s) | CameraIndex::Stable(s) => s.clone(),
-            }
+        }
     }
 
     /// Returns true if this [`CameraIndex`] contains an [`CameraIndex::Index`]
@@ -108,10 +107,7 @@ impl Resolution {
     #[must_use]
     // TODO: make this height and width.
     pub const fn new(width: u32, height: u32) -> Self {
-        Resolution {
-            width,
-            height,
-        }
+        Resolution { width, height }
     }
 
     /// Get the width of Resolution
@@ -230,43 +226,43 @@ impl RangeItem for Resolution {
 #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct FrameRate {
-    rational: Rational32,
+    rational: Ratio<u32>,
 }
 
 impl FrameRate {
     #[must_use]
-    pub const fn new(numerator: i32, denominator: NonZeroI32) -> Self {
+    pub const fn new(numerator: u32, denominator: u32) -> Self {
         Self {
-            rational: Rational32::new_raw(numerator, denominator.get()),
+            rational: Ratio::<u32>::new_raw(numerator, denominator),
         }
     }
 
     #[must_use]
-    pub const fn from_fps(fps: i32) -> Self {
+    pub const fn from_fps(fps: u32) -> Self {
         Self {
-            rational: Rational32::new_raw(fps, 1),
+            rational: Ratio::<u32>::new_raw(fps, 1),
         }
     }
 
     #[must_use]
-    pub fn numerator(&self) -> i32 {
+    pub fn numerator(&self) -> u32 {
         *self.rational.numer()
     }
 
     #[must_use]
-    pub fn denominator(&self) -> i32 {
+    pub fn denominator(&self) -> u32 {
         *self.rational.denom()
     }
 
     #[must_use]
-    pub fn as_raw(&self) -> &Rational32 {
+    pub fn as_raw(&self) -> &Ratio<u32> {
         &self.rational
     }
 
     #[must_use]
     pub fn approximate_float(&self) -> Option<f32> {
-        let numerator_float = f32::from_i32(self.numerator())?;
-        let denominator_float = f32::from_i32(self.denominator())?;
+        let numerator_float = f32::from_u32(self.numerator())?;
+        let denominator_float = f32::from_u32(self.denominator())?;
 
         Some(numerator_float / denominator_float)
     }
@@ -274,7 +270,7 @@ impl FrameRate {
 
 impl Default for FrameRate {
     fn default() -> Self {
-        FrameRate::new(30, NonZeroI32::new(1).unwrap())
+        FrameRate::new(30, 1)
     }
 }
 
@@ -319,11 +315,11 @@ impl Rem for FrameRate {
 impl RangeItem for FrameRate {
     const ZERO: Self = FrameRate::from_fps(0);
     const MIN: Self = FrameRate::from_fps(0);
-    const MAX: Self = FrameRate::from_fps(i32::MAX);
+    const MAX: Self = FrameRate::from_fps(u32::MAX);
 }
 
-impl From<Rational32> for FrameRate {
-    fn from(value: Rational32) -> Self {
+impl From<Ratio<u32>> for FrameRate {
+    fn from(value: Ratio<u32>) -> Self {
         FrameRate { rational: value }
     }
 }
@@ -430,7 +426,7 @@ impl Display for CameraFormat {
 
 /// Information about a Camera e.g. its name.
 /// `description` and `misc` may contain information that may differ from backend to backend. Refer to each backend for details.
-/// `stable_id` contains the stable ID that may be used to reopen the same device. 
+/// `stable_id` contains the stable ID that may be used to reopen the same device.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 #[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct CameraInformation {
@@ -446,7 +442,12 @@ impl CameraInformation {
     // OK, i just checkeed back on this code. WTF was I on when I wrote `&(impl AsRef<str> + ?Sized)` ????
     // I need to get on the same shit that my previous self was on, because holy shit that stuff is strong as FUCK!
     // Finally fixed this insanity. Hopefully I didnt torment anyone by actually putting this in a stable release.
-    pub fn new(human_name: String, description: String, misc: String, stable_id: Option<String>) -> Self {
+    pub fn new(
+        human_name: String,
+        description: String,
+        misc: String,
+        stable_id: Option<String>,
+    ) -> Self {
         CameraInformation {
             human_name,
             description,
@@ -475,7 +476,8 @@ impl CameraInformation {
         &self.misc
     }
 
-    #[must_use] pub fn stable_id(&self) -> Option<&str> {
+    #[must_use]
+    pub fn stable_id(&self) -> Option<&str> {
         self.stable_id.as_deref()
     }
 }
@@ -509,5 +511,5 @@ impl Display for Backends {
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub struct QueriedCamera {
     pub index: CameraIndex,
-    pub information: CameraInformation
+    pub information: CameraInformation,
 }

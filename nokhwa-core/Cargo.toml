@@ -12,7 +12,7 @@ repository = "https://github.com/l1npengtul/nokhwa"
 
 [features]
 default = []
-serialize = ["serde", "ordered-float/serde"]
+serialize = ["serde", "ordered-float/serde", "uuid/serde"]
 wgpu = ["wgpu-types"]
 opencv-mat = ["opencv", "opencv/clang-runtime"]
 docs-features = ["serialize", "wgpu-types"]
@@ -22,14 +22,17 @@ test-fail-warnings = []
 
 [dependencies]
 thiserror = "2.0"
-flume = "0.11"
+flume = "0.12"
 num-traits = "0.2"
 ordered-float = "5"
-typed-builder = "0.21"
-compact_str = "0.9"
+typed-builder = "0.23"
 bytemuck = "1.23"
-smallmap = "1.4"
 paste = "1.0"
+uuid = "1.19"
+
+[dependencies.time]
+version = "0.3"
+default-features = false
 
 [dependencies.num-rational]
 version = "0.4"
