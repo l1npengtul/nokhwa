@@ -225,7 +225,7 @@ pub trait CaptureBackendTrait {
         queue.write_texture(
             TexelCopyTextureInfoBase {
                 texture: &texture,
-                mip_level: 1,
+                mip_level: 0,
                 origin: Origin3d { x: 0, y: 0, z: 0 },
                 aspect: TextureAspect::All,
             },
