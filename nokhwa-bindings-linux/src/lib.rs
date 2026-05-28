@@ -920,7 +920,7 @@ mod internal {
         match fourcc.str().ok()? {
             "YUYV" => Some(FrameFormat::YUYV),
             "MJPG" => Some(FrameFormat::MJPEG),
-            "GRAY" => Some(FrameFormat::GRAY),
+            "GRAY" | "GREY" => Some(FrameFormat::GRAY),
             "RGB3" => Some(FrameFormat::RAWRGB),
             "BGR3" => Some(FrameFormat::RAWBGR),
             "NV12" => Some(FrameFormat::NV12),
