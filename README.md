@@ -29,7 +29,9 @@ let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteH
 // make the camera
 let mut camera = Camera::new(index, requested).unwrap();
 
-// get a frame
+// initialise the camera_stream (turn on the camera)
+camera.open_stream()?;
+// get a frame from the stream (take a picture)
 let frame = camera.frame().unwrap();
 println!("Captured Single Frame of {}", frame.buffer().len());
 // decode into an ImageBuffer
