@@ -213,7 +213,7 @@ mod internal {
                 let fps = match device.params() {
                     Ok(params) => {
                         if params.interval.numerator != 1
-                            || params.interval.denominator % params.interval.numerator != 0
+                            && params.interval.denominator % params.interval.numerator != 0
                         {
                             return Err(NokhwaError::GetPropertyError {
                                 property: "V4L2 FrameRate".to_string(),
