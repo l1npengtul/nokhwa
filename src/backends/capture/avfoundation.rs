@@ -152,13 +152,13 @@ impl CaptureBackendTrait for AVFoundationCaptureDevice {
         &mut self,
         fourcc: FrameFormat,
     ) -> Result<HashMap<Resolution, Vec<u32>>, NokhwaError> {
-        let supported_cfmt = self
+        let mut res_list = HashMap::new();
+        for format in self
             .device
             .supported_formats()?
             .into_iter()
-            .filter(|x| x.format() != fourcc);
-        let mut res_list = HashMap::new();
-        for format in supported_cfmt {
+            .filter(|x| x.format() == fourcc)
+        {
             match res_list.get_mut(&format.resolution()) {
                 Some(fpses) => Vec::push(fpses, format.frame_rate()),
                 None => {
