@@ -126,6 +126,40 @@ mod internal {
             ) -> *mut std::os::raw::c_void;
 
             pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
+
+            pub fn CVPixelBufferGetWidth(pixelBuffer: CVPixelBufferRef) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferGetHeight(pixelBuffer: CVPixelBufferRef) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferGetBytesPerRow(
+                pixelBuffer: CVPixelBufferRef,
+            ) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferIsPlanar(pixelBuffer: CVPixelBufferRef) -> u8;
+
+            pub fn CVPixelBufferGetPlaneCount(
+                pixelBuffer: CVPixelBufferRef,
+            ) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferGetBaseAddressOfPlane(
+                pixelBuffer: CVPixelBufferRef,
+                planeIndex: std::os::raw::c_ulong,
+            ) -> *mut std::os::raw::c_void;
+
+            pub fn CVPixelBufferGetBytesPerRowOfPlane(
+                pixelBuffer: CVPixelBufferRef,
+                planeIndex: std::os::raw::c_ulong,
+            ) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferGetWidthOfPlane(
+                pixelBuffer: CVPixelBufferRef,
+                planeIndex: std::os::raw::c_ulong,
+            ) -> std::os::raw::c_ulong;
+
+            pub fn CVPixelBufferGetHeightOfPlane(
+                pixelBuffer: CVPixelBufferRef,
+                planeIndex: std::os::raw::c_ulong,
+            ) -> std::os::raw::c_ulong;
         }
 
         #[repr(C)]
@@ -206,8 +240,11 @@ mod internal {
         AVMediaTypeMetadataObject, AVMediaTypeMuxed, AVMediaTypeSubtitle, AVMediaTypeText,
         AVMediaTypeTimecode, AVMediaTypeVideo, CGPoint, CMSampleBufferGetImageBuffer,
         CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
-        CVPixelBufferGetDataSize, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
-        NSObject, OSType,
+        CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRow,
+        CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetHeightOfPlane,
+        CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount, CVPixelBufferGetWidth,
+        CVPixelBufferGetWidthOfPlane, CVPixelBufferIsPlanar, CVPixelBufferLockBaseAddress,
+        CVPixelBufferUnlockBaseAddress, NSObject, OSType,
     };
 
     use block::ConcreteBlock;
@@ -404,6 +441,65 @@ mod internal {
         }
     }
 
+    /// Copy locked `CVPixelBuffer` into a tightly-packed byte buffer without stride padding.
+    /// CVPixelBuffers are usually padded; this converts such a strided/padded frame to non-strided.
+    ///
+    /// # Safety
+    /// `image_buffer` must be a valid `CVPixelBuffer` whose base address is currently locked.
+    unsafe fn copy_pixel_buffer_packed(image_buffer: CVImageBufferRef) -> Vec<u8> {
+        if unsafe { CVPixelBufferIsPlanar(image_buffer) } != 0 {
+            let plane_count = unsafe { CVPixelBufferGetPlaneCount(image_buffer) } as usize;
+            let mut out = Vec::new();
+            for plane in 0..plane_count {
+                let base = unsafe { CVPixelBufferGetBaseAddressOfPlane(image_buffer, plane as _) }
+                    as *const u8;
+                if base.is_null() {
+                    continue;
+                }
+                let stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(image_buffer, plane as _) }
+                    as usize;
+                let width =
+                    unsafe { CVPixelBufferGetWidthOfPlane(image_buffer, plane as _) } as usize;
+                let height =
+                    unsafe { CVPixelBufferGetHeightOfPlane(image_buffer, plane as _) } as usize;
+                // 8-bit 4:2:0 bi-planar (NV12) is the only planar format supported:
+                // plane 0 is luma at 1 byte/pixel
+                // plane 1 is interleaved Cb+Cr at 2 bytes/downsampled pixel
+                let bytes_per_pixel = if plane == 0 { 1 } else { 2 };
+                let valid = (width * bytes_per_pixel).min(stride);
+                out.reserve(valid * height);
+                for row in 0..height {
+                    let row_ptr = unsafe { base.add(row * stride) };
+                    out.extend_from_slice(unsafe { std::slice::from_raw_parts(row_ptr, valid) });
+                }
+            }
+            out
+        } else {
+            let base = unsafe { CVPixelBufferGetBaseAddress(image_buffer) } as *const u8;
+            if base.is_null() {
+                return Vec::new();
+            }
+            let stride = unsafe { CVPixelBufferGetBytesPerRow(image_buffer) } as usize;
+            let width = unsafe { CVPixelBufferGetWidth(image_buffer) } as usize;
+            let height = unsafe { CVPixelBufferGetHeight(image_buffer) } as usize;
+            let fcc = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
+            let bytes_per_row = match raw_fcc_to_frameformat(fcc) {
+                Some(FrameFormat::YUYV) => width * 2,
+                Some(FrameFormat::RAWRGB) => width * 3,
+                Some(FrameFormat::GRAY) => width,
+                _ => stride, // Don't truncate unknown formats
+            }
+            .min(stride);
+            let mut out = Vec::with_capacity(bytes_per_row * height);
+            for row in 0..height {
+                out.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(base.add(row * stride), bytes_per_row)
+                });
+            }
+            out
+        }
+    }
+
     pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat, Option<Duration>);
     pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
@@ -445,12 +541,9 @@ mod internal {
                     CVPixelBufferLockBaseAddress(image_buffer, 0);
                 };
 
-                let buffer_length = unsafe { CVPixelBufferGetDataSize(image_buffer) };
-                let buffer_ptr = unsafe { CVPixelBufferGetBaseAddress(image_buffer) };
-                let buffer_as_vec = unsafe {
-                    std::slice::from_raw_parts_mut(buffer_ptr as *mut u8, buffer_length as usize)
-                        .to_vec()
-                };
+                // Tightly pack possibly strided pixel data.
+                // nokhwa's decoders expect tightly-packed rows with no padding...
+                let buffer_as_vec = unsafe { copy_pixel_buffer_packed(image_buffer) };
 
                 unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
 
