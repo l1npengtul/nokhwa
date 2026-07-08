@@ -222,7 +222,6 @@ mod internal {
         CMFormatDescriptionRef, CMSampleBufferRef, CMTime, CMVideoDimensions,
     };
     use core_video_sys::{
-        kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
         kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
         kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
     };
@@ -398,9 +397,8 @@ mod internal {
             }
             kCMVideoCodecType_JPEG | kCMVideoCodecType_JPEG_OpenDML => Some(FrameFormat::MJPEG),
             kCMPixelFormat_8IndexedGray_WhiteIsZero => Some(FrameFormat::GRAY),
-            kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
-            | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
-            | kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange => Some(FrameFormat::YUYV),
+            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+            | kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange => Some(FrameFormat::NV12),
             kCMPixelFormat_24RGB => Some(FrameFormat::RAWRGB),
             _ => None,
         }
@@ -2339,7 +2337,7 @@ mod internal {
                 FrameFormat::YUYV => kCMPixelFormat_422YpCbCr8_yuvs,
                 FrameFormat::MJPEG => kCMVideoCodecType_JPEG,
                 FrameFormat::GRAY => kCMPixelFormat_8IndexedGray_WhiteIsZero,
-                FrameFormat::NV12 => kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+                FrameFormat::NV12 => kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
                 FrameFormat::RAWRGB => kCMPixelFormat_24RGB,
                 FrameFormat::RAWBGR => {
                     return Err(NokhwaError::SetPropertyError {
