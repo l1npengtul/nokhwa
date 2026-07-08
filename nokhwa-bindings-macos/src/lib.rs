@@ -1044,17 +1044,25 @@ mod internal {
                 if dimensions.height == descriptor.resolution().height() as i32
                     && dimensions.width == descriptor.resolution().width() as i32
                 {
-                    selected_format = format.internal;
-
+                    // Find a frame-rate range *on this same format* supporting
+                    // the requested FPS. A device (e.g. a Logitech C930e)
+                    // exposes the same resolution in several formats and supported FPSes.
+                    let mut range_for_format: *mut Object = std::ptr::null_mut();
                     for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
                         msg_send![format.internal, videoSupportedFrameRateRanges]
                     }) {
                         let max_fps: f64 = unsafe { msg_send![range.inner, maxFrameRate] };
                         // Older Apple cameras (i.e. iMac 2013) return 29.97000002997 as FPS.
                         if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.999 {
-                            selected_range = range.inner;
+                            range_for_format = range.inner;
                             break;
                         }
+                    }
+
+                    if !range_for_format.is_null() {
+                        selected_format = format.internal;
+                        selected_range = range_for_format;
+                        break;
                     }
                 }
             }
