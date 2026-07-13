@@ -990,7 +990,7 @@ mod internal {
             }
         }
 
-        pub fn lock(&self) -> Result<(), NokhwaError> {
+        pub fn lock(&mut self) -> Result<(), NokhwaError> {
             if self.locked {
                 return Ok(());
             }
@@ -1017,6 +1017,7 @@ mod internal {
                     error: "Lock Rejected".to_string(),
                 });
             }
+            self.locked = true;
             Ok(())
         }
 
@@ -1038,7 +1039,16 @@ mod internal {
             let mut selected_format: *mut Object = std::ptr::null_mut();
             let mut selected_range: *mut Object = std::ptr::null_mut();
 
-            for format in format_list {
+            // The format and frame-rate range must come from the SAME
+            // AVCaptureDeviceFormat: applying a range from another format
+            // throws NSInvalidArgumentException (and aborts through the
+            // objc catch). Devices commonly expose several formats with the
+            // same resolution (e.g. 420v and MJPEG), so pick both together
+            // and keep a consistent fallback.
+            let mut fallback_format: *mut Object = std::ptr::null_mut();
+            let mut fallback_range: *mut Object = std::ptr::null_mut();
+
+            'formats: for format in format_list {
                 let format_desc_ref: CMFormatDescriptionRef =
                     unsafe { msg_send![format.internal, performSelector: format_description_sel] };
                 let dimensions = unsafe { CMVideoFormatDescriptionGetDimensions(format_desc_ref) };
@@ -1046,19 +1056,29 @@ mod internal {
                 if dimensions.height == descriptor.resolution().height() as i32
                     && dimensions.width == descriptor.resolution().width() as i32
                 {
-                    selected_format = format.internal;
-
-                    for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
+                    let ranges = ns_arr_to_vec::<AVFrameRateRange>(unsafe {
                         msg_send![format.internal, videoSupportedFrameRateRanges]
-                    }) {
+                    });
+                    if fallback_format.is_null() {
+                        if let Some(range) = ranges.first() {
+                            fallback_format = format.internal;
+                            fallback_range = range.inner;
+                        }
+                    }
+                    for range in &ranges {
                         let max_fps: f64 = unsafe { msg_send![range.inner, maxFrameRate] };
                         // Older Apple cameras (i.e. iMac 2013) return 29.97000002997 as FPS.
                         if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.999 {
+                            selected_format = format.internal;
                             selected_range = range.inner;
-                            break;
+                            break 'formats;
                         }
                     }
                 }
+            }
+            if selected_format.is_null() || selected_range.is_null() {
+                selected_format = fallback_format;
+                selected_range = fallback_range;
             }
             if selected_range.is_null() || selected_format.is_null() {
                 return Err(NokhwaError::SetPropertyError {
