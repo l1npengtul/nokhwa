@@ -1058,6 +1058,10 @@ mod internal {
                             break;
                         }
                     }
+                    // avoid pairing activeFormat with a range from a different format
+                    if !selected_range.is_null() {
+                        break;
+                    }
                 }
             }
             if selected_range.is_null() || selected_format.is_null() {
