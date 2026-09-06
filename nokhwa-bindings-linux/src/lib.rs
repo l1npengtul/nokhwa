@@ -880,6 +880,7 @@ mod internal {
             match &mut self.stream_handle {
                 Some(sh) => match sh.next() {
                     Ok((data, meta)) => {
+                        let data = frame_payload(data, meta.bytesused)?;
                         let wall_ts = monotonic_to_wallclock(meta.timestamp);
                         Ok(Buffer::with_timestamp(
                             cam_fmt.resolution(),
@@ -899,7 +900,7 @@ mod internal {
         fn frame_raw(&mut self) -> Result<Cow<'_, [u8]>, NokhwaError> {
             match &mut self.stream_handle {
                 Some(sh) => match sh.next() {
-                    Ok((data, _)) => Ok(Cow::Borrowed(data)),
+                    Ok((data, meta)) => frame_payload(data, meta.bytesused).map(Cow::Borrowed),
                     Err(why) => Err(NokhwaError::ReadFrameError(why.to_string())),
                 },
                 None => Err(NokhwaError::ReadFrameError(
@@ -914,6 +915,17 @@ mod internal {
             }
             Ok(())
         }
+    }
+
+    fn frame_payload(data: &[u8], bytesused: u32) -> Result<&[u8], NokhwaError> {
+        // MmapStream returns the full allocation, which can include page padding.
+        // Only bytesused bytes belong to the captured frame, including for MJPEG.
+        data.get(..bytesused as usize).ok_or_else(|| {
+            NokhwaError::ReadFrameError(format!(
+                "V4L2 reported {bytesused} bytes used for a {}-byte buffer",
+                data.len()
+            ))
+        })
     }
 
     fn fourcc_to_frameformat(fourcc: FourCC) -> Option<FrameFormat> {
@@ -967,6 +979,88 @@ mod internal {
         // frame_age = how long ago the frame was captured (monotonic delta)
         let frame_age = mono_now.checked_sub(frame_mono)?;
         wall_now.checked_sub(frame_age)
+    }
+
+    #[cfg(test)]
+    mod frame_payload_tests {
+        use super::frame_payload;
+        use nokhwa_core::{
+            buffer::Buffer,
+            error::NokhwaError,
+            pixel_format::RgbFormat,
+            types::{FrameFormat, Resolution},
+        };
+
+        // A generated 1x1 grayscale JPEG frame.
+        const JPEG_1X1: &[u8] = &[
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x10, 0x0b, 0x0c,
+            0x0e, 0x0c, 0x0a, 0x10, 0x0e, 0x0d, 0x0e, 0x12, 0x11, 0x10, 0x13, 0x18, 0x28, 0x1a,
+            0x18, 0x16, 0x16, 0x18, 0x31, 0x23, 0x25, 0x1d, 0x28, 0x3a, 0x33, 0x3d, 0x3c, 0x39,
+            0x33, 0x38, 0x37, 0x40, 0x48, 0x5c, 0x4e, 0x40, 0x44, 0x57, 0x45, 0x37, 0x38, 0x50,
+            0x6d, 0x51, 0x57, 0x5f, 0x62, 0x67, 0x68, 0x67, 0x3e, 0x4d, 0x71, 0x79, 0x70, 0x64,
+            0x78, 0x5c, 0x65, 0x67, 0x63, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01, 0x00, 0x01,
+            0x01, 0x01, 0x11, 0x00, 0xff, 0xc4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xc4,
+            0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00,
+            0x3f, 0x00, 0x3f, 0xff, 0xd9,
+        ];
+
+        #[test]
+        fn padded_1080p_yuyv_decodes_to_exact_rgb_size() {
+            // 1920 * 1080 * 2 bytes, rounded up to a 4096-byte mmap page.
+            let mapped = vec![128; 4_149_248];
+            let payload = frame_payload(&mapped, 4_147_200).unwrap();
+            assert_eq!(payload.as_ptr(), mapped.as_ptr());
+            let frame = Buffer::new(Resolution::new(1920, 1080), payload, FrameFormat::YUYV);
+            let rgb = frame.decode_image::<RgbFormat>().unwrap();
+            assert_eq!(rgb.as_raw().len(), 6_220_800);
+        }
+
+        #[test]
+        fn padded_mjpeg_decodes_after_trimming() {
+            let mut mapped = JPEG_1X1.to_vec();
+            mapped.extend_from_slice(&[0xaa; 64]);
+
+            let payload = frame_payload(&mapped, JPEG_1X1.len() as u32).unwrap();
+            assert_eq!(payload, JPEG_1X1);
+
+            let frame = Buffer::new(Resolution::new(1, 1), payload, FrameFormat::MJPEG);
+            let rgb = frame.decode_image::<RgbFormat>().unwrap();
+            assert_eq!(rgb.dimensions(), (1, 1));
+            assert_eq!(rgb.as_raw().len(), 3);
+        }
+
+        #[test]
+        fn variable_length_payload_excludes_trailing_allocation() {
+            let mapped = [0xff, 0xd8, 0xff, 0xd9, 0xaa, 0xbb];
+            assert_eq!(frame_payload(&mapped, 4).unwrap(), &mapped[..4]);
+        }
+
+        #[test]
+        fn full_allocation_is_preserved_when_all_bytes_are_used() {
+            let mapped = [1, 2, 3, 4];
+            assert_eq!(frame_payload(&mapped, 4).unwrap(), mapped);
+        }
+
+        #[test]
+        fn empty_payload_does_not_expose_old_buffer_contents() {
+            assert!(frame_payload(&[1, 2, 3, 4], 0).unwrap().is_empty());
+            assert!(frame_payload(&[], 0).unwrap().is_empty());
+        }
+
+        #[test]
+        fn invalid_bytesused_returns_read_error_instead_of_panicking() {
+            assert!(matches!(
+                frame_payload(&[0; 4], 5),
+                Err(NokhwaError::ReadFrameError(_))
+            ));
+            assert!(matches!(
+                frame_payload(&[], u32::MAX),
+                Err(NokhwaError::ReadFrameError(_))
+            ));
+        }
     }
 }
 

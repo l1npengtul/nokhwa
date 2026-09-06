@@ -19,6 +19,11 @@ no-arena-buffer = [  ]
 version = "0.1"
 path    = "../nokhwa-core"
 
+[dev-dependencies.nokhwa-core]
+version  = "0.1"
+path     = "../nokhwa-core"
+features = [ "mjpeg" ]
+
 [target.'cfg(target_os="linux")'.dependencies]
 v4l = { version = "0.14", features = [ "v4l2-sys" ] }
 libc = "0.2"
